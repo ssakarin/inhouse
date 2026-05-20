@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경희홍익한의원 진료 알림</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1a13;
+    --surface: #1a2b1e;
+    --surface2: #243328;
+    --surface3: #2d3f31;
+    --border: #3a5040;
+    --accent: #6fcf8a;
+    --accent2: #4ab868;
+    --accent-dim: rgba(111,207,138,0.12);
+    --text: #e8f2ea;
+    --text2: #9ab5a0;
+    --text3: #5a7a61;
+    --danger: #ff6b6b;
+    --gold: #f0c060;
+    --radius: 14px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* 배경 패턴 */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle at 20% 20%, rgba(111,207,138,0.06) 0%, transparent 50%),
+                      radial-gradient(circle at 80% 80%, rgba(74,184,104,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  /* 헤더 */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+  }
+  .header-left h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: -0.3px;
+  }
+  .header-left p { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .mode-toggle {
+    display: flex;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .mode-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+    color: var(--text2);
+  }
+  .mode-btn.active { background: var(--accent2); color: #fff; font-weight: 700; }
+
+  /* ─── 입력 패널 ─── */
+  .input-panel { display: none; }
+  .input-panel.active { display: block; }
+  .input-layout { display: grid; gap: 12px; }
+  .input-form-column,
+  .input-monitor-column { min-width: 0; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 12px;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .name-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    outline: none;
+    transition: border 0.2s;
+  }
+  .name-input:focus { border-color: var(--accent2); }
+  .name-input::placeholder { color: var(--text3); font-weight: 400; font-size: 15px; }
+
+  /* 체크박스 그리드 */
+  .treatment-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .treat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .treat-item:hover { border-color: var(--accent2); background: var(--surface3); }
+  .treat-item.checked { border-color: var(--accent); background: var(--accent-dim); }
+  .treat-item input[type=checkbox] { display: none; }
+  .check-box {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    font-size: 12px;
+  }
+  .treat-item.checked .check-box { border-color: var(--accent); background: var(--accent); }
+  .treat-icon { font-size: 16px; }
+  .treat-name { font-size: 13px; font-weight: 500; color: var(--text2); }
+  .treat-item.checked .treat-name { color: var(--accent); font-weight: 700; }
+
+  /* 완료 버튼 */
+  .submit-btn {
+    width: 100%;
+    padding: 18px;
+    background: var(--accent2);
+    color: #0f1a13;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 16px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: -0.3px;
+  }
+  .submit-btn:hover { background: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(111,207,138,0.3); }
+  .submit-btn:active { transform: translateY(0); }
+  .submit-btn:disabled { background: var(--surface3); color: var(--text3); cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ─── 수신 / 베드 패널 ─── */
+  .receive-panel,
+  .bed-panel { display: none; }
+  .receive-panel.active,
+  .bed-panel.active { display: block; }
+
+  .receive-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .receive-title { font-size: 14px; font-weight: 700; color: var(--text2); }
+  .today-count {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  /* 알림 카드 */
+  .notification-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .notif-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    animation: slideIn 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .notif-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--accent);
+    border-radius: 4px 0 0 4px;
+  }
+  .notif-card.new::before { background: var(--gold); }
+  .notif-card:hover { border-color: var(--accent2); background: var(--surface2); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .notif-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .notif-name { font-size: 18px; font-weight: 900; color: var(--text); }
+  .notif-new-badge {
+    background: var(--gold);
+    color: #0f1a13;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+  .notif-time { font-size: 11px; color: var(--text3); }
+
+  .notif-treats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .notif-tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 20px;
+  }
+  .notif-hint { font-size: 11px; color: var(--text3); margin-top: 8px; }
+
+  /* 베드 모니터 */
+  .bed-monitor {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .bed-status {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    min-height: 72px;
+    position: relative;
+    cursor: default;
+  }
+  .bed-status.active { border-color: var(--accent); background: var(--accent-dim); }
+  .bed-status.selected { box-shadow: 0 0 0 2px rgba(240,192,96,0.55); border-color: var(--gold); }
+  .bed-status.alerting {
+    border-color: var(--danger);
+    animation: bedAlertPulse 0.9s ease-in-out infinite;
+  }
+  .bed-status.active,
+  .bed-status.done { cursor: pointer; }
+  .bed-status.done { border-color: var(--gold); }
+  .bed-status.done.alerting { border-color: var(--danger); }
+  @keyframes bedAlertPulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,107,107,0.55); background: rgba(255,107,107,0.10); }
+    50% { box-shadow: 0 0 0 4px rgba(255,107,107,0.9); background: rgba(255,107,107,0.22); }
+  }
+  .bed-status-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .bed-status-no { font-size: 12px; font-weight: 900; color: var(--accent); }
+  .bed-status-time {
+    font-size: clamp(18px, 4.8vw, 28px);
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    line-height: 0.95;
+    max-width: 74%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bed-status-name {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bed-status-treatment {
+    font-size: 13px;
+    font-weight: 900;
+    color: var(--accent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bed-popover {
+    display: none;
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: calc(100% + 6px);
+    z-index: 20;
+    background: #132018;
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: var(--shadow);
+  }
+  .bed-status:hover .bed-popover,
+  .bed-status:focus .bed-popover,
+  .bed-status.open .bed-popover { display: block; }
+  .bed-popover-title { font-size: 12px; font-weight: 900; color: var(--text); margin-bottom: 6px; }
+  .bed-popover-line { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .bed-popover-line.current { color: var(--accent); font-weight: 900; }
+
+  /* 베드 타이머 */
+  .bed-layout { display: flex; flex-direction: column; gap: 12px; }
+  .bed-selector {
+    width: 100%;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    outline: none;
+  }
+  .bed-selector:focus { border-color: var(--accent); }
+  .bed-clear-btn,
+  .bed-next-btn {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    color: var(--text2);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .bed-clear-btn:hover,
+  .bed-next-btn:hover { border-color: var(--accent); }
+  .bed-patient-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
+  .bed-detail { display: none; }
+  .bed-detail.active { display: block; }
+  .receive-bed-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .bed-summary {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .bed-name { font-size: 24px; font-weight: 900; color: var(--text); }
+  .bed-time { font-size: 12px; color: var(--text3); }
+  .timer-list { display: flex; flex-direction: column; gap: 10px; }
+  .timer-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .timer-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .timer-treatment { font-size: 28px; font-weight: 900; color: var(--accent); letter-spacing: 0; }
+  .timer-step { font-size: 11px; color: var(--text3); margin-top: 3px; }
+  .timer-clock {
+    font-size: clamp(44px, 10vw, 72px);
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    line-height: 0.95;
+    min-width: 170px;
+    text-align: right;
+  }
+  .timer-progress {
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 20px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .timer-bar {
+    width: 100%;
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.2s linear, background 0.2s;
+  }
+  .timer-card.done .timer-bar { background: var(--gold); }
+  .timer-card.done .timer-clock { color: var(--gold); }
+  .timer-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .treatment-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .timer-btn {
+    padding: 10px;
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .timer-btn.primary { background: var(--accent2); color: #0f1a13; border-color: var(--accent2); }
+  .timer-btn:hover { border-color: var(--accent); }
+  .timer-btn:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--border); }
+  .timer-settings {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .timer-minute-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+  }
+  .timer-set-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: var(--text2);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .timer-set-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  @media (min-width: 560px) {
+    .bed-monitor { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+  @media (min-width: 860px) {
+    .input-layout { grid-template-columns: minmax(340px, 0.9fr) minmax(420px, 1.1fr); align-items: start; }
+    .input-monitor-column .bed-monitor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  /* 빈 상태 */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text3);
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
+  .empty-text { font-size: 14px; }
+
+  /* 토스트 */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--accent2);
+    color: #0f1a13;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 12px 24px;
+    border-radius: 30px;
+    z-index: 999;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* 알림 팝업 오버레이 */
+  .notif-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 60px;
+  }
+  .notif-overlay.show { display: flex; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .notif-popup {
+    background: var(--surface);
+    border: 2px solid var(--gold);
+    border-radius: 20px;
+    padding: 28px 24px;
+    width: calc(100% - 32px);
+    max-width: 400px;
+    text-align: center;
+    animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(240,192,96,0.15);
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.8) translateY(-20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .popup-icon { font-size: 36px; margin-bottom: 12px; }
+  .popup-name { font-size: 28px; font-weight: 900; color: var(--text); margin-bottom: 8px; }
+  .popup-label { font-size: 12px; color: var(--text3); margin-bottom: 14px; }
+  .popup-treats { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 20px; }
+  .popup-tag {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 20px;
+  }
+  .popup-close {
+    width: 100%;
+    padding: 14px;
+    background: var(--gold);
+    color: #0f1a13;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 15px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .popup-close:hover { background: #f5ce70; }
+  .timer-alert-popup {
+    border-color: var(--danger);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(255,107,107,0.18);
+  }
+  .timer-alert-title { font-size: 26px; font-weight: 900; color: var(--danger); margin-bottom: 8px; }
+  .timer-alert-body { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 20px; }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+    margin-right: 5px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- 헤더 -->
+  <div class="header">
+    <div class="header-left">
+      <h1>🌿 경희홍익한의원</h1>
+      <p><span class="status-dot"></span>실시간 연결됨</p>
+    </div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" onclick="setMode('input')">입력</button>
+      <button class="mode-btn" onclick="setMode('receive')">수신</button>
+    </div>
+  </div>
+
+  <!-- 입력 패널 -->
+  <div class="input-panel active" id="inputPanel">
+    <div class="input-layout">
+      <div class="input-form-column">
+        <div class="card">
+          <div class="card-label">환자 성함</div>
+          <input class="name-input" id="patientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
+        </div>
+
+        <div class="card">
+          <div class="card-label">진료 종류 (복수 선택 가능)</div>
+          <div class="treatment-grid" id="treatmentGrid"></div>
+        </div>
+
+        <button class="submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
+      </div>
+
+      <div class="input-monitor-column">
+        <div class="card">
+          <div class="card-label">베드 사용 현황</div>
+          <div class="bed-monitor" id="inputBedMonitor"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 수신 패널 -->
+  <div class="receive-panel" id="receivePanel">
+    <div class="card">
+      <div class="card-label">베드 사용 현황</div>
+      <div class="bed-monitor" id="receiveBedMonitor"></div>
+    </div>
+    <div class="bed-layout">
+      <div class="bed-detail" id="receiveBedDetail"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 알림 팝업 오버레이 -->
+<div class="notif-overlay" id="notifOverlay" onclick="closePopup()">
+  <div class="notif-popup" onclick="event.stopPropagation()">
+    <div class="popup-icon">🔔</div>
+    <div class="popup-name" id="popupName"></div>
+    <div class="popup-label">진료 준비</div>
+    <div class="popup-treats" id="popupTreats"></div>
+    <button class="popup-close" onclick="closePopup()">확인</button>
+  </div>
+</div>
+
+<!-- 타이머 완료 알림 -->
+<div class="notif-overlay" id="timerAlertOverlay" onclick="closeTimerAlert()">
+  <div class="notif-popup timer-alert-popup" onclick="event.stopPropagation()">
+    <div class="popup-icon">⏰</div>
+    <div class="timer-alert-title">타이머 완료</div>
+    <div class="timer-alert-body" id="timerAlertBody"></div>
+    <button class="popup-close" onclick="closeTimerAlert()">확인</button>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, push, onChildAdded, onChildRemoved, onValue, query, orderByChild, startAt, get, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC0bPN-bEaEe7dLnfHPrQY10pnNdlkE1RA",
+    authDomain: "khhongik-inhouse.firebaseapp.com",
+    databaseURL: "https://khhongik-inhouse-default-rtdb.firebaseio.com",
+    projectId: "khhongik-inhouse",
+    storageBucket: "khhongik-inhouse.firebasestorage.app",
+    messagingSenderId: "399934659057",
+    appId: "1:399934659057:web:299e94b388f853442dcc50",
+    measurementId: "G-MPN5V3CYY8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // 진료 항목
+  const TREATMENTS = [
+    { id: 'acupuncture', name: '침', icon: '🪡' },
+    { id: 'hotpack', name: '핫팩', icon: '🔥' },
+    { id: 'lowfreq', name: '저주파', icon: '⚡' },
+    { id: 'cupping_wet', name: '습부항', icon: '🫙' },
+    { id: 'cupping_dry', name: '건부항', icon: '⭕' },
+    { id: 'moxibustion', name: '왕뜸', icon: '🌀' },
+    { id: 'e_mox', name: '전자뜸', icon: '💡' },
+    { id: 'pharmacopuncture', name: '약침', icon: '💉' },
+  ];
+
+  const TREATMENT_MINUTES = {
+    침: 5,
+    핫팩: 8,
+    저주파: 10,
+    습부항: 7,
+    건부항: 5,
+    왕뜸: 10,
+    전자뜸: 10,
+    약침: 3
+  };
+
+  const patientsByKey = new Map();
+  const BED_COUNT = 12;
+  let bedAssignments = Array(BED_COUNT).fill(null);
+  let selectedBedNo = 1;
+  let selectedReceiveBedNo = 1;
+  let bedRenderTicker = null;
+  let timerAlertAudioCtx = null;
+  let timerAlertBeepTimer = null;
+  let timerAlertStopTimer = null;
+  let isTimerAlertOpen = false;
+  let activeTimerAlert = null;
+  const timerAlertQueue = [];
+  const pendingTimerAlertBeds = new Set();
+  const finishingBeds = new Set();
+  const seenTimerAlerts = new Set();
+  const queuedTimerAlerts = new Set();
+  let hasLoadedBedsOnce = false;
+  window.currentMode = 'input';
+
+  renderBedSelector();
+  renderBedMonitors();
+
+  // 체크박스 렌더링
+  const grid = document.getElementById('treatmentGrid');
+  TREATMENTS.forEach(t => {
+    const item = document.createElement('label');
+    item.className = 'treat-item';
+    item.innerHTML = `
+      <input type="checkbox" value="${t.id}" onchange="toggleCheck(this)">
+      <div class="check-box" id="cb-${t.id}"></div>
+      <span class="treat-icon">${t.icon}</span>
+      <span class="treat-name">${t.name}</span>`;
+    grid.appendChild(item);
+  });
+
+  window.toggleCheck = (el) => {
+    const label = el.closest('.treat-item');
+    const cb = label.querySelector('.check-box');
+    if (el.checked) {
+      label.classList.add('checked');
+      cb.textContent = '✓';
+    } else {
+      label.classList.remove('checked');
+      cb.textContent = '';
+    }
+  };
+
+  // ─── 전송 ───────────────────────────────
+  window.submitPatient = async () => {
+    const name = document.getElementById('patientName').value.trim();
+    const checked = [...document.querySelectorAll('#treatmentGrid input:checked')];
+    const treatments = checked.map(c => {
+      const t = TREATMENTS.find(t => t.id === c.value);
+      return t ? t.name : c.value;
+    });
+
+    if (!name) { showToast('❗ 환자 성함을 입력해주세요'); return; }
+    if (treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = '입력 중...';
+
+    try {
+      const now = new Date();
+      await push(ref(db, 'patients'), {
+        name,
+        treatments,
+        timestamp: now.getTime(),
+        timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        date: now.toLocaleDateString('ko-KR'),
+        bedStatus: 'waiting'
+      });
+
+      // 초기화
+      document.getElementById('patientName').value = '';
+      document.querySelectorAll('#treatmentGrid input').forEach(c => {
+        c.checked = false;
+        c.closest('.treat-item').classList.remove('checked');
+        c.closest('.treat-item').querySelector('.check-box').textContent = '';
+      });
+
+      showToast(`✅ ${name} 환자 알림 전송 완료`);
+    } catch (e) {
+      showToast('❌ 전송 실패 — 연결을 확인해주세요');
+      console.error(e);
+    }
+
+    btn.disabled = false;
+    btn.textContent = '입력';
+  };
+
+  // ─── 수신 ───────────────────────────────
+  let isFirstLoad = true;
+  let loadedKeys = new Set();
+  const pageLoadedAt = Date.now();
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+
+  const patientsRef = query(
+    ref(db, 'patients'),
+    orderByChild('timestamp'),
+    startAt(todayStart.getTime())
+  );
+
+  onChildAdded(patientsRef, (snapshot) => {
+    const key = snapshot.key;
+    if (loadedKeys.has(key)) return;
+    loadedKeys.add(key);
+
+    const data = snapshot.val();
+    const isNew = !isFirstLoad && Number(data.timestamp || 0) > pageLoadedAt;
+    patientsByKey.set(key, data);
+    assignPatientToBed(key, data, true);
+
+    renderNotif(key, data, isNew);
+
+    if (isNew && shouldShowAlerts()) {
+      playSound();
+      showPopup(data);
+    }
+
+    updateCount();
+    if (isFirstLoad) setTimeout(() => { isFirstLoad = false; }, 500);
+  });
+
+  onChildRemoved(patientsRef, (snapshot) => {
+    const key = snapshot.key;
+    patientsByKey.delete(key);
+    loadedKeys.delete(key);
+
+    renderBedSelector();
+    renderBedDetail();
+    renderReceiveBedDetail();
+    renderBedMonitors();
+    updateCount();
+  });
+
+  onValue(ref(db, 'beds'), (snapshot) => {
+    const beds = snapshot.val() || {};
+    bedAssignments = Array.from({ length: BED_COUNT }, (_, i) => beds[String(i + 1)] || null);
+    syncTimerAlertsWithBeds();
+    handleRemoteTimerAlerts(!hasLoadedBedsOnce);
+    hasLoadedBedsOnce = true;
+    assignWaitingPatientsToBeds();
+    renderBedSelector();
+    renderBedDetail();
+    renderReceiveBedDetail();
+    renderBedMonitors();
+    updateCount();
+    ensureBedTicker();
+  });
+
+  function renderNotif(key, data, isNew) {
+    const list = document.getElementById('notifList');
+    if (!list) return;
+    const empty = list.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    const card = document.createElement('div');
+    card.className = `notif-card${isNew ? ' new' : ''}`;
+    card.id = `notif-${key}`;
+    card.innerHTML = `
+      <div class="notif-top">
+        <span class="notif-name">${data.name} 환자</span>
+        <span>${isNew ? '<span class="notif-new-badge">NEW</span>' : ''}<span class="notif-time">${data.timeStr}</span></span>
+      </div>
+      <div class="notif-treats">${data.treatments.map(t => `<span class="notif-tag">${t}</span>`).join('')}</div>
+      <div class="notif-hint">탭하여 확인</div>`;
+    card.onclick = () => {
+      card.classList.remove('new');
+      card.querySelector('.notif-hint').style.display = 'none';
+      card.querySelector('.notif-new-badge') && (card.querySelector('.notif-new-badge').style.display = 'none');
+    };
+    list.insertBefore(card, list.firstChild);
+  }
+
+  function updateCount() {
+    const todayCount = document.getElementById('todayCount');
+    if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
+    const bedPatientCount = document.getElementById('bedPatientCount');
+    if (bedPatientCount) bedPatientCount.textContent = `${bedAssignments.filter(Boolean).length}/${BED_COUNT}`;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[ch]));
+  }
+
+  function getTreatmentSeconds(treatment) {
+    return (TREATMENT_MINUTES[treatment] || 5) * 60;
+  }
+
+  async function assignPatientToBed(patientKey, data, silent = false) {
+    if (data.bedStatus === 'discharged') return false;
+
+    const result = await runTransaction(ref(db, 'beds'), (beds) => {
+      beds = beds || {};
+      const existingBedNo = Object.keys(beds).find(bedNo => beds[bedNo]?.patientKey === patientKey);
+      if (existingBedNo) return beds;
+
+      const emptyBedNo = Array.from({ length: BED_COUNT }, (_, i) => String(i + 1)).find(bedNo => !beds[bedNo]);
+      if (!emptyBedNo) return beds;
+
+      const firstTreatment = data.treatments?.[0];
+      const total = getTreatmentSeconds(firstTreatment);
+      beds[emptyBedNo] = {
+        patientKey,
+        name: data.name,
+        treatments: data.treatments || [],
+        timeStr: data.timeStr || '',
+        timestamp: data.timestamp || Date.now(),
+        currentIndex: 0,
+        total,
+        remaining: total,
+        running: false,
+        startedAt: null,
+        complete: false
+      };
+      return beds;
+    });
+
+    const beds = result.snapshot.val() || {};
+    const bedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
+    if (result.committed && bedNo) {
+      patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: Number(bedNo) });
+      await update(ref(db, `patients/${patientKey}`), { bedStatus: 'assigned', bedNo: Number(bedNo) });
+      return true;
+    }
+
+    if (!silent) showToast('빈 베드가 없습니다');
+    return false;
+  }
+
+  function assignWaitingPatientsToBeds() {
+    const assignedPatientKeys = bedAssignments
+      .filter(Boolean)
+      .map(bed => bed.patientKey);
+
+    const waitingPatients = [...patientsByKey.entries()]
+      .filter(([key, data]) => data.bedStatus !== 'discharged' && !assignedPatientKeys.includes(key))
+      .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
+
+    for (const [key, data] of waitingPatients) {
+      if (bedAssignments.filter(Boolean).length >= BED_COUNT) break;
+      assignPatientToBed(key, data, true);
+    }
+  }
+
+  function formatTimer(seconds) {
+    const safeSeconds = Math.max(0, seconds);
+    const minutes = String(Math.floor(safeSeconds / 60)).padStart(2, '0');
+    const rest = String(safeSeconds % 60).padStart(2, '0');
+    return `${minutes}:${rest}`;
+  }
+
+  function renderBedSelector() {
+    const selector = document.getElementById('bedSelector');
+    renderBedSelectorOptions(selector, selectedBedNo);
+
+  }
+
+  function renderBedSelectorOptions(selector, selectedValue) {
+    if (!selector) return;
+    selector.innerHTML = bedAssignments.map((bed, index) => {
+      const label = bed ? `${index + 1}번 베드 - ${bed.name} 환자` : `${index + 1}번 베드 - 비어 있음`;
+      return `<option value="${index + 1}">${escapeHtml(label)}</option>`;
+    }).join('');
+    selector.value = String(selectedValue);
+  }
+
+  window.selectBed = (bedNo) => {
+    selectedBedNo = bedNo;
+    renderBedSelector();
+    renderBedDetail();
+  };
+
+  function renderBedDetail() {
+    const detail = document.getElementById('bedDetail');
+    renderBedDetailInto(detail, selectedBedNo, true);
+  }
+
+  function renderReceiveBedDetail() {
+    const detail = document.getElementById('receiveBedDetail');
+    renderBedDetailInto(detail, selectedReceiveBedNo, true, 'receive');
+  }
+
+  function renderBedDetailInto(detail, bedNo, allowControls, context = 'bed') {
+    if (!detail) return;
+    detail.classList.add('active');
+    detail.innerHTML = renderBedDetailMarkup(bedNo, allowControls, context);
+  }
+
+  function renderBedDetailMarkup(bedNo, allowControls, context = 'bed') {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">⏱</div>
+          <div class="empty-text">${bedNo}번 베드는 비어 있습니다</div>
+        </div>`;
+    }
+
+    const currentTreatment = bed.treatments?.[bed.currentIndex];
+    return `
+      <div class="card">
+        <div class="bed-summary">
+          <div>
+            <div class="card-label">${bedNo}번 베드</div>
+            <div class="bed-name">${escapeHtml(bed.name)} 환자</div>
+          </div>
+          <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
+        </div>
+        <div class="timer-list">
+          ${bed.complete ? renderCompleteCard(bedNo, bed, allowControls) : renderTimerCard(bedNo, bed, currentTreatment, allowControls, context)}
+        </div>
+        ${allowControls && !bed.complete ? `<button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
+      </div>`;
+  }
+
+  function getRemaining(bed) {
+    if (!bed || bed.complete) return 0;
+    const baseRemaining = Number(bed.remaining || 0);
+    if (!bed.running || !bed.startedAt) return Math.max(0, baseRemaining);
+    return Math.max(0, baseRemaining - Math.floor((Date.now() - bed.startedAt) / 1000));
+  }
+
+  function renderTimerCard(bedNo, bed, treatment, allowControls = true, context = 'bed') {
+    const remaining = getRemaining(bed);
+    const percent = bed.total ? Math.max(0, Math.min(100, (remaining / bed.total) * 100)) : 0;
+    const timerId = `${context}-timer-bed-${bedNo}`;
+    const clockId = `${context}-timer-clock-bed-${bedNo}`;
+    const barId = `${context}-timer-bar-bed-${bedNo}`;
+    const inputId = `${context}-timer-minutes-bed-${bedNo}`;
+    return `
+      <div class="timer-card" id="${timerId}">
+        <div class="timer-top">
+          <div>
+            <div class="timer-treatment">${escapeHtml(treatment)}</div>
+            <div class="timer-step">${bed.currentIndex + 1}/${bed.treatments.length}번째 치료</div>
+            <div class="bed-patient-meta">기본 ${Math.round(bed.total / 60)}분</div>
+          </div>
+          <div class="timer-clock" id="${clockId}">${formatTimer(remaining)}</div>
+        </div>
+        <div class="timer-progress"><div class="timer-bar" id="${barId}" style="width:${percent}%"></div></div>
+        ${allowControls ? `<div class="treatment-nav">
+          <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${bed.currentIndex <= 0 ? 'disabled' : ''}>이전 치료</button>
+          <button class="timer-btn" onclick="moveTreatment(${bedNo}, 1)" ${bed.currentIndex >= bed.treatments.length - 1 ? 'disabled' : ''}>이후 치료</button>
+        </div>` : ''}
+        ${allowControls ? `<div class="timer-settings">
+          <input class="timer-minute-input" id="${inputId}" type="number" min="1" max="120" step="1" value="${Math.max(1, Math.round(bed.total / 60))}" aria-label="타이머 시간 분">
+          <button class="timer-set-btn" onclick="setTimerMinutes(${bedNo}, '${context}')">시간 설정</button>
+        </div>` : ''}
+        ${allowControls ? `<div class="timer-actions">
+          <button class="timer-btn primary" onclick="startTimer(${bedNo})">시작</button>
+          <button class="timer-btn" onclick="pauseTimer(${bedNo})">일시정지</button>
+          <button class="timer-btn" onclick="resetTimer(${bedNo})">초기화</button>
+        </div>` : ''}
+      </div>`;
+  }
+
+  function renderCompleteCard(bedNo, bed, allowControls = true) {
+    return `
+      <div class="timer-card done">
+        <div class="timer-top">
+          <div>
+            <div class="timer-treatment">모든 치료 완료</div>
+            <div class="timer-step">${(bed.treatments || []).map(escapeHtml).join(' → ')}</div>
+          </div>
+          <div class="timer-clock">완료</div>
+        </div>
+        ${allowControls ? `<div class="treatment-nav">
+          <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${(bed.currentIndex || 0) <= 0 ? 'disabled' : ''}>이전 치료</button>
+          <button class="timer-btn" disabled>이후 치료</button>
+        </div>
+        <button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
+      </div>`;
+  }
+
+  function updateTimerDom(bedNo) {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) return;
+
+    const remaining = getRemaining(bed);
+    const percent = bed.total ? Math.max(0, Math.min(100, (remaining / bed.total) * 100)) : 0;
+
+    ['bed', 'receive'].forEach(context => {
+      const clock = document.getElementById(`${context}-timer-clock-bed-${bedNo}`);
+      const bar = document.getElementById(`${context}-timer-bar-bed-${bedNo}`);
+      const card = document.getElementById(`${context}-timer-bed-${bedNo}`);
+
+      if (clock) clock.textContent = formatTimer(remaining);
+      if (bar) bar.style.width = `${percent}%`;
+      if (card) card.classList.toggle('done', remaining <= 0);
+    });
+    renderBedMonitors();
+  }
+
+  window.startTimer = async (bedNo) => {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed || bed.running || bed.complete || getRemaining(bed) <= 0) return;
+
+    await update(ref(db, `beds/${bedNo}`), {
+      running: true,
+      startedAt: Date.now(),
+      remaining: getRemaining(bed)
+    });
+  };
+
+  async function finishBedStep(bedNo) {
+    if (finishingBeds.has(bedNo)) return;
+    finishingBeds.add(bedNo);
+
+    const bedBefore = bedAssignments[bedNo - 1];
+    const completedTreatment = bedBefore?.treatments?.[bedBefore.currentIndex] || '치료';
+    const patientName = bedBefore?.name || '';
+    const alertId = `${bedBefore?.patientKey || bedNo}-${bedBefore?.currentIndex || 0}-${Date.now()}`;
+
+    const result = await runTransaction(ref(db, `beds/${bedNo}`), (bed) => {
+      if (!bed || bed.complete) return bed;
+
+      const remaining = getRemaining(bed);
+      if (!bed.running || remaining > 0) return bed;
+
+      const nextIndex = bed.currentIndex + 1;
+      if (nextIndex >= (bed.treatments || []).length) {
+        return {
+          ...bed,
+          running: false,
+          startedAt: null,
+          remaining: 0,
+          complete: true,
+          lastAlertId: alertId,
+          lastAlertMessage: `${bedNo}번 베드 ${bed.name} 환자 · ${bed.treatments[bed.currentIndex]} 완료`
+        };
+      }
+
+      const nextTotal = getTreatmentSeconds(bed.treatments[nextIndex]);
+      return {
+        ...bed,
+        currentIndex: nextIndex,
+        total: nextTotal,
+        remaining: nextTotal,
+        running: false,
+        startedAt: null,
+        complete: false,
+        lastAlertId: alertId,
+        lastAlertMessage: `${bedNo}번 베드 ${bed.name} 환자 · ${bed.treatments[bed.currentIndex]} 완료`
+      };
+    });
+
+    finishingBeds.delete(bedNo);
+
+    if (result.committed && bedBefore) {
+      if (!queuedTimerAlerts.has(alertId)) {
+        showTimerCompleteAlert(`${bedNo}번 베드 ${patientName} 환자 · ${completedTreatment} 완료`, bedNo, alertId);
+      }
+      seenTimerAlerts.add(alertId);
+    }
+  }
+
+  window.pauseTimer = async (bedNo) => {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) return;
+
+    await update(ref(db, `beds/${bedNo}`), {
+      running: false,
+      startedAt: null,
+      remaining: getRemaining(bed)
+    });
+  };
+
+  window.resetTimer = async (bedNo) => {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) return;
+
+    const total = getTreatmentSeconds(bed.treatments[bed.currentIndex]);
+    await update(ref(db, `beds/${bedNo}`), {
+      running: false,
+      startedAt: null,
+      total,
+      remaining: total
+    });
+  };
+
+  window.moveTreatment = async (bedNo, direction) => {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) return;
+
+    const treatments = bed.treatments || [];
+    const nextIndex = Math.max(0, Math.min(treatments.length - 1, (bed.currentIndex || 0) + direction));
+    if (nextIndex === bed.currentIndex || !treatments[nextIndex]) return;
+
+    const total = getTreatmentSeconds(treatments[nextIndex]);
+    await update(ref(db, `beds/${bedNo}`), {
+      currentIndex: nextIndex,
+      running: false,
+      startedAt: null,
+      complete: false,
+      total,
+      remaining: total
+    });
+  };
+
+  window.setTimerMinutes = async (bedNo, context = 'bed') => {
+    const bed = bedAssignments[bedNo - 1];
+    const input = document.getElementById(`${context}-timer-minutes-bed-${bedNo}`) ||
+      document.querySelector(`[id$="-timer-minutes-bed-${bedNo}"]`);
+    if (!bed || !input) return;
+
+    const minutes = Math.max(1, Math.min(120, Number(input.value) || 1));
+    const total = Math.round(minutes * 60);
+    await update(ref(db, `beds/${bedNo}`), {
+      running: false,
+      startedAt: null,
+      total,
+      remaining: total
+    });
+    showToast(`${bedNo}번 베드 ${minutes}분으로 설정`);
+  };
+
+  window.clearBed = async (bedNo) => {
+    const bed = bedAssignments[bedNo - 1];
+    if (bed?.patientKey) {
+      patientsByKey.delete(bed.patientKey);
+      loadedKeys.delete(bed.patientKey);
+      await remove(ref(db, `patients/${bed.patientKey}`));
+    }
+    await remove(ref(db, `beds/${bedNo}`));
+  };
+
+  window.confirmClearBed = async (event, bedNo) => {
+    event.stopPropagation();
+    await confirmClearBedNumber(bedNo);
+  };
+
+  window.confirmClearBedNumber = async (bedNo) => {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) return;
+
+    if (confirm(`${bedNo}번 베드 ${bed.name} 환자를 삭제하시겠습니까?`)) {
+      await clearBed(bedNo);
+    }
+  };
+
+  window.confirmClearSelectedBed = async () => {
+    await confirmClearBedNumber(selectedBedNo);
+  };
+
+  function getBedStatus(bedNo) {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) {
+      return { bedNo, empty: true };
+    }
+
+    const treatments = bed.treatments || [];
+    const currentIndex = Number(bed.currentIndex || 0);
+    const treatment = bed.complete ? '완료' : treatments[currentIndex];
+    const remainingSeconds = getRemaining(bed);
+    const totalSeconds = Number(bed.total || 0);
+    const previousTreatment = currentIndex > 0 ? treatments[currentIndex - 1] : '';
+    const lastTreatment = treatments[treatments.length - 1] || '';
+    const statusLabel = bed.complete
+      ? (lastTreatment ? `${lastTreatment} 완료` : '완료')
+      : (previousTreatment ? `${previousTreatment} 완료 ${treatment} 준비` : `${treatment} 준비`);
+    const isWaitingToStart = !bed.complete && !bed.running && remainingSeconds >= totalSeconds;
+    return {
+      bedNo,
+      empty: false,
+      complete: bed.complete,
+      alerting: Boolean(bed.lastAlertId),
+      name: bed.name,
+      treatment,
+      statusLabel,
+      statusDetail: bed.running ? `${treatment} 진행중` : (isWaitingToStart ? statusLabel : treatment),
+      remaining: bed.complete ? '완료' : formatTimer(remainingSeconds),
+      currentIndex,
+      treatments,
+      timeStr: bed.timeStr || ''
+    };
+  }
+
+  function renderBedPopover(status) {
+    if (status.empty) {
+      return `
+        <div class="bed-popover">
+          <div class="bed-popover-title">${status.bedNo}번 베드</div>
+          <div class="bed-popover-line">현재 배정된 환자가 없습니다</div>
+        </div>`;
+    }
+
+    const lines = status.treatments.map((treatment, index) => {
+      const marker = status.complete ? '완료' : (index < status.currentIndex ? '완료' : (index === status.currentIndex ? '진행' : '대기'));
+      const currentClass = !status.complete && index === status.currentIndex ? ' current' : '';
+      return `<div class="bed-popover-line${currentClass}">${index + 1}. ${escapeHtml(treatment)} · ${marker}</div>`;
+    }).join('');
+
+    return `
+      <div class="bed-popover">
+        <div class="bed-popover-title">${escapeHtml(status.name)} 환자 · ${escapeHtml(status.timeStr)}</div>
+        <div class="bed-popover-line current">현재: ${escapeHtml(status.treatment)} · ${escapeHtml(status.remaining)}</div>
+        ${lines}
+      </div>`;
+  }
+
+  function renderBedMonitors() {
+    const inputHtml = Array.from({ length: BED_COUNT }, (_, i) => {
+      const status = getBedStatus(i + 1);
+      return renderBedStatusCard(status, 'input');
+    }).join('');
+
+    const receiveHtml = Array.from({ length: BED_COUNT }, (_, i) => {
+      const status = getBedStatus(i + 1);
+      return renderBedStatusCard(status, 'receive');
+    }).join('');
+
+    document.getElementById('inputBedMonitor').innerHTML = inputHtml;
+    document.getElementById('receiveBedMonitor').innerHTML = receiveHtml;
+  }
+
+  function renderBedStatusCard(status, context) {
+    const isReceive = context === 'receive';
+    const activeClass = isReceive && status.bedNo === selectedReceiveBedNo ? ' selected' : '';
+
+    if (status.empty) {
+      return `
+        <div class="bed-status${activeClass}" tabindex="0"${isReceive ? ` onclick="selectReceiveBed(${status.bedNo})"` : ''}>
+          <div class="bed-status-top">
+            <span class="bed-status-no">${status.bedNo}번</span>
+            <span class="bed-status-time">-</span>
+          </div>
+          <div class="bed-status-name">비어 있음</div>
+          <div class="bed-status-treatment">대기</div>
+          ${renderBedPopover(status)}
+        </div>`;
+    }
+
+    const clickAction = isReceive ? `selectReceiveBed(${status.bedNo})` : `confirmClearBed(event, ${status.bedNo})`;
+    return `
+      <div class="bed-status${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}">
+        <div class="bed-status-top">
+          <span class="bed-status-no">${status.bedNo}번</span>
+          <span class="bed-status-time">${escapeHtml(status.remaining)}</span>
+        </div>
+        <div class="bed-status-name">${escapeHtml(status.name)} 환자</div>
+        <div class="bed-status-treatment">${escapeHtml(status.statusDetail)}</div>
+        ${renderBedPopover(status)}
+      </div>`;
+  }
+
+  window.selectReceiveBed = (bedNo) => {
+    selectedReceiveBedNo = bedNo;
+    renderBedMonitors();
+    renderReceiveBedDetail();
+  };
+
+  function shouldShowAlerts() {
+    return document.getElementById('receivePanel')?.classList.contains('active');
+  }
+
+  function getActiveBedAlertIds() {
+    return new Set(bedAssignments.map(bed => bed?.lastAlertId).filter(Boolean));
+  }
+
+  function syncTimerAlertsWithBeds() {
+    const activeAlertIds = getActiveBedAlertIds();
+    let changed = false;
+
+    if (activeTimerAlert?.alertId && !activeAlertIds.has(activeTimerAlert.alertId)) {
+      activeTimerAlert = null;
+      isTimerAlertOpen = false;
+      document.getElementById('timerAlertOverlay').classList.remove('show');
+      stopTimerAlertBeeps();
+      changed = true;
+    }
+
+    for (let i = timerAlertQueue.length - 1; i >= 0; i--) {
+      const alert = timerAlertQueue[i];
+      if (alert.alertId && !activeAlertIds.has(alert.alertId)) {
+        timerAlertQueue.splice(i, 1);
+        changed = true;
+      }
+    }
+
+    queuedTimerAlerts.forEach(alertId => {
+      if (!activeAlertIds.has(alertId)) queuedTimerAlerts.delete(alertId);
+    });
+    seenTimerAlerts.forEach(alertId => {
+      if (!activeAlertIds.has(alertId)) seenTimerAlerts.delete(alertId);
+    });
+
+    if (changed) syncPendingTimerAlertBeds();
+  }
+
+  function handleRemoteTimerAlerts(markOnly = false) {
+    bedAssignments.forEach((bed) => {
+      if (!bed?.lastAlertId || seenTimerAlerts.has(bed.lastAlertId)) return;
+      seenTimerAlerts.add(bed.lastAlertId);
+      if (markOnly) return;
+      showTimerCompleteAlert(bed.lastAlertMessage || `${bed.name || ''} 환자 치료 완료`, index + 1, bed.lastAlertId);
+    });
+  }
+
+  window.toggleBedPopover = (el) => {
+    document.querySelectorAll('.bed-status.open').forEach(item => {
+      if (item !== el) item.classList.remove('open');
+    });
+    el.classList.toggle('open');
+  };
+
+  function ensureBedTicker() {
+    if (bedRenderTicker) return;
+
+    bedRenderTicker = setInterval(() => {
+      bedAssignments.forEach((bed, index) => {
+        if (!bed || bed.complete) return;
+
+        if (bed.running && getRemaining(bed) <= 0) {
+          finishBedStep(index + 1);
+        } else {
+          updateTimerDom(index + 1);
+        }
+      });
+    }, 1000);
+  }
+
+  function playSoftTimerChime() {
+    try {
+      if (!timerAlertAudioCtx) {
+        timerAlertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = timerAlertAudioCtx;
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.55, ctx.currentTime);
+      master.connect(ctx.destination);
+
+      const notes = [
+        { freq: 523.25, at: 0.00, type: 'sine', volume: 0.18 },
+        { freq: 659.25, at: 0.16, type: 'sine', volume: 0.16 },
+        { freq: 783.99, at: 0.32, type: 'triangle', volume: 0.14 },
+        { freq: 1046.5, at: 0.52, type: 'sine', volume: 0.10 }
+      ];
+
+      notes.forEach(({ freq, at, type, volume }) => {
+        const start = ctx.currentTime + at;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, start);
+        osc.connect(gain);
+        gain.connect(master);
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(volume, start + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.9);
+        osc.start(start);
+        osc.stop(start + 0.95);
+      });
+    } catch(e) {}
+  }
+
+  function startTimerAlertBeeps() {
+    stopTimerAlertBeeps();
+    playSoftTimerChime();
+    timerAlertBeepTimer = setInterval(playSoftTimerChime, 3000);
+    timerAlertStopTimer = setTimeout(stopTimerAlertBeeps, 60000);
+  }
+
+  function stopTimerAlertBeeps() {
+    if (timerAlertBeepTimer) clearInterval(timerAlertBeepTimer);
+    if (timerAlertStopTimer) clearTimeout(timerAlertStopTimer);
+    timerAlertBeepTimer = null;
+    timerAlertStopTimer = null;
+  }
+
+  function showNextTimerAlert() {
+    activeTimerAlert = timerAlertQueue.shift() || null;
+    if (!activeTimerAlert) {
+      isTimerAlertOpen = false;
+      document.getElementById('timerAlertOverlay').classList.remove('show');
+      stopTimerAlertBeeps();
+      syncPendingTimerAlertBeds();
+      return;
+    }
+
+    isTimerAlertOpen = true;
+    document.getElementById('timerAlertBody').textContent = activeTimerAlert.message;
+    document.getElementById('timerAlertOverlay').classList.add('show');
+    startTimerAlertBeeps();
+    syncPendingTimerAlertBeds();
+  }
+
+  function syncPendingTimerAlertBeds() {
+    pendingTimerAlertBeds.clear();
+    if (activeTimerAlert?.bedNo) pendingTimerAlertBeds.add(activeTimerAlert.bedNo);
+    timerAlertQueue.forEach(alert => {
+      if (alert.bedNo) pendingTimerAlertBeds.add(alert.bedNo);
+    });
+    renderBedMonitors();
+  }
+
+  function showTimerCompleteAlert(message, bedNo = null, alertId = null) {
+    if (alertId && queuedTimerAlerts.has(alertId)) return;
+    if (alertId) queuedTimerAlerts.add(alertId);
+    timerAlertQueue.push({ message, bedNo, alertId });
+    syncPendingTimerAlertBeds();
+    if (isTimerAlertOpen) return;
+    if (!shouldShowAlerts()) return;
+    showNextTimerAlert();
+  }
+
+  async function acknowledgeTimerAlert(alert) {
+    if (!alert?.bedNo || !alert?.alertId) return;
+
+    await runTransaction(ref(db, `beds/${alert.bedNo}`), (bed) => {
+      if (!bed || bed.lastAlertId !== alert.alertId) return bed;
+      return {
+        ...bed,
+        lastAlertId: null,
+        lastAlertMessage: null
+      };
+    });
+  }
+
+  window.closeTimerAlert = () => {
+    stopTimerAlertBeeps();
+    const alertToAcknowledge = activeTimerAlert;
+    activeTimerAlert = null;
+    acknowledgeTimerAlert(alertToAcknowledge);
+    showNextTimerAlert();
+  };
+
+  window.openQueuedTimerAlertIfNeeded = () => {
+    if (!shouldShowAlerts() || isTimerAlertOpen || timerAlertQueue.length === 0) return;
+    showNextTimerAlert();
+  };
+
+  // ─── 팝업 ───────────────────────────────
+  window.showPopup = (data) => {
+    document.getElementById('popupName').textContent = data.name + ' 환자';
+    document.getElementById('popupTreats').innerHTML = data.treatments.map(t => `<span class="popup-tag">${t}</span>`).join('');
+    document.getElementById('notifOverlay').classList.add('show');
+  };
+
+  window.closePopup = () => {
+    document.getElementById('notifOverlay').classList.remove('show');
+  };
+
+  // ─── 소리 ───────────────────────────────
+  function playSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523, 659, 784]; // C E G
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.15);
+        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + i * 0.15 + 0.05);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + i * 0.15 + 0.4);
+        osc.start(ctx.currentTime + i * 0.15);
+        osc.stop(ctx.currentTime + i * 0.15 + 0.4);
+      });
+    } catch(e) {}
+  }
+
+  // 브라우저 권한 팝업은 입력 화면에서 방해되지 않도록 사용하지 않습니다.
+</script>
+
+<script>
+  // 모드 전환
+  function setMode(mode) {
+    window.currentMode = mode;
+    document.getElementById('inputPanel').classList.toggle('active', mode === 'input');
+    document.getElementById('receivePanel').classList.toggle('active', mode === 'receive');
+    document.querySelectorAll('.mode-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', (i === 0 && mode === 'input') || (i === 1 && mode === 'receive'));
+    });
+    if (mode === 'receive') window.openQueuedTimerAlertIfNeeded?.();
+  }
+
+  // 토스트
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // 엔터키로 전송
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('patientName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('submitBtn').click();
+    });
+  });
+</script>
+</body>
+</html>
