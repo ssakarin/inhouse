@@ -609,6 +609,7 @@
     <div class="mode-toggle">
       <button class="mode-btn active" onclick="setMode('input')">입력</button>
       <button class="mode-btn" onclick="setMode('receive')">수신</button>
+      <button class="mode-btn" onclick="setMode('bed')">베드</button>
     </div>
   </div>
 
@@ -646,6 +647,18 @@
     </div>
     <div class="bed-layout">
       <div class="bed-detail" id="receiveBedDetail"></div>
+    </div>
+  </div>
+
+  <!-- 베드 패널 -->
+  <div class="bed-panel" id="bedPanel">
+    <div class="receive-header">
+      <div class="receive-title">베드 치료 타이머</div>
+      <div class="today-count" id="bedPatientCount">0명</div>
+    </div>
+    <div class="bed-layout">
+      <select class="bed-selector" id="bedSelector" onchange="selectBed(Number(this.value))"></select>
+      <div class="bed-detail" id="bedDetail"></div>
     </div>
   </div>
 </div>
@@ -1596,8 +1609,9 @@
     window.currentMode = mode;
     document.getElementById('inputPanel').classList.toggle('active', mode === 'input');
     document.getElementById('receivePanel').classList.toggle('active', mode === 'receive');
+    document.getElementById('bedPanel').classList.toggle('active', mode === 'bed');
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
-      btn.classList.toggle('active', (i === 0 && mode === 'input') || (i === 1 && mode === 'receive'));
+      btn.classList.toggle('active', (i === 0 && mode === 'input') || (i === 1 && mode === 'receive') || (i === 2 && mode === 'bed'));
     });
     if (mode === 'receive') window.openQueuedTimerAlertIfNeeded?.();
   }
