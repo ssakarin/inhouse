@@ -856,6 +856,8 @@
 
   onChildRemoved(patientsRef, (snapshot) => {
     const key = snapshot.key;
+    const assignedBedNo = bedAssignments.findIndex(bed => bed?.patientKey === key) + 1;
+    if (assignedBedNo > 0) clearLocalTimerAlertsForBed(assignedBedNo);
     patientsByKey.delete(key);
     loadedKeys.delete(key);
 
@@ -1233,8 +1235,11 @@
       startedAt: null,
       complete: false,
       total,
-      remaining: total
+      remaining: total,
+      lastAlertId: null,
+      lastAlertMessage: null
     });
+    clearLocalTimerAlertsForBed(bedNo);
   };
 
   window.setTimerMinutes = async (bedNo, context = 'bed') => {
@@ -1256,6 +1261,7 @@
 
   window.clearBed = async (bedNo) => {
     const bed = bedAssignments[bedNo - 1];
+    clearLocalTimerAlertsForBed(bedNo);
     if (bed?.patientKey) {
       patientsByKey.delete(bed.patientKey);
       loadedKeys.delete(bed.patientKey);
@@ -1531,6 +1537,40 @@
       if (alert.bedNo) pendingTimerAlertBeds.add(alert.bedNo);
     });
     renderBedMonitors();
+  }
+
+  function clearLocalTimerAlertsForBed(bedNo) {
+    let changed = false;
+
+    if (activeTimerAlert?.bedNo === bedNo) {
+      if (activeTimerAlert.alertId) {
+        queuedTimerAlerts.delete(activeTimerAlert.alertId);
+        seenTimerAlerts.delete(activeTimerAlert.alertId);
+      }
+      activeTimerAlert = null;
+      isTimerAlertOpen = false;
+      document.getElementById('timerAlertOverlay').classList.remove('show');
+      stopTimerAlertBeeps();
+      changed = true;
+    }
+
+    for (let i = timerAlertQueue.length - 1; i >= 0; i--) {
+      if (timerAlertQueue[i].bedNo === bedNo) {
+        if (timerAlertQueue[i].alertId) {
+          queuedTimerAlerts.delete(timerAlertQueue[i].alertId);
+          seenTimerAlerts.delete(timerAlertQueue[i].alertId);
+        }
+        timerAlertQueue.splice(i, 1);
+        changed = true;
+      }
+    }
+
+    pendingTimerAlertBeds.delete(bedNo);
+    if (changed) syncPendingTimerAlertBeds();
+    else renderBedMonitors();
+    if (changed && shouldShowAlerts() && !isTimerAlertOpen && timerAlertQueue.length > 0) {
+      showNextTimerAlert();
+    }
   }
 
   function showTimerCompleteAlert(message, bedNo = null, alertId = null) {
