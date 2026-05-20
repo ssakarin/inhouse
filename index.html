@@ -839,7 +839,7 @@
     loadedKeys.add(key);
 
     const data = snapshot.val();
-    const isNew = !isFirstLoad && Number(data.timestamp || 0) > pageLoadedAt;
+    const isNew = Number(data.timestamp || 0) > pageLoadedAt;
     patientsByKey.set(key, data);
     assignPatientToBed(key, data, true);
 
@@ -1142,6 +1142,7 @@
       startedAt: Date.now(),
       remaining: getRemaining(bed)
     });
+    playTimerStartSound();
   };
 
   async function finishBedStep(bedNo) {
@@ -1396,7 +1397,8 @@
   };
 
   function shouldShowAlerts() {
-    return document.getElementById('receivePanel')?.classList.contains('active');
+    return document.getElementById('receivePanel')?.classList.contains('active') ||
+      document.getElementById('bedPanel')?.classList.contains('active');
   }
 
   function getActiveBedAlertIds() {
@@ -1511,6 +1513,32 @@
     if (timerAlertStopTimer) clearTimeout(timerAlertStopTimer);
     timerAlertBeepTimer = null;
     timerAlertStopTimer = null;
+  }
+
+  function playTimerStartSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = ctx.currentTime;
+      const notes = [
+        { freq: 659.25, at: 0 },
+        { freq: 987.77, at: 0.11 }
+      ];
+
+      notes.forEach(({ freq, at }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = now + at;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.16, start + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.28);
+        osc.start(start);
+        osc.stop(start + 0.3);
+      });
+    } catch(e) {}
   }
 
   function showNextTimerAlert() {
@@ -1653,7 +1681,7 @@
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', (i === 0 && mode === 'input') || (i === 1 && mode === 'receive') || (i === 2 && mode === 'bed'));
     });
-    if (mode === 'receive') window.openQueuedTimerAlertIfNeeded?.();
+    if (mode === 'receive' || mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
   }
 
   // 토스트
