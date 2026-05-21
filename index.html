@@ -1896,7 +1896,12 @@
 
 <script>
   // 모드 전환
-  function setMode(mode) {
+  function getModeFromHash() {
+    const hashMode = (window.location.hash || '').replace('#', '').toLowerCase();
+    return ['input', 'receive', 'bed'].includes(hashMode) ? hashMode : 'input';
+  }
+
+  function setMode(mode, updateHash = true) {
     window.currentMode = mode;
     document.getElementById('inputPanel').classList.toggle('active', mode === 'input');
     document.getElementById('receivePanel').classList.toggle('active', mode === 'receive');
@@ -1904,8 +1909,18 @@
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', (i === 0 && mode === 'input') || (i === 1 && mode === 'receive') || (i === 2 && mode === 'bed'));
     });
+    if (updateHash) {
+      const nextUrl = mode === 'input'
+        ? window.location.pathname + window.location.search
+        : `#${mode}`;
+      history.replaceState(null, '', nextUrl);
+    }
     if (mode === 'receive' || mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
   }
+
+  window.addEventListener('hashchange', () => {
+    setMode(getModeFromHash(), false);
+  });
 
   // 토스트
   function showToast(msg) {
@@ -1917,6 +1932,7 @@
 
   // 엔터키로 전송
   document.addEventListener('DOMContentLoaded', () => {
+    setMode(getModeFromHash(), false);
     document.getElementById('patientName').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('submitBtn').click();
     });
