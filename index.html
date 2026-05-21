@@ -344,6 +344,14 @@
     gap: 8px;
     margin-bottom: 12px;
   }
+  .receive-layout {
+    display: grid;
+    gap: 12px;
+  }
+  .receive-main-column,
+  .receive-detail-column { min-width: 0; }
+  #inputBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #receiveBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .bed-status {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -561,7 +569,7 @@
 
   @media (min-width: 860px) {
     .input-layout { grid-template-columns: minmax(340px, 0.9fr) minmax(420px, 1.1fr); align-items: start; }
-    .input-monitor-column .bed-monitor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .receive-layout { grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr); align-items: start; }
   }
 
   /* 빈 상태 */
@@ -724,16 +732,22 @@
 
   <!-- 수신 패널 -->
   <div class="receive-panel" id="receivePanel">
-    <div class="card">
-      <div class="card-label">베드 사용 현황</div>
-      <div class="bed-monitor" id="receiveBedMonitor"></div>
-    </div>
-    <div class="card">
-      <div class="card-label">대기 환자</div>
-      <div class="waiting-list" id="receiveWaitingList"></div>
-    </div>
-    <div class="bed-layout">
-      <div class="bed-detail" id="receiveBedDetail"></div>
+    <div class="receive-layout">
+      <div class="receive-main-column">
+        <div class="card">
+          <div class="card-label">베드 사용 현황</div>
+          <div class="bed-monitor" id="receiveBedMonitor"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">대기 환자</div>
+          <div class="waiting-list" id="receiveWaitingList"></div>
+        </div>
+      </div>
+      <div class="receive-detail-column">
+        <div class="bed-layout">
+          <div class="bed-detail" id="receiveBedDetail"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -816,7 +830,7 @@
   };
 
   const patientsByKey = new Map();
-  const BED_COUNT = 12;
+  const BED_COUNT = 13;
   let bedAssignments = Array(BED_COUNT).fill(null);
   let selectedBedNo = 1;
   let selectedReceiveBedNo = 1;
