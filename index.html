@@ -108,6 +108,61 @@
     text-transform: uppercase;
     margin-bottom: 10px;
   }
+  .waiting-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .waiting-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .waiting-rank {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .waiting-name {
+    font-size: 15px;
+    font-weight: 900;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .waiting-treats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .waiting-tag {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    border-radius: 20px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .waiting-time {
+    color: var(--text3);
+    font-size: 11px;
+    white-space: nowrap;
+  }
 
   .name-input {
     width: 100%;
@@ -178,6 +233,22 @@
   .submit-btn:hover { background: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(111,207,138,0.3); }
   .submit-btn:active { transform: translateY(0); }
   .submit-btn:disabled { background: var(--surface3); color: var(--text3); cursor: not-allowed; transform: none; box-shadow: none; }
+  .export-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 13px;
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .export-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
   /* ─── 수신 / 베드 패널 ─── */
   .receive-panel,
@@ -580,8 +651,15 @@
     border-color: var(--danger);
     box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(255,107,107,0.18);
   }
-  .timer-alert-title { font-size: 26px; font-weight: 900; color: var(--danger); margin-bottom: 8px; }
-  .timer-alert-body { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 20px; }
+  .timer-alert-title { display: none; }
+  .timer-alert-body {
+    font-size: 26px;
+    font-weight: 900;
+    line-height: 1.25;
+    color: var(--text);
+    margin-bottom: 22px;
+    word-break: keep-all;
+  }
 
   .status-dot {
     width: 8px; height: 8px;
@@ -628,12 +706,17 @@
         </div>
 
         <button class="submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
+        <button class="export-btn" id="exportCsvBtn" onclick="exportFirebaseCsv()">DB CSV 저장</button>
       </div>
 
       <div class="input-monitor-column">
         <div class="card">
           <div class="card-label">베드 사용 현황</div>
           <div class="bed-monitor" id="inputBedMonitor"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">대기 환자</div>
+          <div class="waiting-list" id="inputWaitingList"></div>
         </div>
       </div>
     </div>
@@ -644,6 +727,10 @@
     <div class="card">
       <div class="card-label">베드 사용 현황</div>
       <div class="bed-monitor" id="receiveBedMonitor"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">대기 환자</div>
+      <div class="waiting-list" id="receiveWaitingList"></div>
     </div>
     <div class="bed-layout">
       <div class="bed-detail" id="receiveBedDetail"></div>
@@ -678,7 +765,6 @@
 <div class="notif-overlay" id="timerAlertOverlay" onclick="closeTimerAlert()">
   <div class="notif-popup timer-alert-popup" onclick="event.stopPropagation()">
     <div class="popup-icon">⏰</div>
-    <div class="timer-alert-title">타이머 완료</div>
     <div class="timer-alert-body" id="timerAlertBody"></div>
     <button class="popup-close" onclick="closeTimerAlert()">확인</button>
   </div>
@@ -750,6 +836,7 @@
 
   renderBedSelector();
   renderBedMonitors();
+  renderWaitingLists();
 
   // 체크박스 렌더링
   const grid = document.getElementById('treatmentGrid');
@@ -821,6 +908,97 @@
     btn.textContent = '입력';
   };
 
+  function csvCell(value) {
+    const text = Array.isArray(value)
+      ? value.join(' | ')
+      : (value === null || value === undefined ? '' : String(value));
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  function csvRow(values) {
+    return values.map(csvCell).join(',');
+  }
+
+  window.exportFirebaseCsv = async () => {
+    const btn = document.getElementById('exportCsvBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'CSV 저장 중...';
+    }
+
+    try {
+      const [patientsSnapshot, bedsSnapshot] = await Promise.all([
+        get(ref(db, 'patients')),
+        get(ref(db, 'beds'))
+      ]);
+      const patients = patientsSnapshot.val() || {};
+      const beds = bedsSnapshot.val() || {};
+      const lines = [];
+
+      lines.push('patients');
+      lines.push(csvRow(['patientKey', 'name', 'treatments', 'timestamp', 'timeStr', 'date', 'bedStatus', 'bedNo']));
+      Object.entries(patients)
+        .sort((a, b) => ((a[1]?.timestamp || 0) - (b[1]?.timestamp || 0)))
+        .forEach(([key, patient]) => {
+          lines.push(csvRow([
+            key,
+            patient.name,
+            patient.treatments || [],
+            patient.timestamp,
+            patient.timeStr,
+            patient.date,
+            patient.bedStatus,
+            patient.bedNo
+          ]));
+        });
+
+      lines.push('');
+      lines.push('beds');
+      lines.push(csvRow(['bedNo', 'patientKey', 'name', 'treatments', 'timeStr', 'timestamp', 'currentIndex', 'total', 'remaining', 'running', 'startedAt', 'complete', 'lastAlertId', 'lastAlertMessage']));
+      Object.entries(beds)
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .forEach(([bedNo, bed]) => {
+          lines.push(csvRow([
+            bedNo,
+            bed.patientKey,
+            bed.name,
+            bed.treatments || [],
+            bed.timeStr,
+            bed.timestamp,
+            bed.currentIndex,
+            bed.total,
+            bed.remaining,
+            bed.running,
+            bed.startedAt,
+            bed.complete,
+            bed.lastAlertId,
+            bed.lastAlertMessage
+          ]));
+        });
+
+      const now = new Date();
+      const dateKey = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `inhouse-firebase-${dateKey}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast('CSV 저장 완료');
+    } catch (e) {
+      console.error(e);
+      showToast('CSV 저장 실패');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'DB CSV 저장';
+      }
+    }
+  };
+
   // ─── 수신 ───────────────────────────────
   let isFirstLoad = true;
   let loadedKeys = new Set();
@@ -852,6 +1030,7 @@
 
     updateCount();
     if (isFirstLoad) setTimeout(() => { isFirstLoad = false; }, 500);
+    renderWaitingLists();
   });
 
   onChildRemoved(patientsRef, (snapshot) => {
@@ -865,6 +1044,7 @@
     renderBedDetail();
     renderReceiveBedDetail();
     renderBedMonitors();
+    renderWaitingLists();
     updateCount();
   });
 
@@ -879,6 +1059,7 @@
     renderBedDetail();
     renderReceiveBedDetail();
     renderBedMonitors();
+    renderWaitingLists();
     updateCount();
     ensureBedTicker();
   });
@@ -974,14 +1155,42 @@
       .filter(Boolean)
       .map(bed => bed.patientKey);
 
-    const waitingPatients = [...patientsByKey.entries()]
-      .filter(([key, data]) => data.bedStatus !== 'discharged' && !assignedPatientKeys.includes(key))
-      .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
+    const waitingPatients = getWaitingPatients(assignedPatientKeys);
 
     for (const [key, data] of waitingPatients) {
       if (bedAssignments.filter(Boolean).length >= BED_COUNT) break;
       assignPatientToBed(key, data, true);
     }
+  }
+
+  function getWaitingPatients(assignedPatientKeys = null) {
+    const assignedKeys = assignedPatientKeys || bedAssignments
+      .filter(Boolean)
+      .map(bed => bed.patientKey);
+
+    return [...patientsByKey.entries()]
+      .filter(([key, data]) => data.bedStatus !== 'discharged' && !assignedKeys.includes(key))
+      .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
+  }
+
+  function renderWaitingLists() {
+    const waitingPatients = getWaitingPatients();
+    const html = waitingPatients.length
+      ? waitingPatients.map(([key, data], index) => `
+        <div class="waiting-item" id="waiting-${key}">
+          <div class="waiting-rank">${index + 1}</div>
+          <div>
+            <div class="waiting-name">${escapeHtml(data.name)} 환자</div>
+            <div class="waiting-treats">${(data.treatments || []).map(treatment => `<span class="waiting-tag">${escapeHtml(treatment)}</span>`).join('')}</div>
+          </div>
+          <div class="waiting-time">${escapeHtml(data.timeStr || '')}</div>
+        </div>`).join('')
+      : `<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">대기 환자가 없습니다</div></div>`;
+
+    ['inputWaitingList', 'receiveWaitingList'].forEach(id => {
+      const list = document.getElementById(id);
+      if (list) list.innerHTML = html;
+    });
   }
 
   function formatTimer(seconds) {
