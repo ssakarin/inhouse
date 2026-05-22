@@ -7,19 +7,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0f1a13;
-    --surface: #1a2b1e;
-    --surface2: #243328;
-    --surface3: #2d3f31;
-    --border: #3a5040;
-    --accent: #6fcf8a;
-    --accent2: #4ab868;
-    --accent-dim: rgba(111,207,138,0.12);
-    --text: #e8f2ea;
-    --text2: #9ab5a0;
-    --text3: #5a7a61;
+    --bg: #052a61;
+    --surface: #073b83;
+    --surface2: #0a4a99;
+    --surface3: #0d5eb8;
+    --border: #1d65ad;
+    --accent: #39a9f5;
+    --accent2: #1687d9;
+    --accent-dim: rgba(57,169,245,0.15);
+    --text: #f7fbff;
+    --text2: #c8ddf4;
+    --text3: #7fa8cc;
     --danger: #ff6b6b;
-    --gold: #f0c060;
+    --gold: #ffb21a;
     --radius: 14px;
     --shadow: 0 8px 32px rgba(0,0,0,0.4);
   }
@@ -39,8 +39,8 @@
     content: '';
     position: fixed;
     inset: 0;
-    background-image: radial-gradient(circle at 20% 20%, rgba(111,207,138,0.06) 0%, transparent 50%),
-                      radial-gradient(circle at 80% 80%, rgba(74,184,104,0.04) 0%, transparent 50%);
+    background-image: radial-gradient(circle at 20% 20%, rgba(57,169,245,0.10) 0%, transparent 50%),
+                      radial-gradient(circle at 80% 80%, rgba(255,178,26,0.07) 0%, transparent 50%);
     pointer-events: none;
     z-index: 0;
   }
@@ -53,21 +53,37 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    background: var(--surface);
+    background: #083f88;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     margin-bottom: 16px;
   }
-  .header-left h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 18px;
-    color: var(--accent);
-    letter-spacing: -0.3px;
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
   }
+  .brand-icon {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .brand-copy { min-width: 0; }
+  .header-left h1 {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 0;
+  }
+  .brand-highlight { color: var(--gold); }
   .header-left p { font-size: 11px; color: var(--text3); margin-top: 2px; }
   .mode-toggle {
     display: flex;
-    background: var(--surface2);
+    background: rgba(255,255,255,0.08);
     border-radius: 8px;
     padding: 3px;
     gap: 2px;
@@ -84,7 +100,7 @@
     background: transparent;
     color: var(--text2);
   }
-  .mode-btn.active { background: var(--accent2); color: #fff; font-weight: 700; }
+  .mode-btn.active { background: var(--accent); color: #053063; font-weight: 900; }
 
   /* ─── 입력 패널 ─── */
   .input-panel { display: none; }
@@ -220,7 +236,7 @@
     width: 100%;
     padding: 18px;
     background: var(--accent2);
-    color: #0f1a13;
+    color: #f7fbff;
     border: none;
     border-radius: var(--radius);
     font-family: 'Noto Sans KR', sans-serif;
@@ -230,7 +246,7 @@
     transition: all 0.2s;
     letter-spacing: -0.3px;
   }
-  .submit-btn:hover { background: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(111,207,138,0.3); }
+  .submit-btn:hover { background: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(57,169,245,0.35); }
   .submit-btn:active { transform: translateY(0); }
   .submit-btn:disabled { background: var(--surface3); color: var(--text3); cursor: not-allowed; transform: none; box-shadow: none; }
   .export-btn {
@@ -312,7 +328,7 @@
   .notif-name { font-size: 18px; font-weight: 900; color: var(--text); }
   .notif-new-badge {
     background: var(--gold);
-    color: #0f1a13;
+    color: #053063;
     font-size: 10px;
     font-weight: 900;
     padding: 2px 8px;
@@ -530,7 +546,7 @@
     font-weight: 800;
     cursor: pointer;
   }
-  .timer-btn.primary { background: var(--accent2); color: #0f1a13; border-color: var(--accent2); }
+  .timer-btn.primary { background: var(--accent); color: #053063; border-color: var(--accent); }
   .timer-btn:hover { border-color: var(--accent); }
   .timer-btn:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--border); }
   .timer-settings {
@@ -588,7 +604,7 @@
     left: 50%;
     transform: translateX(-50%) translateY(80px);
     background: var(--accent2);
-    color: #0f1a13;
+    color: #053063;
     font-size: 13px;
     font-weight: 700;
     padding: 12px 24px;
@@ -645,7 +661,7 @@
     width: 100%;
     padding: 14px;
     background: var(--gold);
-    color: #0f1a13;
+    color: #053063;
     border: none;
     border-radius: 10px;
     font-family: 'Noto Sans KR', sans-serif;
@@ -689,8 +705,11 @@
   <!-- 헤더 -->
   <div class="header">
     <div class="header-left">
-      <h1>🌿 경희홍익한의원</h1>
-      <p><span class="status-dot"></span>실시간 연결됨</p>
+      <img class="brand-icon" src="assets/logo-icon.png" alt="경희홍익한의원 로고">
+      <div class="brand-copy">
+        <h1><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span></h1>
+        <p><span class="status-dot"></span>실시간 연결됨</p>
+      </div>
     </div>
     <div class="mode-toggle">
       <button class="mode-btn active" onclick="setMode('input')">입력</button>
@@ -824,9 +843,9 @@
     저주파: 0.2,
     습부항: 0.2,
     건부항: 0.2,
-    왕뜸: 1,
-    전자뜸: 1,
-    약침: 1
+    왕뜸: 0.2,
+    전자뜸: 0.2,
+    약침: 0.2
   };
 
   const patientsByKey = new Map();
