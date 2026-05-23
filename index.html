@@ -101,6 +101,8 @@
     color: var(--text2);
   }
   .mode-btn.active { background: var(--accent); color: #053063; font-weight: 900; }
+  body.app-role-locked .mode-toggle { display: none; }
+  body.app-role-bed.app-fixed-bed #bedSelector { display: none; }
 
   /* ─── 입력 패널 ─── */
   .input-panel { display: none; }
@@ -850,9 +852,13 @@
 
   const patientsByKey = new Map();
   const BED_COUNT = 13;
+  function getUrlBedNo() {
+    const value = Number(new URLSearchParams(window.location.search).get('bed'));
+    return Number.isInteger(value) && value >= 1 && value <= BED_COUNT ? value : 1;
+  }
   let bedAssignments = Array(BED_COUNT).fill(null);
-  let selectedBedNo = 1;
-  let selectedReceiveBedNo = 1;
+  let selectedBedNo = getUrlBedNo();
+  let selectedReceiveBedNo = getUrlBedNo();
   let bedRenderTicker = null;
   let timerAlertAudioCtx = null;
   let timerAlertBeepTimer = null;
@@ -1915,12 +1921,46 @@
 
 <script>
   // 모드 전환
-  function getModeFromHash() {
-    const hashMode = (window.location.hash || '').replace('#', '').toLowerCase();
-    return ['input', 'receive', 'bed'].includes(hashMode) ? hashMode : 'input';
+  const VIEW_TO_MODE = {
+    doctor: 'input',
+    desk: 'receive',
+    bed: 'bed'
+  };
+
+  function getAppView() {
+    const view = (new URLSearchParams(window.location.search).get('view') || '').toLowerCase();
+    return Object.prototype.hasOwnProperty.call(VIEW_TO_MODE, view) ? view : '';
+  }
+
+  function getModeFromView() {
+    const view = getAppView();
+    return view ? VIEW_TO_MODE[view] : '';
+  }
+
+  function getFixedBedNoFromUrl() {
+    const value = Number(new URLSearchParams(window.location.search).get('bed'));
+    return Number.isInteger(value) && value >= 1 && value <= 13 ? value : 0;
+  }
+
+  function getInitialMode() {
+    return getModeFromView() || 'input';
+  }
+
+  function syncAppViewClass() {
+    const view = getAppView();
+    document.body.classList.toggle('app-role-locked', Boolean(view));
+    ['doctor', 'desk', 'bed'].forEach(name => {
+      document.body.classList.toggle(`app-role-${name}`, view === name);
+    });
+    document.body.classList.toggle(
+      'app-fixed-bed',
+      view === 'bed' && Boolean(getFixedBedNoFromUrl())
+    );
   }
 
   function setMode(mode, updateHash = true) {
+    const fixedMode = getModeFromView();
+    if (fixedMode) mode = fixedMode;
     window.currentMode = mode;
     document.getElementById('inputPanel').classList.toggle('active', mode === 'input');
     document.getElementById('receivePanel').classList.toggle('active', mode === 'receive');
@@ -1928,18 +1968,11 @@
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', (i === 0 && mode === 'input') || (i === 1 && mode === 'receive') || (i === 2 && mode === 'bed'));
     });
-    if (updateHash) {
-      const nextUrl = mode === 'input'
-        ? window.location.pathname + window.location.search
-        : `#${mode}`;
-      history.replaceState(null, '', nextUrl);
+    if (updateHash && !fixedMode && window.location.hash) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
     }
     if (mode === 'receive' || mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
   }
-
-  window.addEventListener('hashchange', () => {
-    setMode(getModeFromHash(), false);
-  });
 
   // 토스트
   function showToast(msg) {
@@ -1951,7 +1984,8 @@
 
   // 엔터키로 전송
   document.addEventListener('DOMContentLoaded', () => {
-    setMode(getModeFromHash(), false);
+    syncAppViewClass();
+    setMode(getInitialMode(), false);
     document.getElementById('patientName').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('submitBtn').click();
     });
