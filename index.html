@@ -668,6 +668,12 @@
 
   /* 베드 타이머 */
   .bed-layout { display: flex; flex-direction: column; gap: 12px; }
+  .bed-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+  }
   .bed-selector {
     width: 100%;
     background: var(--surface2);
@@ -681,6 +687,76 @@
     outline: none;
   }
   .bed-selector:focus { border-color: var(--accent); }
+  .body-map-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .body-map-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .body-figure-panel {
+    background: rgba(5, 42, 97, 0.26);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 10px;
+    padding: 10px;
+  }
+  .body-figure-title {
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .body-figure {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 0.62;
+  }
+  .body-figure svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .body-hotspot {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 3px solid rgba(57,169,245,0.98);
+    background: rgba(255,255,255,0.18);
+    box-shadow: 0 0 0 3px rgba(5,42,97,0.62), 0 0 10px rgba(57,169,245,0.45);
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+    padding: 0;
+  }
+  .body-hotspot.active {
+    border-color: rgba(255,255,255,0.98);
+    background: rgba(255,178,26,0.92);
+    box-shadow: 0 0 0 4px rgba(5,42,97,0.70), 0 0 16px rgba(255,178,26,0.85);
+  }
+  .body-hotspot:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .body-selected-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .body-part-chip {
+    background: rgba(255,107,107,0.18);
+    border: 1px solid rgba(255,107,107,0.62);
+    border-radius: 7px;
+    color: #ffb3b3;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 6px 9px;
+  }
   .bed-clear-btn,
   .bed-next-btn {
     width: 100%;
@@ -712,7 +788,54 @@
     margin-bottom: 12px;
   }
   .bed-name { font-size: 24px; font-weight: 900; color: var(--text); }
+  .bed-name-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .bed-patient-summary {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+  }
+  .bed-patient-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 7px;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+    padding: 5px 8px;
+  }
   .bed-time { font-size: 12px; color: var(--text3); }
+  .bed-detail-info {
+    background: rgba(5, 42, 97, 0.38);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .bed-detail-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .bed-detail-info .bed-meta-chip,
+  .bed-detail-info .bed-treatment-chip {
+    font-size: 12px;
+    padding: 6px 9px;
+  }
+  .bed-detail-treatment-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
   .timer-list { display: flex; flex-direction: column; gap: 10px; }
   .bed-alert-card {
     background: rgba(255,107,107,0.16);
@@ -834,6 +957,10 @@
     .input-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); align-items: start; }
     .receive-layout { grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); align-items: start; }
     .staff-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  }
+
+  @media (max-width: 859px) {
+    .bed-workspace { grid-template-columns: 1fr; }
   }
 
   /* 빈 상태 */
@@ -1051,7 +1178,10 @@
     </div>
     <div class="bed-layout">
       <select class="bed-selector" id="bedSelector" onchange="selectBed(Number(this.value))"></select>
-      <div class="bed-detail" id="bedDetail"></div>
+      <div class="bed-workspace">
+        <div class="body-map-card" id="bodyMap"></div>
+        <div class="bed-detail" id="bedDetail"></div>
+      </div>
     </div>
   </div>
 
@@ -1152,6 +1282,28 @@
   const REGULAR_BED_COUNT = 13;
   const SPECIAL_BED_LABELS = {
     14: '스파인MT'
+  };
+  const BODY_PARTS = {
+    front: [
+      { id: 'head', label: '머리', x: 50, y: 10 },
+      { id: 'left_shoulder', label: '좌측 어깨', x: 32, y: 24 },
+      { id: 'right_shoulder', label: '우측 어깨', x: 68, y: 24 },
+      { id: 'left_elbow', label: '좌측 팔꿈치', x: 23, y: 43 },
+      { id: 'right_elbow', label: '우측 팔꿈치', x: 77, y: 43 },
+      { id: 'left_wrist', label: '좌측 손목', x: 18, y: 62 },
+      { id: 'right_wrist', label: '우측 손목', x: 82, y: 62 },
+      { id: 'abdomen', label: '배', x: 50, y: 47 },
+      { id: 'pelvis', label: '골반', x: 50, y: 61 },
+      { id: 'left_knee', label: '좌측 무릎', x: 42, y: 79 },
+      { id: 'right_knee', label: '우측 무릎', x: 58, y: 79 },
+      { id: 'left_ankle', label: '좌측 발목', x: 39, y: 92 },
+      { id: 'right_ankle', label: '우측 발목', x: 61, y: 92 }
+    ],
+    back: [
+      { id: 'neck', label: '목', x: 50, y: 21 },
+      { id: 'back', label: '등', x: 50, y: 39 },
+      { id: 'waist', label: '허리', x: 50, y: 57 }
+    ]
   };
 
   function getBedLabel(bedNo) {
@@ -1644,6 +1796,7 @@
         doctorName: data.doctorName || '',
         nurseId: data.nurseId || '',
         nurseName: data.nurseName || '',
+        bodyParts: data.bodyParts || { front: [], back: [] },
         currentIndex: 0,
         total,
         remaining: total,
@@ -1802,6 +1955,7 @@
 
   function renderBedDetail() {
     const detail = document.getElementById('bedDetail');
+    renderBodyPartSelector();
     renderBedDetailInto(detail, selectedBedNo, true);
   }
 
@@ -1816,6 +1970,142 @@
     detail.innerHTML = renderBedDetailMarkup(bedNo, allowControls, context);
   }
 
+  function normalizeBodyParts(bodyParts = {}) {
+    return {
+      front: Array.isArray(bodyParts.front) ? bodyParts.front : [],
+      back: Array.isArray(bodyParts.back) ? bodyParts.back : []
+    };
+  }
+
+  function renderBodyPartSelector() {
+    const map = document.getElementById('bodyMap');
+    if (!map) return;
+
+    const bed = bedAssignments[selectedBedNo - 1];
+    const bedLabel = getBedLabel(selectedBedNo);
+    if (!bed) {
+      map.innerHTML = `
+        <div class="card-label">${escapeHtml(bedLabel)} 치료부위</div>
+        <div class="empty-state">
+          <div class="empty-icon">◎</div>
+          <div class="empty-text">현재 비어 있습니다</div>
+        </div>`;
+      return;
+    }
+
+    const selectedParts = normalizeBodyParts(bed.bodyParts);
+
+    map.innerHTML = `
+      <div class="card-label">${escapeHtml(bedLabel)} 치료부위</div>
+      <div class="body-map-grid">
+        ${renderBodyFigure('front', '전면', selectedParts.front)}
+        ${renderBodyFigure('back', '후면', selectedParts.back)}
+      </div>`;
+  }
+
+  function renderBodyFigure(side, title, selectedParts) {
+    const hotspots = BODY_PARTS[side].map(part => {
+      const activeClass = selectedParts.includes(part.label) ? ' active' : '';
+      return `<button class="body-hotspot${activeClass}" style="left:${part.x}%; top:${part.y}%;" title="${escapeHtml(part.label)}" aria-label="${escapeHtml(part.label)}" onclick="toggleBodyPart('${side}', '${part.label}')"></button>`;
+    }).join('');
+
+    return `
+      <div class="body-figure-panel">
+        <div class="body-figure-title">${title}</div>
+        <div class="body-figure">
+          ${renderBodySvg(side)}
+          ${hotspots}
+        </div>
+      </div>`;
+  }
+
+  function renderBodySvg(side) {
+    const detailMarks = side === 'back'
+      ? `
+        <path d="M63 66 C67 90 67 113 61 132" fill="none" stroke="rgba(86,139,184,0.34)" stroke-width="2"/>
+        <path d="M97 66 C93 90 93 113 99 132" fill="none" stroke="rgba(86,139,184,0.34)" stroke-width="2"/>
+        <path d="M69 146 C75 154 85 154 91 146" fill="none" stroke="rgba(86,139,184,0.36)" stroke-width="2"/>
+        <path d="M80 54 C80 88 80 123 80 148" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="3"/>
+      `
+      : `
+        <path d="M54 71 C60 67 67 67 72 71" fill="none" stroke="rgba(86,139,184,0.32)" stroke-width="2"/>
+        <path d="M88 71 C93 67 100 67 106 71" fill="none" stroke="rgba(86,139,184,0.32)" stroke-width="2"/>
+        <path d="M50 83 C54 79 61 79 64 83" fill="none" stroke="rgba(86,139,184,0.26)" stroke-width="2"/>
+        <path d="M96 83 C99 79 106 79 110 83" fill="none" stroke="rgba(86,139,184,0.26)" stroke-width="2"/>
+        <path d="M72 148 C76 156 84 156 88 148" fill="none" stroke="rgba(86,139,184,0.34)" stroke-width="2"/>
+      `;
+    return `
+      <svg viewBox="0 0 160 260" role="img" aria-label="${side === 'front' ? '전면 인체모형' : '후면 인체모형'}">
+        <g fill="#c8dff0" stroke="none">
+          <ellipse cx="80" cy="24" rx="17" ry="21"/>
+          <path d="M69 43 C72 49 88 49 91 43 L92 57 C88 62 72 62 68 57 Z"/>
+          <path d="M55 58 C65 53 95 53 105 58 C112 78 110 116 101 145 C97 156 92 162 80 162 C68 162 63 156 59 145 C50 116 48 78 55 58 Z"/>
+          <path d="M54 59 C39 68 32 87 29 111 C27 132 21 149 18 164 C17 172 22 178 28 177 C34 176 35 169 36 161 C39 144 43 129 46 112 C49 93 54 77 61 66 Z"/>
+          <path d="M106 59 C121 68 128 87 131 111 C133 132 139 149 142 164 C143 172 138 178 132 177 C126 176 125 169 124 161 C121 144 117 129 114 112 C111 93 106 77 99 66 Z"/>
+          <path d="M64 151 C58 169 55 187 56 206 C57 222 53 235 48 249 C51 256 65 256 68 249 C67 231 70 214 73 198 C76 180 76 166 72 157 Z"/>
+          <path d="M96 151 C102 169 105 187 104 206 C103 222 107 235 112 249 C109 256 95 256 92 249 C93 231 90 214 87 198 C84 180 84 166 88 157 Z"/>
+        </g>
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          ${detailMarks}
+          <path d="M43 99 C38 112 35 135 32 157" stroke="rgba(255,255,255,0.18)" stroke-width="3"/>
+          <path d="M117 99 C122 112 125 135 128 157" stroke="rgba(255,255,255,0.18)" stroke-width="3"/>
+          <path d="M68 176 C63 198 61 224 62 244" stroke="rgba(255,255,255,0.16)" stroke-width="3"/>
+          <path d="M92 176 C97 198 99 224 98 244" stroke="rgba(255,255,255,0.16)" stroke-width="3"/>
+        </g>
+      </svg>`;
+  }
+
+  function renderBedDetailTreatmentChips(bed) {
+    const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
+    if (!treatments.length) {
+      return '<span class="bed-treatment-chip waiting">치료 정보 -</span>';
+    }
+
+    const currentIndex = Number(bed.currentIndex || 0);
+    return treatments.map((treatment, index) => {
+      const chipClass = bed.complete
+        ? 'done'
+        : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'waiting'));
+      const runningClass = bed.running && index === currentIndex ? ' running' : '';
+      return `<span class="bed-treatment-chip ${chipClass}${runningClass}">${escapeHtml(treatment)}</span>`;
+    }).join('');
+  }
+
+  function renderBodyPartChips(bed) {
+    const selectedParts = normalizeBodyParts(bed.bodyParts);
+    const parts = [...selectedParts.front, ...selectedParts.back];
+    if (!parts.length) return '<span class="bed-meta-chip">치료부위 선택 없음</span>';
+    return parts.map(part => `<span class="body-part-chip">${escapeHtml(part)}</span>`).join('');
+  }
+
+  function getBedDetailPatientSummaryChips(bed) {
+    const parts = [
+      bed.chartNo ? `${bed.chartNo}번` : '',
+      bed.age ? `${bed.age}세` : '',
+      bed.visitType || '',
+      bed.gender || ''
+    ].filter(Boolean);
+
+    if (!parts.length) return '';
+    return parts.map(part => `<span class="bed-patient-summary-chip">${escapeHtml(part)}</span>`).join('');
+  }
+
+  function renderBedDetailPatientInfo(bed, bedNo) {
+    const infoChips = [
+      ['원장', bed.doctorName || '-'],
+      ['간호사', bed.nurseName || '-']
+    ].map(([label, value]) => `<span class="bed-meta-chip">${label} ${escapeHtml(value)}</span>`).join('');
+    const chiefComplaintChip = `<span class="bed-meta-chip">주상병명: ${escapeHtml(bed.chiefComplaint || '-')}</span>`;
+
+    return `
+      <div class="bed-detail-info">
+        <div class="bed-detail-chip-row">${infoChips}</div>
+        <div class="bed-detail-chip-row">${chiefComplaintChip}</div>
+        <div class="body-selected-list">${renderBodyPartChips(bed)}</div>
+        <div class="bed-detail-treatment-row">${renderBedDetailTreatmentChips(bed)}</div>
+      </div>`;
+  }
+
   function renderBedDetailMarkup(bedNo, allowControls, context = 'bed') {
     const bed = bedAssignments[bedNo - 1];
     const bedLabel = getBedLabel(bedNo);
@@ -1828,15 +2118,20 @@
     }
 
     const currentTreatment = bed.treatments?.[bed.currentIndex];
+    const patientSummary = getBedDetailPatientSummaryChips(bed);
     return `
       <div class="card">
         <div class="bed-summary">
           <div>
             <div class="card-label">${escapeHtml(bedLabel)}</div>
-            <div class="bed-name">${escapeHtml(bed.name)} 환자</div>
+            <div class="bed-name-row">
+              <div class="bed-name">${escapeHtml(bed.name)} 환자</div>
+              ${patientSummary ? `<div class="bed-patient-summary">${patientSummary}</div>` : ''}
+            </div>
           </div>
           <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
         </div>
+        ${renderBedDetailPatientInfo(bed, bedNo)}
         ${bed.lastAlertId ? `<div class="bed-alert-card">
           <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 환자 치료 완료`)}</div>
           <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
@@ -2011,6 +2306,34 @@
       startedAt: null,
       remaining: getRemaining(bed)
     });
+  };
+
+  window.toggleBodyPart = async (side, part) => {
+    const bed = bedAssignments[selectedBedNo - 1];
+    if (!bed || !BODY_PARTS[side]) return;
+
+    const bodyParts = normalizeBodyParts(bed.bodyParts);
+    const current = new Set(bodyParts[side]);
+    if (current.has(part)) {
+      current.delete(part);
+    } else {
+      current.add(part);
+    }
+
+    const nextBodyParts = {
+      ...bodyParts,
+      [side]: [...current]
+    };
+
+    const updates = [
+      update(ref(db, `beds/${selectedBedNo}`), { bodyParts: nextBodyParts })
+    ];
+
+    if (bed.patientKey) {
+      updates.push(update(ref(db, `patients/${bed.patientKey}`), { bodyParts: nextBodyParts }));
+    }
+
+    await Promise.all(updates);
   };
 
   window.resetTimer = async (bedNo) => {
