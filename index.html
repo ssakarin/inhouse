@@ -89,6 +89,32 @@
     padding: 3px;
     gap: 2px;
   }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header-desk-controls {
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  body.app-mode-input .header-desk-controls,
+  body.app-mode-receive .header-desk-controls,
+  body.app-role-doctor .header-desk-controls,
+  body.app-role-desk .header-desk-controls {
+    display: flex;
+  }
+  .header-wait-chip {
+    background: rgba(255,178,26,0.16);
+    border: 1px solid rgba(255,178,26,0.55);
+    border-radius: 999px;
+    color: var(--gold);
+    font-size: 12px;
+    font-weight: 900;
+    padding: 7px 10px;
+    white-space: nowrap;
+  }
   .mode-btn {
     padding: 6px 12px;
     border: none;
@@ -109,8 +135,37 @@
   .input-panel { display: none; }
   .input-panel.active { display: block; }
   .input-layout { display: grid; gap: 12px; }
+  .input-panel:not(.input-form-open) .input-form-column { display: none; }
+  .input-panel:not(.input-form-open) .input-layout { grid-template-columns: 1fr; }
   .input-form-column,
   .input-monitor-column { min-width: 0; }
+  .input-drawer-toggle {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 50%;
+    z-index: 40;
+    width: 34px;
+    height: 72px;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-left: none;
+    border-radius: 0 12px 12px 0;
+    color: #053063;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 26px;
+    font-weight: 900;
+    line-height: 1;
+    transform: translateY(-50%);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.32);
+  }
+  .input-panel.active .input-drawer-toggle { display: block; }
+  .input-panel.input-form-open .input-drawer-toggle {
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+  .input-drawer-toggle:hover { filter: brightness(1.08); }
 
   .card {
     background: var(--surface);
@@ -950,13 +1005,18 @@
   .timer-set-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   @media (min-width: 560px) {
-    .bed-monitor { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .bed-monitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 
   @media (min-width: 860px) {
-    .input-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); align-items: start; }
+    .input-panel.input-form-open .input-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); align-items: start; }
     .receive-layout { grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); align-items: start; }
     .staff-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  }
+
+  @media (min-width: 1200px) {
+    #inputBedMonitor,
+    #receiveBedMonitor { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
 
   @media (max-width: 859px) {
@@ -1086,16 +1146,22 @@
         <p><span class="status-dot"></span>실시간 연결됨</p>
       </div>
     </div>
-    <div class="mode-toggle">
-      <button class="mode-btn active" onclick="setMode('input')">원장실</button>
-      <button class="mode-btn" onclick="setMode('receive')">치료실</button>
-      <button class="mode-btn" onclick="setMode('bed')">베드</button>
-      <button class="mode-btn" onclick="setMode('settings')">설정</button>
+    <div class="header-actions">
+      <div class="header-desk-controls">
+        <span class="header-wait-chip" id="deskWaitChip">예상 대기 0분</span>
+      </div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" onclick="setMode('input')">데스크</button>
+        <button class="mode-btn" onclick="setMode('receive')">치료실</button>
+        <button class="mode-btn" onclick="setMode('bed')">베드</button>
+        <button class="mode-btn" onclick="setMode('settings')">설정</button>
+      </div>
     </div>
   </div>
 
   <!-- 입력 패널 -->
   <div class="input-panel active" id="inputPanel">
+    <button class="input-drawer-toggle" id="inputFormToggle" onclick="toggleInputForm()" aria-label="환자 입력 열기">›</button>
     <div class="input-layout">
       <div class="input-form-column">
         <div class="card">
@@ -1519,6 +1585,7 @@
       });
 
       showToast(`✅ ${name} 환자 알림 전송 완료`);
+      setInputFormOpen(false);
     } catch (e) {
       showToast('❌ 전송 실패 — 연결을 확인해주세요');
       console.error(e);
@@ -1845,6 +1912,7 @@
 
   function renderWaitingLists() {
     const waitingPatients = getWaitingPatients();
+    updateDeskWaitChip(waitingPatients);
     const html = waitingPatients.length
       ? waitingPatients.map(([key, data], index) => `
         <div class="waiting-item" id="waiting-${key}">
@@ -1861,6 +1929,28 @@
       const list = document.getElementById(id);
       if (list) list.innerHTML = html;
     });
+  }
+
+  function getEstimatedWaitMinutes(waitingPatients) {
+    if (!waitingPatients.length) return 0;
+    const regularBeds = bedAssignments.slice(0, REGULAR_BED_COUNT);
+    if (regularBeds.filter(Boolean).length < REGULAR_BED_COUNT) return 0;
+
+    const nextSeconds = regularBeds
+      .map(bed => {
+        if (!bed || bed.complete || bed.lastAlertId) return 0;
+        return getRemaining(bed);
+      })
+      .sort((a, b) => a - b)[0] || 0;
+
+    return Math.ceil(nextSeconds / 60);
+  }
+
+  function updateDeskWaitChip(waitingPatients = getWaitingPatients()) {
+    const chip = document.getElementById('deskWaitChip');
+    if (!chip) return;
+    const minutes = getEstimatedWaitMinutes(waitingPatients);
+    chip.textContent = `예상 대기 ${minutes}분`;
   }
 
   function formatUpcomingTime(seconds) {
@@ -2579,6 +2669,7 @@
 
     document.getElementById('inputBedMonitor').innerHTML = inputHtml;
     document.getElementById('receiveBedMonitor').innerHTML = receiveHtml;
+    updateDeskWaitChip();
     updateReceiveAlertAudioState();
   }
 
@@ -3001,6 +3092,9 @@
     document.getElementById('receivePanel').classList.toggle('active', mode === 'receive');
     document.getElementById('bedPanel').classList.toggle('active', mode === 'bed');
     document.getElementById('settingsPanel').classList.toggle('active', mode === 'settings');
+    ['input', 'receive', 'bed', 'settings'].forEach(name => {
+      document.body.classList.toggle(`app-mode-${name}`, mode === name);
+    });
     const modes = ['input', 'receive', 'bed', 'settings'];
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', modes[i] === mode);
@@ -3011,6 +3105,23 @@
     if (mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
     window.updateReceiveAlertAudioState?.();
   }
+
+  function setInputFormOpen(open) {
+    const panel = document.getElementById('inputPanel');
+    const button = document.getElementById('inputFormToggle');
+    if (!panel) return;
+    panel.classList.toggle('input-form-open', Boolean(open));
+    if (button) {
+      button.textContent = open ? '‹' : '›';
+      button.setAttribute('aria-label', open ? '환자 입력 닫기' : '환자 입력 열기');
+      button.title = open ? '환자 입력 닫기' : '환자 입력 열기';
+    }
+  }
+
+  window.toggleInputForm = () => {
+    const panel = document.getElementById('inputPanel');
+    setInputFormOpen(!panel?.classList.contains('input-form-open'));
+  };
 
   // 토스트
   function showToast(msg) {
