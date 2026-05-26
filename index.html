@@ -1031,6 +1031,22 @@
     padding: 12px;
     margin-bottom: 12px;
   }
+  .bed-detail-info.has-action {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .bed-detail-info .bed-clear-btn {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 94px;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
   .bed-detail-chip-row {
     display: flex;
     flex-wrap: wrap;
@@ -1115,6 +1131,15 @@
   .timer-card.done .timer-bar { background: var(--gold); }
   .timer-card.done .timer-clock { color: var(--gold); }
   .timer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .timer-actions.bed-timer-actions {
+    grid-template-columns: 1fr;
+  }
+  .timer-actions.bed-timer-actions .timer-btn {
+    min-height: 58px;
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 17px;
+  }
   .treatment-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
   .timer-btn {
     padding: 10px;
@@ -1136,6 +1161,15 @@
     grid-template-columns: 1fr auto;
     gap: 8px;
     margin-bottom: 12px;
+  }
+  .timer-settings.bed-timer-settings {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .timer-settings.bed-timer-settings .timer-minute-input,
+  .timer-settings.bed-timer-settings .timer-set-btn {
+    min-height: 48px;
+    font-size: 15px;
+    text-align: center;
   }
   .timer-minute-input {
     width: 100%;
@@ -2257,8 +2291,9 @@
     if (button) button.textContent = bedNo ? '정보수정' : '입력';
   }
 
-  function populateBedEditForm() {
   window.setFormEditMode = setFormEditMode;
+
+  function populateBedEditForm() {
     const bed = bedAssignments[selectedBedNo - 1];
     const ids = PATIENT_FORM_IDS.bed;
     if (!bed) {
@@ -2804,7 +2839,7 @@
 
     const minutesList = regularBeds
       .map(bed => {
-        if (!bed || bed.complete || bed.lastAlertId) return 0;
+        if (!bed) return 0;
         return getBedRemainingTreatmentSeconds(bed);
       })
       .sort((a, b) => a - b)
@@ -2936,7 +2971,9 @@
   }
 
   function getBedRemainingTreatmentSeconds(bed) {
-    if (!bed || bed.complete) return 0;
+    if (!bed) return 0;
+    const pendingAlertProcedureSeconds = bed.lastAlertId ? getProcedureSeconds() : 0;
+    if (bed.complete) return pendingAlertProcedureSeconds;
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
     const currentIndex = Number(bed.currentIndex || 0);
     const remainingTreatments = treatments.slice(currentIndex);
@@ -2944,7 +2981,7 @@
     const futureSeconds = treatments
       .slice(currentIndex + 1)
       .reduce((sum, treatment) => sum + getTreatmentSeconds(treatment), 0);
-    return currentRemaining + futureSeconds + (remainingTreatments.length * getProcedureSeconds());
+    return currentRemaining + futureSeconds + (remainingTreatments.length * getProcedureSeconds()) + pendingAlertProcedureSeconds;
   }
 
   function updateBedRemainingChip() {
@@ -3041,7 +3078,7 @@
       </svg>`;
   }
 
-  function renderBedDetailTreatmentChips(bed) {
+  function renderBedDetailTreatmentChips(bed, bedNo) {
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
     if (!treatments.length) {
       return '<span class="bed-treatment-chip waiting">치료 정보 -</span>';
@@ -3053,7 +3090,13 @@
         ? 'done'
         : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'waiting'));
       const runningClass = bed.running && index === currentIndex ? ' running' : '';
-      return `<span class="bed-treatment-chip ${chipClass}${runningClass}">${escapeHtml(treatment)}</span>`;
+      return `<span class="bed-treatment-chip ${chipClass}${runningClass}" draggable="true"
+        ondragstart="handleTreatChipDragStart(event,${bedNo},${index})"
+        ondragover="handleTreatChipDragOver(event,${bedNo},${index})"
+        ondrop="handleTreatChipDrop(event,${bedNo},${index})"
+        ondragend="handleTreatChipDragEnd(event)"
+        ondragleave="handleTreatChipDragLeave(event)"
+      >${escapeHtml(treatment)}</span>`;
     }).join('');
   }
 
@@ -3067,28 +3110,32 @@
   function getBedDetailPatientSummaryChips(bed) {
     const parts = [
       bed.chartNo ? `${bed.chartNo}번` : '',
-      bed.age ? `${bed.age}세` : '',
       bed.visitType || '',
-      bed.gender || ''
+      bed.gender || '',
+      bed.age ? `${bed.age}세` : '',
+      bed.chiefComplaint || ''
     ].filter(Boolean);
 
     if (!parts.length) return '';
     return parts.map(part => `<span class="bed-patient-summary-chip">${escapeHtml(part)}</span>`).join('');
   }
 
-  function renderBedDetailPatientInfo(bed, bedNo) {
+  function renderBedDetailPatientInfo(bed, bedNo, showClearButton = false) {
+    const patientSummary = getBedDetailPatientSummaryChips(bed);
     const infoChips = [
-      ['원장', bed.doctorName || '-'],
-      ['간호사', bed.nurseName || '-']
-    ].map(([label, value]) => `<span class="bed-meta-chip">${label} ${escapeHtml(value)}</span>`).join('');
-    const chiefComplaintChip = `<span class="bed-meta-chip">주상병명: ${escapeHtml(bed.chiefComplaint || '-')}</span>`;
+      bed.doctorName || '-',
+      bed.nurseName || '-'
+    ].map(value => `<span class="bed-meta-chip">${escapeHtml(value)}</span>`).join('');
 
     return `
-      <div class="bed-detail-info">
-        <div class="bed-detail-chip-row">${infoChips}</div>
-        <div class="bed-detail-chip-row">${chiefComplaintChip}</div>
-        <div class="body-selected-list">${renderBodyPartChips(bed)}</div>
-        <div class="bed-detail-treatment-row">${renderBedDetailTreatmentChips(bed)}</div>
+      <div class="bed-detail-info${showClearButton ? ' has-action' : ''}">
+        <div>
+          ${patientSummary ? `<div class="bed-detail-chip-row">${patientSummary}</div>` : ''}
+          <div class="bed-detail-chip-row">${infoChips}</div>
+          <div class="body-selected-list">${renderBodyPartChips(bed)}</div>
+          <div class="bed-detail-treatment-row">${renderBedDetailTreatmentChips(bed, bedNo)}</div>
+        </div>
+        ${showClearButton ? `<button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
       </div>`;
   }
 
@@ -3104,7 +3151,6 @@
     }
 
     const currentTreatment = bed.treatments?.[bed.currentIndex];
-    const patientSummary = getBedDetailPatientSummaryChips(bed);
     return `
       <div class="card">
         <div class="bed-summary">
@@ -3112,20 +3158,19 @@
             <div class="card-label">${escapeHtml(bedLabel)}</div>
             <div class="bed-name-row">
               <div class="bed-name">${escapeHtml(bed.name)} 환자</div>
-              ${patientSummary ? `<div class="bed-patient-summary">${patientSummary}</div>` : ''}
             </div>
           </div>
           <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
         </div>
-        ${renderBedDetailPatientInfo(bed, bedNo)}
+        ${renderBedDetailPatientInfo(bed, bedNo, allowControls && context === 'bed')}
         ${bed.lastAlertId ? `<div class="bed-alert-card">
           <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 환자 치료 완료`)}</div>
           <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
         </div>` : ''}
         <div class="timer-list">
-          ${bed.complete ? renderCompleteCard(bedNo, bed, allowControls) : renderTimerCard(bedNo, bed, currentTreatment, allowControls, context)}
+          ${bed.complete ? renderCompleteCard(bedNo, bed, allowControls, context) : renderTimerCard(bedNo, bed, currentTreatment, allowControls, context)}
         </div>
-        ${allowControls && !bed.complete ? `<button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
+        ${allowControls && context !== 'bed' && !bed.complete ? `<button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
       </div>`;
   }
 
@@ -3145,6 +3190,7 @@
     const inputId = `${context}-timer-minutes-bed-${bedNo}`;
     const toggleLabel = bed.running ? '일시정지' : '시작';
     const toggleClass = bed.running ? 'pause' : 'primary';
+    const isBedContext = context === 'bed';
     return `
       <div class="timer-card" id="${timerId}">
         <div class="timer-top">
@@ -3160,18 +3206,19 @@
           <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${bed.currentIndex <= 0 ? 'disabled' : ''}>이전 치료</button>
           <button class="timer-btn" onclick="moveTreatment(${bedNo}, 1)" ${bed.currentIndex >= bed.treatments.length - 1 ? 'disabled' : ''}>이후 치료</button>
         </div>` : ''}
-        ${allowControls ? `<div class="timer-settings">
+        ${allowControls ? `<div class="timer-settings${isBedContext ? ' bed-timer-settings' : ''}">
           <input class="timer-minute-input" id="${inputId}" type="number" min="1" max="120" step="1" value="${Math.max(1, Math.round(bed.total / 60))}" aria-label="타이머 시간 분">
           <button class="timer-set-btn" onclick="setTimerMinutes(${bedNo}, '${context}')">시간 설정</button>
+          ${isBedContext ? `<button class="timer-set-btn" onclick="resetTimer(${bedNo})">초기화</button>` : ''}
         </div>` : ''}
-        ${allowControls ? `<div class="timer-actions">
+        ${allowControls ? `<div class="timer-actions${isBedContext ? ' bed-timer-actions' : ''}">
           <button class="timer-btn ${toggleClass}" onclick="toggleTimer(${bedNo})">${toggleLabel}</button>
-          <button class="timer-btn" onclick="resetTimer(${bedNo})">초기화</button>
+          ${isBedContext ? '' : `<button class="timer-btn" onclick="resetTimer(${bedNo})">초기화</button>`}
         </div>` : ''}
       </div>`;
   }
 
-  function renderCompleteCard(bedNo, bed, allowControls = true) {
+  function renderCompleteCard(bedNo, bed, allowControls = true, context = 'bed') {
     return `
       <div class="timer-card done">
         <div class="timer-top">
@@ -3185,7 +3232,7 @@
           <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${(bed.currentIndex || 0) <= 0 ? 'disabled' : ''}>이전 치료</button>
           <button class="timer-btn" disabled>이후 치료</button>
         </div>
-        <button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
+        ${context === 'bed' ? '' : `<button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>`}` : ''}
       </div>`;
   }
 
@@ -3575,22 +3622,26 @@
     const [moved] = treatments.splice(fromIndex, 1);
     treatments.splice(toIndex, 0, moved);
 
-    // currentIndex 보정: 현재 진행 중인 치료가 같이 이동되도록
-    let nextIndex = Number(bed.currentIndex || 0);
-    if (fromIndex === nextIndex) {
-      nextIndex = toIndex;
-    } else if (fromIndex < nextIndex && toIndex >= nextIndex) {
-      nextIndex -= 1;
-    } else if (fromIndex > nextIndex && toIndex <= nextIndex) {
-      nextIndex += 1;
-    }
-    nextIndex = Math.max(0, Math.min(nextIndex, treatments.length - 1));
+    const firstTreatment = treatments[0] || '';
+    const firstTotal = getTreatmentSeconds(firstTreatment);
+    const resetPayload = {
+      treatments,
+      currentIndex: 0,
+      total: firstTotal,
+      remaining: firstTotal,
+      running: false,
+      startedAt: null,
+      complete: false,
+      lastAlertId: null,
+      lastAlertMessage: null
+    };
 
     try {
-      await update(ref(db, `beds/${bedNo}`), { treatments, currentIndex: nextIndex });
+      await update(ref(db, `beds/${bedNo}`), resetPayload);
       if (bed.patientKey) {
         await update(ref(db, `patients/${bed.patientKey}`), { treatments });
       }
+      clearLocalTimerAlertsForBed(bedNo);
     } catch(e) {
       console.error(e);
       showToast('순서 변경 실패 — 연결을 확인해주세요');
