@@ -748,6 +748,24 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .bed-status-info {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    margin-top: 4px;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .bed-meta-chip--fixed {
+    flex-shrink: 0;
+  }
+  .bed-meta-chip--flex {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .bed-status-treatment {
     display: flex;
     flex-wrap: wrap;
@@ -826,6 +844,10 @@
   .bed-treatment-chip.current { background: rgba(57,169,245,0.24); border: 1px solid rgba(57,169,245,0.78); color: var(--text); }
   .bed-treatment-chip.running { animation: treatmentBlink 1s ease-in-out infinite; }
   .bed-treatment-chip.waiting { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: var(--text2); }
+  .bed-treatment-chip[draggable="true"] { cursor: grab; }
+  .bed-treatment-chip[draggable="true"]:active { cursor: grabbing; }
+  .bed-treatment-chip.treat-drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
+  .bed-treatment-chip.treat-dragging { opacity: 0.35; }
   @keyframes treatmentBlink {
     0%, 100% { box-shadow: 0 0 0 1px rgba(57,169,245,0.35); filter: brightness(1); }
     50% { box-shadow: 0 0 0 3px rgba(57,169,245,0.85); filter: brightness(1.35); }
@@ -1656,6 +1678,7 @@
   let selectedReceiveBedNo = getUrlBedNo();
   let selectedMoveBedNo = null;
   let draggedBedNo = null;
+  let draggedTreatment = null; // { bedNo, fromIndex }
   let suppressBedClickUntil = 0;
   const formEditBedNoByScope = {
     desk: null,
@@ -2234,8 +2257,8 @@
     if (button) button.textContent = bedNo ? '정보수정' : '입력';
   }
 
-  window.setFormEditMode = setFormEditMode;
   function populateBedEditForm() {
+  window.setFormEditMode = setFormEditMode;
     const bed = bedAssignments[selectedBedNo - 1];
     const ids = PATIENT_FORM_IDS.bed;
     if (!bed) {
@@ -3456,6 +3479,13 @@
   };
 
   window.handleBedDragStart = (event, bedNo) => {
+    // 치료 칩 드래그가 버블링됐다면 베드 드래그 무시
+    if (event.dataTransfer.getData('text/plain')?.startsWith?.('treat:')) return;
+    const target = event.target;
+    if (target?.classList?.contains('bed-treatment-chip')) {
+      event.preventDefault();
+      return;
+    }
     const bed = bedAssignments[bedNo - 1];
     if (!bed) {
       event.preventDefault();
@@ -3492,6 +3522,79 @@
     selectedMoveBedNo = null;
     suppressBedClickUntil = Date.now() + 250;
     renderBedMonitors();
+  };
+
+  // ── 치료 칩 드래그 앤 드롭 ──────────────────────────────────────────
+  window.handleTreatChipDragStart = (event, bedNo, fromIndex) => {
+    // 베드 드래그가 시작되지 않도록 버블링 차단
+    event.stopPropagation();
+    draggedTreatment = { bedNo, fromIndex };
+    draggedBedNo = null; // 베드 드래그 상태 명시적 초기화
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', `treat:${bedNo}:${fromIndex}`);
+    event.currentTarget.classList.add('treat-dragging');
+  };
+
+  window.handleTreatChipDragOver = (event, bedNo, toIndex) => {
+    event.stopPropagation();
+    if (!draggedTreatment || draggedTreatment.bedNo !== bedNo) return;
+    if (draggedTreatment.fromIndex === toIndex) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    event.currentTarget.classList.add('treat-drag-over');
+  };
+
+  window.handleTreatChipDragLeave = (event) => {
+    event.stopPropagation();
+    event.currentTarget.classList.remove('treat-drag-over');
+  };
+
+  window.handleTreatChipDragEnd = (event) => {
+    event.stopPropagation();
+    draggedTreatment = null;
+    // 남아있는 스타일 정리
+    document.querySelectorAll('.treat-drag-over, .treat-dragging').forEach(el => {
+      el.classList.remove('treat-drag-over', 'treat-dragging');
+    });
+  };
+
+  window.handleTreatChipDrop = async (event, bedNo, toIndex) => {
+    event.stopPropagation();
+    event.preventDefault();
+    event.currentTarget.classList.remove('treat-drag-over');
+    if (!draggedTreatment || draggedTreatment.bedNo !== bedNo) return;
+    const fromIndex = draggedTreatment.fromIndex;
+    draggedTreatment = null;
+    if (fromIndex === toIndex) return;
+
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) return;
+
+    const treatments = [...(bed.treatments || [])];
+    // 순서 교체
+    const [moved] = treatments.splice(fromIndex, 1);
+    treatments.splice(toIndex, 0, moved);
+
+    // currentIndex 보정: 현재 진행 중인 치료가 같이 이동되도록
+    let nextIndex = Number(bed.currentIndex || 0);
+    if (fromIndex === nextIndex) {
+      nextIndex = toIndex;
+    } else if (fromIndex < nextIndex && toIndex >= nextIndex) {
+      nextIndex -= 1;
+    } else if (fromIndex > nextIndex && toIndex <= nextIndex) {
+      nextIndex += 1;
+    }
+    nextIndex = Math.max(0, Math.min(nextIndex, treatments.length - 1));
+
+    try {
+      await update(ref(db, `beds/${bedNo}`), { treatments, currentIndex: nextIndex });
+      if (bed.patientKey) {
+        await update(ref(db, `patients/${bed.patientKey}`), { treatments });
+      }
+    } catch(e) {
+      console.error(e);
+      showToast('순서 변경 실패 — 연결을 확인해주세요');
+    }
   };
 
   function getBedStatus(bedNo) {
@@ -3535,7 +3638,11 @@
       remaining: bed.complete ? '완료' : formatTimer(remainingSeconds),
       currentIndex,
       treatments,
-      timeStr: bed.timeStr || ''
+      timeStr: bed.timeStr || '',
+      visitType: bed.visitType || '',
+      gender: bed.gender || '',
+      age: bed.age || '',
+      chiefComplaint: bed.chiefComplaint || ''
     };
   }
 
@@ -3553,7 +3660,13 @@
         ? 'done'
         : (index < status.currentIndex ? 'done' : (index === status.currentIndex ? 'current' : 'waiting'));
       const runningClass = status.stageState === 'running' && index === status.currentIndex ? ' running' : '';
-      return `<span class="bed-treatment-chip ${chipClass}${runningClass}">${escapeHtml(treatment)}</span>`;
+      return `<span class="bed-treatment-chip ${chipClass}${runningClass}" draggable="true"
+        ondragstart="handleTreatChipDragStart(event,${status.bedNo},${index})"
+        ondragover="handleTreatChipDragOver(event,${status.bedNo},${index})"
+        ondrop="handleTreatChipDrop(event,${status.bedNo},${index})"
+        ondragend="handleTreatChipDragEnd(event)"
+        ondragleave="handleTreatChipDragLeave(event)"
+        >${escapeHtml(treatment)}</span>`;
     }).join('');
 
     return `
@@ -3607,9 +3720,15 @@
     const dragHandlers = canMoveBed
       ? ` draggable="true" ondragstart="handleBedDragStart(event, ${status.bedNo})" ondragover="handleBedDragOver(event, ${status.bedNo})" ondrop="handleBedDrop(event, ${status.bedNo})" ondragend="handleBedDragEnd()"`
       : '';
+    const infoChips = [
+      status.visitType ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.visitType)}</span>` : '',
+      status.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.gender)}</span>` : '',
+      status.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(status.age))}세</span>` : '',
+      status.chiefComplaint ? `<span class="bed-meta-chip bed-meta-chip--flex">${escapeHtml(status.chiefComplaint)}</span>` : ''
+    ].filter(Boolean).join('');
     const staffHtml = [
-      status.doctorName ? `<span class="bed-meta-chip">원장 ${escapeHtml(status.doctorName)}</span>` : '',
-      status.nurseName ? `<span class="bed-meta-chip">간호사 ${escapeHtml(status.nurseName)}</span>` : ''
+      status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
+      status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : ''
     ].filter(Boolean).join('');
     return `
       <div class="bed-status${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${canMoveBed ? ` oncontextmenu="confirmClearBed(event, ${status.bedNo})"` : ''}>
@@ -3617,6 +3736,7 @@
           <span class="bed-status-no">${escapeHtml(status.bedLabel)} ${escapeHtml(status.name)}</span>
           <span class="bed-status-time">${escapeHtml(status.remaining)}</span>
         </div>
+        ${infoChips ? `<div class="bed-status-info">${infoChips}</div>` : ''}
         <div class="bed-status-treatment">
           <span class="bed-stage-badge ${escapeHtml(status.stageState)}">${escapeHtml(status.stageLabel)}</span>
           ${staffHtml}
