@@ -105,6 +105,15 @@
   body.app-role-desk .header-desk-controls {
     display: flex;
   }
+  .header-bed-controls {
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  body.app-mode-bed .header-bed-controls,
+  body.app-role-bed .header-bed-controls {
+    display: flex;
+  }
   .header-wait-chip {
     background: rgba(255,178,26,0.16);
     border: 1px solid rgba(255,178,26,0.55);
@@ -137,8 +146,11 @@
   .input-layout { display: grid; gap: 12px; }
   .input-panel:not(.input-form-open) .input-form-column { display: none; }
   .input-panel:not(.input-form-open) .input-layout { grid-template-columns: 1fr; }
+  .receive-panel.receive-form-open .receive-detail-column > .card { display: none; }
+  .receive-panel:not(.receive-form-open) .receive-form-column { display: none; }
   .input-form-column,
-  .input-monitor-column { min-width: 0; }
+  .input-monitor-column,
+  .receive-form-column { min-width: 0; }
   .input-drawer-toggle {
     display: none;
     position: fixed;
@@ -161,7 +173,17 @@
     box-shadow: 0 10px 24px rgba(0,0,0,0.32);
   }
   .input-panel.active .input-drawer-toggle { display: block; }
+  .receive-panel.active .receive-drawer-toggle { display: block; }
   .input-panel.input-form-open .input-drawer-toggle {
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+  .receive-panel.receive-form-open .receive-drawer-toggle {
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+  .bed-panel.active .bed-drawer-toggle { display: block; }
+  .bed-panel.bed-edit-open .bed-drawer-toggle {
     background: var(--gold);
     border-color: var(--gold);
   }
@@ -369,13 +391,17 @@
   }
   .staff-item {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 8px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
+  }
+  .staff-item.vacation {
+    opacity: 0.62;
+    border-color: rgba(255,107,107,0.38);
   }
   .staff-name {
     color: var(--text);
@@ -397,6 +423,72 @@
     padding: 7px 10px;
   }
   .staff-delete-btn:hover { border-color: var(--danger); color: var(--danger); }
+  .staff-vacation-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .staff-vacation-toggle input { accent-color: var(--danger); }
+  .rr-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-top: 10px;
+    padding: 10px 12px;
+  }
+  .rr-setting-text {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .rr-switch {
+    position: relative;
+    width: 48px;
+    height: 26px;
+    flex: 0 0 auto;
+  }
+  .rr-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .rr-slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s;
+  }
+  .rr-slider::before {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    left: 2px;
+    top: 2px;
+    background: var(--text2);
+    border-radius: 50%;
+    transition: transform 0.18s, background 0.18s;
+  }
+  .rr-switch input:checked + .rr-slider {
+    background: rgba(57,169,245,0.28);
+    border-color: var(--accent);
+  }
+  .rr-switch input:checked + .rr-slider::before {
+    transform: translateX(22px);
+    background: var(--accent);
+  }
 
   /* 체크박스 그리드 */
   .treatment-grid {
@@ -570,6 +662,8 @@
   }
   .receive-main-column,
   .receive-detail-column { min-width: 0; }
+  .receive-detail-column { order: 1; }
+  .receive-main-column { order: 2; }
   #inputBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #receiveBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .bed-status {
@@ -723,12 +817,36 @@
 
   /* 베드 타이머 */
   .bed-layout { display: flex; flex-direction: column; gap: 12px; }
+  .bed-input-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: none;
+    overflow: hidden;
+  }
+  .bed-panel.bed-edit-open .bed-input-section { display: block; }
+  .bed-panel.bed-edit-open .body-map-card { display: none; }
+  .bed-input-section summary {
+    display: none;
+  }
+  .bed-input-section summary::-webkit-details-marker { display: none; }
+  .bed-input-section summary::after {
+    content: '열기';
+    float: right;
+    color: var(--text2);
+    font-size: 12px;
+  }
+  .bed-input-section[open] summary::after { content: '닫기'; }
+  .bed-input-body {
+    padding: 16px;
+  }
   .bed-workspace {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
     align-items: start;
   }
+  .bed-left-column { min-width: 0; }
   .bed-selector {
     width: 100%;
     background: var(--surface2);
@@ -880,6 +998,7 @@
     flex-wrap: wrap;
     gap: 6px;
   }
+  .bed-detail-chip-row + .bed-detail-chip-row { margin-top: 8px; }
   .bed-detail-info .bed-meta-chip,
   .bed-detail-info .bed-treatment-chip {
     font-size: 12px;
@@ -1010,7 +1129,7 @@
 
   @media (min-width: 860px) {
     .input-panel.input-form-open .input-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); align-items: start; }
-    .receive-layout { grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); align-items: start; }
+    .receive-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr); align-items: start; }
     .staff-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   }
 
@@ -1148,7 +1267,10 @@
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
-        <span class="header-wait-chip" id="deskWaitChip">예상 대기 0분</span>
+        <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
+      </div>
+      <div class="header-bed-controls">
+        <span class="header-wait-chip" id="bedRemainingChip">남은 진료 시간 0분</span>
       </div>
       <div class="mode-toggle">
         <button class="mode-btn active" onclick="setMode('input')">데스크</button>
@@ -1216,6 +1338,7 @@
 
   <!-- 수신 패널 -->
   <div class="receive-panel" id="receivePanel">
+    <button class="input-drawer-toggle receive-drawer-toggle" id="receiveFormToggle" onclick="toggleReceiveForm()" aria-label="환자 입력 열기">›</button>
     <div class="receive-layout">
       <div class="receive-main-column">
         <div class="card">
@@ -1224,6 +1347,42 @@
         </div>
       </div>
       <div class="receive-detail-column">
+        <div class="receive-form-column">
+          <div class="card">
+            <div class="form-section">
+              <input class="name-input" id="receivePatientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
+            </div>
+
+            <div class="form-section">
+              <div class="patient-info-grid">
+                <input class="name-input" id="receiveChartNo" type="text" placeholder="차트번호" maxlength="20">
+                <input class="name-input" id="receiveAgeInput" type="number" placeholder="나이" min="0" max="130">
+                <div class="segmented">
+                  <label class="segment-item"><input type="radio" name="receiveVisitType" value="초진" checked><span>초진</span></label>
+                  <label class="segment-item"><input type="radio" name="receiveVisitType" value="재진"><span>재진</span></label>
+                </div>
+                <div class="segmented">
+                  <label class="segment-item"><input type="radio" name="receiveGender" value="남" checked><span>남</span></label>
+                  <label class="segment-item"><input type="radio" name="receiveGender" value="여"><span>여</span></label>
+                </div>
+                <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="주상병명" maxlength="60">
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="staff-select-grid">
+                <select class="staff-select" id="receiveDoctorSelect"></select>
+                <select class="staff-select" id="receiveNurseSelect"></select>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="treatment-grid" id="receiveTreatmentGrid"></div>
+            </div>
+          </div>
+
+          <button class="submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
+        </div>
         <div class="card">
           <div class="card-label">예정 알림</div>
           <div class="upcoming-list" id="receiveUpcomingAlerts"></div>
@@ -1238,6 +1397,7 @@
 
   <!-- 베드 패널 -->
   <div class="bed-panel" id="bedPanel">
+    <button class="input-drawer-toggle bed-drawer-toggle" id="bedEditToggle" onclick="toggleBedEditForm()" aria-label="환자 정보 수정 열기">›</button>
     <div class="receive-header">
       <div class="receive-title">베드 치료 타이머</div>
       <div class="today-count" id="bedPatientCount">0명</div>
@@ -1245,7 +1405,46 @@
     <div class="bed-layout">
       <select class="bed-selector" id="bedSelector" onchange="selectBed(Number(this.value))"></select>
       <div class="bed-workspace">
-        <div class="body-map-card" id="bodyMap"></div>
+        <div class="bed-left-column">
+          <details class="bed-input-section" id="bedEditSection">
+            <summary>환자 정보 수정</summary>
+            <div class="bed-input-body">
+              <div class="form-section">
+                <input class="name-input" id="bedPatientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
+              </div>
+
+              <div class="form-section">
+                <div class="patient-info-grid">
+                  <input class="name-input" id="bedChartNo" type="text" placeholder="차트번호" maxlength="20">
+                  <input class="name-input" id="bedAgeInput" type="number" placeholder="나이" min="0" max="130">
+                  <div class="segmented">
+                    <label class="segment-item"><input type="radio" name="bedVisitType" value="초진" checked><span>초진</span></label>
+                    <label class="segment-item"><input type="radio" name="bedVisitType" value="재진"><span>재진</span></label>
+                  </div>
+                  <div class="segmented">
+                    <label class="segment-item"><input type="radio" name="bedGender" value="남" checked><span>남</span></label>
+                    <label class="segment-item"><input type="radio" name="bedGender" value="여"><span>여</span></label>
+                  </div>
+                  <input class="name-input wide" id="bedChiefComplaint" type="text" placeholder="주상병명" maxlength="60">
+                </div>
+              </div>
+
+              <div class="form-section">
+                <div class="staff-select-grid">
+                  <select class="staff-select" id="bedDoctorSelect"></select>
+                  <select class="staff-select" id="bedNurseSelect"></select>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <div class="treatment-grid" id="bedTreatmentGrid"></div>
+              </div>
+
+              <button class="submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">정보 저장</button>
+            </div>
+          </details>
+          <div class="body-map-card" id="bodyMap"></div>
+        </div>
         <div class="bed-detail" id="bedDetail"></div>
       </div>
     </div>
@@ -1268,7 +1467,21 @@
           <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
           <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
         </div>
+        <label class="rr-setting">
+          <span class="rr-setting-text">간호사 RR 자동배정</span>
+          <span class="rr-switch">
+            <input id="nurseRrEnabled" type="checkbox" onchange="saveNurseRrEnabled(this.checked)">
+            <span class="rr-slider"></span>
+          </span>
+        </label>
         <div class="staff-list" id="nurseList"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">처치시간 설정</div>
+        <div class="staff-add-row">
+          <input class="name-input" id="procedureMinutesInput" type="number" min="0" max="120" step="1" placeholder="처치시간(분)">
+          <button class="timer-set-btn" onclick="saveProcedureMinutes()">저장</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1338,6 +1551,8 @@
     전자뜸: 1,
     약침: 1
   };
+  let procedureMinutes = 0;
+  let nurseRrEnabled = false;
 
   const patientsByKey = new Map();
   const staffByType = {
@@ -1405,18 +1620,25 @@
   renderUpcomingAlerts();
   renderStaffControls();
 
-  // 체크박스 렌더링
-  const grid = document.getElementById('treatmentGrid');
-  TREATMENTS.forEach(t => {
-    const item = document.createElement('label');
-    item.className = 'treat-item';
-    item.innerHTML = `
-      <input type="checkbox" value="${t.id}" onchange="toggleCheck(this)">
-      <div class="check-box" id="cb-${t.id}"></div>
-      <span class="treat-icon">${t.icon}</span>
-      <span class="treat-name">${t.name}</span>`;
-    grid.appendChild(item);
-  });
+  function renderTreatmentGrid(gridId) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    grid.innerHTML = '';
+    TREATMENTS.forEach(t => {
+      const item = document.createElement('label');
+      item.className = 'treat-item';
+      item.innerHTML = `
+        <input type="checkbox" value="${t.id}" onchange="toggleCheck(this)">
+        <div class="check-box"></div>
+        <span class="treat-icon">${t.icon}</span>
+        <span class="treat-name">${t.name}</span>`;
+      grid.appendChild(item);
+    });
+  }
+
+  renderTreatmentGrid('treatmentGrid');
+  renderTreatmentGrid('receiveTreatmentGrid');
+  renderTreatmentGrid('bedTreatmentGrid');
 
   window.toggleCheck = (el) => {
     const label = el.closest('.treat-item');
@@ -1438,8 +1660,10 @@
     return type === 'doctors' ? 'doctorNameInput' : 'nurseNameInput';
   }
 
-  function getStaffSelectId(type) {
-    return type === 'doctors' ? 'doctorSelect' : 'nurseSelect';
+  function getStaffSelectIds(type) {
+    return type === 'doctors'
+      ? ['doctorSelect', 'receiveDoctorSelect', 'bedDoctorSelect']
+      : ['nurseSelect', 'receiveNurseSelect', 'bedNurseSelect'];
   }
 
   function getStaffListId(type) {
@@ -1454,23 +1678,28 @@
   function renderStaffControls() {
     ['doctors', 'nurses'].forEach(type => {
       const label = getStaffLabel(type);
-      const select = document.getElementById(getStaffSelectId(type));
       const list = document.getElementById(getStaffListId(type));
       const staff = getSortedStaff(type);
 
-      if (select) {
+      getStaffSelectIds(type).forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
         const selectedValue = select.value;
         select.innerHTML = `<option value="">${label} 선택 안함</option>` + staff.map(([key, data]) =>
           `<option value="${escapeHtml(key)}">${escapeHtml(data.name || '')}</option>`
         ).join('');
         if (staffByType[type].has(selectedValue)) select.value = selectedValue;
-      }
+      });
 
       if (list) {
         list.innerHTML = staff.length
           ? staff.map(([key, data]) => `
-            <div class="staff-item">
+            <div class="staff-item${type === 'nurses' && data.vacation ? ' vacation' : ''}">
               <div class="staff-name">${escapeHtml(data.name || '')}</div>
+              ${type === 'nurses' ? `<label class="staff-vacation-toggle">
+                <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="toggleNurseVacation('${key}', this.checked)">
+                휴가
+              </label>` : ''}
               <button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>
             </div>`).join('')
           : `<div class="empty-state"><div class="empty-icon">+</div><div class="empty-text">등록된 ${label}이 없습니다</div></div>`;
@@ -1478,12 +1707,61 @@
     });
   }
 
-  function getSelectedStaff(type) {
-    const select = document.getElementById(getStaffSelectId(type));
+  function getSelectedStaff(type, scope = 'desk') {
+    const selectId = type === 'doctors'
+      ? (scope === 'bed' ? 'bedDoctorSelect' : scope === 'receive' ? 'receiveDoctorSelect' : 'doctorSelect')
+      : (scope === 'bed' ? 'bedNurseSelect' : scope === 'receive' ? 'receiveNurseSelect' : 'nurseSelect');
+    const select = document.getElementById(selectId);
     const key = select?.value || '';
     const data = key ? staffByType[type].get(key) : null;
     return data ? { id: key, name: data.name || '' } : { id: '', name: '' };
   }
+
+  function getTodayKey() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function getDailyStartOffset(count) {
+    if (!count) return 0;
+    const date = new Date();
+    const start = new Date(date.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((date - start) / 86400000);
+    return dayOfYear % count;
+  }
+
+  async function getRoundRobinNurse() {
+    const nurses = getSortedStaff('nurses').filter(([, data]) => !data.vacation);
+    if (!nurseRrEnabled || !nurses.length) return null;
+
+    const dateKey = getTodayKey();
+    const counterRef = ref(db, `settings/nurseRoundRobinState/${dateKey}/count`);
+    const result = await runTransaction(counterRef, value => (Number(value || 0) + 1));
+    const count = Number(result.snapshot.val() || 1);
+    const serial = Math.max(0, count - 1);
+    const index = (getDailyStartOffset(nurses.length) + serial) % nurses.length;
+    const [id, data] = nurses[index];
+    return { id, name: data.name || '' };
+  }
+
+  window.toggleNurseVacation = async (key, checked) => {
+    if (!staffByType.nurses.has(key)) return;
+    const prev = Boolean(staffByType.nurses.get(key)?.vacation);
+    staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacation: Boolean(checked) });
+    renderStaffControls();
+    try {
+      await update(ref(db, `staff/nurses/${key}`), { vacation: Boolean(checked) });
+      showToast(checked ? '간호사 휴가 처리 완료' : '간호사 휴가 해제 완료');
+    } catch (e) {
+      console.error(e);
+      staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacation: prev });
+      renderStaffControls();
+      showToast('휴가 상태 저장 실패');
+    }
+  };
 
   window.addStaff = async (type) => {
     if (!staffByType[type]) return;
@@ -1528,17 +1806,84 @@
     });
   });
 
+  onValue(ref(db, 'settings/procedureMinutes'), (snapshot) => {
+    const value = Number(snapshot.val() || 0);
+    procedureMinutes = Math.max(0, Math.min(120, Number.isFinite(value) ? value : 0));
+    const input = document.getElementById('procedureMinutesInput');
+    if (input && document.activeElement !== input) input.value = String(procedureMinutes);
+    updateDeskWaitChip();
+    updateBedRemainingChip();
+  });
+
+  onValue(ref(db, 'settings/nurseRoundRobinEnabled'), (snapshot) => {
+    nurseRrEnabled = Boolean(snapshot.val());
+    const input = document.getElementById('nurseRrEnabled');
+    if (input) input.checked = nurseRrEnabled;
+  });
+
+  window.saveProcedureMinutes = async () => {
+    const input = document.getElementById('procedureMinutesInput');
+    const value = Math.max(0, Math.min(120, Number(input?.value) || 0));
+    try {
+      await set(ref(db, 'settings/procedureMinutes'), value);
+      showToast(`처치시간 ${value}분 저장 완료`);
+    } catch (e) {
+      console.error(e);
+      showToast('처치시간 저장 실패');
+    }
+  };
+
+  window.saveNurseRrEnabled = async (enabled) => {
+    nurseRrEnabled = Boolean(enabled);
+    await set(ref(db, 'settings/nurseRoundRobinEnabled'), nurseRrEnabled);
+    showToast(enabled ? '간호사 RR 자동배정 켜짐' : '간호사 RR 자동배정 꺼짐');
+  };
+
   // ─── 전송 ───────────────────────────────
-  window.submitPatient = async () => {
-    const name = document.getElementById('patientName').value.trim();
-    const chartNo = document.getElementById('chartNo').value.trim();
-    const chiefComplaint = document.getElementById('chiefComplaint').value.trim();
-    const age = document.getElementById('ageInput').value.trim();
-    const visitType = document.querySelector('input[name="visitType"]:checked')?.value || '초진';
-    const gender = document.querySelector('input[name="gender"]:checked')?.value || '남';
-    const doctor = getSelectedStaff('doctors');
-    const nurse = getSelectedStaff('nurses');
-    const checked = [...document.querySelectorAll('#treatmentGrid input:checked')];
+  const PATIENT_FORM_IDS = {
+    desk: {
+      name: 'patientName',
+      chartNo: 'chartNo',
+      chiefComplaint: 'chiefComplaint',
+      age: 'ageInput',
+      visitType: 'visitType',
+      gender: 'gender',
+      treatmentGrid: 'treatmentGrid',
+      submitBtn: 'submitBtn'
+    },
+    receive: {
+      name: 'receivePatientName',
+      chartNo: 'receiveChartNo',
+      chiefComplaint: 'receiveChiefComplaint',
+      age: 'receiveAgeInput',
+      visitType: 'receiveVisitType',
+      gender: 'receiveGender',
+      treatmentGrid: 'receiveTreatmentGrid',
+      submitBtn: 'receiveSubmitBtn'
+    },
+    bed: {
+      name: 'bedPatientName',
+      chartNo: 'bedChartNo',
+      chiefComplaint: 'bedChiefComplaint',
+      age: 'bedAgeInput',
+      visitType: 'bedVisitType',
+      gender: 'bedGender',
+      treatmentGrid: 'bedTreatmentGrid',
+      submitBtn: 'bedSubmitBtn'
+    }
+  };
+
+  window.submitPatient = async (scope = 'desk') => {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const name = document.getElementById(ids.name).value.trim();
+    const chartNo = document.getElementById(ids.chartNo).value.trim();
+    const chiefComplaint = document.getElementById(ids.chiefComplaint).value.trim();
+    const age = document.getElementById(ids.age).value.trim();
+    const visitType = document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진';
+    const gender = document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남';
+    const doctor = getSelectedStaff('doctors', scope);
+    let nurse = getSelectedStaff('nurses', scope);
+    const checked = [...document.querySelectorAll(`#${ids.treatmentGrid} input:checked`)];
     const treatments = checked.map(c => {
       const t = TREATMENTS.find(t => t.id === c.value);
       return t ? t.name : c.value;
@@ -1547,11 +1892,14 @@
     if (!name) { showToast('❗ 환자 성함을 입력해주세요'); return; }
     if (treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
 
-    const btn = document.getElementById('submitBtn');
+    const btn = document.getElementById(ids.submitBtn);
     btn.disabled = true;
     btn.textContent = '입력 중...';
 
     try {
+      const rrNurse = await getRoundRobinNurse();
+      if (rrNurse) nurse = rrNurse;
+
       const now = new Date();
       await push(ref(db, 'patients'), {
         name,
@@ -1572,20 +1920,23 @@
       });
 
       // 초기화
-      document.getElementById('patientName').value = '';
-      document.getElementById('chartNo').value = '';
-      document.getElementById('chiefComplaint').value = '';
-      document.getElementById('ageInput').value = '';
-      document.querySelector('input[name="visitType"][value="초진"]').checked = true;
-      document.querySelector('input[name="gender"][value="남"]').checked = true;
-      document.querySelectorAll('#treatmentGrid input').forEach(c => {
+      document.getElementById(ids.name).value = '';
+      document.getElementById(ids.chartNo).value = '';
+      document.getElementById(ids.chiefComplaint).value = '';
+      document.getElementById(ids.age).value = '';
+      const visitDefault = document.querySelector(`input[name="${ids.visitType}"]`);
+      const genderDefault = document.querySelector(`input[name="${ids.gender}"]`);
+      if (visitDefault) visitDefault.checked = true;
+      if (genderDefault) genderDefault.checked = true;
+      document.querySelectorAll(`#${ids.treatmentGrid} input`).forEach(c => {
         c.checked = false;
         c.closest('.treat-item').classList.remove('checked');
         c.closest('.treat-item').querySelector('.check-box').textContent = '';
       });
 
       showToast(`✅ ${name} 환자 알림 전송 완료`);
-      setInputFormOpen(false);
+      if (scope === 'desk') setInputFormOpen(false);
+      if (scope === 'receive') setReceiveFormOpen(false);
     } catch (e) {
       showToast('❌ 전송 실패 — 연결을 확인해주세요');
       console.error(e);
@@ -1593,6 +1944,160 @@
 
     btn.disabled = false;
     btn.textContent = '입력';
+  };
+
+  function getFormValues(scope) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const checked = [...document.querySelectorAll(`#${ids.treatmentGrid} input:checked`)];
+    const treatments = checked.map(c => {
+      const t = TREATMENTS.find(t => t.id === c.value);
+      return t ? t.name : c.value;
+    });
+    const doctor = getSelectedStaff('doctors', scope);
+    const nurse = getSelectedStaff('nurses', scope);
+    return {
+      ids,
+      name: document.getElementById(ids.name).value.trim(),
+      chartNo: document.getElementById(ids.chartNo).value.trim(),
+      chiefComplaint: document.getElementById(ids.chiefComplaint).value.trim(),
+      age: document.getElementById(ids.age).value.trim(),
+      visitType: document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진',
+      gender: document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남',
+      treatments,
+      doctor,
+      nurse
+    };
+  }
+
+  function setTreatmentSelection(gridId, treatments = []) {
+    const selected = new Set(treatments);
+    document.querySelectorAll(`#${gridId} input`).forEach(c => {
+      const treatment = TREATMENTS.find(t => t.id === c.value)?.name || c.value;
+      c.checked = selected.has(treatment);
+      c.closest('.treat-item').classList.toggle('checked', c.checked);
+      c.closest('.treat-item').querySelector('.check-box').textContent = c.checked ? '✓' : '';
+    });
+  }
+
+  function populateBedEditForm() {
+    const bed = bedAssignments[selectedBedNo - 1];
+    const ids = PATIENT_FORM_IDS.bed;
+    if (!bed) {
+      document.getElementById(ids.name).value = '';
+      document.getElementById(ids.chartNo).value = '';
+      document.getElementById(ids.chiefComplaint).value = '';
+      document.getElementById(ids.age).value = '';
+      document.querySelector(`input[name="${ids.visitType}"][value="초진"]`).checked = true;
+      document.querySelector(`input[name="${ids.gender}"][value="남"]`).checked = true;
+      document.getElementById('bedDoctorSelect').value = '';
+      document.getElementById('bedNurseSelect').value = '';
+      setTreatmentSelection(ids.treatmentGrid, []);
+      return;
+    }
+
+    document.getElementById(ids.name).value = bed.name || '';
+    document.getElementById(ids.chartNo).value = bed.chartNo || '';
+    document.getElementById(ids.chiefComplaint).value = bed.chiefComplaint || '';
+    document.getElementById(ids.age).value = bed.age || '';
+    document.querySelector(`input[name="${ids.visitType}"][value="${bed.visitType || '초진'}"]`)?.click();
+    document.querySelector(`input[name="${ids.gender}"][value="${bed.gender || '남'}"]`)?.click();
+    document.getElementById('bedDoctorSelect').value = bed.doctorId || '';
+    document.getElementById('bedNurseSelect').value = bed.nurseId || '';
+    setTreatmentSelection(ids.treatmentGrid, bed.treatments || []);
+  }
+
+  window.populateBedEditForm = populateBedEditForm;
+
+  function setBedEditOpen(open) {
+    const panel = document.getElementById('bedPanel');
+    const section = document.getElementById('bedEditSection');
+    const button = document.getElementById('bedEditToggle');
+    if (!panel || !section) return;
+
+    panel.classList.toggle('bed-edit-open', Boolean(open));
+    if (open) {
+      section.setAttribute('open', '');
+      populateBedEditForm();
+    } else {
+      section.removeAttribute('open');
+    }
+
+    if (button) {
+      button.textContent = open ? '‹' : '›';
+      button.setAttribute('aria-label', open ? '환자 정보 수정 닫기' : '환자 정보 수정 열기');
+      button.title = open ? '환자 정보 수정 닫기' : '환자 정보 수정 열기';
+    }
+  }
+
+  window.toggleBedEditForm = () => {
+    const panel = document.getElementById('bedPanel');
+    setBedEditOpen(!panel?.classList.contains('bed-edit-open'));
+  };
+
+  window.saveBedPatientInfo = async () => {
+    const bed = bedAssignments[selectedBedNo - 1];
+    if (!bed) {
+      showToast('현재 베드에 환자가 없습니다');
+      return;
+    }
+
+    const form = getFormValues('bed');
+    if (!form.name) { showToast('❗ 환자 성함을 입력해주세요'); return; }
+    if (form.treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
+
+    const btn = document.getElementById(form.ids.submitBtn);
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
+
+    try {
+      const nextIndex = Math.min(Number(bed.currentIndex || 0), form.treatments.length - 1);
+      const currentTreatmentChanged = form.treatments[nextIndex] !== bed.treatments?.[nextIndex];
+      const timerPatch = currentTreatmentChanged
+        ? {
+          currentIndex: nextIndex,
+          running: false,
+          startedAt: null,
+          complete: false,
+          total: getTreatmentSeconds(form.treatments[nextIndex]),
+          remaining: getTreatmentSeconds(form.treatments[nextIndex]),
+          lastAlertId: null,
+          lastAlertMessage: null
+        }
+        : { currentIndex: nextIndex };
+
+      const patientPatch = {
+        name: form.name,
+        treatments: form.treatments,
+        chartNo: form.chartNo,
+        visitType: form.visitType,
+        chiefComplaint: form.chiefComplaint,
+        age: form.age ? Number(form.age) : '',
+        gender: form.gender,
+        doctorId: form.doctor.id,
+        doctorName: form.doctor.name,
+        nurseId: form.nurse.id,
+        nurseName: form.nurse.name
+      };
+
+      await update(ref(db, `beds/${selectedBedNo}`), {
+        ...patientPatch,
+        ...timerPatch
+      });
+
+      if (bed.patientKey) {
+        await update(ref(db, `patients/${bed.patientKey}`), patientPatch);
+      }
+
+      if (currentTreatmentChanged) clearLocalTimerAlertsForBed(selectedBedNo);
+      setBedEditOpen(false);
+      showToast('베드 환자 정보 저장 완료');
+    } catch (e) {
+      console.error(e);
+      showToast('저장 실패 — 연결을 확인해주세요');
+    }
+
+    btn.disabled = false;
+    btn.textContent = '정보 저장';
   };
 
   function csvCell(value) {
@@ -1835,6 +2340,10 @@
     return (TREATMENT_MINUTES[treatment] || 1) * 60;
   }
 
+  function getProcedureSeconds() {
+    return Math.max(0, Number(procedureMinutes || 0)) * 60;
+  }
+
   async function assignPatientToBed(patientKey, data, silent = false) {
     if (data.bedStatus === 'discharged') return false;
 
@@ -1939,7 +2448,7 @@
     const nextSeconds = regularBeds
       .map(bed => {
         if (!bed || bed.complete || bed.lastAlertId) return 0;
-        return getRemaining(bed);
+        return getBedRemainingTreatmentSeconds(bed);
       })
       .sort((a, b) => a - b)[0] || 0;
 
@@ -1950,7 +2459,7 @@
     const chip = document.getElementById('deskWaitChip');
     if (!chip) return;
     const minutes = getEstimatedWaitMinutes(waitingPatients);
-    chip.textContent = `예상 대기 ${minutes}분`;
+    chip.textContent = `예상대기시간 ${minutes}분`;
   }
 
   function formatUpcomingTime(seconds) {
@@ -2041,12 +2550,14 @@
     selectedBedNo = bedNo;
     renderBedSelector();
     renderBedDetail();
+    if (document.getElementById('bedPanel')?.classList.contains('bed-edit-open')) populateBedEditForm();
   };
 
   function renderBedDetail() {
     const detail = document.getElementById('bedDetail');
     renderBodyPartSelector();
     renderBedDetailInto(detail, selectedBedNo, true);
+    updateBedRemainingChip();
   }
 
   function renderReceiveBedDetail() {
@@ -2058,6 +2569,26 @@
     if (!detail) return;
     detail.classList.add('active');
     detail.innerHTML = renderBedDetailMarkup(bedNo, allowControls, context);
+  }
+
+  function getBedRemainingTreatmentSeconds(bed) {
+    if (!bed || bed.complete) return 0;
+    const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
+    const currentIndex = Number(bed.currentIndex || 0);
+    const remainingTreatments = treatments.slice(currentIndex);
+    const currentRemaining = getRemaining(bed);
+    const futureSeconds = treatments
+      .slice(currentIndex + 1)
+      .reduce((sum, treatment) => sum + getTreatmentSeconds(treatment), 0);
+    return currentRemaining + futureSeconds + (remainingTreatments.length * getProcedureSeconds());
+  }
+
+  function updateBedRemainingChip() {
+    const chip = document.getElementById('bedRemainingChip');
+    if (!chip) return;
+    const bed = bedAssignments[selectedBedNo - 1];
+    const minutes = Math.ceil(getBedRemainingTreatmentSeconds(bed) / 60);
+    chip.textContent = `남은 진료 시간 ${minutes}분`;
   }
 
   function normalizeBodyParts(bodyParts = {}) {
@@ -2311,6 +2842,7 @@
     });
     renderBedMonitors();
     renderUpcomingAlerts();
+    if (bedNo === selectedBedNo) updateBedRemainingChip();
   }
 
   window.startTimer = async (bedNo) => {
@@ -3102,6 +3634,7 @@
     if (updateHash && !fixedMode && window.location.hash) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
     }
+    updateBedRemainingChip();
     if (mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
     window.updateReceiveAlertAudioState?.();
   }
@@ -3123,6 +3656,23 @@
     setInputFormOpen(!panel?.classList.contains('input-form-open'));
   };
 
+  function setReceiveFormOpen(open) {
+    const panel = document.getElementById('receivePanel');
+    const button = document.getElementById('receiveFormToggle');
+    if (!panel) return;
+    panel.classList.toggle('receive-form-open', Boolean(open));
+    if (button) {
+      button.textContent = open ? '‹' : '›';
+      button.setAttribute('aria-label', open ? '환자 입력 닫기' : '환자 입력 열기');
+      button.title = open ? '환자 입력 닫기' : '환자 입력 열기';
+    }
+  }
+
+  window.toggleReceiveForm = () => {
+    const panel = document.getElementById('receivePanel');
+    setReceiveFormOpen(!panel?.classList.contains('receive-form-open'));
+  };
+
   // 토스트
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -3135,8 +3685,16 @@
   document.addEventListener('DOMContentLoaded', () => {
     syncAppViewClass();
     setMode(getInitialMode(), false);
+    const nurseRrInput = document.getElementById('nurseRrEnabled');
+    if (nurseRrInput) nurseRrInput.checked = nurseRrEnabled;
     document.getElementById('patientName').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('submitBtn').click();
+    });
+    document.getElementById('receivePatientName')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('receiveSubmitBtn').click();
+    });
+    document.getElementById('bedPatientName')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('bedSubmitBtn').click();
     });
     document.getElementById('doctorNameInput')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') addStaff('doctors');
