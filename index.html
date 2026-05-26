@@ -2225,6 +2225,7 @@
     if (nurseSelect) nurseSelect.value = bed?.nurseId || '';
     setTreatmentSelection(ids.treatmentGrid, bed?.treatments || []);
   }
+  window.populatePatientForm = populatePatientForm;
 
   function setFormEditMode(scope, bedNo = null) {
     formEditBedNoByScope[scope] = bedNo;
@@ -2233,6 +2234,7 @@
     if (button) button.textContent = bedNo ? '정보수정' : '입력';
   }
 
+  window.setFormEditMode = setFormEditMode;
   function populateBedEditForm() {
     const bed = bedAssignments[selectedBedNo - 1];
     const ids = PATIENT_FORM_IDS.bed;
@@ -2929,6 +2931,7 @@
     const minutes = Math.ceil(getBedRemainingTreatmentSeconds(bed) / 60);
     chip.textContent = `남은 진료 시간 ${minutes}분`;
   }
+  window.updateBedRemainingChip = updateBedRemainingChip;
 
   function normalizeBodyParts(bodyParts = {}) {
     return {
@@ -4010,7 +4013,7 @@
     if (updateHash && !fixedMode && window.location.hash) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-    updateBedRemainingChip();
+    window.updateBedRemainingChip?.();
     if (mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
     window.updateReceiveAlertAudioState?.();
   }
@@ -4042,12 +4045,12 @@
     const shouldClose = button?.getAttribute('aria-label')?.includes('닫기');
     if (shouldClose) {
       setInputFormOpen(false);
-      // setFormEditMode('desk', null);
-      populatePatientForm('desk');
+      window.setFormEditMode?.('desk', null);
+      window.populatePatientForm?.('desk');
     } else {
-      // setFormEditMode('desk', null);
+      window.setFormEditMode?.('desk', null);
       setInputFormOpen(true);
-      populatePatientForm('desk');
+      window.populatePatientForm?.('desk');
     }
   };
 
@@ -4078,12 +4081,12 @@
     const shouldClose = button?.getAttribute('aria-label')?.includes('닫기');
     if (shouldClose) {
       setReceiveFormOpen(false);
-      setFormEditMode('receive', null);
-      populatePatientForm('receive');
+      window.setFormEditMode?.('receive', null);
+      window.populatePatientForm?.('receive');
     } else {
-      setFormEditMode('receive', null);
+      window.setFormEditMode?.('receive', null);
       setReceiveFormOpen(true);
-      populatePatientForm('receive');
+      window.populatePatientForm?.('receive');
     }
   };
 
