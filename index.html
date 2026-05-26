@@ -124,6 +124,22 @@
     padding: 7px 10px;
     white-space: nowrap;
   }
+  .random-test-btn {
+    background: rgba(57,169,245,0.16);
+    border: 1px solid rgba(57,169,245,0.5);
+    border-radius: 999px;
+    color: var(--accent);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 7px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .random-test-btn:hover {
+    background: rgba(57,169,245,0.26);
+    border-color: var(--accent);
+  }
   .mode-btn {
     padding: 6px 12px;
     border: none;
@@ -1122,6 +1138,41 @@
     cursor: pointer;
   }
   .timer-set-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .treatment-time-list {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .treatment-time-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    gap: 8px;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .treatment-time-name {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 900;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .treatment-time-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    padding: 9px 10px;
+    text-align: right;
+  }
 
   @media (min-width: 560px) {
     .bed-monitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1267,6 +1318,7 @@
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
+        <button class="random-test-btn" onclick="openRandomTestGenerator()">랜덤 테스트생성</button>
         <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
       </div>
       <div class="header-bed-controls">
@@ -1280,10 +1332,11 @@
       </div>
     </div>
   </div>
+  <input id="randomTestExcelInput" type="file" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleRandomTestExcel(this.files?.[0]); this.value = '';">
 
   <!-- 입력 패널 -->
   <div class="input-panel active" id="inputPanel">
-    <button class="input-drawer-toggle" id="inputFormToggle" onclick="toggleInputForm()" aria-label="환자 입력 열기">›</button>
+    <button class="input-drawer-toggle" id="inputFormToggle" data-open="0" onclick="toggleInputForm()" aria-label="환자 입력 열기">›</button>
     <div class="input-layout">
       <div class="input-form-column">
         <div class="card">
@@ -1338,7 +1391,7 @@
 
   <!-- 수신 패널 -->
   <div class="receive-panel" id="receivePanel">
-    <button class="input-drawer-toggle receive-drawer-toggle" id="receiveFormToggle" onclick="toggleReceiveForm()" aria-label="환자 입력 열기">›</button>
+    <button class="input-drawer-toggle receive-drawer-toggle" id="receiveFormToggle" data-open="0" onclick="toggleReceiveForm()" aria-label="환자 입력 열기">›</button>
     <div class="receive-layout">
       <div class="receive-main-column">
         <div class="card">
@@ -1440,7 +1493,7 @@
                 <div class="treatment-grid" id="bedTreatmentGrid"></div>
               </div>
 
-              <button class="submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">정보 저장</button>
+              <button class="submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">정보수정</button>
             </div>
           </details>
           <div class="body-map-card" id="bodyMap"></div>
@@ -1483,6 +1536,11 @@
           <button class="timer-set-btn" onclick="saveProcedureMinutes()">저장</button>
         </div>
       </div>
+      <div class="card">
+        <div class="card-label">치료시간 설정</div>
+        <div class="treatment-time-list" id="treatmentMinutesList"></div>
+        <button class="submit-btn" onclick="saveTreatmentMinutes()">치료시간 저장</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1511,6 +1569,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- Firebase -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getDatabase, ref, push, onChildAdded, onChildRemoved, onValue, query, orderByChild, startAt, get, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -1534,23 +1593,20 @@
     { id: 'acupuncture', name: '침', icon: '🪡' },
     { id: 'hotpack', name: '핫팩', icon: '🔥' },
     { id: 'lowfreq', name: '저주파', icon: '⚡' },
+    { id: 'physical_therapy', name: '물리치료', icon: '＋' },
     { id: 'cupping_wet', name: '습부항', icon: '🫙' },
     { id: 'cupping_dry', name: '건부항', icon: '⭕' },
     { id: 'moxibustion', name: '왕뜸', icon: '🌀' },
     { id: 'e_mox', name: '전자뜸', icon: '💡' },
-    { id: 'pharmacopuncture', name: '약침', icon: '💉' },
+    { id: 'pharmacopuncture_1', name: '약침1', icon: '1' },
+    { id: 'pharmacopuncture_2', name: '약침2', icon: '2' },
+    { id: 'pharmacopuncture_3', name: '약침3', icon: '3' },
+    { id: 'pharmacopuncture_4', name: '약침4', icon: '4' },
   ];
 
-  const TREATMENT_MINUTES = {
-    침: 1,
-    핫팩: 1,
-    저주파: 1,
-    습부항: 1,
-    건부항: 1,
-    왕뜸: 1,
-    전자뜸: 1,
-    약침: 1
-  };
+  const DEFAULT_TREATMENT_MINUTES = Object.fromEntries(TREATMENTS.map(t => [t.name, 1]));
+  DEFAULT_TREATMENT_MINUTES['약침'] = 1;
+  let treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES };
   let procedureMinutes = 0;
   let nurseRrEnabled = false;
 
@@ -1567,18 +1623,18 @@
   const BODY_PARTS = {
     front: [
       { id: 'head', label: '머리', x: 50, y: 10 },
-      { id: 'left_shoulder', label: '좌측 어깨', x: 32, y: 24 },
-      { id: 'right_shoulder', label: '우측 어깨', x: 68, y: 24 },
-      { id: 'left_elbow', label: '좌측 팔꿈치', x: 23, y: 43 },
-      { id: 'right_elbow', label: '우측 팔꿈치', x: 77, y: 43 },
-      { id: 'left_wrist', label: '좌측 손목', x: 18, y: 62 },
-      { id: 'right_wrist', label: '우측 손목', x: 82, y: 62 },
+      { id: 'left_shoulder', label: '좌측 어깨', x: 68, y: 24 },
+      { id: 'right_shoulder', label: '우측 어깨', x: 32, y: 24 },
+      { id: 'left_elbow', label: '좌측 팔꿈치', x: 77, y: 43 },
+      { id: 'right_elbow', label: '우측 팔꿈치', x: 23, y: 43 },
+      { id: 'left_wrist', label: '좌측 손목', x: 82, y: 62 },
+      { id: 'right_wrist', label: '우측 손목', x: 18, y: 62 },
       { id: 'abdomen', label: '배', x: 50, y: 47 },
       { id: 'pelvis', label: '골반', x: 50, y: 61 },
-      { id: 'left_knee', label: '좌측 무릎', x: 42, y: 79 },
-      { id: 'right_knee', label: '우측 무릎', x: 58, y: 79 },
-      { id: 'left_ankle', label: '좌측 발목', x: 39, y: 92 },
-      { id: 'right_ankle', label: '우측 발목', x: 61, y: 92 }
+      { id: 'left_knee', label: '좌측 무릎', x: 58, y: 79 },
+      { id: 'right_knee', label: '우측 무릎', x: 42, y: 79 },
+      { id: 'left_ankle', label: '좌측 발목', x: 61, y: 92 },
+      { id: 'right_ankle', label: '우측 발목', x: 39, y: 92 }
     ],
     back: [
       { id: 'neck', label: '목', x: 50, y: 21 },
@@ -1599,6 +1655,12 @@
   let selectedBedNo = getUrlBedNo();
   let selectedReceiveBedNo = getUrlBedNo();
   let selectedMoveBedNo = null;
+  let draggedBedNo = null;
+  let suppressBedClickUntil = 0;
+  const formEditBedNoByScope = {
+    desk: null,
+    receive: null
+  };
   let bedRenderTicker = null;
   let timerAlertAudioCtx = null;
   let timerAlertBeepTimer = null;
@@ -1636,9 +1698,23 @@
     });
   }
 
+  function renderTreatmentMinutesSettings() {
+    const list = document.getElementById('treatmentMinutesList');
+    if (!list) return;
+    list.innerHTML = TREATMENTS.map(t => {
+      const value = Math.max(1, Math.min(120, Number(treatmentMinutes[t.name] || DEFAULT_TREATMENT_MINUTES[t.name] || 1)));
+      return `
+        <label class="treatment-time-row">
+          <span class="treatment-time-name">${escapeHtml(t.name)}</span>
+          <input class="treatment-time-input" data-treatment-name="${escapeHtml(t.name)}" type="number" min="1" max="120" step="1" value="${value}" aria-label="${escapeHtml(t.name)} 치료시간">
+        </label>`;
+    }).join('');
+  }
+
   renderTreatmentGrid('treatmentGrid');
   renderTreatmentGrid('receiveTreatmentGrid');
   renderTreatmentGrid('bedTreatmentGrid');
+  renderTreatmentMinutesSettings();
 
   window.toggleCheck = (el) => {
     const label = el.closest('.treat-item');
@@ -1747,6 +1823,134 @@
     return { id, name: data.name || '' };
   }
 
+  async function getRoundRobinStaffForTest(type) {
+    const staff = getSortedStaff(type).filter(([, data]) => type !== 'nurses' || !data.vacation);
+    if (!staff.length) return { id: '', name: '' };
+
+    const dateKey = getTodayKey();
+    const counterRef = ref(db, `settings/testRoundRobinState/${type}/${dateKey}/count`);
+    const result = await runTransaction(counterRef, value => (Number(value || 0) + 1));
+    const count = Number(result.snapshot.val() || 1);
+    const serial = Math.max(0, count - 1);
+    const index = (getDailyStartOffset(staff.length) + serial) % staff.length;
+    const [id, data] = staff[index];
+    return { id, name: data.name || '' };
+  }
+
+  function getRandomTreatments() {
+    const count = 4 + Math.floor(Math.random() * 3);
+    return [...TREATMENTS]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, count)
+      .map(t => t.name);
+  }
+
+  function normalizeExcelHeader(value) {
+    return String(value || '').replace(/\s+/g, '').replace(/[()［］\[\]_/.-]/g, '').toLowerCase();
+  }
+
+  function findExcelColumn(headers, candidates) {
+    const normalizedCandidates = candidates.map(normalizeExcelHeader);
+    const exactIndex = headers.findIndex(header => {
+      const normalized = normalizeExcelHeader(header);
+      return normalizedCandidates.includes(normalized);
+    });
+    if (exactIndex >= 0) return exactIndex;
+
+    return headers.findIndex(header => {
+      const normalized = normalizeExcelHeader(header);
+      return normalizedCandidates.some(candidate => normalized.includes(candidate));
+    });
+  }
+
+  function parseExcelPatients(arrayBuffer) {
+    if (!window.XLSX) throw new Error('엑셀 파서가 로드되지 않았습니다.');
+    const workbook = window.XLSX.read(arrayBuffer, { type: 'array', cellDates: false });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const headerRowIndex = rows.findIndex(row => {
+      const joined = row.map(normalizeExcelHeader).join('|');
+      return /(성명|이름|환자|차트|등록|나이|연령|성별|상병|병명)/.test(joined);
+    });
+    const headers = rows[Math.max(0, headerRowIndex)] || [];
+    const startIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+    const nameIndex = findExcelColumn(headers, ['환자명', '환자성명', '성명', '이름', '수진자명']);
+    const chartIndex = findExcelColumn(headers, ['차트번호', '챠트번호']);
+    const ageIndex = findExcelColumn(headers, ['나이', '연령']);
+    const genderIndex = findExcelColumn(headers, ['성별', '남녀']);
+    const visitIndex = findExcelColumn(headers, ['초재진', '초진재진', '초진', '진료구분', '구분']);
+    const complaintIndex = findExcelColumn(headers, ['주상병명']);
+
+    return rows.slice(startIndex).map(row => {
+      const fallbackNameIndex = nameIndex >= 0 ? nameIndex : row.findIndex(cell => /[가-힣]{2,}/.test(String(cell || '').trim()));
+      const name = String(row[fallbackNameIndex] || '').trim();
+      const genderText = String(genderIndex >= 0 ? row[genderIndex] : '').trim();
+      const visitText = String(visitIndex >= 0 ? row[visitIndex] : '').trim();
+      return {
+        name,
+        chartNo: chartIndex >= 0 ? String(row[chartIndex] || '').trim() : '',
+        age: ageIndex >= 0 ? Number(String(row[ageIndex] || '').replace(/[^0-9]/g, '')) || '' : '',
+        gender: genderText.includes('여') ? '여' : '남',
+        visitType: visitText.includes('초') ? '초진' : '재진',
+        chiefComplaint: complaintIndex >= 0 ? String(row[complaintIndex] || '').trim() : ''
+      };
+    }).filter(patient => patient.name && !/성명|이름|환자명/.test(patient.name));
+  }
+
+  let pendingRandomTestCount = 0;
+
+  window.openRandomTestGenerator = () => {
+    const count = Number(prompt('생성할 테스트 환자 수를 입력하세요.', '10'));
+    if (!Number.isFinite(count) || count < 1) return;
+    pendingRandomTestCount = Math.min(200, Math.floor(count));
+    document.getElementById('randomTestExcelInput')?.click();
+  };
+
+  window.handleRandomTestExcel = async (file) => {
+    if (!file || !pendingRandomTestCount) return;
+    try {
+      const patients = parseExcelPatients(await file.arrayBuffer());
+      if (!patients.length) {
+        alert('엑셀에서 환자명을 찾지 못했습니다. 환자명/성명/이름 열이 있는 파일인지 확인해주세요.');
+        return;
+      }
+
+      const count = pendingRandomTestCount;
+      pendingRandomTestCount = 0;
+      showToast(`테스트 환자 ${count}명 생성 중...`);
+
+      for (let i = 0; i < count; i++) {
+        const source = patients[Math.floor(Math.random() * patients.length)];
+        const doctor = await getRoundRobinStaffForTest('doctors');
+        const nurse = await getRoundRobinStaffForTest('nurses');
+        const now = new Date(Date.now() + i);
+        await push(ref(db, 'patients'), {
+          name: source.name,
+          treatments: getRandomTreatments(),
+          timestamp: now.getTime(),
+          timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+          date: now.toLocaleDateString('ko-KR'),
+          bedStatus: 'waiting',
+          chartNo: source.chartNo || '',
+          visitType: source.visitType || '재진',
+          chiefComplaint: source.chiefComplaint || '',
+          age: source.age || '',
+          gender: source.gender || '남',
+          doctorId: doctor.id,
+          doctorName: doctor.name,
+          nurseId: nurse.id,
+          nurseName: nurse.name,
+          testGenerated: true
+        });
+      }
+
+      showToast(`테스트 환자 ${count}명 생성 완료`);
+    } catch (e) {
+      console.error(e);
+      alert('엑셀 파일을 읽거나 테스트 환자를 생성하지 못했습니다.');
+    }
+  };
+
   window.toggleNurseVacation = async (key, checked) => {
     if (!staffByType.nurses.has(key)) return;
     const prev = Boolean(staffByType.nurses.get(key)?.vacation);
@@ -1815,6 +2019,15 @@
     updateBedRemainingChip();
   });
 
+  onValue(ref(db, 'settings/treatmentMinutes'), (snapshot) => {
+    const rows = snapshot.val() || {};
+    treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES, ...rows };
+    renderTreatmentMinutesSettings();
+    updateDeskWaitChip();
+    updateBedRemainingChip();
+    renderUpcomingAlerts();
+  });
+
   onValue(ref(db, 'settings/nurseRoundRobinEnabled'), (snapshot) => {
     nurseRrEnabled = Boolean(snapshot.val());
     const input = document.getElementById('nurseRrEnabled');
@@ -1830,6 +2043,21 @@
     } catch (e) {
       console.error(e);
       showToast('처치시간 저장 실패');
+    }
+  };
+
+  window.saveTreatmentMinutes = async () => {
+    const rows = {};
+    document.querySelectorAll('#treatmentMinutesList .treatment-time-input').forEach(input => {
+      const name = input.dataset.treatmentName;
+      rows[name] = Math.max(1, Math.min(120, Number(input.value) || 1));
+    });
+    try {
+      await set(ref(db, 'settings/treatmentMinutes'), rows);
+      showToast('치료시간 저장 완료');
+    } catch (e) {
+      console.error(e);
+      showToast('치료시간 저장 실패');
     }
   };
 
@@ -1875,6 +2103,10 @@
 
   window.submitPatient = async (scope = 'desk') => {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    if ((scope === 'desk' || scope === 'receive') && formEditBedNoByScope[scope]) {
+      await saveMonitorBedPatientInfo(scope);
+      return;
+    }
     const name = document.getElementById(ids.name).value.trim();
     const chartNo = document.getElementById(ids.chartNo).value.trim();
     const chiefComplaint = document.getElementById(ids.chiefComplaint).value.trim();
@@ -1977,6 +2209,28 @@
       c.closest('.treat-item').classList.toggle('checked', c.checked);
       c.closest('.treat-item').querySelector('.check-box').textContent = c.checked ? '✓' : '';
     });
+  }
+
+  function populatePatientForm(scope, bed = null) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    document.getElementById(ids.name).value = bed?.name || '';
+    document.getElementById(ids.chartNo).value = bed?.chartNo || '';
+    document.getElementById(ids.chiefComplaint).value = bed?.chiefComplaint || '';
+    document.getElementById(ids.age).value = bed?.age || '';
+    document.querySelector(`input[name="${ids.visitType}"][value="${bed?.visitType || '초진'}"]`)?.click();
+    document.querySelector(`input[name="${ids.gender}"][value="${bed?.gender || '남'}"]`)?.click();
+    const doctorSelect = document.getElementById(scope === 'receive' ? 'receiveDoctorSelect' : 'doctorSelect');
+    const nurseSelect = document.getElementById(scope === 'receive' ? 'receiveNurseSelect' : 'nurseSelect');
+    if (doctorSelect) doctorSelect.value = bed?.doctorId || '';
+    if (nurseSelect) nurseSelect.value = bed?.nurseId || '';
+    setTreatmentSelection(ids.treatmentGrid, bed?.treatments || []);
+  }
+
+  function setFormEditMode(scope, bedNo = null) {
+    formEditBedNoByScope[scope] = bedNo;
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const button = document.getElementById(ids.submitBtn);
+    if (button) button.textContent = bedNo ? '정보수정' : '입력';
   }
 
   function populateBedEditForm() {
@@ -2097,8 +2351,69 @@
     }
 
     btn.disabled = false;
-    btn.textContent = '정보 저장';
+    btn.textContent = '정보수정';
   };
+
+  async function saveMonitorBedPatientInfo(scope) {
+    const bedNo = formEditBedNoByScope[scope];
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) {
+      showToast('현재 베드에 환자가 없습니다');
+      return;
+    }
+
+    const form = getFormValues(scope);
+    if (!form.name) { showToast('❗ 환자 성함을 입력해주세요'); return; }
+    if (form.treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
+
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const btn = document.getElementById(ids.submitBtn);
+    const currentTreatment = bed.treatments?.[bed.currentIndex || 0];
+    const nextCurrentIndex = Math.min(bed.currentIndex || 0, form.treatments.length - 1);
+    const nextTreatment = form.treatments[nextCurrentIndex];
+    const currentTreatmentChanged = currentTreatment !== nextTreatment;
+    const timerUpdates = currentTreatmentChanged
+      ? {
+          currentIndex: nextCurrentIndex,
+          total: getTreatmentSeconds(nextTreatment),
+          remaining: getTreatmentSeconds(nextTreatment),
+          running: false,
+          startedAt: null,
+          complete: false,
+          lastAlertId: null,
+          lastAlertMessage: null
+        }
+      : {};
+
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
+    try {
+      const payload = {
+        name: form.name,
+        chartNo: form.chartNo,
+        visitType: form.visitType,
+        chiefComplaint: form.chiefComplaint,
+        age: form.age ? Number(form.age) : '',
+        gender: form.gender,
+        treatments: form.treatments,
+        doctorId: form.doctor.id,
+        doctorName: form.doctor.name,
+        nurseId: form.nurse.id,
+        nurseName: form.nurse.name
+      };
+      await update(ref(db, `beds/${bedNo}`), { ...payload, ...timerUpdates });
+      if (bed.patientKey) {
+        await update(ref(db, `patients/${bed.patientKey}`), payload);
+      }
+      if (currentTreatmentChanged) clearLocalTimerAlertsForBed(bedNo);
+      showToast(`${getBedLabel(bedNo)} 환자 정보 저장 완료`);
+    } catch (e) {
+      console.error(e);
+      showToast('환자 정보 저장 실패');
+    }
+    btn.disabled = false;
+    btn.textContent = '정보수정';
+  }
 
   function csvCell(value) {
     const text = Array.isArray(value)
@@ -2337,7 +2652,7 @@
   }
 
   function getTreatmentSeconds(treatment) {
-    return (TREATMENT_MINUTES[treatment] || 1) * 60;
+    return (Number(treatmentMinutes[treatment] || DEFAULT_TREATMENT_MINUTES[treatment] || 1)) * 60;
   }
 
   function getProcedureSeconds() {
@@ -2424,7 +2739,7 @@
     updateDeskWaitChip(waitingPatients);
     const html = waitingPatients.length
       ? waitingPatients.map(([key, data], index) => `
-        <div class="waiting-item" id="waiting-${key}">
+        <div class="waiting-item" id="waiting-${key}" oncontextmenu="confirmDeleteWaitingPatient(event, '${key}')">
           <div class="waiting-rank">${index + 1}</div>
           <div>
             <div class="waiting-name">${escapeHtml(data.name)} 환자</div>
@@ -2440,26 +2755,50 @@
     });
   }
 
-  function getEstimatedWaitMinutes(waitingPatients) {
-    if (!waitingPatients.length) return 0;
-    const regularBeds = bedAssignments.slice(0, REGULAR_BED_COUNT);
-    if (regularBeds.filter(Boolean).length < REGULAR_BED_COUNT) return 0;
+  window.confirmDeleteWaitingPatient = async (event, key) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const patient = patientsByKey.get(key);
+    if (!patient) return;
+    if (!confirm(`${patient.name || '대기 환자'} 환자를 삭제하시겠습니까?`)) return;
 
-    const nextSeconds = regularBeds
+    const assignedBedNo = bedAssignments.findIndex(bed => bed?.patientKey === key) + 1;
+    if (assignedBedNo > 0) {
+      clearLocalTimerAlertsForBed(assignedBedNo);
+      await remove(ref(db, `beds/${assignedBedNo}`));
+    }
+    patientsByKey.delete(key);
+    loadedKeys.delete(key);
+    await remove(ref(db, `patients/${key}`));
+    renderWaitingLists();
+    showToast('대기 환자 삭제 완료');
+  };
+
+  function getEstimatedWaitMinutesList(waitingPatients) {
+    const regularBeds = bedAssignments.slice(0, REGULAR_BED_COUNT);
+
+    const minutesList = regularBeds
       .map(bed => {
         if (!bed || bed.complete || bed.lastAlertId) return 0;
         return getBedRemainingTreatmentSeconds(bed);
       })
-      .sort((a, b) => a - b)[0] || 0;
+      .sort((a, b) => a - b)
+      .slice(0, 5)
+      .map(seconds => Math.ceil(seconds / 60));
 
-    return Math.ceil(nextSeconds / 60);
+    if (minutesList.length === 5 && minutesList.every(minutes => minutes === 0)) return 'none';
+    return minutesList.length ? minutesList : 0;
   }
 
   function updateDeskWaitChip(waitingPatients = getWaitingPatients()) {
     const chip = document.getElementById('deskWaitChip');
     if (!chip) return;
-    const minutes = getEstimatedWaitMinutes(waitingPatients);
-    chip.textContent = `예상대기시간 ${minutes}분`;
+    const minutes = getEstimatedWaitMinutesList(waitingPatients);
+    chip.textContent = minutes === 'none'
+      ? '대기시간 없음'
+      : Array.isArray(minutes)
+      ? `예상대기시간 ${minutes.map(value => `${value}분`).join(', ')}`
+      : `예상대기시간 ${minutes}분`;
   }
 
   function formatUpcomingTime(seconds) {
@@ -3094,29 +3433,61 @@
   };
 
   window.handleInputBedClick = async (bedNo) => {
+    if (Date.now() < suppressBedClickUntil) return;
+    const scope = window.currentMode === 'receive' ? 'receive' : 'desk';
     const bed = bedAssignments[bedNo - 1];
 
-    if (!selectedMoveBedNo) {
-      if (!bed) {
-        showToast('이동할 환자가 있는 베드를 먼저 선택해주세요');
-        return;
-      }
-      selectedMoveBedNo = bedNo;
-      renderBedMonitors();
-      showToast(`${getBedLabel(bedNo)} 선택됨 · 이동할 베드를 클릭하세요`);
+    if (!bed) {
+      showToast('현재 베드에 환자가 없습니다');
       return;
     }
 
-    if (selectedMoveBedNo === bedNo) {
-      selectedMoveBedNo = null;
-      renderBedMonitors();
-      showToast('베드 이동 선택 취소');
+    setFormEditMode(scope, bedNo);
+    populatePatientForm(scope, bed);
+    if (scope === 'receive') {
+      setReceiveFormOpen(true);
+    } else {
+      setInputFormOpen(true);
+    }
+    showToast(`${getBedLabel(bedNo)} 환자 정보 불러옴`);
+  };
+
+  window.handleBedDragStart = (event, bedNo) => {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) {
+      event.preventDefault();
       return;
     }
+    draggedBedNo = bedNo;
+    selectedMoveBedNo = bedNo;
+    event.currentTarget?.classList.add('move-source');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(bedNo));
+  };
 
-    const fromBedNo = selectedMoveBedNo;
+  window.handleBedDragOver = (event, bedNo) => {
+    if (!draggedBedNo || draggedBedNo === bedNo) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  };
+
+  window.handleBedDrop = async (event, bedNo) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const fromBedNo = draggedBedNo || Number(event.dataTransfer.getData('text/plain'));
+    draggedBedNo = null;
     selectedMoveBedNo = null;
-    await moveOrSwapBed(fromBedNo, bedNo);
+    suppressBedClickUntil = Date.now() + 350;
+    if (fromBedNo && fromBedNo !== bedNo) {
+      await moveOrSwapBed(fromBedNo, bedNo);
+    }
+    renderBedMonitors();
+  };
+
+  window.handleBedDragEnd = () => {
+    draggedBedNo = null;
+    selectedMoveBedNo = null;
+    suppressBedClickUntil = Date.now() + 250;
     renderBedMonitors();
   };
 
@@ -3214,7 +3585,7 @@
       canMoveBed && selectedMoveBedNo && status.bedNo !== selectedMoveBedNo ? ' move-target' : ''
     ].join('');
     const moveHandlers = canMoveBed
-      ? ` onclick="handleInputBedClick(${status.bedNo})" oncontextmenu="confirmClearBed(event, ${status.bedNo})"`
+      ? ` onclick="handleInputBedClick(${status.bedNo})" oncontextmenu="confirmClearBed(event, ${status.bedNo})" ondragover="handleBedDragOver(event, ${status.bedNo})" ondrop="handleBedDrop(event, ${status.bedNo})"`
       : '';
 
     if (status.empty) {
@@ -3230,12 +3601,15 @@
     }
 
     const clickAction = canMoveBed ? `handleInputBedClick(${status.bedNo})` : `selectReceiveBed(${status.bedNo})`;
+    const dragHandlers = canMoveBed
+      ? ` draggable="true" ondragstart="handleBedDragStart(event, ${status.bedNo})" ondragover="handleBedDragOver(event, ${status.bedNo})" ondrop="handleBedDrop(event, ${status.bedNo})" ondragend="handleBedDragEnd()"`
+      : '';
     const staffHtml = [
       status.doctorName ? `<span class="bed-meta-chip">원장 ${escapeHtml(status.doctorName)}</span>` : '',
       status.nurseName ? `<span class="bed-meta-chip">간호사 ${escapeHtml(status.nurseName)}</span>` : ''
     ].filter(Boolean).join('');
     return `
-      <div class="bed-status${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${canMoveBed ? ` oncontextmenu="confirmClearBed(event, ${status.bedNo})"` : ''}>
+      <div class="bed-status${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${canMoveBed ? ` oncontextmenu="confirmClearBed(event, ${status.bedNo})"` : ''}>
         <div class="bed-status-top">
           <span class="bed-status-no">${escapeHtml(status.bedLabel)} ${escapeHtml(status.name)}</span>
           <span class="bed-status-time">${escapeHtml(status.remaining)}</span>
@@ -3325,6 +3699,8 @@
         }
       });
       renderUpcomingAlerts();
+      updateDeskWaitChip();
+      updateBedRemainingChip();
     }, 1000);
   }
 
@@ -3642,35 +4018,73 @@
   function setInputFormOpen(open) {
     const panel = document.getElementById('inputPanel');
     const button = document.getElementById('inputFormToggle');
+    const column = panel?.querySelector('.input-form-column');
     if (!panel) return;
     panel.classList.toggle('input-form-open', Boolean(open));
+    if (column) {
+      column.hidden = !open;
+      if (open) {
+        column.style.removeProperty('display');
+      } else {
+        column.style.display = 'none';
+      }
+    }
     if (button) {
       button.textContent = open ? '‹' : '›';
+      button.dataset.open = open ? '1' : '0';
       button.setAttribute('aria-label', open ? '환자 입력 닫기' : '환자 입력 열기');
       button.title = open ? '환자 입력 닫기' : '환자 입력 열기';
     }
   }
 
   window.toggleInputForm = () => {
-    const panel = document.getElementById('inputPanel');
-    setInputFormOpen(!panel?.classList.contains('input-form-open'));
+    const button = document.getElementById('inputFormToggle');
+    const shouldClose = button?.getAttribute('aria-label')?.includes('닫기');
+    if (shouldClose) {
+      setInputFormOpen(false);
+      // setFormEditMode('desk', null);
+      populatePatientForm('desk');
+    } else {
+      // setFormEditMode('desk', null);
+      setInputFormOpen(true);
+      populatePatientForm('desk');
+    }
   };
 
   function setReceiveFormOpen(open) {
     const panel = document.getElementById('receivePanel');
     const button = document.getElementById('receiveFormToggle');
+    const column = panel?.querySelector('.receive-form-column');
     if (!panel) return;
     panel.classList.toggle('receive-form-open', Boolean(open));
+    if (column) {
+      column.hidden = !open;
+      if (open) {
+        column.style.removeProperty('display');
+      } else {
+        column.style.display = 'none';
+      }
+    }
     if (button) {
       button.textContent = open ? '‹' : '›';
+      button.dataset.open = open ? '1' : '0';
       button.setAttribute('aria-label', open ? '환자 입력 닫기' : '환자 입력 열기');
       button.title = open ? '환자 입력 닫기' : '환자 입력 열기';
     }
   }
 
   window.toggleReceiveForm = () => {
-    const panel = document.getElementById('receivePanel');
-    setReceiveFormOpen(!panel?.classList.contains('receive-form-open'));
+    const button = document.getElementById('receiveFormToggle');
+    const shouldClose = button?.getAttribute('aria-label')?.includes('닫기');
+    if (shouldClose) {
+      setReceiveFormOpen(false);
+      setFormEditMode('receive', null);
+      populatePatientForm('receive');
+    } else {
+      setFormEditMode('receive', null);
+      setReceiveFormOpen(true);
+      populatePatientForm('receive');
+    }
   };
 
   // 토스트
@@ -3685,6 +4099,8 @@
   document.addEventListener('DOMContentLoaded', () => {
     syncAppViewClass();
     setMode(getInitialMode(), false);
+    setInputFormOpen(false);
+    setReceiveFormOpen(false);
     const nurseRrInput = document.getElementById('nurseRrEnabled');
     if (nurseRrInput) nurseRrInput.checked = nurseRrEnabled;
     document.getElementById('patientName').addEventListener('keydown', e => {
