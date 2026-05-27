@@ -46,7 +46,10 @@
   }
 
   .app { position: relative; z-index: 1; max-width: 1360px; margin: 0 auto; padding: 20px 16px 60px; }
-  body.app-role-bed .app { max-width: 1024px; }
+  body.app-role-bed .app {
+    max-width: min(1500px, calc(100vw - 16px));
+    padding: 10px 8px 24px;
+  }
 
   /* 헤더 */
   .header {
@@ -58,6 +61,11 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     margin-bottom: 16px;
+  }
+  body.app-role-bed .header {
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    border-radius: 12px;
   }
   .header-left {
     display: flex;
@@ -71,6 +79,10 @@
     object-fit: contain;
     flex-shrink: 0;
   }
+  body.app-role-bed .brand-icon {
+    width: 38px;
+    height: 38px;
+  }
   .brand-copy { min-width: 0; }
   .header-left h1 {
     font-family: 'Noto Sans KR', sans-serif;
@@ -80,6 +92,7 @@
     color: #fff;
     letter-spacing: 0;
   }
+  body.app-role-bed .header-left h1 { font-size: 21px; }
   .brand-highlight { color: var(--gold); }
   .header-left p { font-size: 11px; color: var(--text3); margin-top: 2px; }
   .mode-toggle {
@@ -263,6 +276,13 @@
     gap: 4px;
     margin-top: 4px;
   }
+  .waiting-info,
+  .waiting-staff {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+  }
   .waiting-tag {
     background: var(--surface3);
     border: 1px solid var(--border);
@@ -271,6 +291,10 @@
     padding: 2px 7px;
     font-size: 10px;
     font-weight: 700;
+  }
+  .waiting-item .bed-meta-chip {
+    font-size: 10px;
+    padding: 2px 6px;
   }
   .waiting-time {
     color: var(--text3);
@@ -341,6 +365,9 @@
     display: grid;
     gap: 10px;
   }
+  .monitor-staff-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .staff-select {
     width: 100%;
     background: var(--surface2);
@@ -358,6 +385,18 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+  .monitor-patient-grid {
+    grid-template-columns: 3fr 3fr 2fr;
+  }
+  .monitor-patient-grid > .name-input {
+    text-align: center;
+  }
+  .form-segment-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    grid-column: 1 / -1;
   }
   .patient-info-grid .wide { grid-column: 1 / -1; }
   .segmented {
@@ -394,6 +433,12 @@
   .staff-manager-grid {
     display: grid;
     gap: 12px;
+  }
+  .settings-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
   }
   .staff-add-row {
     display: grid;
@@ -511,6 +556,9 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
+  }
+  .monitor-treatment-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .treat-item {
     display: flex;
@@ -829,6 +877,13 @@
     gap: 4px;
     margin-top: 6px;
   }
+  .bed-popover .body-selected-list {
+    margin-top: 6px;
+  }
+  .bed-popover .body-part-chip {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
   .bed-treatment-chip {
     min-width: 0;
     flex: 0 1 auto;
@@ -884,6 +939,12 @@
     gap: 12px;
     align-items: start;
   }
+  body.app-role-bed .receive-header { margin-bottom: 8px; }
+  body.app-role-bed .bed-layout { gap: 10px; }
+  body.app-role-bed .bed-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+    gap: 10px;
+  }
   .bed-left-column { min-width: 0; }
   .bed-selector {
     width: 100%;
@@ -904,17 +965,38 @@
     border-radius: var(--radius);
     padding: 16px;
   }
+  .form-body-map {
+    background: rgba(5, 42, 97, 0.24);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .form-body-map .body-map-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .form-body-map .body-figure-panel {
+    padding: 8px;
+  }
+  .form-body-map .body-hotspot {
+    width: 22px;
+    height: 22px;
+    border-width: 2px;
+  }
+  body.app-role-bed .body-map-card { padding: 12px; }
   .body-map-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
+  body.app-role-bed .body-map-grid { gap: 10px; }
   .body-figure-panel {
     background: rgba(5, 42, 97, 0.26);
     border: 1px solid rgba(255,255,255,0.10);
     border-radius: 10px;
     padding: 10px;
   }
+  body.app-role-bed .body-figure-panel { padding: 8px; }
   .body-figure-title {
     color: var(--text2);
     font-size: 12px;
@@ -998,6 +1080,7 @@
     gap: 12px;
     margin-bottom: 12px;
   }
+  body.app-role-bed .bed-summary { margin-bottom: 8px; }
   .bed-name { font-size: 24px; font-weight: 900; color: var(--text); }
   .bed-name-row {
     display: flex;
@@ -1031,6 +1114,10 @@
     padding: 12px;
     margin-bottom: 12px;
   }
+  body.app-role-bed .bed-detail-info {
+    padding: 10px;
+    margin-bottom: 8px;
+  }
   .bed-detail-info.has-action {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1053,6 +1140,7 @@
     gap: 6px;
   }
   .bed-detail-chip-row + .bed-detail-chip-row { margin-top: 8px; }
+  body.app-role-bed .bed-detail-chip-row + .bed-detail-chip-row { margin-top: 6px; }
   .bed-detail-info .bed-meta-chip,
   .bed-detail-info .bed-treatment-chip {
     font-size: 12px;
@@ -1064,6 +1152,7 @@
     gap: 6px;
     margin-top: 8px;
   }
+  body.app-role-bed .bed-detail-treatment-row { margin-top: 6px; }
   .timer-list { display: flex; flex-direction: column; gap: 10px; }
   .bed-alert-card {
     background: rgba(255,107,107,0.16);
@@ -1097,6 +1186,7 @@
     border-radius: var(--radius);
     padding: 16px;
   }
+  body.app-role-bed .timer-card { padding: 12px; }
   .timer-top {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1104,6 +1194,7 @@
     gap: 12px;
     margin-bottom: 10px;
   }
+  body.app-role-bed .timer-top { margin-bottom: 8px; }
   .timer-treatment { font-size: 28px; font-weight: 900; color: var(--accent); letter-spacing: 0; }
   .timer-step { font-size: 11px; color: var(--text3); margin-top: 3px; }
   .timer-clock {
@@ -1115,6 +1206,10 @@
     min-width: 170px;
     text-align: right;
   }
+  body.app-role-bed .timer-clock {
+    font-size: clamp(52px, 5.8vw, 86px);
+    min-width: 180px;
+  }
   .timer-progress {
     height: 8px;
     background: var(--surface2);
@@ -1122,6 +1217,7 @@
     overflow: hidden;
     margin-bottom: 12px;
   }
+  body.app-role-bed .timer-progress { margin-bottom: 8px; }
   .timer-bar {
     width: 100%;
     height: 100%;
@@ -1135,12 +1231,13 @@
     grid-template-columns: 1fr;
   }
   .timer-actions.bed-timer-actions .timer-btn {
-    min-height: 58px;
-    padding: 16px;
+    min-height: 54px;
+    padding: 14px;
     border-radius: 12px;
     font-size: 17px;
   }
   .treatment-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  body.app-role-bed .treatment-nav { margin-bottom: 8px; }
   .timer-btn {
     padding: 10px;
     background: var(--surface2);
@@ -1162,6 +1259,7 @@
     gap: 8px;
     margin-bottom: 12px;
   }
+  body.app-role-bed .timer-settings { margin-bottom: 8px; }
   .timer-settings.bed-timer-settings {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1199,6 +1297,7 @@
     gap: 8px;
     margin-bottom: 12px;
   }
+  .staff-add-row + .treatment-time-list { margin-top: 12px; }
   .treatment-time-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 96px;
@@ -1247,6 +1346,28 @@
 
   @media (max-width: 859px) {
     .bed-workspace { grid-template-columns: 1fr; }
+  }
+
+  @media (max-height: 820px) and (orientation: landscape) {
+    body.app-role-bed .app { padding: 8px 8px 16px; }
+    body.app-role-bed .header { padding: 8px 12px; margin-bottom: 8px; }
+    body.app-role-bed .brand-icon { width: 34px; height: 34px; }
+    body.app-role-bed .header-left h1 { font-size: 19px; }
+    body.app-role-bed .header-left p { display: none; }
+    body.app-role-bed .receive-title { font-size: 13px; }
+    body.app-role-bed .bed-name { font-size: 22px; }
+    body.app-role-bed .body-map-card,
+    body.app-role-bed .timer-card { padding: 10px; }
+    body.app-role-bed .bed-detail-info { padding: 9px; }
+    body.app-role-bed .timer-clock {
+      font-size: clamp(46px, 5vw, 68px);
+      min-width: 156px;
+    }
+    body.app-role-bed .timer-treatment { font-size: 25px; }
+    body.app-role-bed .timer-actions.bed-timer-actions .timer-btn {
+      min-height: 50px;
+      padding: 12px;
+    }
   }
 
   /* 빈 상태 */
@@ -1392,39 +1513,42 @@
 
   <!-- 입력 패널 -->
   <div class="input-panel active" id="inputPanel">
-    <button class="input-drawer-toggle" id="inputFormToggle" data-open="0" onclick="toggleInputForm()" aria-label="환자 입력 열기">›</button>
+    <button class="input-drawer-toggle" id="inputFormToggle" data-open="0" onclick="toggleInputForm()" aria-label="입력 열기">›</button>
     <div class="input-layout">
       <div class="input-form-column">
         <div class="card">
           <div class="form-section">
-            <input class="name-input" id="patientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
-          </div>
-
-          <div class="form-section">
-            <div class="patient-info-grid">
+            <div class="patient-info-grid monitor-patient-grid">
+              <input class="name-input" id="patientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
               <input class="name-input" id="chartNo" type="text" placeholder="차트번호" maxlength="20">
               <input class="name-input" id="ageInput" type="number" placeholder="나이" min="0" max="130">
-              <div class="segmented">
-                <label class="segment-item"><input type="radio" name="visitType" value="초진" checked><span>초진</span></label>
-                <label class="segment-item"><input type="radio" name="visitType" value="재진"><span>재진</span></label>
-              </div>
-              <div class="segmented">
-                <label class="segment-item"><input type="radio" name="gender" value="남" checked><span>남</span></label>
-                <label class="segment-item"><input type="radio" name="gender" value="여"><span>여</span></label>
+              <div class="form-segment-row">
+                <div class="segmented">
+                  <label class="segment-item"><input type="radio" name="visitType" value="초진" checked><span>초진</span></label>
+                  <label class="segment-item"><input type="radio" name="visitType" value="재진"><span>재진</span></label>
+                </div>
+                <div class="segmented">
+                  <label class="segment-item"><input type="radio" name="gender" value="남" checked><span>남</span></label>
+                  <label class="segment-item"><input type="radio" name="gender" value="여"><span>여</span></label>
+                </div>
               </div>
               <input class="name-input wide" id="chiefComplaint" type="text" placeholder="주상병명" maxlength="60">
+              <input class="name-input wide" id="memoInput" type="text" placeholder="메모" maxlength="80">
             </div>
           </div>
 
           <div class="form-section">
-            <div class="staff-select-grid">
+            <div class="staff-select-grid monitor-staff-grid">
               <select class="staff-select" id="doctorSelect"></select>
               <select class="staff-select" id="nurseSelect"></select>
             </div>
           </div>
 
           <div class="form-section">
-            <div class="treatment-grid" id="treatmentGrid"></div>
+            <div class="treatment-grid monitor-treatment-grid" id="treatmentGrid"></div>
+          </div>
+          <div class="form-section">
+            <div class="form-body-map" id="deskBodyPartForm"></div>
           </div>
         </div>
 
@@ -1438,7 +1562,7 @@
           <div class="bed-monitor" id="inputBedMonitor"></div>
         </div>
         <div class="card">
-          <div class="card-label">대기 환자</div>
+          <div class="card-label">대기</div>
           <div class="waiting-list" id="inputWaitingList"></div>
         </div>
       </div>
@@ -1447,7 +1571,7 @@
 
   <!-- 수신 패널 -->
   <div class="receive-panel" id="receivePanel">
-    <button class="input-drawer-toggle receive-drawer-toggle" id="receiveFormToggle" data-open="0" onclick="toggleReceiveForm()" aria-label="환자 입력 열기">›</button>
+    <button class="input-drawer-toggle receive-drawer-toggle" id="receiveFormToggle" data-open="0" onclick="toggleReceiveForm()" aria-label="입력 열기">›</button>
     <div class="receive-layout">
       <div class="receive-main-column">
         <div class="card">
@@ -1459,34 +1583,37 @@
         <div class="receive-form-column">
           <div class="card">
             <div class="form-section">
-              <input class="name-input" id="receivePatientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
-            </div>
-
-            <div class="form-section">
-              <div class="patient-info-grid">
+              <div class="patient-info-grid monitor-patient-grid">
+                <input class="name-input" id="receivePatientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
                 <input class="name-input" id="receiveChartNo" type="text" placeholder="차트번호" maxlength="20">
                 <input class="name-input" id="receiveAgeInput" type="number" placeholder="나이" min="0" max="130">
-                <div class="segmented">
-                  <label class="segment-item"><input type="radio" name="receiveVisitType" value="초진" checked><span>초진</span></label>
-                  <label class="segment-item"><input type="radio" name="receiveVisitType" value="재진"><span>재진</span></label>
-                </div>
-                <div class="segmented">
-                  <label class="segment-item"><input type="radio" name="receiveGender" value="남" checked><span>남</span></label>
-                  <label class="segment-item"><input type="radio" name="receiveGender" value="여"><span>여</span></label>
+                <div class="form-segment-row">
+                  <div class="segmented">
+                    <label class="segment-item"><input type="radio" name="receiveVisitType" value="초진" checked><span>초진</span></label>
+                    <label class="segment-item"><input type="radio" name="receiveVisitType" value="재진"><span>재진</span></label>
+                  </div>
+                  <div class="segmented">
+                    <label class="segment-item"><input type="radio" name="receiveGender" value="남" checked><span>남</span></label>
+                    <label class="segment-item"><input type="radio" name="receiveGender" value="여"><span>여</span></label>
+                  </div>
                 </div>
                 <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="주상병명" maxlength="60">
+                <input class="name-input wide" id="receiveMemoInput" type="text" placeholder="메모" maxlength="80">
               </div>
             </div>
 
             <div class="form-section">
-              <div class="staff-select-grid">
+              <div class="staff-select-grid monitor-staff-grid">
                 <select class="staff-select" id="receiveDoctorSelect"></select>
                 <select class="staff-select" id="receiveNurseSelect"></select>
               </div>
             </div>
 
             <div class="form-section">
-              <div class="treatment-grid" id="receiveTreatmentGrid"></div>
+              <div class="treatment-grid monitor-treatment-grid" id="receiveTreatmentGrid"></div>
+            </div>
+            <div class="form-section">
+              <div class="form-body-map" id="receiveBodyPartForm"></div>
             </div>
           </div>
 
@@ -1497,7 +1624,7 @@
           <div class="upcoming-list" id="receiveUpcomingAlerts"></div>
         </div>
         <div class="card">
-          <div class="card-label">대기 환자</div>
+          <div class="card-label">대기</div>
           <div class="waiting-list" id="receiveWaitingList"></div>
         </div>
       </div>
@@ -1506,7 +1633,7 @@
 
   <!-- 베드 패널 -->
   <div class="bed-panel" id="bedPanel">
-    <button class="input-drawer-toggle bed-drawer-toggle" id="bedEditToggle" onclick="toggleBedEditForm()" aria-label="환자 정보 수정 열기">›</button>
+    <button class="input-drawer-toggle bed-drawer-toggle" id="bedEditToggle" onclick="toggleBedEditForm()" aria-label="정보 수정 열기">›</button>
     <div class="receive-header">
       <div class="receive-title">베드 치료 타이머</div>
       <div class="today-count" id="bedPatientCount">0명</div>
@@ -1516,37 +1643,37 @@
       <div class="bed-workspace">
         <div class="bed-left-column">
           <details class="bed-input-section" id="bedEditSection">
-            <summary>환자 정보 수정</summary>
+            <summary>정보 수정</summary>
             <div class="bed-input-body">
               <div class="form-section">
-                <input class="name-input" id="bedPatientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
-              </div>
-
-              <div class="form-section">
-                <div class="patient-info-grid">
+                <div class="patient-info-grid monitor-patient-grid">
+                  <input class="name-input" id="bedPatientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
                   <input class="name-input" id="bedChartNo" type="text" placeholder="차트번호" maxlength="20">
                   <input class="name-input" id="bedAgeInput" type="number" placeholder="나이" min="0" max="130">
-                  <div class="segmented">
-                    <label class="segment-item"><input type="radio" name="bedVisitType" value="초진" checked><span>초진</span></label>
-                    <label class="segment-item"><input type="radio" name="bedVisitType" value="재진"><span>재진</span></label>
-                  </div>
-                  <div class="segmented">
-                    <label class="segment-item"><input type="radio" name="bedGender" value="남" checked><span>남</span></label>
-                    <label class="segment-item"><input type="radio" name="bedGender" value="여"><span>여</span></label>
+                  <div class="form-segment-row">
+                    <div class="segmented">
+                      <label class="segment-item"><input type="radio" name="bedVisitType" value="초진" checked><span>초진</span></label>
+                      <label class="segment-item"><input type="radio" name="bedVisitType" value="재진"><span>재진</span></label>
+                    </div>
+                    <div class="segmented">
+                      <label class="segment-item"><input type="radio" name="bedGender" value="남" checked><span>남</span></label>
+                      <label class="segment-item"><input type="radio" name="bedGender" value="여"><span>여</span></label>
+                    </div>
                   </div>
                   <input class="name-input wide" id="bedChiefComplaint" type="text" placeholder="주상병명" maxlength="60">
+                  <input class="name-input wide" id="bedMemoInput" type="text" placeholder="메모" maxlength="80">
                 </div>
               </div>
 
               <div class="form-section">
-                <div class="staff-select-grid">
+                <div class="staff-select-grid monitor-staff-grid">
                   <select class="staff-select" id="bedDoctorSelect"></select>
                   <select class="staff-select" id="bedNurseSelect"></select>
                 </div>
               </div>
 
               <div class="form-section">
-                <div class="treatment-grid" id="bedTreatmentGrid"></div>
+                <div class="treatment-grid monitor-treatment-grid" id="bedTreatmentGrid"></div>
               </div>
 
               <button class="submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">정보수정</button>
@@ -1562,40 +1689,41 @@
   <!-- 설정 패널 -->
   <div class="settings-panel" id="settingsPanel">
     <div class="staff-manager-grid">
-      <div class="card">
-        <div class="card-label">원장 관리</div>
-        <div class="staff-add-row">
-          <input class="name-input" id="doctorNameInput" type="text" placeholder="원장 이름 입력" maxlength="20">
-          <button class="timer-set-btn" onclick="addStaff('doctors')">추가</button>
+      <div class="settings-column">
+        <div class="card">
+          <div class="card-label">원장 관리</div>
+          <div class="staff-add-row">
+            <input class="name-input" id="doctorNameInput" type="text" placeholder="원장 이름 입력" maxlength="20">
+            <button class="timer-set-btn" onclick="addStaff('doctors')">추가</button>
+          </div>
+          <div class="staff-list" id="doctorList"></div>
         </div>
-        <div class="staff-list" id="doctorList"></div>
-      </div>
-      <div class="card">
-        <div class="card-label">간호사 관리</div>
-        <div class="staff-add-row">
-          <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
-          <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
-        </div>
-        <label class="rr-setting">
-          <span class="rr-setting-text">간호사 RR 자동배정</span>
-          <span class="rr-switch">
-            <input id="nurseRrEnabled" type="checkbox" onchange="saveNurseRrEnabled(this.checked)">
-            <span class="rr-slider"></span>
-          </span>
-        </label>
-        <div class="staff-list" id="nurseList"></div>
-      </div>
-      <div class="card">
-        <div class="card-label">처치시간 설정</div>
-        <div class="staff-add-row">
-          <input class="name-input" id="procedureMinutesInput" type="number" min="0" max="120" step="1" placeholder="처치시간(분)">
-          <button class="timer-set-btn" onclick="saveProcedureMinutes()">저장</button>
+        <div class="card">
+          <div class="card-label">간호사 관리</div>
+          <div class="staff-add-row">
+            <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
+            <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
+          </div>
+          <label class="rr-setting">
+            <span class="rr-setting-text">간호사 RR 자동배정</span>
+            <span class="rr-switch">
+              <input id="nurseRrEnabled" type="checkbox" onchange="saveNurseRrEnabled(this.checked)">
+              <span class="rr-slider"></span>
+            </span>
+          </label>
+          <div class="staff-list" id="nurseList"></div>
         </div>
       </div>
-      <div class="card">
-        <div class="card-label">치료시간 설정</div>
-        <div class="treatment-time-list" id="treatmentMinutesList"></div>
-        <button class="submit-btn" onclick="saveTreatmentMinutes()">치료시간 저장</button>
+      <div class="settings-column">
+        <div class="card">
+          <div class="card-label">치료시간 설정</div>
+          <div class="staff-add-row">
+            <input class="name-input" id="procedureMinutesInput" type="number" min="0" max="120" step="1" placeholder="처치시간(분)">
+            <button class="timer-set-btn" onclick="saveProcedureMinutes()">처치시간 저장</button>
+          </div>
+          <div class="treatment-time-list" id="treatmentMinutesList"></div>
+          <button class="submit-btn" onclick="saveTreatmentMinutes()">치료시간 저장</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1672,10 +1800,18 @@
     nurses: new Map()
   };
   const BED_COUNT = 14;
-  const REGULAR_BED_COUNT = 13;
+  const DISABLED_BED_NUMBERS = new Set([7]);
   const SPECIAL_BED_LABELS = {
     14: '스파인MT'
   };
+  const ACTIVE_BED_NUMBERS = Array.from({ length: BED_COUNT }, (_, i) => i + 1)
+    .filter(bedNo => !DISABLED_BED_NUMBERS.has(bedNo));
+  const REGULAR_BED_NUMBERS = ACTIVE_BED_NUMBERS
+    .filter(bedNo => !SPECIAL_BED_LABELS[bedNo]);
+  const FEMALE_PRIMARY_BED_NUMBERS = [1, 2, 3, 4, 5, 6];
+  const MALE_PRIMARY_BED_NUMBERS = [8, 9, 10, 11, 12, 13, 14];
+  const ACTIVE_BED_COUNT = ACTIVE_BED_NUMBERS.length;
+  const REGULAR_BED_COUNT = REGULAR_BED_NUMBERS.length;
   const BODY_PARTS = {
     front: [
       { id: 'head', label: '머리', x: 50, y: 10 },
@@ -1705,7 +1841,7 @@
 
   function getUrlBedNo() {
     const value = Number(new URLSearchParams(window.location.search).get('bed'));
-    return Number.isInteger(value) && value >= 1 && value <= BED_COUNT ? value : 1;
+    return ACTIVE_BED_NUMBERS.includes(value) ? value : 1;
   }
   let bedAssignments = Array(BED_COUNT).fill(null);
   let selectedBedNo = getUrlBedNo();
@@ -1717,6 +1853,13 @@
   const formEditBedNoByScope = {
     desk: null,
     receive: null
+  };
+  const normalizedBedChartKeys = new Set();
+  const migratingDisabledBedKeys = new Set();
+  const formBodyPartsByScope = {
+    desk: { front: [], back: [] },
+    receive: { front: [], back: [] },
+    bed: { front: [], back: [] }
   };
   let bedRenderTicker = null;
   let timerAlertAudioCtx = null;
@@ -1749,7 +1892,6 @@
       item.innerHTML = `
         <input type="checkbox" value="${t.id}" onchange="toggleCheck(this)">
         <div class="check-box"></div>
-        <span class="treat-icon">${t.icon}</span>
         <span class="treat-name">${t.name}</span>`;
       grid.appendChild(item);
     });
@@ -1895,7 +2037,7 @@
   }
 
   function getRandomTreatments() {
-    const count = 4 + Math.floor(Math.random() * 3);
+    const count = 3 + Math.floor(Math.random() * 3);
     return [...TREATMENTS]
       .sort(() => Math.random() - 0.5)
       .slice(0, count)
@@ -1957,7 +2099,7 @@
   let pendingRandomTestCount = 0;
 
   window.openRandomTestGenerator = () => {
-    const count = Number(prompt('생성할 테스트 환자 수를 입력하세요.', '10'));
+    const count = Number(prompt('생성할 테스트 수를 입력하세요.', '10'));
     if (!Number.isFinite(count) || count < 1) return;
     pendingRandomTestCount = Math.min(200, Math.floor(count));
     document.getElementById('randomTestExcelInput')?.click();
@@ -1968,13 +2110,13 @@
     try {
       const patients = parseExcelPatients(await file.arrayBuffer());
       if (!patients.length) {
-        alert('엑셀에서 환자명을 찾지 못했습니다. 환자명/성명/이름 열이 있는 파일인지 확인해주세요.');
+        alert('엑셀에서 이름을 찾지 못했습니다. 성명/이름 열이 있는 파일인지 확인해주세요.');
         return;
       }
 
       const count = pendingRandomTestCount;
       pendingRandomTestCount = 0;
-      showToast(`테스트 환자 ${count}명 생성 중...`);
+      showToast(`테스트 ${count}명 생성 중...`);
 
       for (let i = 0; i < count; i++) {
         const source = patients[Math.floor(Math.random() * patients.length)];
@@ -1988,9 +2130,10 @@
           timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
           date: now.toLocaleDateString('ko-KR'),
           bedStatus: 'waiting',
-          chartNo: source.chartNo || '',
+        chartNo: normalizeChartNo(source.chartNo),
           visitType: source.visitType || '재진',
           chiefComplaint: source.chiefComplaint || '',
+          memo: '',
           age: source.age || '',
           gender: source.gender || '남',
           doctorId: doctor.id,
@@ -2001,10 +2144,10 @@
         });
       }
 
-      showToast(`테스트 환자 ${count}명 생성 완료`);
+      showToast(`테스트 ${count}명 생성 완료`);
     } catch (e) {
       console.error(e);
-      alert('엑셀 파일을 읽거나 테스트 환자를 생성하지 못했습니다.');
+      alert('엑셀 파일을 읽거나 테스트를 생성하지 못했습니다.');
     }
   };
 
@@ -2130,30 +2273,36 @@
       name: 'patientName',
       chartNo: 'chartNo',
       chiefComplaint: 'chiefComplaint',
+      memo: 'memoInput',
       age: 'ageInput',
       visitType: 'visitType',
       gender: 'gender',
       treatmentGrid: 'treatmentGrid',
+      bodyPartForm: 'deskBodyPartForm',
       submitBtn: 'submitBtn'
     },
     receive: {
       name: 'receivePatientName',
       chartNo: 'receiveChartNo',
       chiefComplaint: 'receiveChiefComplaint',
+      memo: 'receiveMemoInput',
       age: 'receiveAgeInput',
       visitType: 'receiveVisitType',
       gender: 'receiveGender',
       treatmentGrid: 'receiveTreatmentGrid',
+      bodyPartForm: 'receiveBodyPartForm',
       submitBtn: 'receiveSubmitBtn'
     },
     bed: {
       name: 'bedPatientName',
       chartNo: 'bedChartNo',
       chiefComplaint: 'bedChiefComplaint',
+      memo: 'bedMemoInput',
       age: 'bedAgeInput',
       visitType: 'bedVisitType',
       gender: 'bedGender',
       treatmentGrid: 'bedTreatmentGrid',
+      bodyPartForm: 'bedBodyPartForm',
       submitBtn: 'bedSubmitBtn'
     }
   };
@@ -2165,8 +2314,9 @@
       return;
     }
     const name = document.getElementById(ids.name).value.trim();
-    const chartNo = document.getElementById(ids.chartNo).value.trim();
+    const chartNo = normalizeChartNo(document.getElementById(ids.chartNo).value);
     const chiefComplaint = document.getElementById(ids.chiefComplaint).value.trim();
+    const memo = document.getElementById(ids.memo).value.trim();
     const age = document.getElementById(ids.age).value.trim();
     const visitType = document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진';
     const gender = document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남';
@@ -2178,7 +2328,7 @@
       return t ? t.name : c.value;
     });
 
-    if (!name) { showToast('❗ 환자 성함을 입력해주세요'); return; }
+    if (!name) { showToast('❗ 성함을 입력해주세요'); return; }
     if (treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
 
     const btn = document.getElementById(ids.submitBtn);
@@ -2200,8 +2350,10 @@
         chartNo,
         visitType,
         chiefComplaint,
+        memo,
         age: age ? Number(age) : '',
         gender,
+        bodyParts: normalizeBodyParts(formBodyPartsByScope[scope]),
         doctorId: doctor.id,
         doctorName: doctor.name,
         nurseId: nurse.id,
@@ -2212,18 +2364,21 @@
       document.getElementById(ids.name).value = '';
       document.getElementById(ids.chartNo).value = '';
       document.getElementById(ids.chiefComplaint).value = '';
+      document.getElementById(ids.memo).value = '';
       document.getElementById(ids.age).value = '';
       const visitDefault = document.querySelector(`input[name="${ids.visitType}"]`);
       const genderDefault = document.querySelector(`input[name="${ids.gender}"]`);
       if (visitDefault) visitDefault.checked = true;
       if (genderDefault) genderDefault.checked = true;
+      formBodyPartsByScope[scope] = { front: [], back: [] };
+      renderFormBodyPartSelector(scope);
       document.querySelectorAll(`#${ids.treatmentGrid} input`).forEach(c => {
         c.checked = false;
         c.closest('.treat-item').classList.remove('checked');
         c.closest('.treat-item').querySelector('.check-box').textContent = '';
       });
 
-      showToast(`✅ ${name} 환자 알림 전송 완료`);
+      showToast(`✅ ${name} 알림 전송 완료`);
       if (scope === 'desk') setInputFormOpen(false);
       if (scope === 'receive') setReceiveFormOpen(false);
     } catch (e) {
@@ -2247,11 +2402,13 @@
     return {
       ids,
       name: document.getElementById(ids.name).value.trim(),
-      chartNo: document.getElementById(ids.chartNo).value.trim(),
+      chartNo: normalizeChartNo(document.getElementById(ids.chartNo).value),
       chiefComplaint: document.getElementById(ids.chiefComplaint).value.trim(),
+      memo: document.getElementById(ids.memo).value.trim(),
       age: document.getElementById(ids.age).value.trim(),
       visitType: document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진',
       gender: document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남',
+      bodyParts: normalizeBodyParts(formBodyPartsByScope[scope]),
       treatments,
       doctor,
       nurse
@@ -2271,8 +2428,9 @@
   function populatePatientForm(scope, bed = null) {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     document.getElementById(ids.name).value = bed?.name || '';
-    document.getElementById(ids.chartNo).value = bed?.chartNo || '';
+    document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed?.chiefComplaint || '';
+    document.getElementById(ids.memo).value = bed?.memo || '';
     document.getElementById(ids.age).value = bed?.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed?.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed?.gender || '남'}"]`)?.click();
@@ -2281,6 +2439,8 @@
     if (doctorSelect) doctorSelect.value = bed?.doctorId || '';
     if (nurseSelect) nurseSelect.value = bed?.nurseId || '';
     setTreatmentSelection(ids.treatmentGrid, bed?.treatments || []);
+    formBodyPartsByScope[scope] = normalizeBodyParts(bed?.bodyParts);
+    renderFormBodyPartSelector(scope);
   }
   window.populatePatientForm = populatePatientForm;
 
@@ -2300,24 +2460,30 @@
       document.getElementById(ids.name).value = '';
       document.getElementById(ids.chartNo).value = '';
       document.getElementById(ids.chiefComplaint).value = '';
+      document.getElementById(ids.memo).value = '';
       document.getElementById(ids.age).value = '';
       document.querySelector(`input[name="${ids.visitType}"][value="초진"]`).checked = true;
       document.querySelector(`input[name="${ids.gender}"][value="남"]`).checked = true;
       document.getElementById('bedDoctorSelect').value = '';
       document.getElementById('bedNurseSelect').value = '';
       setTreatmentSelection(ids.treatmentGrid, []);
+      formBodyPartsByScope.bed = { front: [], back: [] };
+      renderFormBodyPartSelector('bed');
       return;
     }
 
     document.getElementById(ids.name).value = bed.name || '';
-    document.getElementById(ids.chartNo).value = bed.chartNo || '';
+    document.getElementById(ids.chartNo).value = normalizeChartNo(bed.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed.chiefComplaint || '';
+    document.getElementById(ids.memo).value = bed.memo || '';
     document.getElementById(ids.age).value = bed.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed.gender || '남'}"]`)?.click();
     document.getElementById('bedDoctorSelect').value = bed.doctorId || '';
     document.getElementById('bedNurseSelect').value = bed.nurseId || '';
     setTreatmentSelection(ids.treatmentGrid, bed.treatments || []);
+    formBodyPartsByScope.bed = normalizeBodyParts(bed.bodyParts);
+    renderFormBodyPartSelector('bed');
   }
 
   window.populateBedEditForm = populateBedEditForm;
@@ -2338,8 +2504,8 @@
 
     if (button) {
       button.textContent = open ? '‹' : '›';
-      button.setAttribute('aria-label', open ? '환자 정보 수정 닫기' : '환자 정보 수정 열기');
-      button.title = open ? '환자 정보 수정 닫기' : '환자 정보 수정 열기';
+      button.setAttribute('aria-label', open ? '정보 수정 닫기' : '정보 수정 열기');
+      button.title = open ? '정보 수정 닫기' : '정보 수정 열기';
     }
   }
 
@@ -2351,12 +2517,12 @@
   window.saveBedPatientInfo = async () => {
     const bed = bedAssignments[selectedBedNo - 1];
     if (!bed) {
-      showToast('현재 베드에 환자가 없습니다');
+      showToast('현재 베드가 비어 있습니다');
       return;
     }
 
     const form = getFormValues('bed');
-    if (!form.name) { showToast('❗ 환자 성함을 입력해주세요'); return; }
+    if (!form.name) { showToast('❗ 성함을 입력해주세요'); return; }
     if (form.treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
 
     const btn = document.getElementById(form.ids.submitBtn);
@@ -2385,8 +2551,10 @@
         chartNo: form.chartNo,
         visitType: form.visitType,
         chiefComplaint: form.chiefComplaint,
+        memo: form.memo,
         age: form.age ? Number(form.age) : '',
         gender: form.gender,
+        bodyParts: form.bodyParts,
         doctorId: form.doctor.id,
         doctorName: form.doctor.name,
         nurseId: form.nurse.id,
@@ -2404,7 +2572,7 @@
 
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(selectedBedNo);
       setBedEditOpen(false);
-      showToast('베드 환자 정보 저장 완료');
+      showToast('베드 정보 저장 완료');
     } catch (e) {
       console.error(e);
       showToast('저장 실패 — 연결을 확인해주세요');
@@ -2418,12 +2586,12 @@
     const bedNo = formEditBedNoByScope[scope];
     const bed = bedAssignments[bedNo - 1];
     if (!bed) {
-      showToast('현재 베드에 환자가 없습니다');
+      showToast('현재 베드가 비어 있습니다');
       return;
     }
 
     const form = getFormValues(scope);
-    if (!form.name) { showToast('❗ 환자 성함을 입력해주세요'); return; }
+    if (!form.name) { showToast('❗ 성함을 입력해주세요'); return; }
     if (form.treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
 
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
@@ -2453,8 +2621,10 @@
         chartNo: form.chartNo,
         visitType: form.visitType,
         chiefComplaint: form.chiefComplaint,
+        memo: form.memo,
         age: form.age ? Number(form.age) : '',
         gender: form.gender,
+        bodyParts: form.bodyParts,
         treatments: form.treatments,
         doctorId: form.doctor.id,
         doctorName: form.doctor.name,
@@ -2466,10 +2636,10 @@
         await update(ref(db, `patients/${bed.patientKey}`), payload);
       }
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(bedNo);
-      showToast(`${getBedLabel(bedNo)} 환자 정보 저장 완료`);
+      showToast(`${getBedLabel(bedNo)} 정보 저장 완료`);
     } catch (e) {
       console.error(e);
-      showToast('환자 정보 저장 실패');
+      showToast('정보 저장 실패');
     }
     btn.disabled = false;
     btn.textContent = '정보수정';
@@ -2507,7 +2677,7 @@
       const lines = [];
 
       lines.push('patients');
-      lines.push(csvRow(['patientKey', 'name', 'chartNo', 'visitType', 'chiefComplaint', 'age', 'gender', 'treatments', 'timestamp', 'timeStr', 'date', 'bedStatus', 'bedNo', 'doctorId', 'doctorName', 'nurseId', 'nurseName']));
+      lines.push(csvRow(['patientKey', 'name', 'chartNo', 'visitType', 'chiefComplaint', 'memo', 'age', 'gender', 'treatments', 'timestamp', 'timeStr', 'date', 'bedStatus', 'bedNo', 'doctorId', 'doctorName', 'nurseId', 'nurseName']));
       Object.entries(patients)
         .sort((a, b) => ((a[1]?.timestamp || 0) - (b[1]?.timestamp || 0)))
         .forEach(([key, patient]) => {
@@ -2517,6 +2687,7 @@
             patient.chartNo,
             patient.visitType,
             patient.chiefComplaint,
+            patient.memo,
             patient.age,
             patient.gender,
             patient.treatments || [],
@@ -2534,7 +2705,7 @@
 
       lines.push('');
       lines.push('beds');
-      lines.push(csvRow(['bedNo', 'patientKey', 'name', 'chartNo', 'visitType', 'chiefComplaint', 'age', 'gender', 'treatments', 'timeStr', 'timestamp', 'doctorId', 'doctorName', 'nurseId', 'nurseName', 'currentIndex', 'total', 'remaining', 'running', 'startedAt', 'complete', 'lastAlertId', 'lastAlertMessage']));
+      lines.push(csvRow(['bedNo', 'patientKey', 'name', 'chartNo', 'visitType', 'chiefComplaint', 'memo', 'age', 'gender', 'treatments', 'timeStr', 'timestamp', 'doctorId', 'doctorName', 'nurseId', 'nurseName', 'currentIndex', 'total', 'remaining', 'running', 'startedAt', 'complete', 'lastAlertId', 'lastAlertMessage']));
       Object.entries(beds)
         .sort((a, b) => Number(a[0]) - Number(b[0]))
         .forEach(([bedNo, bed]) => {
@@ -2545,6 +2716,7 @@
             bed.chartNo,
             bed.visitType,
             bed.chiefComplaint,
+            bed.memo,
             bed.age,
             bed.gender,
             bed.treatments || [],
@@ -2620,6 +2792,11 @@
     loadedKeys.add(key);
 
     const data = snapshot.val();
+    const normalizedChartNo = normalizeChartNo(data.chartNo);
+    if ((data.chartNo || '') !== normalizedChartNo) {
+      data.chartNo = normalizedChartNo;
+      update(ref(db, `patients/${key}`), { chartNo: normalizedChartNo });
+    }
     const isNew = Number(data.timestamp || 0) > pageLoadedAt;
     patientsByKey.set(key, data);
     assignPatientToBed(key, data, true);
@@ -2652,14 +2829,58 @@
     updateCount();
   });
 
-  onValue(ref(db, 'beds'), (snapshot) => {
+  async function migrateDisabledBedsToWaiting(beds) {
+    let movedCount = 0;
+    Object.entries(beds).forEach(([bedNo, bed]) => {
+      if (!bed) return;
+      if (DISABLED_BED_NUMBERS.has(Number(bedNo))) return;
+      const normalizedChartNo = normalizeChartNo(bed.chartNo);
+      const normalizeKey = `${bedNo}:${bed.chartNo || ''}`;
+      if ((bed.chartNo || '') !== normalizedChartNo && !normalizedBedChartKeys.has(normalizeKey)) {
+        normalizedBedChartKeys.add(normalizeKey);
+        bed.chartNo = normalizedChartNo;
+      }
+    });
+    DISABLED_BED_NUMBERS.forEach(bedNo => {
+      const key = String(bedNo);
+      const bed = beds[key];
+      if (!bed) return;
+      if (migratingDisabledBedKeys.has(key)) return;
+      migratingDisabledBedKeys.add(key);
+
+      if (bed.patientKey) {
+        const firstQueueTimestamp = todayStart.getTime();
+        patientsByKey.set(bed.patientKey, {
+          ...(patientsByKey.get(bed.patientKey) || {}),
+          ...bed,
+          bedStatus: 'waiting',
+          bedNo: null,
+          timestamp: firstQueueTimestamp
+        });
+        movedCount += 1;
+      }
+
+      delete beds[key];
+    });
+    return movedCount;
+  }
+
+  onValue(ref(db, 'beds'), async (snapshot) => {
     const beds = snapshot.val() || {};
+    let migratedCount = 0;
+    try {
+      migratedCount = await migrateDisabledBedsToWaiting(beds);
+    } catch (e) {
+      console.error('비활성 베드 정리 실패', e);
+    }
     bedAssignments = Array.from({ length: BED_COUNT }, (_, i) => beds[String(i + 1)] || null);
-    if (selectedMoveBedNo && !bedAssignments[selectedMoveBedNo - 1]) selectedMoveBedNo = null;
+    if (DISABLED_BED_NUMBERS.has(selectedBedNo)) selectedBedNo = getUrlBedNo();
+    if (DISABLED_BED_NUMBERS.has(selectedReceiveBedNo)) selectedReceiveBedNo = getUrlBedNo();
+    if (selectedMoveBedNo && (DISABLED_BED_NUMBERS.has(selectedMoveBedNo) || !bedAssignments[selectedMoveBedNo - 1])) selectedMoveBedNo = null;
     syncTimerAlertsWithBeds();
     handleRemoteTimerAlerts(!hasLoadedBedsOnce);
     hasLoadedBedsOnce = true;
-    assignWaitingPatientsToBeds();
+    if (!migratedCount) assignWaitingPatientsToBeds();
     renderBedSelector();
     renderBedDetail();
     renderReceiveBedDetail();
@@ -2681,7 +2902,7 @@
     card.id = `notif-${key}`;
     card.innerHTML = `
       <div class="notif-top">
-        <span class="notif-name">${data.name} 환자</span>
+        <span class="notif-name">${data.name}</span>
         <span>${isNew ? '<span class="notif-new-badge">NEW</span>' : ''}<span class="notif-time">${data.timeStr}</span></span>
       </div>
       <div class="notif-treats">${data.treatments.map(t => `<span class="notif-tag">${t}</span>`).join('')}</div>
@@ -2698,7 +2919,10 @@
     const todayCount = document.getElementById('todayCount');
     if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
     const bedPatientCount = document.getElementById('bedPatientCount');
-    if (bedPatientCount) bedPatientCount.textContent = `${bedAssignments.filter(Boolean).length}/${BED_COUNT}`;
+    if (bedPatientCount) {
+      const activeOccupiedCount = ACTIVE_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1])).length;
+      bedPatientCount.textContent = `${activeOccupiedCount}/${ACTIVE_BED_COUNT}`;
+    }
   }
 
   function escapeHtml(value) {
@@ -2711,12 +2935,27 @@
     }[ch]));
   }
 
+  function normalizeChartNo(value) {
+    const text = String(value ?? '').trim();
+    if (!/^\d+$/.test(text)) return text;
+    return text.replace(/^0+(?=\d)/, '');
+  }
+
   function getTreatmentSeconds(treatment) {
     return (Number(treatmentMinutes[treatment] || DEFAULT_TREATMENT_MINUTES[treatment] || 1)) * 60;
   }
 
   function getProcedureSeconds() {
     return Math.max(0, Number(procedureMinutes || 0)) * 60;
+  }
+
+  function getPreferredBedOrder(gender) {
+    const primary = gender === '여' ? FEMALE_PRIMARY_BED_NUMBERS : MALE_PRIMARY_BED_NUMBERS;
+    const fallback = gender === '여' ? MALE_PRIMARY_BED_NUMBERS : FEMALE_PRIMARY_BED_NUMBERS;
+    return [...primary, ...fallback]
+      .filter((bedNo, index, rows) =>
+        ACTIVE_BED_NUMBERS.includes(bedNo) && rows.indexOf(bedNo) === index
+      );
   }
 
   async function assignPatientToBed(patientKey, data, silent = false) {
@@ -2727,7 +2966,7 @@
       const existingBedNo = Object.keys(beds).find(bedNo => beds[bedNo]?.patientKey === patientKey);
       if (existingBedNo) return beds;
 
-      const emptyBedNo = Array.from({ length: REGULAR_BED_COUNT }, (_, i) => String(i + 1)).find(bedNo => !beds[bedNo]);
+      const emptyBedNo = getPreferredBedOrder(data.gender).map(String).find(bedNo => !beds[bedNo]);
       if (!emptyBedNo) return beds;
 
       const firstTreatment = data.treatments?.[0];
@@ -2738,9 +2977,10 @@
         treatments: data.treatments || [],
         timeStr: data.timeStr || '',
         timestamp: data.timestamp || Date.now(),
-        chartNo: data.chartNo || '',
+        chartNo: normalizeChartNo(data.chartNo),
         visitType: data.visitType || '',
         chiefComplaint: data.chiefComplaint || '',
+        memo: data.memo || '',
         age: data.age || '',
         gender: data.gender || '',
         doctorId: data.doctorId || '',
@@ -2778,7 +3018,7 @@
     const waitingPatients = getWaitingPatients(assignedPatientKeys);
 
     for (const [key, data] of waitingPatients) {
-      const regularOccupiedCount = bedAssignments.slice(0, REGULAR_BED_COUNT).filter(Boolean).length;
+      const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1])).length;
       if (regularOccupiedCount >= REGULAR_BED_COUNT) break;
       assignPatientToBed(key, data, true);
     }
@@ -2798,16 +3038,31 @@
     const waitingPatients = getWaitingPatients();
     updateDeskWaitChip(waitingPatients);
     const html = waitingPatients.length
-      ? waitingPatients.map(([key, data], index) => `
-        <div class="waiting-item" id="waiting-${key}" oncontextmenu="confirmDeleteWaitingPatient(event, '${key}')">
-          <div class="waiting-rank">${index + 1}</div>
-          <div>
-            <div class="waiting-name">${escapeHtml(data.name)} 환자</div>
-            <div class="waiting-treats">${(data.treatments || []).map(treatment => `<span class="waiting-tag">${escapeHtml(treatment)}</span>`).join('')}</div>
-          </div>
-          <div class="waiting-time">${escapeHtml(data.timeStr || '')}</div>
-        </div>`).join('')
-      : `<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">대기 환자가 없습니다</div></div>`;
+      ? waitingPatients.map(([key, data], index) => {
+        const infoChips = [
+          data.visitType ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(data.visitType)}</span>` : '',
+          data.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(data.gender)}</span>` : '',
+          data.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(data.age))}세</span>` : '',
+          data.chiefComplaint ? `<span class="bed-meta-chip bed-meta-chip--flex">${escapeHtml(data.chiefComplaint)}</span>` : '',
+          data.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">${escapeHtml(data.memo)}</span>` : ''
+        ].filter(Boolean).join('');
+        const staffHtml = [
+          data.doctorName ? `<span class="bed-meta-chip">${escapeHtml(data.doctorName)}</span>` : '',
+          data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : ''
+        ].filter(Boolean).join('');
+        return `
+          <div class="waiting-item" id="waiting-${key}" oncontextmenu="confirmDeleteWaitingPatient(event, '${key}')">
+            <div class="waiting-rank">${index + 1}</div>
+            <div>
+              <div class="waiting-name">${escapeHtml(data.name)}</div>
+              ${infoChips ? `<div class="waiting-info">${infoChips}</div>` : ''}
+              ${staffHtml ? `<div class="waiting-staff">${staffHtml}</div>` : ''}
+              <div class="waiting-treats">${(data.treatments || []).map(treatment => `<span class="waiting-tag">${escapeHtml(treatment)}</span>`).join('')}</div>
+            </div>
+            <div class="waiting-time">${escapeHtml(data.timeStr || '')}</div>
+          </div>`;
+      }).join('')
+      : `<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">대기가 없습니다</div></div>`;
 
     ['inputWaitingList', 'receiveWaitingList'].forEach(id => {
       const list = document.getElementById(id);
@@ -2820,7 +3075,7 @@
     event?.stopPropagation();
     const patient = patientsByKey.get(key);
     if (!patient) return;
-    if (!confirm(`${patient.name || '대기 환자'} 환자를 삭제하시겠습니까?`)) return;
+    if (!confirm(`${patient.name || '대기'} 삭제하시겠습니까?`)) return;
 
     const assignedBedNo = bedAssignments.findIndex(bed => bed?.patientKey === key) + 1;
     if (assignedBedNo > 0) {
@@ -2831,11 +3086,11 @@
     loadedKeys.delete(key);
     await remove(ref(db, `patients/${key}`));
     renderWaitingLists();
-    showToast('대기 환자 삭제 완료');
+    showToast('대기 삭제 완료');
   };
 
   function getEstimatedWaitMinutesList(waitingPatients) {
-    const regularBeds = bedAssignments.slice(0, REGULAR_BED_COUNT);
+    const regularBeds = REGULAR_BED_NUMBERS.map(bedNo => bedAssignments[bedNo - 1]);
 
     const minutesList = regularBeds
       .map(bed => {
@@ -2914,7 +3169,7 @@
           <div class="upcoming-time">${item.alertPending ? '완료' : formatUpcomingTime(item.remaining)}</div>
           <div>
             <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.treatment)} 완료</div>
-            <div class="upcoming-sub">${escapeHtml(item.name)} 환자 · ${item.alertPending ? '확인 대기' : formatTimer(item.remaining)}</div>
+            <div class="upcoming-sub">${escapeHtml(item.name)} · ${item.alertPending ? '확인 대기' : formatTimer(item.remaining)}</div>
             ${staffLine ? `<div class="upcoming-staff">${staffLine}</div>` : ''}
           </div>
         </div>`;
@@ -2937,15 +3192,17 @@
 
   function renderBedSelectorOptions(selector, selectedValue) {
     if (!selector) return;
-    selector.innerHTML = bedAssignments.map((bed, index) => {
-      const bedLabel = getBedLabel(index + 1);
-      const label = bed ? `${bedLabel} - ${bed.name} 환자` : `${bedLabel} - 비어 있음`;
-      return `<option value="${index + 1}">${escapeHtml(label)}</option>`;
+    selector.innerHTML = ACTIVE_BED_NUMBERS.map((bedNo) => {
+      const bed = bedAssignments[bedNo - 1];
+      const bedLabel = getBedLabel(bedNo);
+      const label = bed ? `${bedLabel} - ${bed.name}` : `${bedLabel} - 비어 있음`;
+      return `<option value="${bedNo}">${escapeHtml(label)}</option>`;
     }).join('');
-    selector.value = String(selectedValue);
+    selector.value = String(ACTIVE_BED_NUMBERS.includes(selectedValue) ? selectedValue : 1);
   }
 
   window.selectBed = (bedNo) => {
+    if (!ACTIVE_BED_NUMBERS.includes(bedNo)) bedNo = 1;
     selectedBedNo = bedNo;
     renderBedSelector();
     renderBedDetail();
@@ -3026,10 +3283,30 @@
       </div>`;
   }
 
-  function renderBodyFigure(side, title, selectedParts) {
+  function renderFormBodyPartSelector(scope) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const map = document.getElementById(ids.bodyPartForm);
+    if (!map) return;
+
+    const selectedParts = normalizeBodyParts(formBodyPartsByScope[scope]);
+    map.innerHTML = `
+      <div class="card-label">치료부위 선택</div>
+      <div class="body-map-grid">
+        ${renderBodyFigure('front', '전면', selectedParts.front, `toggleFormBodyPart('${scope}', 'front', '__PART__')`)}
+        ${renderBodyFigure('back', '후면', selectedParts.back, `toggleFormBodyPart('${scope}', 'back', '__PART__')`)}
+      </div>
+      <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>`;
+  }
+
+  function renderAllFormBodyPartSelectors() {
+    ['desk', 'receive', 'bed'].forEach(scope => renderFormBodyPartSelector(scope));
+  }
+
+  function renderBodyFigure(side, title, selectedParts, onclickTemplate = `toggleBodyPart('${side}', '__PART__')`) {
     const hotspots = BODY_PARTS[side].map(part => {
       const activeClass = selectedParts.includes(part.label) ? ' active' : '';
-      return `<button class="body-hotspot${activeClass}" style="left:${part.x}%; top:${part.y}%;" title="${escapeHtml(part.label)}" aria-label="${escapeHtml(part.label)}" onclick="toggleBodyPart('${side}', '${part.label}')"></button>`;
+      const onclick = onclickTemplate.replace('__PART__', escapeHtml(part.label));
+      return `<button class="body-hotspot${activeClass}" style="left:${part.x}%; top:${part.y}%;" title="${escapeHtml(part.label)}" aria-label="${escapeHtml(part.label)}" onclick="${onclick}"></button>`;
     }).join('');
 
     return `
@@ -3113,7 +3390,8 @@
       bed.visitType || '',
       bed.gender || '',
       bed.age ? `${bed.age}세` : '',
-      bed.chiefComplaint || ''
+      bed.chiefComplaint || '',
+      bed.memo || ''
     ].filter(Boolean);
 
     if (!parts.length) return '';
@@ -3157,14 +3435,14 @@
           <div>
             <div class="card-label">${escapeHtml(bedLabel)}</div>
             <div class="bed-name-row">
-              <div class="bed-name">${escapeHtml(bed.name)} 환자</div>
+              <div class="bed-name">${escapeHtml(bed.name)}</div>
             </div>
           </div>
           <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
         </div>
         ${renderBedDetailPatientInfo(bed, bedNo, allowControls && context === 'bed')}
         ${bed.lastAlertId ? `<div class="bed-alert-card">
-          <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 환자 치료 완료`)}</div>
+          <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`)}</div>
           <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
         </div>` : ''}
         <div class="timer-list">
@@ -3303,7 +3581,7 @@
           remaining: 0,
           complete: true,
           lastAlertId: alertId,
-          lastAlertMessage: `${bedNo}번 베드 ${bed.name} 환자 · ${bed.treatments[bed.currentIndex]} 완료`
+          lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${bed.treatments[bed.currentIndex]} 완료`
         };
       }
 
@@ -3317,7 +3595,7 @@
         startedAt: null,
         complete: false,
         lastAlertId: alertId,
-        lastAlertMessage: `${bedNo}번 베드 ${bed.name} 환자 · ${bed.treatments[bed.currentIndex]} 완료`
+        lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${bed.treatments[bed.currentIndex]} 완료`
       };
     });
 
@@ -3325,7 +3603,7 @@
 
     if (result.committed && bedBefore) {
       if (!queuedTimerAlerts.has(alertId)) {
-        showTimerCompleteAlert(`${bedNo}번 베드 ${patientName} 환자 · ${completedTreatment} 완료`, bedNo, alertId);
+        showTimerCompleteAlert(`${bedNo}번 베드 ${patientName} · ${completedTreatment} 완료`, bedNo, alertId);
       }
       seenTimerAlerts.add(alertId);
     }
@@ -3369,6 +3647,24 @@
 
     await Promise.all(updates);
   };
+
+  window.toggleFormBodyPart = (scope, side, part) => {
+    if (!BODY_PARTS[side]) return;
+    const currentParts = normalizeBodyParts(formBodyPartsByScope[scope]);
+    const current = new Set(currentParts[side]);
+    if (current.has(part)) {
+      current.delete(part);
+    } else {
+      current.add(part);
+    }
+
+    formBodyPartsByScope[scope] = {
+      ...currentParts,
+      [side]: [...current]
+    };
+    renderFormBodyPartSelector(scope);
+  };
+  renderAllFormBodyPartSelectors();
 
   window.resetTimer = async (bedNo) => {
     const bed = bedAssignments[bedNo - 1];
@@ -3443,7 +3739,7 @@
     const bed = bedAssignments[bedNo - 1];
     if (!bed) return;
 
-    if (confirm(`${getBedLabel(bedNo)} ${bed.name} 환자를 삭제하시겠습니까?`)) {
+    if (confirm(`${getBedLabel(bedNo)} ${bed.name} 삭제하시겠습니까?`)) {
       await clearBed(bedNo);
     }
   };
@@ -3511,7 +3807,7 @@
     const bed = bedAssignments[bedNo - 1];
 
     if (!bed) {
-      showToast('현재 베드에 환자가 없습니다');
+      showToast('현재 베드가 비어 있습니다');
       return;
     }
 
@@ -3522,7 +3818,7 @@
     } else {
       setInputFormOpen(true);
     }
-    showToast(`${getBedLabel(bedNo)} 환자 정보 불러옴`);
+    showToast(`${getBedLabel(bedNo)} 정보 불러옴`);
   };
 
   window.handleBedDragStart = (event, bedNo) => {
@@ -3693,7 +3989,9 @@
       visitType: bed.visitType || '',
       gender: bed.gender || '',
       age: bed.age || '',
-      chiefComplaint: bed.chiefComplaint || ''
+      chiefComplaint: bed.chiefComplaint || '',
+      memo: bed.memo || '',
+      bodyParts: normalizeBodyParts(bed.bodyParts)
     };
   }
 
@@ -3702,7 +4000,7 @@
       return `
         <div class="bed-popover">
           <div class="bed-popover-title">${escapeHtml(status.bedLabel)}</div>
-          <div class="bed-popover-line">현재 배정된 환자가 없습니다</div>
+          <div class="bed-popover-line">현재 비어 있습니다</div>
         </div>`;
     }
 
@@ -3723,17 +4021,18 @@
     return `
       <div class="bed-popover">
         <div class="bed-treatment-strip">${chips}</div>
+        <div class="body-selected-list">${renderBodyPartChips({ bodyParts: status.bodyParts })}</div>
       </div>`;
   }
 
   function renderBedMonitors() {
-    const inputHtml = Array.from({ length: BED_COUNT }, (_, i) => {
-      const status = getBedStatus(i + 1);
+    const inputHtml = ACTIVE_BED_NUMBERS.map((bedNo) => {
+      const status = getBedStatus(bedNo);
       return renderBedStatusCard(status, 'input');
     }).join('');
 
-    const receiveHtml = Array.from({ length: BED_COUNT }, (_, i) => {
-      const status = getBedStatus(i + 1);
+    const receiveHtml = ACTIVE_BED_NUMBERS.map((bedNo) => {
+      const status = getBedStatus(bedNo);
       return renderBedStatusCard(status, 'receive');
     }).join('');
 
@@ -3779,7 +4078,8 @@
     ].filter(Boolean).join('');
     const staffHtml = [
       status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
-      status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : ''
+      status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : '',
+      status.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">${escapeHtml(status.memo)}</span>` : ''
     ].filter(Boolean).join('');
     return `
       <div class="bed-status${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${canMoveBed ? ` oncontextmenu="confirmClearBed(event, ${status.bedNo})"` : ''}>
@@ -3789,7 +4089,6 @@
         </div>
         ${infoChips ? `<div class="bed-status-info">${infoChips}</div>` : ''}
         <div class="bed-status-treatment">
-          <span class="bed-stage-badge ${escapeHtml(status.stageState)}">${escapeHtml(status.stageLabel)}</span>
           ${staffHtml}
         </div>
         ${renderBedPopover(status)}
@@ -3848,7 +4147,7 @@
       if (!bed?.lastAlertId || seenTimerAlerts.has(bed.lastAlertId)) return;
       seenTimerAlerts.add(bed.lastAlertId);
       if (markOnly) return;
-      showTimerCompleteAlert(bed.lastAlertMessage || `${bed.name || ''} 환자 치료 완료`, index + 1, bed.lastAlertId);
+      showTimerCompleteAlert(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`, index + 1, bed.lastAlertId);
     });
   }
 
@@ -4095,7 +4394,7 @@
 
   // ─── 팝업 ───────────────────────────────
   window.showPopup = (data) => {
-    document.getElementById('popupName').textContent = data.name + ' 환자';
+    document.getElementById('popupName').textContent = data.name;
     document.getElementById('popupTreats').innerHTML = data.treatments.map(t => `<span class="popup-tag">${t}</span>`).join('');
     document.getElementById('notifOverlay').classList.add('show');
   };
@@ -4147,7 +4446,7 @@
 
   function getFixedBedNoFromUrl() {
     const value = Number(new URLSearchParams(window.location.search).get('bed'));
-    return Number.isInteger(value) && value >= 1 && value <= 14 ? value : 0;
+    return Number.isInteger(value) && value >= 1 && value <= 14 && value !== 7 ? value : 0;
   }
 
   function getInitialMode() {
@@ -4206,8 +4505,8 @@
     if (button) {
       button.textContent = open ? '‹' : '›';
       button.dataset.open = open ? '1' : '0';
-      button.setAttribute('aria-label', open ? '환자 입력 닫기' : '환자 입력 열기');
-      button.title = open ? '환자 입력 닫기' : '환자 입력 열기';
+      button.setAttribute('aria-label', open ? '입력 닫기' : '입력 열기');
+      button.title = open ? '입력 닫기' : '입력 열기';
     }
   }
 
@@ -4242,8 +4541,8 @@
     if (button) {
       button.textContent = open ? '‹' : '›';
       button.dataset.open = open ? '1' : '0';
-      button.setAttribute('aria-label', open ? '환자 입력 닫기' : '환자 입력 열기');
-      button.title = open ? '환자 입력 닫기' : '환자 입력 열기';
+      button.setAttribute('aria-label', open ? '입력 닫기' : '입력 열기');
+      button.title = open ? '입력 닫기' : '입력 열기';
     }
   }
 
