@@ -113,6 +113,7 @@
     gap: 6px;
   }
   body.app-mode-input .header-desk-controls,
+  body.app-mode-doctor .header-desk-controls,
   body.app-mode-receive .header-desk-controls,
   body.app-role-doctor .header-desk-controls,
   body.app-role-desk .header-desk-controls {
@@ -249,6 +250,11 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
+    cursor: grab;
+  }
+  .waiting-item.waiting-dragging {
+    opacity: 0.55;
+    cursor: grabbing;
   }
   .waiting-rank {
     width: 24px;
@@ -1514,6 +1520,7 @@
     <div class="header-actions">
       <div class="header-desk-controls">
         <button class="random-test-btn" onclick="openRandomTestGenerator()">랜덤 테스트생성</button>
+        <button class="random-test-btn" onclick="assignWaitingPatientsManually()">배정</button>
         <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
       </div>
       <div class="header-bed-controls">
@@ -1521,6 +1528,7 @@
       </div>
       <div class="mode-toggle">
         <button class="mode-btn active" onclick="setMode('input')">데스크</button>
+        <button class="mode-btn" onclick="setMode('doctor')">원장실</button>
         <button class="mode-btn" onclick="setMode('receive')">치료실</button>
         <button class="mode-btn" onclick="setMode('bed')">베드</button>
         <button class="mode-btn" onclick="setMode('settings')">설정</button>
@@ -1730,6 +1738,13 @@
               <span class="rr-slider"></span>
             </span>
           </label>
+          <label class="rr-setting">
+            <span class="rr-setting-text">베드 자동배정</span>
+            <span class="rr-switch">
+              <input id="autoBedAssignEnabled" type="checkbox" onchange="saveAutoBedAssignEnabled(this.checked)">
+              <span class="rr-slider"></span>
+            </span>
+          </label>
           <div class="staff-list" id="nurseList"></div>
         </div>
       </div>
@@ -1814,6 +1829,7 @@
   let treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES };
   let procedureMinutes = 0;
   let nurseRrEnabled = false;
+  let autoBedAssignEnabled = false;
 
   const patientsByKey = new Map();
   const staffByType = {
@@ -1874,6 +1890,7 @@
   let selectedMoveBedNo = null;
   let draggedBedNo = null;
   let draggedTreatment = null; // { bedNo, fromIndex }
+  let draggedWaitingPatientKey = null;
   let isAssigningWaitingPatients = false;
   let shouldAssignWaitingAgain = false;
   let suppressBedClickUntil = 0;
@@ -2128,7 +2145,7 @@
     const chartIndex = findExcelColumn(headers, ['차트번호', '챠트번호']);
     const ageIndex = findExcelColumn(headers, ['나이', '연령']);
     const genderIndex = findExcelColumn(headers, ['성별', '남녀']);
-    const visitIndex = findExcelColumn(headers, ['초재진', '초진재진', '초진', '진료구분', '구분']);
+    const visitIndex = findExcelColumn(headers, ['초재진', '초진재진', '초진', '진료구분', '구분','초재진구  분']);
     const complaintIndex = findExcelColumn(headers, ['주상병명']);
 
     return rows.slice(startIndex).map(row => {
@@ -2285,6 +2302,13 @@
     if (input) input.checked = nurseRrEnabled;
   });
 
+  onValue(ref(db, 'settings/autoBedAssignEnabled'), (snapshot) => {
+    autoBedAssignEnabled = Boolean(snapshot.val());
+    const input = document.getElementById('autoBedAssignEnabled');
+    if (input) input.checked = autoBedAssignEnabled;
+    if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
+  });
+
   window.saveProcedureMinutes = async () => {
     const input = document.getElementById('procedureMinutesInput');
     const value = Math.max(0, Math.min(120, Number(input?.value) || 0));
@@ -2316,6 +2340,13 @@
     nurseRrEnabled = Boolean(enabled);
     await set(ref(db, 'settings/nurseRoundRobinEnabled'), nurseRrEnabled);
     showToast(enabled ? '간호사 RR 자동배정 켜짐' : '간호사 RR 자동배정 꺼짐');
+  };
+
+  window.saveAutoBedAssignEnabled = async (enabled) => {
+    autoBedAssignEnabled = Boolean(enabled);
+    await set(ref(db, 'settings/autoBedAssignEnabled'), autoBedAssignEnabled);
+    if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
+    showToast(enabled ? '베드 자동배정 켜짐' : '베드 자동배정 꺼짐');
   };
 
   // ─── 전송 ───────────────────────────────
@@ -2902,7 +2933,7 @@
     }
     const isNew = Number(data.timestamp || 0) > pageLoadedAt;
     patientsByKey.set(key, data);
-    assignPatientToBed(key, data, true);
+    if (autoBedAssignEnabled) assignPatientToBed(key, data, true);
 
     renderNotif(key, data, isNew);
 
@@ -3095,7 +3126,37 @@
       );
   }
 
-  async function assignPatientToBed(patientKey, data, silent = false) {
+  function createBedAssignment(patientKey, data) {
+    const firstTreatment = data.treatments?.[0];
+    const total = getTreatmentSeconds(firstTreatment);
+    return {
+      patientKey,
+      name: data.name,
+      treatments: data.treatments || [],
+      timeStr: data.timeStr || '',
+      timestamp: data.timestamp || Date.now(),
+      chartNo: normalizeChartNo(data.chartNo),
+      visitType: data.visitType || '',
+      chiefComplaint: data.chiefComplaint || '',
+      memo: data.memo || '',
+      age: data.age || '',
+      gender: data.gender || '',
+      doctorId: data.doctorId || '',
+      doctorName: data.doctorName || '',
+      nurseId: data.nurseId || '',
+      nurseName: data.nurseName || '',
+      bodyParts: data.bodyParts || { front: [], back: [] },
+      currentIndex: 0,
+      total,
+      remaining: total,
+      running: false,
+      startedAt: null,
+      complete: false
+    };
+  }
+
+  async function assignPatientToBed(patientKey, data, silent = false, force = false) {
+    if (!force && !autoBedAssignEnabled) return false;
     if (data.bedStatus === 'discharged') return false;
 
     const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
@@ -3108,32 +3169,7 @@
         .find(bedNo => !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(Number(bedNo)) && !beds[bedNo]);
       if (!emptyBedNo) return beds;
 
-      const firstTreatment = data.treatments?.[0];
-      const total = getTreatmentSeconds(firstTreatment);
-      beds[emptyBedNo] = {
-        patientKey,
-        name: data.name,
-        treatments: data.treatments || [],
-        timeStr: data.timeStr || '',
-        timestamp: data.timestamp || Date.now(),
-        chartNo: normalizeChartNo(data.chartNo),
-        visitType: data.visitType || '',
-        chiefComplaint: data.chiefComplaint || '',
-        memo: data.memo || '',
-        age: data.age || '',
-        gender: data.gender || '',
-        doctorId: data.doctorId || '',
-        doctorName: data.doctorName || '',
-        nurseId: data.nurseId || '',
-        nurseName: data.nurseName || '',
-        bodyParts: data.bodyParts || { front: [], back: [] },
-        currentIndex: 0,
-        total,
-        remaining: total,
-        running: false,
-        startedAt: null,
-        complete: false
-      };
+      beds[emptyBedNo] = createBedAssignment(patientKey, data);
       return beds;
     });
 
@@ -3149,14 +3185,16 @@
     return false;
   }
 
-  async function assignWaitingPatientsToBeds() {
+  async function assignWaitingPatientsToBeds(force = false) {
+    if (!force && !autoBedAssignEnabled) return 0;
     if (isAssigningWaitingPatients) {
       shouldAssignWaitingAgain = true;
-      return;
+      return 0;
     }
 
     isAssigningWaitingPatients = true;
     shouldAssignWaitingAgain = false;
+    let assignedCount = 0;
     const assignedPatientKeys = bedAssignments
       .filter(Boolean)
       .map(bed => bed.patientKey);
@@ -3169,15 +3207,57 @@
     try {
       for (const [key, data] of waitingPatients) {
         if (occupiedBeds.size >= REGULAR_BED_COUNT) break;
-        const assignedBedNo = await assignPatientToBed(key, data, true);
-        if (assignedBedNo) occupiedBeds.add(Number(assignedBedNo));
+        const assignedBedNo = await assignPatientToBed(key, data, true, force);
+        if (assignedBedNo) {
+          occupiedBeds.add(Number(assignedBedNo));
+          assignedCount += 1;
+        }
       }
     } finally {
       isAssigningWaitingPatients = false;
       if (shouldAssignWaitingAgain) {
-        assignWaitingPatientsToBeds();
+        assignWaitingPatientsToBeds(force);
       }
     }
+    return assignedCount;
+  }
+
+  window.assignWaitingPatientsManually = async () => {
+    const count = await assignWaitingPatientsToBeds(true);
+    showToast(count ? `${count}명 배정 완료` : '배정할 대기환자 또는 빈 베드가 없습니다');
+  };
+
+  async function assignWaitingPatientToSpecificBed(patientKey, bedNo) {
+    bedNo = Number(bedNo);
+    if (!REGULAR_BED_NUMBERS.includes(bedNo) || AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(bedNo)) {
+      showToast('자동 배정 대상 베드가 아닙니다');
+      return false;
+    }
+
+    const data = patientsByKey.get(patientKey);
+    if (!data || data.bedStatus === 'discharged') {
+      showToast('대기환자 정보를 찾을 수 없습니다');
+      return false;
+    }
+
+    const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
+      beds = beds || {};
+      const existingBedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
+      if (existingBedNo || beds[String(bedNo)]) return beds;
+      beds[String(bedNo)] = createBedAssignment(patientKey, data);
+      return beds;
+    });
+
+    const beds = result.snapshot.val() || {};
+    if (result.committed && beds[String(bedNo)]?.patientKey === patientKey) {
+      patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo });
+      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), { bedStatus: 'assigned', bedNo });
+      showToast(`${bedNo}번 배정 완료`);
+      return true;
+    }
+
+    showToast('이미 사용 중인 베드입니다');
+    return false;
   }
 
   function getWaitingPatients(assignedPatientKeys = null) {
@@ -3207,7 +3287,7 @@
           data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : ''
         ].filter(Boolean).join('');
         return `
-          <div class="waiting-item" id="waiting-${key}" oncontextmenu="confirmDeleteWaitingPatient(event, '${key}')">
+          <div class="waiting-item" id="waiting-${key}" draggable="true" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)" oncontextmenu="confirmDeleteWaitingPatient(event, '${key}')">
             <div class="waiting-rank">${index + 1}</div>
             <div>
               <div class="waiting-name">${escapeHtml(data.name)}</div>
@@ -3243,6 +3323,20 @@
     await remove(ref(db, `${PATIENTS_PATH}/${key}`));
     renderWaitingLists();
     showToast('대기 삭제 완료');
+  };
+
+  window.handleWaitingDragStart = (event, key) => {
+    draggedWaitingPatientKey = key;
+    draggedBedNo = null;
+    event.currentTarget?.classList.add('waiting-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', `waiting:${key}`);
+  };
+
+  window.handleWaitingDragEnd = (event) => {
+    draggedWaitingPatientKey = null;
+    event.currentTarget?.classList.remove('waiting-dragging');
+    document.querySelectorAll('.waiting-drag-over').forEach(el => el.classList.remove('waiting-drag-over'));
   };
 
   function getEstimatedWaitMinutesList(waitingPatients) {
@@ -3981,7 +4075,7 @@
 
   window.handleInputBedClick = async (bedNo) => {
     if (Date.now() < suppressBedClickUntil) return;
-    const scope = window.currentMode === 'receive' ? 'receive' : 'desk';
+    const scope = (window.currentMode === 'receive' || window.currentMode === 'doctor') ? 'receive' : 'desk';
     const bed = bedAssignments[bedNo - 1];
 
     if (!bed) {
@@ -4020,6 +4114,12 @@
   };
 
   window.handleBedDragOver = (event, bedNo) => {
+    if (draggedWaitingPatientKey) {
+      if (!REGULAR_BED_NUMBERS.includes(Number(bedNo)) || AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(Number(bedNo))) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      return;
+    }
     if (!draggedBedNo || draggedBedNo === bedNo) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -4028,6 +4128,18 @@
   window.handleBedDrop = async (event, bedNo) => {
     event.preventDefault();
     event.stopPropagation();
+    const waitingKey = draggedWaitingPatientKey || String(event.dataTransfer.getData('text/plain') || '').replace(/^waiting:/, '');
+    if (draggedWaitingPatientKey || waitingKey.startsWith('-')) {
+      draggedWaitingPatientKey = null;
+      draggedBedNo = null;
+      selectedMoveBedNo = null;
+      suppressBedClickUntil = Date.now() + 350;
+      await assignWaitingPatientToSpecificBed(waitingKey, bedNo);
+      renderWaitingLists();
+      renderBedMonitors();
+      return;
+    }
+
     const fromBedNo = draggedBedNo || Number(event.dataTransfer.getData('text/plain'));
     draggedBedNo = null;
     selectedMoveBedNo = null;
@@ -4121,6 +4233,65 @@
       showToast('순서 변경 실패 — 연결을 확인해주세요');
     }
   };
+
+  async function removeTreatmentFromBed(bedNo, fromIndex) {
+    const bed = bedAssignments[bedNo - 1];
+    if (!bed) return;
+
+    const treatments = [...(bed.treatments || [])];
+    if (!treatments[fromIndex]) return;
+    if (treatments.length <= 1) {
+      showToast('치료는 최소 1개가 필요합니다');
+      return;
+    }
+
+    const [removed] = treatments.splice(fromIndex, 1);
+    const firstTreatment = treatments[0] || '';
+    const firstTotal = getTreatmentSeconds(firstTreatment);
+    const resetPayload = {
+      treatments,
+      currentIndex: 0,
+      total: firstTotal,
+      remaining: firstTotal,
+      running: false,
+      startedAt: null,
+      complete: false,
+      lastAlertId: null,
+      lastAlertMessage: null
+    };
+
+    try {
+      await update(ref(db, `${BEDS_PATH}/${bedNo}`), resetPayload);
+      if (bed.patientKey) {
+        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { treatments });
+      }
+      clearLocalTimerAlertsForBed(bedNo);
+      showToast(`${removed} 제거 완료`);
+    } catch(e) {
+      console.error(e);
+      showToast('치료 제거 실패 - 연결을 확인해주세요');
+    }
+  }
+
+  document.addEventListener('dragover', (event) => {
+    if (!draggedTreatment) return;
+    if (event.target?.closest?.('.bed-treatment-strip, .bed-treatment-chip')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  });
+
+  document.addEventListener('drop', async (event) => {
+    if (!draggedTreatment) return;
+    if (event.target?.closest?.('.bed-treatment-strip, .bed-treatment-chip')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const { bedNo, fromIndex } = draggedTreatment;
+    draggedTreatment = null;
+    document.querySelectorAll('.treat-drag-over, .treat-dragging').forEach(el => {
+      el.classList.remove('treat-drag-over', 'treat-dragging');
+    });
+    await removeTreatmentFromBed(bedNo, fromIndex);
+  });
 
   function getBedStatus(bedNo) {
     const bed = bedAssignments[bedNo - 1];
@@ -4289,7 +4460,7 @@
   function shouldShowAssignmentAlerts() {
     const view = (new URLSearchParams(window.location.search).get('view') || '').toLowerCase();
     const receivePanelActive = document.getElementById('receivePanel')?.classList.contains('active');
-    if (view) return view === 'desk' && receivePanelActive;
+    if (view) return (view === 'doctor' || view === 'clinic') && receivePanelActive;
     return receivePanelActive;
   }
 
@@ -4298,7 +4469,8 @@
       if (!bed?.patientKey) return;
       const alreadyKnown = knownAssignedPatientKeys.has(bed.patientKey);
       knownAssignedPatientKeys.add(bed.patientKey);
-      if (showNewAssignments && !alreadyKnown && shouldShowAssignmentAlerts()) {
+      const isNewAfterPageLoad = Number(bed.timestamp || 0) > pageLoadedAt;
+      if (!alreadyKnown && shouldShowAssignmentAlerts() && (showNewAssignments || isNewAfterPageLoad)) {
         const staffLine = [
           bed.doctorName ? `원장 ${escapeHtml(bed.doctorName)}` : '',
           bed.nurseName ? `간호사 ${escapeHtml(bed.nurseName)}` : ''
@@ -4636,8 +4808,9 @@
 <script>
   // 모드 전환
   const VIEW_TO_MODE = {
-    doctor: 'input',
-    desk: 'receive',
+    desk: 'input',
+    doctor: 'doctor',
+    clinic: 'receive',
     bed: 'bed'
   };
 
@@ -4663,7 +4836,7 @@
   function syncAppViewClass() {
     const view = getAppView();
     document.body.classList.toggle('app-role-locked', Boolean(view));
-    ['doctor', 'desk', 'bed'].forEach(name => {
+    ['desk', 'doctor', 'clinic', 'bed'].forEach(name => {
       document.body.classList.toggle(`app-role-${name}`, view === name);
     });
     document.body.classList.toggle(
@@ -4677,13 +4850,13 @@
     if (fixedMode) mode = fixedMode;
     window.currentMode = mode;
     document.getElementById('inputPanel').classList.toggle('active', mode === 'input');
-    document.getElementById('receivePanel').classList.toggle('active', mode === 'receive');
+    document.getElementById('receivePanel').classList.toggle('active', mode === 'doctor' || mode === 'receive');
     document.getElementById('bedPanel').classList.toggle('active', mode === 'bed');
     document.getElementById('settingsPanel').classList.toggle('active', mode === 'settings');
-    ['input', 'receive', 'bed', 'settings'].forEach(name => {
+    ['input', 'doctor', 'receive', 'bed', 'settings'].forEach(name => {
       document.body.classList.toggle(`app-mode-${name}`, mode === name);
     });
-    const modes = ['input', 'receive', 'bed', 'settings'];
+    const modes = ['input', 'doctor', 'receive', 'bed', 'settings'];
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', modes[i] === mode);
     });
@@ -4785,6 +4958,8 @@
     setReceiveFormOpen(false);
     const nurseRrInput = document.getElementById('nurseRrEnabled');
     if (nurseRrInput) nurseRrInput.checked = nurseRrEnabled;
+    const autoBedAssignInput = document.getElementById('autoBedAssignEnabled');
+    if (autoBedAssignInput) autoBedAssignInput.checked = autoBedAssignEnabled;
     document.getElementById('patientName').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('submitBtn').click();
     });
