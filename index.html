@@ -631,6 +631,16 @@
   }
   .export-btn:hover { border-color: var(--accent); color: var(--accent); }
   .export-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .export-btn.danger {
+    border-color: rgba(255,107,107,0.50);
+    color: #ffb8b8;
+    background: rgba(255,107,107,0.10);
+  }
+  .export-btn.danger:hover {
+    border-color: rgba(255,107,107,0.86);
+    color: #ffd0d0;
+    background: rgba(255,107,107,0.16);
+  }
 
   /* ─── 수신 / 베드 패널 ─── */
   .receive-panel,
@@ -1562,6 +1572,7 @@
 
         <button class="submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
         <button class="export-btn" id="exportCsvBtn" onclick="exportFirebaseCsv()">DB CSV 저장</button>
+        <button class="export-btn danger" id="clearPatientDbBtn" onclick="clearPatientDatabase()">환자 DB 비우기</button>
       </div>
 
       <div class="input-monitor-column">
@@ -1779,6 +1790,8 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
+  const PATIENTS_PATH = 'clinic_v2/patients';
+  const BEDS_PATH = 'clinic_v2/beds';
 
   // 진료 항목
   const TREATMENTS = [
@@ -1821,7 +1834,7 @@
   const REGULAR_BED_NUMBERS = ACTIVE_BED_NUMBERS
     .filter(bedNo => !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(bedNo));
   const FEMALE_PRIMARY_BED_NUMBERS = [1, 2, 3, 4, 5, 6];
-  const MALE_PRIMARY_BED_NUMBERS = [8, 9, 10, 11, 12, 13, 14];
+  const MALE_PRIMARY_BED_NUMBERS = [8, 9, 10, 11, 12, 13];
   const ACTIVE_BED_COUNT = ACTIVE_BED_NUMBERS.length;
   const REGULAR_BED_COUNT = REGULAR_BED_NUMBERS.length;
   const BODY_PARTS = {
@@ -1891,6 +1904,7 @@
   const knownAssignedPatientKeys = new Set();
   const assignmentAlertItems = [];
   let hasLoadedBedsOnce = false;
+  let isClearingPatientDatabase = false;
   window.currentMode = 'input';
 
   renderBedSelector();
@@ -2160,7 +2174,7 @@
         const doctor = await getRoundRobinStaffForTest('doctors');
         const nurse = await getRoundRobinStaffForTest('nurses');
         const now = new Date(Date.now() + i);
-        await push(ref(db, 'patients'), {
+        await push(ref(db, PATIENTS_PATH), {
           name: source.name,
           treatments: getRandomTreatments(),
           timestamp: now.getTime(),
@@ -2379,7 +2393,7 @@
       }
 
       const now = new Date();
-      await push(ref(db, 'patients'), {
+      await push(ref(db, PATIENTS_PATH), {
         name,
         treatments,
         timestamp: now.getTime(),
@@ -2600,13 +2614,13 @@
         nurseName: form.nurse.name
       };
 
-      await update(ref(db, `beds/${selectedBedNo}`), {
+      await update(ref(db, `${BEDS_PATH}/${selectedBedNo}`), {
         ...patientPatch,
         ...timerPatch
       });
 
       if (bed.patientKey) {
-        await update(ref(db, `patients/${bed.patientKey}`), patientPatch);
+        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), patientPatch);
       }
 
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(selectedBedNo);
@@ -2670,9 +2684,9 @@
         nurseId: form.nurse.id,
         nurseName: form.nurse.name
       };
-      await update(ref(db, `beds/${bedNo}`), { ...payload, ...timerUpdates });
+      await update(ref(db, `${BEDS_PATH}/${bedNo}`), { ...payload, ...timerUpdates });
       if (bed.patientKey) {
-        await update(ref(db, `patients/${bed.patientKey}`), payload);
+        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
       }
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(bedNo);
       showToast(`${getBedLabel(bedNo)} 정보 저장 완료`);
@@ -2704,8 +2718,8 @@
 
     try {
       const [patientsSnapshot, bedsSnapshot, doctorsSnapshot, nursesSnapshot] = await Promise.all([
-        get(ref(db, 'patients')),
-        get(ref(db, 'beds')),
+        get(ref(db, PATIENTS_PATH)),
+        get(ref(db, BEDS_PATH)),
         get(ref(db, 'staff/doctors')),
         get(ref(db, 'staff/nurses'))
       ]);
@@ -2814,18 +2828,68 @@
   };
 
   // ─── 수신 ───────────────────────────────
+  window.clearPatientDatabase = async () => {
+    const btn = document.getElementById('clearPatientDbBtn');
+    const ok = confirm('환자 DB를 모두 비울까요?\n\n삭제 대상: 환자 목록, 베드 배정/타이머\n유지 대상: 설정, 원장/간호사, 치료시간');
+    if (!ok) return;
+
+    const okAgain = confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');
+    if (!okAgain) return;
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '삭제 중...';
+    }
+
+    try {
+      isClearingPatientDatabase = true;
+      await remove(ref(db, BEDS_PATH));
+      await remove(ref(db, PATIENTS_PATH));
+
+      patientsByKey.clear();
+      loadedKeys.clear();
+      bedAssignments = Array(BED_COUNT).fill(null);
+      assignmentAlertItems.length = 0;
+      selectedMoveBedNo = null;
+      pendingTimerAlertBeds.clear();
+      timerAlertQueue.length = 0;
+      activeTimerAlert = null;
+      stopTimerAlertBeeps();
+
+      document.getElementById('notifList')?.replaceChildren();
+      renderBedSelector();
+      renderBedDetail();
+      renderReceiveBedDetail();
+      renderBedMonitors();
+      renderWaitingLists();
+      renderUpcomingAlerts();
+      updateCount();
+      showToast('환자 DB 삭제 완료');
+    } catch (e) {
+      console.error(e);
+      showToast('환자 DB 삭제 실패');
+    } finally {
+      isClearingPatientDatabase = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '환자 DB 비우기';
+      }
+    }
+  };
+
   let isFirstLoad = true;
   let loadedKeys = new Set();
   const pageLoadedAt = Date.now();
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
 
   const patientsRef = query(
-    ref(db, 'patients'),
+    ref(db, PATIENTS_PATH),
     orderByChild('timestamp'),
     startAt(todayStart.getTime())
   );
 
   onChildAdded(patientsRef, (snapshot) => {
+    if (isClearingPatientDatabase) return;
     const key = snapshot.key;
     if (loadedKeys.has(key)) return;
     loadedKeys.add(key);
@@ -2834,7 +2898,7 @@
     const normalizedChartNo = normalizeChartNo(data.chartNo);
     if ((data.chartNo || '') !== normalizedChartNo) {
       data.chartNo = normalizedChartNo;
-      update(ref(db, `patients/${key}`), { chartNo: normalizedChartNo });
+      update(ref(db, `${PATIENTS_PATH}/${key}`), { chartNo: normalizedChartNo });
     }
     const isNew = Number(data.timestamp || 0) > pageLoadedAt;
     patientsByKey.set(key, data);
@@ -2870,18 +2934,18 @@
 
     setTimeout(async () => {
       try {
-        const currentSnap = await get(ref(db, `beds/${key}`));
+        const currentSnap = await get(ref(db, `${BEDS_PATH}/${key}`));
         const currentBed = currentSnap.val();
         if (!currentBed) return;
 
         if (currentBed.patientKey) {
-          await update(ref(db, `patients/${currentBed.patientKey}`), {
+          await update(ref(db, `${PATIENTS_PATH}/${currentBed.patientKey}`), {
             bedStatus: 'waiting',
             bedNo: null,
             timestamp: todayStart.getTime()
           });
         }
-        await remove(ref(db, `beds/${key}`));
+        await remove(ref(db, `${BEDS_PATH}/${key}`));
       } catch (e) {
         console.error('비활성 베드 DB 정리 실패', e);
       } finally {
@@ -2926,8 +2990,19 @@
     return movedCount;
   }
 
-  onValue(ref(db, 'beds'), async (snapshot) => {
+  onValue(ref(db, BEDS_PATH), async (snapshot) => {
     const beds = snapshot.val() || {};
+    if (isClearingPatientDatabase) {
+      bedAssignments = Array(BED_COUNT).fill(null);
+      renderBedSelector();
+      renderBedDetail();
+      renderReceiveBedDetail();
+      renderBedMonitors();
+      renderWaitingLists();
+      renderUpcomingAlerts();
+      updateCount();
+      return;
+    }
     let migratedCount = 0;
     try {
       migratedCount = await migrateDisabledBedsToWaiting(beds);
@@ -3023,7 +3098,7 @@
   async function assignPatientToBed(patientKey, data, silent = false) {
     if (data.bedStatus === 'discharged') return false;
 
-    const result = await runTransaction(ref(db, 'beds'), (beds) => {
+    const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
       beds = beds || {};
       const existingBedNo = Object.keys(beds).find(bedNo => beds[bedNo]?.patientKey === patientKey);
       if (existingBedNo) return beds;
@@ -3066,7 +3141,7 @@
     const bedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
     if (result.committed && bedNo) {
       patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: Number(bedNo) });
-      await update(ref(db, `patients/${patientKey}`), { bedStatus: 'assigned', bedNo: Number(bedNo) });
+      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), { bedStatus: 'assigned', bedNo: Number(bedNo) });
       return Number(bedNo);
     }
 
@@ -3161,11 +3236,11 @@
     const assignedBedNo = bedAssignments.findIndex(bed => bed?.patientKey === key) + 1;
     if (assignedBedNo > 0) {
       clearLocalTimerAlertsForBed(assignedBedNo);
-      await remove(ref(db, `beds/${assignedBedNo}`));
+      await remove(ref(db, `${BEDS_PATH}/${assignedBedNo}`));
     }
     patientsByKey.delete(key);
     loadedKeys.delete(key);
-    await remove(ref(db, `patients/${key}`));
+    await remove(ref(db, `${PATIENTS_PATH}/${key}`));
     renderWaitingLists();
     showToast('대기 삭제 완료');
   };
@@ -3642,7 +3717,7 @@
     const bed = bedAssignments[bedNo - 1];
     if (!bed || bed.running || bed.complete || getRemaining(bed) <= 0) return;
 
-    await update(ref(db, `beds/${bedNo}`), {
+    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
       running: true,
       startedAt: Date.now(),
       remaining: getRemaining(bed)
@@ -3669,7 +3744,7 @@
     const patientName = bedBefore?.name || '';
     const alertId = `${bedBefore?.patientKey || bedNo}-${bedBefore?.currentIndex || 0}-${Date.now()}`;
 
-    const result = await runTransaction(ref(db, `beds/${bedNo}`), (bed) => {
+    const result = await runTransaction(ref(db, `${BEDS_PATH}/${bedNo}`), (bed) => {
       if (!bed || bed.complete) return bed;
 
       const remaining = getRemaining(bed);
@@ -3716,7 +3791,7 @@
     const bed = bedAssignments[bedNo - 1];
     if (!bed) return;
 
-    await update(ref(db, `beds/${bedNo}`), {
+    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
       running: false,
       startedAt: null,
       remaining: getRemaining(bed)
@@ -3741,11 +3816,11 @@
     };
 
     const updates = [
-      update(ref(db, `beds/${selectedBedNo}`), { bodyParts: nextBodyParts })
+      update(ref(db, `${BEDS_PATH}/${selectedBedNo}`), { bodyParts: nextBodyParts })
     ];
 
     if (bed.patientKey) {
-      updates.push(update(ref(db, `patients/${bed.patientKey}`), { bodyParts: nextBodyParts }));
+      updates.push(update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { bodyParts: nextBodyParts }));
     }
 
     await Promise.all(updates);
@@ -3774,7 +3849,7 @@
     if (!bed) return;
 
     const total = getTreatmentSeconds(bed.treatments[bed.currentIndex]);
-    await update(ref(db, `beds/${bedNo}`), {
+    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
       running: false,
       startedAt: null,
       total,
@@ -3791,7 +3866,7 @@
     if (nextIndex === bed.currentIndex || !treatments[nextIndex]) return;
 
     const total = getTreatmentSeconds(treatments[nextIndex]);
-    await update(ref(db, `beds/${bedNo}`), {
+    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
       currentIndex: nextIndex,
       running: false,
       startedAt: null,
@@ -3812,7 +3887,7 @@
 
     const minutes = Math.max(1, Math.min(120, Number(input.value) || 1));
     const total = Math.round(minutes * 60);
-    await update(ref(db, `beds/${bedNo}`), {
+    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
       running: false,
       startedAt: null,
       total,
@@ -3827,9 +3902,9 @@
     if (bed?.patientKey) {
       patientsByKey.delete(bed.patientKey);
       loadedKeys.delete(bed.patientKey);
-      await remove(ref(db, `patients/${bed.patientKey}`));
+      await remove(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`));
     }
-    await remove(ref(db, `beds/${bedNo}`));
+    await remove(ref(db, `${BEDS_PATH}/${bedNo}`));
   };
 
   window.confirmClearBed = async (event, bedNo) => {
@@ -3853,7 +3928,7 @@
 
   async function updatePatientBedNoForBed(bedNo, bed) {
     if (!bed?.patientKey) return;
-    await update(ref(db, `patients/${bed.patientKey}`), { bedNo, bedStatus: 'assigned' });
+    await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { bedNo, bedStatus: 'assigned' });
   }
 
   function remapLocalAlertBedNo(alertId, bedNo) {
@@ -3870,7 +3945,7 @@
     const fromBed = bedAssignments[fromBedNo - 1];
     if (!fromBed) return false;
 
-    const result = await runTransaction(ref(db, 'beds'), (beds) => {
+    const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
       beds = beds || {};
       const fromKey = String(fromBedNo);
       const toKey = String(toBedNo);
@@ -4036,9 +4111,9 @@
     };
 
     try {
-      await update(ref(db, `beds/${bedNo}`), resetPayload);
+      await update(ref(db, `${BEDS_PATH}/${bedNo}`), resetPayload);
       if (bed.patientKey) {
-        await update(ref(db, `patients/${bed.patientKey}`), { treatments });
+        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { treatments });
       }
       clearLocalTimerAlertsForBed(bedNo);
     } catch(e) {
@@ -4479,7 +4554,7 @@
   async function acknowledgeTimerAlert(alert) {
     if (!alert?.bedNo || !alert?.alertId) return;
 
-    await runTransaction(ref(db, `beds/${alert.bedNo}`), (bed) => {
+    await runTransaction(ref(db, `${BEDS_PATH}/${alert.bedNo}`), (bed) => {
       if (!bed || bed.lastAlertId !== alert.alertId) return bed;
       return {
         ...bed,
@@ -4494,7 +4569,7 @@
     if (!bed?.lastAlertId) return;
     const alertId = bed.lastAlertId;
 
-    await runTransaction(ref(db, `beds/${bedNo}`), (currentBed) => {
+    await runTransaction(ref(db, `${BEDS_PATH}/${bedNo}`), (currentBed) => {
       if (!currentBed || currentBed.lastAlertId !== alertId) return currentBed;
       return {
         ...currentBed,
