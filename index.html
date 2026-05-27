@@ -2022,6 +2022,26 @@
     return { id, name: data.name || '' };
   }
 
+  async function applyRoundRobinNurseToForm(scope = 'desk') {
+    if (!nurseRrEnabled) return;
+    const selectId = scope === 'receive' ? 'receiveNurseSelect' : scope === 'bed' ? 'bedNurseSelect' : 'nurseSelect';
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    const nurses = getSortedStaff('nurses').filter(([, data]) => !data.vacation);
+    if (!nurses.length) return;
+    const dateKey = getTodayKey();
+    const snapshot = await get(ref(db, `settings/nurseRoundRobinState/${dateKey}/count`));
+    const serial = Number(snapshot.val() || 0);
+    const index = (getDailyStartOffset(nurses.length) + serial) % nurses.length;
+    const [id, data] = nurses[index];
+    const rrNurse = { id, name: data.name || '' };
+    if (rrNurse?.id && Array.from(select.options).some(option => option.value === rrNurse.id)) {
+      select.value = rrNurse.id;
+    }
+  }
+  window.applyRoundRobinNurseToForm = applyRoundRobinNurseToForm;
+
   async function getRoundRobinStaffForTest(type) {
     const staff = getSortedStaff(type).filter(([, data]) => type !== 'nurses' || !data.vacation);
     if (!staff.length) return { id: '', name: '' };
@@ -2336,8 +2356,10 @@
     btn.textContent = '입력 중...';
 
     try {
-      const rrNurse = await getRoundRobinNurse();
-      if (rrNurse) nurse = rrNurse;
+      if (nurseRrEnabled) {
+        const rrNurse = await getRoundRobinNurse();
+        if (rrNurse) nurse = rrNurse;
+      }
 
       const now = new Date();
       await push(ref(db, 'patients'), {
@@ -4521,6 +4543,7 @@
       window.setFormEditMode?.('desk', null);
       setInputFormOpen(true);
       window.populatePatientForm?.('desk');
+      window.applyRoundRobinNurseToForm?.('desk');
     }
   };
 
@@ -4557,6 +4580,7 @@
       window.setFormEditMode?.('receive', null);
       setReceiveFormOpen(true);
       window.populatePatientForm?.('receive');
+      window.applyRoundRobinNurseToForm?.('receive');
     }
   };
 
