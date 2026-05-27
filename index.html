@@ -316,6 +316,14 @@
     border-radius: 10px;
     padding: 10px 12px;
   }
+  .upcoming-item.assignment {
+    cursor: pointer;
+    border-color: rgba(57,169,245,0.42);
+    background: rgba(57,169,245,0.12);
+  }
+  .upcoming-item.assignment:hover {
+    border-color: var(--accent);
+  }
   .upcoming-time {
     color: var(--gold);
     font-size: 14px;
@@ -1734,7 +1742,7 @@
   <div class="notif-popup" onclick="event.stopPropagation()">
     <div class="popup-icon">🔔</div>
     <div class="popup-name" id="popupName"></div>
-    <div class="popup-label">진료 준비</div>
+    <div class="popup-label" id="popupLabel">진료 준비</div>
     <div class="popup-treats" id="popupTreats"></div>
     <button class="popup-close" onclick="closePopup()">확인</button>
   </div>
@@ -1804,10 +1812,14 @@
   const SPECIAL_BED_LABELS = {
     14: '스파인MT'
   };
+  const AUTO_ASSIGN_EXCLUDED_BED_NUMBERS = new Set([
+    ...DISABLED_BED_NUMBERS,
+    ...Object.keys(SPECIAL_BED_LABELS).map(Number)
+  ]);
   const ACTIVE_BED_NUMBERS = Array.from({ length: BED_COUNT }, (_, i) => i + 1)
     .filter(bedNo => !DISABLED_BED_NUMBERS.has(bedNo));
   const REGULAR_BED_NUMBERS = ACTIVE_BED_NUMBERS
-    .filter(bedNo => !SPECIAL_BED_LABELS[bedNo]);
+    .filter(bedNo => !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(bedNo));
   const FEMALE_PRIMARY_BED_NUMBERS = [1, 2, 3, 4, 5, 6];
   const MALE_PRIMARY_BED_NUMBERS = [8, 9, 10, 11, 12, 13, 14];
   const ACTIVE_BED_COUNT = ACTIVE_BED_NUMBERS.length;
@@ -1849,6 +1861,8 @@
   let selectedMoveBedNo = null;
   let draggedBedNo = null;
   let draggedTreatment = null; // { bedNo, fromIndex }
+  let isAssigningWaitingPatients = false;
+  let shouldAssignWaitingAgain = false;
   let suppressBedClickUntil = 0;
   const formEditBedNoByScope = {
     desk: null,
@@ -1856,6 +1870,7 @@
   };
   const normalizedBedChartKeys = new Set();
   const migratingDisabledBedKeys = new Set();
+  const cleaningDisabledBedKeys = new Set();
   const formBodyPartsByScope = {
     desk: { front: [], back: [] },
     receive: { front: [], back: [] },
@@ -1873,6 +1888,8 @@
   const finishingBeds = new Set();
   const seenTimerAlerts = new Set();
   const queuedTimerAlerts = new Set();
+  const knownAssignedPatientKeys = new Set();
+  const assignmentAlertItems = [];
   let hasLoadedBedsOnce = false;
   window.currentMode = 'input';
 
@@ -2825,11 +2842,6 @@
 
     renderNotif(key, data, isNew);
 
-    if (isNew && shouldShowAlerts()) {
-      playSound();
-      showPopup(data);
-    }
-
     updateCount();
     if (isFirstLoad) setTimeout(() => { isFirstLoad = false; }, 500);
     renderWaitingLists();
@@ -2851,6 +2863,33 @@
     updateCount();
   });
 
+  function scheduleDisabledBedCleanup(bedNo, bed) {
+    const key = String(bedNo);
+    if (cleaningDisabledBedKeys.has(key)) return;
+    cleaningDisabledBedKeys.add(key);
+
+    setTimeout(async () => {
+      try {
+        const currentSnap = await get(ref(db, `beds/${key}`));
+        const currentBed = currentSnap.val();
+        if (!currentBed) return;
+
+        if (currentBed.patientKey) {
+          await update(ref(db, `patients/${currentBed.patientKey}`), {
+            bedStatus: 'waiting',
+            bedNo: null,
+            timestamp: todayStart.getTime()
+          });
+        }
+        await remove(ref(db, `beds/${key}`));
+      } catch (e) {
+        console.error('비활성 베드 DB 정리 실패', e);
+      } finally {
+        cleaningDisabledBedKeys.delete(key);
+      }
+    }, 0);
+  }
+
   async function migrateDisabledBedsToWaiting(beds) {
     let movedCount = 0;
     Object.entries(beds).forEach(([bedNo, bed]) => {
@@ -2867,10 +2906,10 @@
       const key = String(bedNo);
       const bed = beds[key];
       if (!bed) return;
-      if (migratingDisabledBedKeys.has(key)) return;
-      migratingDisabledBedKeys.add(key);
+      scheduleDisabledBedCleanup(bedNo, bed);
 
-      if (bed.patientKey) {
+      if (!migratingDisabledBedKeys.has(key) && bed.patientKey) {
+        migratingDisabledBedKeys.add(key);
         const firstQueueTimestamp = todayStart.getTime();
         patientsByKey.set(bed.patientKey, {
           ...(patientsByKey.get(bed.patientKey) || {}),
@@ -2899,10 +2938,11 @@
     if (DISABLED_BED_NUMBERS.has(selectedBedNo)) selectedBedNo = getUrlBedNo();
     if (DISABLED_BED_NUMBERS.has(selectedReceiveBedNo)) selectedReceiveBedNo = getUrlBedNo();
     if (selectedMoveBedNo && (DISABLED_BED_NUMBERS.has(selectedMoveBedNo) || !bedAssignments[selectedMoveBedNo - 1])) selectedMoveBedNo = null;
+    syncAssignedPatientKeys(hasLoadedBedsOnce);
     syncTimerAlertsWithBeds();
     handleRemoteTimerAlerts(!hasLoadedBedsOnce);
     hasLoadedBedsOnce = true;
-    if (!migratedCount) assignWaitingPatientsToBeds();
+    if (!migratedCount) await assignWaitingPatientsToBeds();
     renderBedSelector();
     renderBedDetail();
     renderReceiveBedDetail();
@@ -2976,7 +3016,7 @@
     const fallback = gender === '여' ? MALE_PRIMARY_BED_NUMBERS : FEMALE_PRIMARY_BED_NUMBERS;
     return [...primary, ...fallback]
       .filter((bedNo, index, rows) =>
-        ACTIVE_BED_NUMBERS.includes(bedNo) && rows.indexOf(bedNo) === index
+        REGULAR_BED_NUMBERS.includes(bedNo) && !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(bedNo) && rows.indexOf(bedNo) === index
       );
   }
 
@@ -2988,7 +3028,9 @@
       const existingBedNo = Object.keys(beds).find(bedNo => beds[bedNo]?.patientKey === patientKey);
       if (existingBedNo) return beds;
 
-      const emptyBedNo = getPreferredBedOrder(data.gender).map(String).find(bedNo => !beds[bedNo]);
+      const emptyBedNo = getPreferredBedOrder(data.gender)
+        .map(String)
+        .find(bedNo => !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(Number(bedNo)) && !beds[bedNo]);
       if (!emptyBedNo) return beds;
 
       const firstTreatment = data.treatments?.[0];
@@ -3025,24 +3067,41 @@
     if (result.committed && bedNo) {
       patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: Number(bedNo) });
       await update(ref(db, `patients/${patientKey}`), { bedStatus: 'assigned', bedNo: Number(bedNo) });
-      return true;
+      return Number(bedNo);
     }
 
     if (!silent) showToast('빈 베드가 없습니다');
     return false;
   }
 
-  function assignWaitingPatientsToBeds() {
+  async function assignWaitingPatientsToBeds() {
+    if (isAssigningWaitingPatients) {
+      shouldAssignWaitingAgain = true;
+      return;
+    }
+
+    isAssigningWaitingPatients = true;
+    shouldAssignWaitingAgain = false;
     const assignedPatientKeys = bedAssignments
       .filter(Boolean)
       .map(bed => bed.patientKey);
 
     const waitingPatients = getWaitingPatients(assignedPatientKeys);
+    const occupiedBeds = new Set(
+      REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1]))
+    );
 
-    for (const [key, data] of waitingPatients) {
-      const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1])).length;
-      if (regularOccupiedCount >= REGULAR_BED_COUNT) break;
-      assignPatientToBed(key, data, true);
+    try {
+      for (const [key, data] of waitingPatients) {
+        if (occupiedBeds.size >= REGULAR_BED_COUNT) break;
+        const assignedBedNo = await assignPatientToBed(key, data, true);
+        if (assignedBedNo) occupiedBeds.add(Number(assignedBedNo));
+      }
+    } finally {
+      isAssigningWaitingPatients = false;
+      if (shouldAssignWaitingAgain) {
+        assignWaitingPatientsToBeds();
+      }
     }
   }
 
@@ -3052,7 +3111,7 @@
       .map(bed => bed.patientKey);
 
     return [...patientsByKey.entries()]
-      .filter(([key, data]) => data.bedStatus !== 'discharged' && !assignedKeys.includes(key))
+      .filter(([key, data]) => data?.name && data.bedStatus !== 'discharged' && !assignedKeys.includes(key))
       .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
   }
 
@@ -3154,6 +3213,16 @@
     const list = document.getElementById('receiveUpcomingAlerts');
     if (!list) return;
 
+    const assignmentHtml = assignmentAlertItems.map(item => `
+      <div class="upcoming-item assignment" onclick="dismissAssignmentAlert('${escapeHtml(item.id)}')">
+        <div class="upcoming-time">배정</div>
+        <div>
+          <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}</div>
+          <div class="upcoming-sub">클릭하면 사라집니다</div>
+          ${item.staffLine ? `<div class="upcoming-staff">${item.staffLine}</div>` : ''}
+        </div>
+      </div>`).join('');
+
     const upcoming = bedAssignments
       .map((bed, index) => {
         if (!bed) return null;
@@ -3180,7 +3249,7 @@
         return a.remaining - b.remaining;
       });
 
-    list.innerHTML = upcoming.length
+    const timerHtml = upcoming.length
       ? upcoming.map(item => {
         const staffLine = [
           item.doctorName ? `원장 ${escapeHtml(item.doctorName)}` : '',
@@ -3196,8 +3265,20 @@
           </div>
         </div>`;
       }).join('')
+      : '';
+
+    list.innerHTML = assignmentHtml || timerHtml
+      ? assignmentHtml + timerHtml
       : `<div class="empty-state"><div class="empty-icon">⏱</div><div class="empty-text">진행 중인 타이머가 없습니다</div></div>`;
   }
+
+  window.dismissAssignmentAlert = (id) => {
+    const index = assignmentAlertItems.findIndex(item => item.id === id);
+    if (index >= 0) {
+      assignmentAlertItems.splice(index, 1);
+      renderUpcomingAlerts();
+    }
+  };
 
   function formatTimer(seconds) {
     const safeSeconds = Math.max(0, seconds);
@@ -4130,6 +4211,34 @@
     return bedPanelActive;
   }
 
+  function shouldShowAssignmentAlerts() {
+    const view = (new URLSearchParams(window.location.search).get('view') || '').toLowerCase();
+    const receivePanelActive = document.getElementById('receivePanel')?.classList.contains('active');
+    if (view) return view === 'desk' && receivePanelActive;
+    return receivePanelActive;
+  }
+
+  function syncAssignedPatientKeys(showNewAssignments = false) {
+    bedAssignments.forEach((bed, index) => {
+      if (!bed?.patientKey) return;
+      const alreadyKnown = knownAssignedPatientKeys.has(bed.patientKey);
+      knownAssignedPatientKeys.add(bed.patientKey);
+      if (showNewAssignments && !alreadyKnown && shouldShowAssignmentAlerts()) {
+        const staffLine = [
+          bed.doctorName ? `원장 ${escapeHtml(bed.doctorName)}` : '',
+          bed.nurseName ? `간호사 ${escapeHtml(bed.nurseName)}` : ''
+        ].filter(Boolean).join(' · ');
+        assignmentAlertItems.unshift({
+          id: `${bed.patientKey}-${index + 1}-${Date.now()}`,
+          name: bed.name || '',
+          bedLabel: getBedLabel(index + 1),
+          staffLine
+        });
+        renderUpcomingAlerts();
+      }
+    });
+  }
+
   function getActiveBedAlertIds() {
     return new Set(bedAssignments.map(bed => bed?.lastAlertId).filter(Boolean));
   }
@@ -4417,6 +4526,7 @@
   // ─── 팝업 ───────────────────────────────
   window.showPopup = (data) => {
     document.getElementById('popupName').textContent = data.name;
+    document.getElementById('popupLabel').textContent = data.bedLabel ? `${data.bedLabel} 배정` : '진료 준비';
     document.getElementById('popupTreats').innerHTML = data.treatments.map(t => `<span class="popup-tag">${t}</span>`).join('');
     document.getElementById('notifOverlay').classList.add('show');
   };
