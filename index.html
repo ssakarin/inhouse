@@ -1063,34 +1063,33 @@
   .body-figure {
     position: relative;
     width: 100%;
-    aspect-ratio: 0.62;
+    aspect-ratio: 0.5;
   }
   .body-figure svg {
     width: 100%;
     height: 100%;
     display: block;
   }
-  .body-hotspot {
-    position: absolute;
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    border: 3px solid rgba(57,169,245,0.98);
-    background: rgba(255,255,255,0.18);
-    box-shadow: 0 0 0 3px rgba(5,42,97,0.62), 0 0 10px rgba(57,169,245,0.45);
-    cursor: pointer;
-    transform: translate(-50%, -50%);
-    padding: 0;
+  .body-figure-lr-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
   }
-  .body-hotspot.active {
-    border-color: rgba(255,255,255,0.98);
-    background: rgba(255,178,26,0.92);
-    box-shadow: 0 0 0 4px rgba(5,42,97,0.70), 0 0 16px rgba(255,178,26,0.85);
+  .body-lr-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 900;
+    color: var(--text2);
+    writing-mode: vertical-rl;
+    letter-spacing: 2px;
+    padding: 4px 0;
+    min-width: 14px;
+    opacity: 0.7;
   }
-  .body-hotspot:focus {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+  /* body-hotspot은 더 이상 사용 안 함 — SVG path 직접 클릭 방식으로 교체 */
+  .body-hotspot { display: none; }
   .body-selected-list {
     display: flex;
     flex-wrap: wrap;
@@ -1350,39 +1349,55 @@
   .timer-set-btn:hover { border-color: var(--accent); color: var(--accent); }
   .treatment-time-list {
     display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
     margin-bottom: 12px;
   }
   .staff-add-row + .treatment-time-list { margin-top: 12px; }
   .treatment-time-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 96px;
-    gap: 8px;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
     align-items: center;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 10px 12px;
+    padding: 9px 11px;
   }
   .treatment-time-name {
     color: var(--text);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 900;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .treatment-time-input {
-    width: 100%;
+    width: 62px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--text);
     font-family: 'Noto Sans KR', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 900;
-    padding: 9px 10px;
+    padding: 7px 8px;
     text-align: right;
+  }
+  .treatment-time-unit {
+    font-size: 11px;
+    color: var(--text2);
+    margin-left: 2px;
+    white-space: nowrap;
+  }
+  .treatment-time-row--procedure {
+    border-color: var(--accent2);
+    grid-column: 1 / -1;
+  }
+  .treatment-time-row-inner {
+    display: flex;
+    align-items: center;
+    gap: 3px;
   }
 
   @media (min-width: 560px) {
@@ -1783,12 +1798,8 @@
       <div class="settings-column">
         <div class="card">
           <div class="card-label">치료시간 설정</div>
-          <div class="staff-add-row">
-            <input class="name-input" id="procedureMinutesInput" type="number" min="0" max="120" step="1" placeholder="처치시간(분)">
-            <button class="timer-set-btn" onclick="saveProcedureMinutes()">처치시간 저장</button>
-          </div>
           <div class="treatment-time-list" id="treatmentMinutesList"></div>
-          <button class="submit-btn" onclick="saveTreatmentMinutes()">치료시간 저장</button>
+          <button class="submit-btn" onclick="saveTreatmentMinutes()">저장</button>
         </div>
       </div>
     </div>
@@ -1837,27 +1848,32 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  const PATIENTS_PATH = 'clinic_v2/patients';
-  const BEDS_PATH = 'clinic_v2/beds';
+  const PATIENTS_PATH  = 'clinic_v2/patients';
+  const BEDS_PATH      = 'clinic_v2/beds';
+
+
 
   // 진료 항목
   const TREATMENTS = [
-    { id: 'acupuncture', name: '침', icon: '🪡' },
-    { id: 'hotpack', name: '핫팩', icon: '🔥' },
-    { id: 'lowfreq', name: '저주파', icon: '⚡' },
-    { id: 'physical_therapy', name: '물리치료', icon: '＋' },
-    { id: 'cupping_wet', name: '습부항', icon: '🫙' },
-    { id: 'cupping_dry', name: '건부항', icon: '⭕' },
-    { id: 'moxibustion', name: '왕뜸', icon: '🌀' },
-    { id: 'e_mox', name: '전자뜸', icon: '💡' },
-    { id: 'pharmacopuncture_1', name: '약침1', icon: '1' },
-    { id: 'pharmacopuncture_2', name: '약침2', icon: '2' },
-    { id: 'pharmacopuncture_3', name: '약침3', icon: '3' },
-    { id: 'pharmacopuncture_4', name: '약침4', icon: '4' },
+    { id: 'consult',             name: '진찰',   icon: '📋' },
+    { id: 'chuna',               name: '추나',   icon: '🤲' },
+    { id: 'hotpack',             name: '핫팩',   icon: '🔥' },
+    { id: 'physical_therapy',   name: '물리치료', icon: '＋' },
+    { id: 'acupuncture',         name: '침',     icon: '🪡' },
+    { id: 'cupping_wet',         name: '습부항', icon: '🫙' },
+    { id: 'cupping_dry',         name: '건부항', icon: '⭕' },
+    { id: 'moxibustion',         name: '왕뜸',   icon: '🌀' },
+    { id: 'e_mox',               name: '전자뜸', icon: '💡' },
+    { id: 'electro_acu',         name: '전침',   icon: '⚡' },
+    { id: 'pharmacopuncture_1',  name: '약침1',  icon: '①' },
+    { id: 'pharmacopuncture_2',  name: '약침2',  icon: '②' },
+    { id: 'pharmacopuncture_3',  name: '약침3',  icon: '③' },
+    { id: 'pharmacopuncture_4',  name: '약침4',  icon: '④' },
+    { id: 'pharmacopuncture_L',  name: '약침L',  icon: '🅛' },
+    { id: 'pharmacopuncture_ja', name: '약침자', icon: '자' },
   ];
 
-  const DEFAULT_TREATMENT_MINUTES = Object.fromEntries(TREATMENTS.map(t => [t.name, 1]));
-  DEFAULT_TREATMENT_MINUTES['약침'] = 1;
+  const DEFAULT_TREATMENT_MINUTES = Object.fromEntries(TREATMENTS.map(t => [t.name, 5]));
   let treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES };
   let procedureMinutes = 0;
   let nurseRrEnabled = false;
@@ -1885,26 +1901,71 @@
   const MALE_PRIMARY_BED_NUMBERS = [8, 9, 10, 11, 12, 13];
   const ACTIVE_BED_COUNT = ACTIVE_BED_NUMBERS.length;
   const REGULAR_BED_COUNT = REGULAR_BED_NUMBERS.length;
+  // 신체부위 - SVG 세그먼트 기반
+  // SVG 좌측 = 환자 우측(r_), SVG 우측 = 환자 좌측(l_)
   const BODY_PARTS = {
     front: [
-      { id: 'head', label: '머리', x: 50, y: 10 },
-      { id: 'left_shoulder', label: '좌측 어깨', x: 68, y: 24 },
-      { id: 'right_shoulder', label: '우측 어깨', x: 32, y: 24 },
-      { id: 'left_elbow', label: '좌측 팔꿈치', x: 77, y: 43 },
-      { id: 'right_elbow', label: '우측 팔꿈치', x: 23, y: 43 },
-      { id: 'left_wrist', label: '좌측 손목', x: 82, y: 62 },
-      { id: 'right_wrist', label: '우측 손목', x: 18, y: 62 },
-      { id: 'abdomen', label: '배', x: 50, y: 47 },
-      { id: 'pelvis', label: '골반', x: 50, y: 61 },
-      { id: 'left_knee', label: '좌측 무릎', x: 58, y: 79 },
-      { id: 'right_knee', label: '우측 무릎', x: 42, y: 79 },
-      { id: 'left_ankle', label: '좌측 발목', x: 61, y: 92 },
-      { id: 'right_ankle', label: '우측 발목', x: 39, y: 92 }
+      { id: 'head',          label: '머리' },
+      { id: 'neck',          label: '목' },
+      { id: 'thorax',        label: '흉부' },
+      { id: 'upper_abd',     label: '상복부' },
+      { id: 'lower_abd',     label: '하복부' },
+      { id: 'l_rotator',     label: '좌측 회전근개' },
+      { id: 'r_rotator',     label: '우측 회전근개' },
+      { id: 'l_upper_arm',   label: '좌측 상완' },
+      { id: 'r_upper_arm',   label: '우측 상완' },
+      { id: 'l_popliteal_f', label: '좌측 오금(전)' },
+      { id: 'r_popliteal_f', label: '우측 오금(전)' },
+      { id: 'l_forearm',     label: '좌측 전완' },
+      { id: 'r_forearm',     label: '우측 전완' },
+      { id: 'l_hand',        label: '좌측 손' },
+      { id: 'r_hand',        label: '우측 손' },
+      { id: 'l_hip',         label: '좌측 고관절' },
+      { id: 'r_hip',         label: '우측 고관절' },
+      { id: 'l_thigh',       label: '좌측 허벅지' },
+      { id: 'r_thigh',       label: '우측 허벅지' },
+      { id: 'l_knee',        label: '좌측 무릎' },
+      { id: 'r_knee',        label: '우측 무릎' },
+      { id: 'l_calf',        label: '좌측 종아리' },
+      { id: 'r_calf',        label: '우측 종아리' },
+      { id: 'l_foot',        label: '좌측 발' },
+      { id: 'r_foot',        label: '우측 발' },
     ],
     back: [
-      { id: 'neck', label: '목', x: 50, y: 21 },
-      { id: 'back', label: '등', x: 50, y: 39 },
-      { id: 'waist', label: '허리', x: 50, y: 57 }
+      { id: 'b_head',        label: '뒤통수' },
+      { id: 'b_neck',        label: '목(후)' },
+      { id: 'b_upper_thorax',label: '상부흉추' },
+      { id: 'b_lower_thorax',label: '하부흉추' },
+      { id: 'b_upper_lumbar',label: '상부요추' },
+      { id: 'b_lower_lumbar',label: '하부요추' },
+      { id: 'b_l_scapula',   label: '좌측 견갑골' },
+      { id: 'b_r_scapula',   label: '우측 견갑골' },
+      { id: 'b_l_flank',     label: '좌측 옆구리' },
+      { id: 'b_r_flank',     label: '우측 옆구리' },
+      { id: 'b_l_pelvis',    label: '좌측 골반' },
+      { id: 'b_r_pelvis',    label: '우측 골반' },
+      { id: 'b_l_shoulder',  label: '좌측 어깨' },
+      { id: 'b_r_shoulder',  label: '우측 어깨' },
+      { id: 'b_l_upper_arm', label: '좌측 상완(후)' },
+      { id: 'b_r_upper_arm', label: '우측 상완(후)' },
+      { id: 'b_l_elbow',     label: '좌측 팔꿈치' },
+      { id: 'b_r_elbow',     label: '우측 팔꿈치' },
+      { id: 'b_l_forearm',   label: '좌측 전완(후)' },
+      { id: 'b_r_forearm',   label: '우측 전완(후)' },
+      { id: 'b_l_wrist',     label: '좌측 손목' },
+      { id: 'b_r_wrist',     label: '우측 손목' },
+      { id: 'b_l_hand',      label: '좌측 손(후)' },
+      { id: 'b_r_hand',      label: '우측 손(후)' },
+      { id: 'b_l_thigh',     label: '좌측 허벅지(후)' },
+      { id: 'b_r_thigh',     label: '우측 허벅지(후)' },
+      { id: 'b_l_knee_pop',  label: '좌측 무릎오금' },
+      { id: 'b_r_knee_pop',  label: '우측 무릎오금' },
+      { id: 'b_l_calf',      label: '좌측 종아리(후)' },
+      { id: 'b_r_calf',      label: '우측 종아리(후)' },
+      { id: 'b_l_ankle',     label: '좌측 발목' },
+      { id: 'b_r_ankle',     label: '우측 발목' },
+      { id: 'b_l_foot',      label: '좌측 발(후)' },
+      { id: 'b_r_foot',      label: '우측 발(후)' },
     ]
   };
 
@@ -2048,12 +2109,26 @@
   function renderTreatmentMinutesSettings() {
     const list = document.getElementById('treatmentMinutesList');
     if (!list) return;
-    list.innerHTML = TREATMENTS.map(t => {
-      const value = Math.max(1, Math.min(120, Number(treatmentMinutes[t.name] || DEFAULT_TREATMENT_MINUTES[t.name] || 1)));
+
+    const procValue = Math.max(0, Math.min(120, Number(procedureMinutes) || 0));
+    const procRow = `
+      <label class="treatment-time-row treatment-time-row--procedure">
+        <span class="treatment-time-name">🩺 처치</span>
+        <div class="treatment-time-row-inner">
+          <input class="treatment-time-input" id="procedureMinutesInput" type="number" min="0" max="120" step="1" value="${procValue}" aria-label="처치시간">
+          <span class="treatment-time-unit">분</span>
+        </div>
+      </label>`;
+
+    list.innerHTML = procRow + TREATMENTS.map(t => {
+      const value = Math.max(1, Math.min(120, Number(treatmentMinutes[t.name] || DEFAULT_TREATMENT_MINUTES[t.name] || 5)));
       return `
         <label class="treatment-time-row">
-          <span class="treatment-time-name">${escapeHtml(t.name)}</span>
-          <input class="treatment-time-input" data-treatment-name="${escapeHtml(t.name)}" type="number" min="1" max="120" step="1" value="${value}" aria-label="${escapeHtml(t.name)} 치료시간">
+          <span class="treatment-time-name">${t.icon} ${escapeHtml(t.name)}</span>
+          <div class="treatment-time-row-inner">
+            <input class="treatment-time-input" data-treatment-name="${escapeHtml(t.name)}" type="number" min="1" max="120" step="1" value="${value}" aria-label="${escapeHtml(t.name)} 치료시간">
+            <span class="treatment-time-unit">분</span>
+          </div>
         </label>`;
     }).join('');
   }
@@ -2372,6 +2447,7 @@
   onValue(ref(db, 'settings/procedureMinutes'), (snapshot) => {
     const value = Number(snapshot.val() || 0);
     procedureMinutes = Math.max(0, Math.min(120, Number.isFinite(value) ? value : 0));
+    // procedureMinutesInput은 이제 treatmentMinutesList 안에 있음
     const input = document.getElementById('procedureMinutesInput');
     if (input && document.activeElement !== input) input.value = String(procedureMinutes);
     updateDeskWaitChip();
@@ -2414,16 +2490,21 @@
 
   window.saveTreatmentMinutes = async () => {
     const rows = {};
-    document.querySelectorAll('#treatmentMinutesList .treatment-time-input').forEach(input => {
+    document.querySelectorAll('#treatmentMinutesList .treatment-time-input[data-treatment-name]').forEach(input => {
       const name = input.dataset.treatmentName;
       rows[name] = Math.max(1, Math.min(120, Number(input.value) || 1));
     });
+    const procInput = document.getElementById('procedureMinutesInput');
+    const procValue = Math.max(0, Math.min(120, Number(procInput?.value) || 0));
     try {
-      await set(ref(db, 'settings/treatmentMinutes'), rows);
-      showToast('치료시간 저장 완료');
+      await Promise.all([
+        set(ref(db, 'settings/treatmentMinutes'), rows),
+        set(ref(db, 'settings/procedureMinutes'), procValue),
+      ]);
+      showToast('저장 완료');
     } catch (e) {
       console.error(e);
-      showToast('치료시간 저장 실패');
+      showToast('저장 실패');
     }
   };
 
@@ -3198,7 +3279,7 @@
   }
 
   function getTreatmentSeconds(treatment) {
-    return (Number(treatmentMinutes[treatment] || DEFAULT_TREATMENT_MINUTES[treatment] || 1)) * 60;
+    return (Number(treatmentMinutes[treatment] || DEFAULT_TREATMENT_MINUTES[treatment] || 5)) * 60;
   }
 
   function getProcedureSeconds() {
@@ -3663,57 +3744,175 @@
   }
 
   function renderBodyFigure(side, title, selectedParts, onclickTemplate = `toggleBodyPart('${side}', '__PART__')`) {
-    const hotspots = BODY_PARTS[side].map(part => {
-      const activeClass = selectedParts.includes(part.label) ? ' active' : '';
-      const onclick = onclickTemplate.replace('__PART__', escapeHtml(part.label));
-      return `<button class="body-hotspot${activeClass}" style="left:${part.x}%; top:${part.y}%;" title="${escapeHtml(part.label)}" aria-label="${escapeHtml(part.label)}" onclick="${onclick}"></button>`;
-    }).join('');
-
     return `
       <div class="body-figure-panel">
         <div class="body-figure-title">${title}</div>
-        <div class="body-figure">
-          ${renderBodySvg(side)}
-          ${hotspots}
+        <div class="body-figure-lr-wrap">
+          <span class="body-lr-label">우</span>
+          <div class="body-figure">
+            ${renderBodySvg(side, selectedParts, onclickTemplate)}
+          </div>
+          <span class="body-lr-label">좌</span>
         </div>
       </div>`;
   }
 
-  function renderBodySvg(side) {
-    const detailMarks = side === 'back'
-      ? `
-        <path d="M63 66 C67 90 67 113 61 132" fill="none" stroke="rgba(86,139,184,0.34)" stroke-width="2"/>
-        <path d="M97 66 C93 90 93 113 99 132" fill="none" stroke="rgba(86,139,184,0.34)" stroke-width="2"/>
-        <path d="M69 146 C75 154 85 154 91 146" fill="none" stroke="rgba(86,139,184,0.36)" stroke-width="2"/>
-        <path d="M80 54 C80 88 80 123 80 148" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="3"/>
-      `
-      : `
-        <path d="M54 71 C60 67 67 67 72 71" fill="none" stroke="rgba(86,139,184,0.32)" stroke-width="2"/>
-        <path d="M88 71 C93 67 100 67 106 71" fill="none" stroke="rgba(86,139,184,0.32)" stroke-width="2"/>
-        <path d="M50 83 C54 79 61 79 64 83" fill="none" stroke="rgba(86,139,184,0.26)" stroke-width="2"/>
-        <path d="M96 83 C99 79 106 79 110 83" fill="none" stroke="rgba(86,139,184,0.26)" stroke-width="2"/>
-        <path d="M72 148 C76 156 84 156 88 148" fill="none" stroke="rgba(86,139,184,0.34)" stroke-width="2"/>
-      `;
+  function renderBodySvg(side, selectedParts = [], onclickTemplate = '') {
+    const sel = new Set(
+      BODY_PARTS[side]
+        .filter(p => selectedParts.includes(p.label))
+        .map(p => p.id)
+    );
+    const labelMap = Object.fromEntries(BODY_PARTS[side].map(p => [p.id, p.label]));
+    const BASE = '#c8a87a';
+    const ACT  = '#39a9f5';
+
+    function seg(id, d) {
+      const active = sel.has(id);
+      const label  = labelMap[id] || id;
+      const oc     = onclickTemplate.replace('__PART__', escapeHtml(label));
+      return `<path d="${d}" fill="${active ? ACT : BASE}"
+        style="cursor:pointer;transition:fill .15s;"
+        onmouseenter="this.style.filter='brightness(1.2)'"
+        onmouseleave="this.style.filter=''"
+        onclick="${oc}"><title>${escapeHtml(label)}</title></path>`;
+    }
+
+    // ── 전면 ──────────────────────────────────────────────
+    // viewBox 0 0 200 400  (SVG 좌=환자 우, SVG 우=환자 좌)
+    if (side === 'front') { return `
+<svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- 머리 -->
+  ${seg('head',        'M100,6 C82,6 70,18 70,34 C70,50 82,62 100,62 C118,62 130,50 130,34 C130,18 118,6 100,6 Z')}
+  <!-- 목 -->
+  ${seg('neck',        'M88,62 C88,68 87,74 86,80 L114,80 C113,74 112,68 112,62 Z')}
+  <!-- 우측 회전근개 (SVG좌, 팔-몸통 접합부) -->
+  ${seg('r_rotator',   'M86,80 C78,78 68,80 60,86 L66,96 C72,90 80,88 86,88 Z')}
+  <!-- 좌측 회전근개 (SVG우, 팔-몸통 접합부) -->
+  ${seg('l_rotator',   'M114,80 C122,78 132,80 140,86 L134,96 C128,90 120,88 114,88 Z')}
+  <!-- 흉부 -->
+  ${seg('thorax',      'M86,80 L114,80 L114,88 C122,90 130,96 133,106 L133,148 C122,154 112,156 100,156 C88,156 78,154 67,148 L67,106 C70,96 78,90 86,88 Z')}
+  <!-- 상복부 -->
+  ${seg('upper_abd',   'M67,148 C78,154 88,156 100,156 C112,156 122,154 133,148 L133,180 L67,180 Z')}
+  <!-- 하복부 -->
+  ${seg('lower_abd',   'M67,180 L133,180 L133,206 L67,206 Z')}
+  <!-- 우측 고관절 (SVG좌) -->
+  ${seg('r_hip',       'M67,206 L100,206 L98,228 C90,232 80,234 70,230 L66,218 Z')}
+  <!-- 좌측 고관절 (SVG우) -->
+  ${seg('l_hip',       'M133,206 L100,206 L102,228 C110,232 120,234 130,230 L134,218 Z')}
+  <!-- 우측 상완 (SVG좌) -->
+  ${seg('r_upper_arm', 'M60,86 L66,96 C60,104 56,116 54,130 L44,126 C46,112 51,98 60,86 Z')}
+  <!-- 좌측 상완 (SVG우) -->
+  ${seg('l_upper_arm', 'M140,86 L134,96 C140,104 144,116 146,130 L156,126 C154,112 149,98 140,86 Z')}
+  <!-- 우측 오금(전) (SVG좌, 팔꿈치 안쪽) -->
+  ${seg('r_popliteal_f','M44,126 L54,130 C52,138 52,146 54,154 L44,156 C42,148 42,138 44,126 Z')}
+  <!-- 좌측 오금(전) (SVG우) -->
+  ${seg('l_popliteal_f','M156,126 L146,130 C148,138 148,146 146,154 L156,156 C158,148 158,138 156,126 Z')}
+  <!-- 우측 전완 (SVG좌) -->
+  ${seg('r_forearm',   'M44,156 L54,154 C56,164 58,178 58,190 L48,192 C46,180 44,168 44,156 Z')}
+  <!-- 좌측 전완 (SVG우) -->
+  ${seg('l_forearm',   'M156,156 L146,154 C144,164 142,178 142,190 L152,192 C154,180 156,168 156,156 Z')}
+  <!-- 우측 손 (SVG좌) -->
+  ${seg('r_hand',      'M48,192 L58,190 C60,200 60,212 56,220 C52,226 46,228 42,224 C38,220 38,212 40,204 Z')}
+  <!-- 좌측 손 (SVG우) -->
+  ${seg('l_hand',      'M152,192 L142,190 C140,200 140,212 144,220 C148,226 154,228 158,224 C162,220 162,212 160,204 Z')}
+  <!-- 우측 허벅지 (SVG좌) -->
+  ${seg('r_thigh',     'M70,230 C80,234 90,234 98,228 L96,272 C90,276 84,278 78,276 L68,272 Z')}
+  <!-- 좌측 허벅지 (SVG우) -->
+  ${seg('l_thigh',     'M130,230 C120,234 110,234 102,228 L104,272 C110,276 116,278 122,276 L132,272 Z')}
+  <!-- 우측 무릎 (SVG좌) -->
+  ${seg('r_knee',      'M68,272 L78,276 C84,278 90,276 96,272 L96,294 C90,298 84,300 78,298 L68,294 Z')}
+  <!-- 좌측 무릎 (SVG우) -->
+  ${seg('l_knee',      'M132,272 L122,276 C116,278 110,276 104,272 L104,294 C110,298 116,300 122,298 L132,294 Z')}
+  <!-- 우측 종아리 (SVG좌) -->
+  ${seg('r_calf',      'M68,294 L78,298 C84,300 90,298 96,294 L96,348 C90,352 84,354 78,352 L68,348 Z')}
+  <!-- 좌측 종아리 (SVG우) -->
+  ${seg('l_calf',      'M132,294 L122,298 C116,300 110,298 104,294 L104,348 C110,352 116,354 122,352 L132,348 Z')}
+  <!-- 우측 발 (SVG좌) -->
+  ${seg('r_foot',      'M68,348 L78,352 C84,354 90,352 96,348 L98,368 C94,376 86,380 78,380 L66,374 Z')}
+  <!-- 좌측 발 (SVG우) -->
+  ${seg('l_foot',      'M132,348 L122,352 C116,354 110,352 104,348 L102,368 C106,376 114,380 122,380 L134,374 Z')}
+  <!-- 얼굴 디테일 -->
+  <ellipse cx="90" cy="36" rx="4" ry="4.5" fill="rgba(0,0,0,0.13)" pointer-events="none"/>
+  <ellipse cx="110" cy="36" rx="4" ry="4.5" fill="rgba(0,0,0,0.13)" pointer-events="none"/>
+  <path d="M91,50 C95,54 105,54 109,50" fill="none" stroke="rgba(0,0,0,0.16)" stroke-width="1.8" pointer-events="none"/>
+  <path d="M100,82 L100,206" stroke="rgba(0,0,0,0.07)" stroke-width="1.5" fill="none" pointer-events="none"/>
+</svg>`; }
+
+    // ── 후면 ──────────────────────────────────────────────
     return `
-      <svg viewBox="0 0 160 260" role="img" aria-label="${side === 'front' ? '전면 인체모형' : '후면 인체모형'}">
-        <g fill="#c8dff0" stroke="none">
-          <ellipse cx="80" cy="24" rx="17" ry="21"/>
-          <path d="M69 43 C72 49 88 49 91 43 L92 57 C88 62 72 62 68 57 Z"/>
-          <path d="M55 58 C65 53 95 53 105 58 C112 78 110 116 101 145 C97 156 92 162 80 162 C68 162 63 156 59 145 C50 116 48 78 55 58 Z"/>
-          <path d="M54 59 C39 68 32 87 29 111 C27 132 21 149 18 164 C17 172 22 178 28 177 C34 176 35 169 36 161 C39 144 43 129 46 112 C49 93 54 77 61 66 Z"/>
-          <path d="M106 59 C121 68 128 87 131 111 C133 132 139 149 142 164 C143 172 138 178 132 177 C126 176 125 169 124 161 C121 144 117 129 114 112 C111 93 106 77 99 66 Z"/>
-          <path d="M64 151 C58 169 55 187 56 206 C57 222 53 235 48 249 C51 256 65 256 68 249 C67 231 70 214 73 198 C76 180 76 166 72 157 Z"/>
-          <path d="M96 151 C102 169 105 187 104 206 C103 222 107 235 112 249 C109 256 95 256 92 249 C93 231 90 214 87 198 C84 180 84 166 88 157 Z"/>
-        </g>
-        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-          ${detailMarks}
-          <path d="M43 99 C38 112 35 135 32 157" stroke="rgba(255,255,255,0.18)" stroke-width="3"/>
-          <path d="M117 99 C122 112 125 135 128 157" stroke="rgba(255,255,255,0.18)" stroke-width="3"/>
-          <path d="M68 176 C63 198 61 224 62 244" stroke="rgba(255,255,255,0.16)" stroke-width="3"/>
-          <path d="M92 176 C97 198 99 224 98 244" stroke="rgba(255,255,255,0.16)" stroke-width="3"/>
-        </g>
-      </svg>`;
-  }
+<svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- 뒤통수 -->
+  ${seg('b_head',        'M100,6 C82,6 70,18 70,34 C70,50 82,62 100,62 C118,62 130,50 130,34 C130,18 118,6 100,6 Z')}
+  <!-- 목(후) -->
+  ${seg('b_neck',        'M88,62 C88,68 87,74 86,80 L114,80 C113,74 112,68 112,62 Z')}
+  <!-- 우측 어깨/승모근 (SVG좌) -->
+  ${seg('b_r_shoulder',  'M86,80 C78,78 66,80 58,86 C54,92 52,100 54,108 L66,104 C64,98 66,92 72,90 L86,88 Z')}
+  <!-- 좌측 어깨/승모근 (SVG우) -->
+  ${seg('b_l_shoulder',  'M114,80 C122,78 134,80 142,86 C146,92 148,100 146,108 L134,104 C136,98 134,92 128,90 L114,88 Z')}
+  <!-- 상부흉추 -->
+  ${seg('b_upper_thorax','M86,88 L114,88 L114,80 C113,74 112,68 112,62 L88,62 C88,68 87,74 86,80 Z M86,88 L114,88 L116,130 L84,130 Z')}
+  <!-- 하부흉추 -->
+  ${seg('b_lower_thorax','M84,130 L116,130 L116,162 L84,162 Z')}
+  <!-- 상부요추 -->
+  ${seg('b_upper_lumbar','M84,162 L116,162 L116,190 L84,190 Z')}
+  <!-- 우측 견갑골 (SVG좌) -->
+  ${seg('b_r_scapula',   'M66,104 L84,130 L84,162 L68,158 C62,148 60,134 62,120 Z')}
+  <!-- 좌측 견갑골 (SVG우) -->
+  ${seg('b_l_scapula',   'M134,104 L116,130 L116,162 L132,158 C138,148 140,134 138,120 Z')}
+  <!-- 우측 옆구리 (SVG좌) -->
+  ${seg('b_r_flank',     'M68,158 L84,162 L84,190 L68,190 C62,180 60,168 68,158 Z')}
+  <!-- 좌측 옆구리 (SVG우) -->
+  ${seg('b_l_flank',     'M132,158 L116,162 L116,190 L132,190 C138,180 140,168 132,158 Z')}
+  <!-- 하부요추 -->
+  ${seg('b_lower_lumbar','M84,190 L116,190 L114,212 L86,212 Z')}
+  <!-- 우측 골반 (SVG좌) -->
+  ${seg('b_r_pelvis',    'M68,190 L84,190 L86,212 L78,222 C72,222 64,216 64,208 Z')}
+  <!-- 좌측 골반 (SVG우) -->
+  ${seg('b_l_pelvis',    'M132,190 L116,190 L114,212 L122,222 C128,222 136,216 136,208 Z')}
+  <!-- 우측 상완(후) (SVG좌) -->
+  ${seg('b_r_upper_arm', 'M54,108 L66,104 C62,120 60,134 62,148 L50,148 C48,134 48,120 54,108 Z')}
+  <!-- 좌측 상완(후) (SVG우) -->
+  ${seg('b_l_upper_arm', 'M146,108 L134,104 C138,120 140,134 138,148 L150,148 C152,134 152,120 146,108 Z')}
+  <!-- 우측 팔꿈치 (SVG좌) -->
+  ${seg('b_r_elbow',     'M50,148 L62,148 C62,156 62,164 60,170 L48,168 C48,162 48,154 50,148 Z')}
+  <!-- 좌측 팔꿈치 (SVG우) -->
+  ${seg('b_l_elbow',     'M150,148 L138,148 C138,156 138,164 140,170 L152,168 C152,162 152,154 150,148 Z')}
+  <!-- 우측 전완(후) (SVG좌) -->
+  ${seg('b_r_forearm',   'M48,168 L60,170 C58,182 56,196 56,208 L44,208 C44,194 44,180 48,168 Z')}
+  <!-- 좌측 전완(후) (SVG우) -->
+  ${seg('b_l_forearm',   'M152,168 L140,170 C142,182 144,196 144,208 L156,208 C156,194 156,180 152,168 Z')}
+  <!-- 우측 손목 (SVG좌) -->
+  ${seg('b_r_wrist',     'M44,208 L56,208 C56,216 56,222 54,228 L42,226 C42,220 42,214 44,208 Z')}
+  <!-- 좌측 손목 (SVG우) -->
+  ${seg('b_l_wrist',     'M156,208 L144,208 C144,216 144,222 146,228 L158,226 C158,220 158,214 156,208 Z')}
+  <!-- 우측 손(후) (SVG좌) -->
+  ${seg('b_r_hand',      'M42,226 L54,228 C52,238 50,248 48,256 C44,260 38,260 36,254 C34,248 36,238 42,226 Z')}
+  <!-- 좌측 손(후) (SVG우) -->
+  ${seg('b_l_hand',      'M158,226 L146,228 C148,238 150,248 152,256 C156,260 162,260 164,254 C166,248 164,238 158,226 Z')}
+  <!-- 우측 허벅지(후) (SVG좌) -->
+  ${seg('b_r_thigh',     'M64,208 L78,222 C76,234 74,252 74,268 L62,268 C60,252 60,236 64,208 Z')}
+  <!-- 좌측 허벅지(후) (SVG우) -->
+  ${seg('b_l_thigh',     'M136,208 L122,222 C124,234 126,252 126,268 L138,268 C140,252 140,236 136,208 Z')}
+  <!-- 우측 무릎오금 (SVG좌) -->
+  ${seg('b_r_knee_pop',  'M62,268 L74,268 C74,280 74,290 72,298 L60,296 C60,286 60,276 62,268 Z')}
+  <!-- 좌측 무릎오금 (SVG우) -->
+  ${seg('b_l_knee_pop',  'M138,268 L126,268 C126,280 126,290 128,298 L140,296 C140,286 140,276 138,268 Z')}
+  <!-- 우측 종아리(후) (SVG좌) -->
+  ${seg('b_r_calf',      'M60,296 L72,298 C70,316 68,332 68,348 L56,346 C56,330 56,314 60,296 Z')}
+  <!-- 좌측 종아리(후) (SVG우) -->
+  ${seg('b_l_calf',      'M140,296 L128,298 C130,316 132,332 132,348 L144,346 C144,330 144,314 140,296 Z')}
+  <!-- 우측 발목 (SVG좌) -->
+  ${seg('b_r_ankle',     'M56,346 L68,348 C68,356 66,364 64,370 L52,368 C52,360 52,352 56,346 Z')}
+  <!-- 좌측 발목 (SVG우) -->
+  ${seg('b_l_ankle',     'M144,346 L132,348 C132,356 134,364 136,370 L148,368 C148,360 148,352 144,346 Z')}
+  <!-- 우측 발(후) (SVG좌) -->
+  ${seg('b_r_foot',      'M52,368 L64,370 C62,380 58,388 52,392 C46,394 40,390 40,384 C40,376 44,370 52,368 Z')}
+  <!-- 좌측 발(후) (SVG우) -->
+  ${seg('b_l_foot',      'M148,368 L136,370 C138,380 142,388 148,392 C154,394 160,390 160,384 C160,376 156,370 148,368 Z')}
+  <!-- 척추선 -->
+  <path d="M100,82 L100,212" stroke="rgba(0,0,0,0.10)" stroke-width="2" fill="none" stroke-dasharray="5,3" pointer-events="none"/>
+</svg>`; }
 
   function renderBedDetailTreatmentChips(bed, bedNo) {
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
