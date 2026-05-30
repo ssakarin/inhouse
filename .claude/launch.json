@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "inhouse",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "3030"],
+      "port": 3030
+    }
+  ]
+}
