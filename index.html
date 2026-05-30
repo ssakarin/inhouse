@@ -193,10 +193,20 @@
   .input-layout { display: grid; gap: 12px; }
   .input-panel:not(.input-form-open) .input-form-column { display: none; }
   .input-panel:not(.input-form-open) .input-layout { grid-template-columns: 1fr; }
+  .input-panel.input-form-open .input-detail-column { display: none; }
   .receive-panel.receive-form-open .receive-detail-column > .card { display: none; }
   .receive-panel:not(.receive-form-open) .receive-form-column { display: none; }
+  body.app-mode-doctor .receive-panel.receive-form-open:not(.receive-edit-open) .receive-form-column,
+  body.app-mode-receive .receive-panel.receive-form-open:not(.receive-edit-open) .receive-form-column,
+  body.app-role-doctor .receive-panel.receive-form-open:not(.receive-edit-open) .receive-form-column,
+  body.app-role-clinic .receive-panel.receive-form-open:not(.receive-edit-open) .receive-form-column { display: none !important; }
+  body.app-mode-doctor .receive-panel.receive-form-open:not(.receive-edit-open) .receive-detail-column > .card,
+  body.app-mode-receive .receive-panel.receive-form-open:not(.receive-edit-open) .receive-detail-column > .card,
+  body.app-role-doctor .receive-panel.receive-form-open:not(.receive-edit-open) .receive-detail-column > .card,
+  body.app-role-clinic .receive-panel.receive-form-open:not(.receive-edit-open) .receive-detail-column > .card { display: block; }
   .input-form-column,
   .input-monitor-column,
+  .input-detail-column,
   .receive-form-column { min-width: 0; }
   .input-drawer-toggle {
     display: none;
@@ -222,6 +232,10 @@
   .input-panel.active .input-drawer-toggle { display: block; }
   .receive-panel.active .receive-drawer-toggle { display: block; }
   body.app-mode-notify .receive-drawer-toggle { display: none !important; }
+  body.app-mode-doctor .receive-drawer-toggle,
+  body.app-mode-receive .receive-drawer-toggle,
+  body.app-role-doctor .receive-drawer-toggle,
+  body.app-role-clinic .receive-drawer-toggle { display: none !important; }
   .input-panel.input-form-open .input-drawer-toggle {
     background: var(--gold);
     border-color: var(--gold);
@@ -423,6 +437,27 @@
   }
   .name-input:focus { border-color: var(--accent2); }
   .name-input::placeholder { color: var(--text3); font-weight: 400; font-size: 15px; }
+  .name-input.identity-chip-field {
+    background: rgba(57,169,245,0.14);
+    border-color: rgba(57,169,245,0.55);
+    border-radius: 999px;
+    color: var(--accent);
+    cursor: default;
+    text-align: center;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  .name-input.identity-chip-field:focus {
+    border-color: rgba(57,169,245,0.55);
+  }
+  #ageInput::-webkit-outer-spin-button,
+  #ageInput::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  #ageInput {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
 
   .staff-select-grid {
     display: grid;
@@ -674,10 +709,11 @@
     from { opacity: 0; transform: scale(0.7); }
     to { opacity: 1; transform: scale(1); }
   }
-  .treat-chip:hover { background: rgba(57,169,245,0.28); border-color: #f77; color: #fbb; }
-  .treat-chip:hover .chip-x { color: #f77; }
+  .treat-chip:hover,
   .treat-chip--drag:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
   .treat-chip--drag.treat-drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
+  .treat-chip--drag { cursor: grab; }
+  .treat-chip--drag:active { cursor: grabbing; }
   .chip-x {
     font-size: 13px;
     font-weight: 900;
@@ -1456,6 +1492,7 @@
   }
 
   @media (min-width: 860px) {
+    .input-panel:not(.input-form-open) .input-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr); align-items: start; }
     .input-panel.input-form-open .input-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); align-items: start; }
     .receive-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr); align-items: start; }
     .staff-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
@@ -1589,16 +1626,89 @@
     word-break: keep-all;
   }
 
-  /* 데스크 차트 조회 폼 */
-  .desk-chart-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 데스크/치료실 차트 조회 폼 */
+  .desk-chart-grid,
+  .receive-chart-grid {
+    grid-template-columns: minmax(132px, 1.65fr) minmax(72px, 1fr) minmax(52px, 0.62fr) 40px 40px;
+    align-items: stretch;
   }
   .chart-lookup-row {
-    grid-column: 1 / -1;
+    grid-column: 1 / 2;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
-    align-items: center;
+    align-items: stretch;
+    align-self: stretch;
+    min-width: 0;
+    height: 52px;
+  }
+  .desk-chart-grid > .form-segment-row,
+  .receive-chart-grid > .form-segment-row {
+    display: contents;
+  }
+  .desk-chart-grid > .name-input,
+  .desk-chart-grid .chart-lookup-row .name-input,
+  .receive-chart-grid > .name-input {
+    min-width: 0;
+    padding: 12px 10px;
+    font-size: 17px;
+    height: 52px;
+    box-sizing: border-box;
+  }
+  .desk-chart-grid > .name-input::placeholder,
+  .desk-chart-grid .chart-lookup-row .name-input::placeholder,
+  .receive-chart-grid > .name-input::placeholder {
+    font-size: 13px;
+  }
+  .receive-chart-grid #receiveChartNo {
+    grid-column: 1 / 2;
+    grid-row: 1;
+  }
+  .receive-chart-grid #receivePatientName {
+    grid-column: 2 / 3;
+    grid-row: 1;
+  }
+  .receive-chart-grid #receiveAgeInput {
+    grid-column: 3 / 4;
+    grid-row: 1;
+  }
+  .desk-gender-segment,
+  .receive-gender-segment {
+    grid-column: 5 / 6;
+    grid-row: 1;
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    padding: 3px;
+    min-width: 0;
+    min-height: 52px;
+    box-sizing: border-box;
+  }
+  .desk-visit-segment,
+  .receive-visit-segment {
+    grid-column: 4 / 5;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    padding: 3px;
+    min-width: 0;
+    min-height: 52px;
+    box-sizing: border-box;
+  }
+  .desk-visit-segment .segment-item,
+  .desk-gender-segment .segment-item,
+  .receive-visit-segment .segment-item,
+  .receive-gender-segment .segment-item {
+    min-height: 0;
+    font-size: 13px;
+  }
+  .desk-visit-segment .segment-item span,
+  .desk-gender-segment .segment-item span,
+  .receive-visit-segment .segment-item span,
+  .receive-gender-segment .segment-item span {
+    padding: 3px 2px;
   }
   .chart-lookup-badge {
     display: flex;
@@ -1611,6 +1721,38 @@
     white-space: nowrap;
     min-width: 60px;
     transition: opacity 0.15s;
+  }
+  .desk-chart-grid .chart-lookup-badge {
+    display: none;
+  }
+  .desk-chart-grid #chiefComplaint,
+  .receive-chart-grid #receiveChiefComplaint {
+    grid-column: 1 / 5;
+    grid-row: 2;
+  }
+  .desk-chart-grid #memoInput,
+  .receive-chart-grid #receiveMemoInput {
+    grid-column: 1 / 5;
+    grid-row: 3;
+    height: 92px;
+    min-height: 92px;
+    line-height: 1.35;
+    resize: none;
+  }
+  .desk-chart-grid .desk-submit-btn,
+  .receive-chart-grid .receive-submit-btn {
+    grid-column: 5 / 6;
+    grid-row: 2 / 4;
+    height: 100%;
+    min-height: 154px;
+    padding: 10px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    word-break: keep-all;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 0;
   }
   .chart-lookup-badge:empty { display: none; }
   .chart-lookup-badge.new {
@@ -1684,27 +1826,26 @@
           <div class="form-section">
             <div class="patient-info-grid desk-chart-grid">
               <div class="chart-lookup-row">
-                <input class="name-input" id="chartNo" type="text" placeholder="차트번호 입력 후 Enter" maxlength="20">
                 <span class="chart-lookup-badge" id="chartLookupBadge"></span>
+                <input class="name-input" id="chartNo" type="text" placeholder="차트번호" maxlength="20">
               </div>
               <input class="name-input" id="patientName" type="text" placeholder="성함" maxlength="10">
-              <input class="name-input" id="ageInput" type="number" placeholder="나이" min="0" max="130">
+              <input class="name-input" id="ageInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="나이" maxlength="3">
               <div class="form-segment-row">
-                <div class="segmented">
-                  <label class="segment-item"><input type="radio" name="visitType" value="초진" checked><span>초진</span></label>
-                  <label class="segment-item"><input type="radio" name="visitType" value="재진"><span>재진</span></label>
+                <div class="segmented desk-visit-segment">
+                  <label class="segment-item"><input type="radio" name="visitType" value="초진" checked><span>초</span></label>
+                  <label class="segment-item"><input type="radio" name="visitType" value="재진"><span>재</span></label>
                 </div>
-                <div class="segmented">
+                <div class="segmented desk-gender-segment">
                   <label class="segment-item"><input type="radio" name="gender" value="남" checked><span>남</span></label>
                   <label class="segment-item"><input type="radio" name="gender" value="여"><span>여</span></label>
                 </div>
               </div>
               <input class="name-input wide" id="chiefComplaint" type="text" placeholder="주상병명" maxlength="60">
-              <input class="name-input wide" id="memoInput" type="text" placeholder="메모" maxlength="80">
+              <textarea class="name-input wide" id="memoInput" placeholder="메모" maxlength="120" rows="3"></textarea>
+              <button class="submit-btn desk-submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
             </div>
           </div>
-
-          <button class="submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
 
           <div class="form-section">
             <div class="staff-select-grid monitor-staff-grid">
@@ -1722,12 +1863,19 @@
         </div>
       </div>
 
+      <div class="input-detail-column">
+        <div class="card">
+          <div class="card-label">예정 알림</div>
+          <div class="upcoming-list" id="inputUpcomingAlerts"></div>
+          <div class="card-label" style="margin-top:14px;">대기</div>
+          <div class="waiting-list waiting-list--compact" id="inputWaitingList"></div>
+        </div>
+      </div>
+
       <div class="input-monitor-column">
         <div class="card">
           <div class="card-label">베드 사용 현황</div>
           <div class="bed-monitor" id="inputBedMonitor"></div>
-          <div class="card-label" style="margin-top:14px;">대기</div>
-          <div class="waiting-list waiting-list--compact" id="inputWaitingList"></div>
         </div>
       </div>
     </div>
@@ -1747,26 +1895,25 @@
         <div class="receive-form-column">
           <div class="card">
             <div class="form-section">
-              <div class="patient-info-grid monitor-patient-grid">
-                <input class="name-input" id="receivePatientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
+              <div class="patient-info-grid receive-chart-grid">
                 <input class="name-input" id="receiveChartNo" type="text" placeholder="차트번호" maxlength="20">
-                <input class="name-input" id="receiveAgeInput" type="number" placeholder="나이" min="0" max="130">
+                <input class="name-input" id="receivePatientName" type="text" placeholder="성함" maxlength="10">
+                <input class="name-input" id="receiveAgeInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="나이" maxlength="3">
                 <div class="form-segment-row">
-                  <div class="segmented">
-                    <label class="segment-item"><input type="radio" name="receiveVisitType" value="초진" checked><span>초진</span></label>
-                    <label class="segment-item"><input type="radio" name="receiveVisitType" value="재진"><span>재진</span></label>
+                  <div class="segmented receive-visit-segment">
+                    <label class="segment-item"><input type="radio" name="receiveVisitType" value="초진" checked><span>초</span></label>
+                    <label class="segment-item"><input type="radio" name="receiveVisitType" value="재진"><span>재</span></label>
                   </div>
-                  <div class="segmented">
+                  <div class="segmented receive-gender-segment">
                     <label class="segment-item"><input type="radio" name="receiveGender" value="남" checked><span>남</span></label>
                     <label class="segment-item"><input type="radio" name="receiveGender" value="여"><span>여</span></label>
                   </div>
                 </div>
                 <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="주상병명" maxlength="60">
-                <input class="name-input wide" id="receiveMemoInput" type="text" placeholder="메모" maxlength="80">
+                <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모" maxlength="120" rows="3"></textarea>
+                <button class="submit-btn receive-submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
               </div>
             </div>
-
-            <button class="submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
 
             <div class="form-section">
               <div class="staff-select-grid monitor-staff-grid">
@@ -2206,33 +2353,29 @@
     const chipsWrap = document.getElementById(getTreatmentChipsId(gridId));
     if (!chipsWrap) return;
     const sel = treatmentSelections[gridId] || [];
-    const isBed = gridId === 'bedTreatmentGrid';
-    chipsWrap.innerHTML = sel.map((s, i) =>
-      isBed
-        ? `<span class="treat-chip treat-chip--drag" draggable="true"
-            data-grid="${gridId}" data-index="${i}"
-            ondragstart="chipDragStart(event,${i})"
-            ondragover="chipDragOver(event,${i})"
-            ondragleave="chipDragLeave(event)"
-            ondrop="chipDrop(event,'${gridId}',${i})"
-            ondragend="chipDragEndSel(event)"
-            style="cursor:grab"
-          >${escapeHtml(s.name)}</span>`
-        : `<span class="treat-chip" onclick="removeChip('${gridId}','${s.id}')">
-            ${escapeHtml(s.name)}<span class="chip-x">✕</span>
-          </span>`
+    chipsWrap.innerHTML = sel.map((s, i) => `
+      <span class="treat-chip treat-chip--drag" draggable="true"
+        data-grid="${gridId}" data-index="${i}"
+        ondragstart="chipDragStart(event,'${gridId}',${i})"
+        ondragover="chipDragOver(event,'${gridId}',${i})"
+        ondragleave="chipDragLeave(event)"
+        ondrop="chipDrop(event,'${gridId}',${i})"
+        ondragend="chipDragEndSel(event)"
+      >${escapeHtml(s.name)}</span>`
     ).join('');
   }
 
   let _chipDragFromIndex = null;
+  let _chipDragGridId = null;
 
-  window.chipDragStart = (event, index) => {
+  window.chipDragStart = (event, gridId, index) => {
     _chipDragFromIndex = index;
+    _chipDragGridId = gridId;
     event.dataTransfer.effectAllowed = 'move';
     event.currentTarget.style.opacity = '0.4';
   };
-  window.chipDragOver = (event, index) => {
-    if (_chipDragFromIndex === null || _chipDragFromIndex === index) return;
+  window.chipDragOver = (event, gridId, index) => {
+    if (_chipDragGridId !== gridId || _chipDragFromIndex === null || _chipDragFromIndex === index) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
     event.currentTarget.classList.add('treat-drag-over');
@@ -2243,18 +2386,22 @@
   window.chipDrop = (event, gridId, toIndex) => {
     event.preventDefault();
     event.currentTarget.classList.remove('treat-drag-over');
-    if (_chipDragFromIndex === null || _chipDragFromIndex === toIndex) return;
+    if (_chipDragGridId !== gridId || _chipDragFromIndex === null || _chipDragFromIndex === toIndex) return;
     const sel = treatmentSelections[gridId] || [];
     const [moved] = sel.splice(_chipDragFromIndex, 1);
     sel.splice(toIndex, 0, moved);
     treatmentSelections[gridId] = sel;
     renderTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
+    const scope = getScopeFromGridId?.(gridId);
+    if (scope) scheduleSelectFieldSave(scope, 0);
     _chipDragFromIndex = null;
+    _chipDragGridId = null;
   };
   window.chipDragEndSel = (event) => {
     event.currentTarget.style.opacity = '';
     _chipDragFromIndex = null;
+    _chipDragGridId = null;
     document.querySelectorAll('.treat-drag-over').forEach(el => el.classList.remove('treat-drag-over'));
   };
 
@@ -2865,11 +3012,23 @@
   }
   window.populatePatientForm = populatePatientForm;
 
+  function setIdentityFieldsLocked(scope, locked) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    [ids.chartNo, ids.name, ids.age].forEach(id => {
+      const field = document.getElementById(id);
+      if (!field) return;
+      field.readOnly = Boolean(locked);
+      field.classList.toggle('identity-chip-field', Boolean(locked));
+      field.setAttribute('aria-readonly', locked ? 'true' : 'false');
+    });
+  }
+
   function setFormEditMode(scope, bedNo = null) {
     formEditBedNoByScope[scope] = bedNo;
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const button = document.getElementById(ids.submitBtn);
     if (button) button.textContent = bedNo ? '정보수정' : '입력';
+    setIdentityFieldsLocked(scope, Boolean(bedNo));
   }
 
   window.setFormEditMode = setFormEditMode;
@@ -2878,6 +3037,7 @@
     const bed = bedAssignments[selectedBedNo - 1];
     const ids = PATIENT_FORM_IDS.bed;
     if (!bed) {
+      setIdentityFieldsLocked('bed', false);
       document.getElementById(ids.name).value = '';
       document.getElementById(ids.chartNo).value = '';
       document.getElementById(ids.chiefComplaint).value = '';
@@ -2893,6 +3053,7 @@
       return;
     }
 
+    setIdentityFieldsLocked('bed', true);
     document.getElementById(ids.name).value = bed.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed.chiefComplaint || '';
@@ -3810,9 +3971,6 @@ let migratedCount = 0;
   }
 
   function renderUpcomingAlerts() {
-    const list = document.getElementById('receiveUpcomingAlerts');
-    if (!list) return;
-
     const assignmentHtml = assignmentAlertItems.map(item => `
       <div class="upcoming-item assignment" onclick="dismissAssignmentAlert('${escapeHtml(item.id)}')">
         <div class="upcoming-time">배정</div>
@@ -3867,9 +4025,14 @@ let migratedCount = 0;
       }).join('')
       : '';
 
-    list.innerHTML = assignmentHtml || timerHtml
+    const html = assignmentHtml || timerHtml
       ? assignmentHtml + timerHtml
       : `<div class="empty-state"><div class="empty-icon">⏱</div><div class="empty-text">진행 중인 타이머가 없습니다</div></div>`;
+
+    ['inputUpcomingAlerts', 'receiveUpcomingAlerts'].forEach(id => {
+      const list = document.getElementById(id);
+      if (list) list.innerHTML = html;
+    });
   }
 
   window.dismissAssignmentAlert = (id) => {
@@ -4010,15 +4173,17 @@ let migratedCount = 0;
   }
 
   function renderBodyFigure(side, title, selectedParts, onclickTemplate = `toggleBodyPart('${side}', '__PART__')`) {
+    const leftLabel = side === 'back' ? '좌' : '우';
+    const rightLabel = side === 'back' ? '우' : '좌';
     return `
       <div class="body-figure-panel">
         <div class="body-figure-title">${title}</div>
         <div class="body-figure-lr-wrap">
-          <span class="body-lr-label">우</span>
+          <span class="body-lr-label">${leftLabel}</span>
           <div class="body-figure">
             ${renderBodySvg(side, selectedParts, onclickTemplate)}
           </div>
-          <span class="body-lr-label">좌</span>
+          <span class="body-lr-label">${rightLabel}</span>
         </div>
       </div>`;
   }
@@ -4053,11 +4218,11 @@ let migratedCount = 0;
   <!-- 목 -->
   ${seg('neck',        'M88,62 C88,68 87,74 86,80 L114,80 C113,74 112,68 112,62 Z')}
   <!-- 우측 회전근개 (SVG좌, 팔-몸통 접합부) -->
-  ${seg('r_rotator',   'M86,80 C78,78 68,80 60,86 L66,96 C72,90 80,88 86,88 Z')}
+  ${seg('r_rotator',   'M86,80 C77,79 67,81 58,87 L66,101 C72,94 79,91 87,91 L88,80 Z')}
   <!-- 좌측 회전근개 (SVG우, 팔-몸통 접합부) -->
-  ${seg('l_rotator',   'M114,80 C122,78 132,80 140,86 L134,96 C128,90 120,88 114,88 Z')}
+  ${seg('l_rotator',   'M114,80 C123,79 133,81 142,87 L134,101 C128,94 121,91 113,91 L112,80 Z')}
   <!-- 흉부 -->
-  ${seg('thorax',      'M86,80 L114,80 L114,88 C122,90 130,96 133,106 L133,148 C122,154 112,156 100,156 C88,156 78,154 67,148 L67,106 C70,96 78,90 86,88 Z')}
+  ${seg('thorax',      'M86,80 L114,80 L113,91 C121,91 128,94 134,101 L133,148 C122,154 112,156 100,156 C88,156 78,154 67,148 L66,101 C72,94 79,91 87,91 Z')}
   <!-- 상복부 -->
   ${seg('upper_abd',   'M67,148 C78,154 88,156 100,156 C112,156 122,154 133,148 L133,180 L67,180 Z')}
   <!-- 하복부 -->
@@ -4067,21 +4232,21 @@ let migratedCount = 0;
   <!-- 좌측 고관절 (SVG우) -->
   ${seg('l_hip',       'M133,206 L100,206 L102,228 C110,232 120,234 130,230 L134,218 Z')}
   <!-- 우측 상완 (SVG좌) -->
-  ${seg('r_upper_arm', 'M60,86 L66,96 C60,104 56,116 54,130 L44,126 C46,112 51,98 60,86 Z')}
+  ${seg('r_upper_arm', 'M58,87 L66,101 C60,110 57,121 56,133 L42,130 C44,114 49,99 58,87 Z')}
   <!-- 좌측 상완 (SVG우) -->
-  ${seg('l_upper_arm', 'M140,86 L134,96 C140,104 144,116 146,130 L156,126 C154,112 149,98 140,86 Z')}
+  ${seg('l_upper_arm', 'M142,87 L134,101 C140,110 143,121 144,133 L158,130 C156,114 151,99 142,87 Z')}
   <!-- 우측 오금(전) (SVG좌, 팔꿈치 안쪽) -->
-  ${seg('r_popliteal_f','M44,126 L54,130 C52,138 52,146 54,154 L44,156 C42,148 42,138 44,126 Z')}
+  ${seg('r_popliteal_f','M42,130 L56,133 C54,141 54,150 56,158 L42,160 C39,151 39,140 42,130 Z')}
   <!-- 좌측 오금(전) (SVG우) -->
-  ${seg('l_popliteal_f','M156,126 L146,130 C148,138 148,146 146,154 L156,156 C158,148 158,138 156,126 Z')}
+  ${seg('l_popliteal_f','M158,130 L144,133 C146,141 146,150 144,158 L158,160 C161,151 161,140 158,130 Z')}
   <!-- 우측 전완 (SVG좌) -->
-  ${seg('r_forearm',   'M44,156 L54,154 C56,164 58,178 58,190 L48,192 C46,180 44,168 44,156 Z')}
+  ${seg('r_forearm',   'M42,160 L56,158 C59,170 61,183 61,195 L47,197 C44,185 42,172 42,160 Z')}
   <!-- 좌측 전완 (SVG우) -->
-  ${seg('l_forearm',   'M156,156 L146,154 C144,164 142,178 142,190 L152,192 C154,180 156,168 156,156 Z')}
+  ${seg('l_forearm',   'M158,160 L144,158 C141,170 139,183 139,195 L153,197 C156,185 158,172 158,160 Z')}
   <!-- 우측 손 (SVG좌) -->
-  ${seg('r_hand',      'M48,192 L58,190 C60,200 60,212 56,220 C52,226 46,228 42,224 C38,220 38,212 40,204 Z')}
+  ${seg('r_hand',      'M47,197 L61,195 C63,205 62,217 58,225 C53,232 45,233 40,228 C36,224 36,215 39,207 Z')}
   <!-- 좌측 손 (SVG우) -->
-  ${seg('l_hand',      'M152,192 L142,190 C140,200 140,212 144,220 C148,226 154,228 158,224 C162,220 162,212 160,204 Z')}
+  ${seg('l_hand',      'M153,197 L139,195 C137,205 138,217 142,225 C147,232 155,233 160,228 C164,224 164,215 161,207 Z')}
   <!-- 우측 허벅지 (SVG좌) -->
   ${seg('r_thigh',     'M70,230 C80,234 90,234 98,228 L96,272 C90,276 84,278 78,276 L68,272 Z')}
   <!-- 좌측 허벅지 (SVG우) -->
@@ -4108,76 +4273,97 @@ let migratedCount = 0;
     // ── 후면 ──────────────────────────────────────────────
     return `
 <svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+<g transform="translate(200 0) scale(-1 1)">
+  <!-- 후면 기본 실루엣: 세그먼트 사이 빈틈으로 배경색이 비치지 않도록 살색을 먼저 깔아둔다 -->
+  <path d="M100,6 C82,6 70,18 70,34 C70,50 82,62 100,62 C118,62 130,50 130,34 C130,18 118,6 100,6 Z
+           M88,62 C88,68 87,74 86,80 L114,80 C113,74 112,68 112,62 Z
+           M86,80 L114,80 L113,91 C121,91 128,94 134,101 L133,180 L114,206 L100,206 L86,206 L67,180 L66,101 C72,94 79,91 87,91 Z
+           M58,87 L66,101 C60,110 57,121 56,133 L42,130 C44,114 49,99 58,87 Z
+           M42,130 L56,133 C54,141 54,150 56,158 L42,160 C39,151 39,140 42,130 Z
+           M42,160 L56,158 C59,170 61,183 61,195 L47,197 C44,185 42,172 42,160 Z
+           M47,197 L61,195 C63,205 62,217 58,225 C53,232 45,233 40,228 C36,224 36,215 39,207 Z
+           M142,87 L134,101 C140,110 143,121 144,133 L158,130 C156,114 151,99 142,87 Z
+           M158,130 L144,133 C146,141 146,150 144,158 L158,160 C161,151 161,140 158,130 Z
+           M158,160 L144,158 C141,170 139,183 139,195 L153,197 C156,185 158,172 158,160 Z
+           M153,197 L139,195 C137,205 138,217 142,225 C147,232 155,233 160,228 C164,224 164,215 161,207 Z
+           M70,230 C80,234 90,234 98,228 L96,272 C90,276 84,278 78,276 L68,272 Z
+           M68,272 L78,276 C84,278 90,276 96,272 L96,348 C90,352 84,354 78,352 L68,348 Z
+           M68,348 L78,352 C84,354 90,352 96,348 L98,368 C94,376 86,380 78,380 L66,374 Z
+           M130,230 C120,234 110,234 102,228 L104,272 C110,276 116,278 122,276 L132,272 Z
+           M132,272 L122,276 C116,278 110,276 104,272 L104,348 C110,352 116,354 122,352 L132,348 Z
+           M132,348 L122,352 C116,354 110,352 104,348 L102,368 C106,376 114,380 122,380 L134,374 Z"
+        fill="${BASE}" pointer-events="none"/>
   <!-- 뒤통수 -->
   ${seg('b_head',        'M100,6 C82,6 70,18 70,34 C70,50 82,62 100,62 C118,62 130,50 130,34 C130,18 118,6 100,6 Z')}
   <!-- 목(후) -->
   ${seg('b_neck',        'M88,62 C88,68 87,74 86,80 L114,80 C113,74 112,68 112,62 Z')}
   <!-- 우측 어깨/승모근 (SVG좌) -->
-  ${seg('b_r_shoulder',  'M86,80 C78,78 66,80 58,86 C54,92 52,100 54,108 L66,104 C64,98 66,92 72,90 L86,88 Z')}
+  ${seg('b_r_shoulder',  'M86,80 C77,79 67,81 58,87 L66,101 C72,94 79,91 87,91 L88,80 Z')}
   <!-- 좌측 어깨/승모근 (SVG우) -->
-  ${seg('b_l_shoulder',  'M114,80 C122,78 134,80 142,86 C146,92 148,100 146,108 L134,104 C136,98 134,92 128,90 L114,88 Z')}
+  ${seg('b_l_shoulder',  'M114,80 C123,79 133,81 142,87 L134,101 C128,94 121,91 113,91 L112,80 Z')}
   <!-- 상부흉추 -->
-  ${seg('b_upper_thorax','M86,88 L114,88 L114,80 C113,74 112,68 112,62 L88,62 C88,68 87,74 86,80 Z M86,88 L114,88 L116,130 L84,130 Z')}
+  ${seg('b_upper_thorax','M87,91 L113,91 L114,130 L86,130 Z')}
   <!-- 하부흉추 -->
-  ${seg('b_lower_thorax','M84,130 L116,130 L116,162 L84,162 Z')}
+  ${seg('b_lower_thorax','M86,130 L114,130 L114,156 C110,157 105,158 100,158 C95,158 90,157 86,156 Z')}
   <!-- 상부요추 -->
-  ${seg('b_upper_lumbar','M84,162 L116,162 L116,190 L84,190 Z')}
+  ${seg('b_upper_lumbar','M86,156 C90,157 95,158 100,158 C105,158 110,157 114,156 L116,180 L84,180 Z')}
   <!-- 우측 견갑골 (SVG좌) -->
-  ${seg('b_r_scapula',   'M66,104 L84,130 L84,162 L68,158 C62,148 60,134 62,120 Z')}
+  ${seg('b_r_scapula',   'M66,101 C72,96 79,93 87,91 L86,130 L84,156 L67,148 Z')}
   <!-- 좌측 견갑골 (SVG우) -->
-  ${seg('b_l_scapula',   'M134,104 L116,130 L116,162 L132,158 C138,148 140,134 138,120 Z')}
+  ${seg('b_l_scapula',   'M134,101 C128,96 121,93 113,91 L114,130 L116,156 L133,148 Z')}
   <!-- 우측 옆구리 (SVG좌) -->
-  ${seg('b_r_flank',     'M68,158 L84,162 L84,190 L68,190 C62,180 60,168 68,158 Z')}
+  ${seg('b_r_flank',     'M67,148 L84,156 L84,180 L67,180 Z')}
   <!-- 좌측 옆구리 (SVG우) -->
-  ${seg('b_l_flank',     'M132,158 L116,162 L116,190 L132,190 C138,180 140,168 132,158 Z')}
+  ${seg('b_l_flank',     'M133,148 L116,156 L116,180 L133,180 Z')}
   <!-- 하부요추 -->
-  ${seg('b_lower_lumbar','M84,190 L116,190 L114,212 L86,212 Z')}
+  ${seg('b_lower_lumbar','M84,180 L116,180 L114,206 L86,206 Z')}
   <!-- 우측 골반 (SVG좌) -->
-  ${seg('b_r_pelvis',    'M68,190 L84,190 L86,212 L78,222 C72,222 64,216 64,208 Z')}
+  ${seg('b_r_pelvis',    'M67,180 L86,206 L100,206 L98,228 C90,232 80,234 70,230 L66,218 Z')}
   <!-- 좌측 골반 (SVG우) -->
-  ${seg('b_l_pelvis',    'M132,190 L116,190 L114,212 L122,222 C128,222 136,216 136,208 Z')}
+  ${seg('b_l_pelvis',    'M133,180 L114,206 L100,206 L102,228 C110,232 120,234 130,230 L134,218 Z')}
   <!-- 우측 상완(후) (SVG좌) -->
-  ${seg('b_r_upper_arm', 'M54,108 L66,104 C62,120 60,134 62,148 L50,148 C48,134 48,120 54,108 Z')}
+  ${seg('b_r_upper_arm', 'M58,87 L66,101 C60,110 57,121 56,133 L42,130 C44,114 49,99 58,87 Z')}
   <!-- 좌측 상완(후) (SVG우) -->
-  ${seg('b_l_upper_arm', 'M146,108 L134,104 C138,120 140,134 138,148 L150,148 C152,134 152,120 146,108 Z')}
+  ${seg('b_l_upper_arm', 'M142,87 L134,101 C140,110 143,121 144,133 L158,130 C156,114 151,99 142,87 Z')}
   <!-- 우측 팔꿈치 (SVG좌) -->
-  ${seg('b_r_elbow',     'M50,148 L62,148 C62,156 62,164 60,170 L48,168 C48,162 48,154 50,148 Z')}
+  ${seg('b_r_elbow',     'M42,130 L56,133 C54,141 54,150 56,158 L42,160 C39,151 39,140 42,130 Z')}
   <!-- 좌측 팔꿈치 (SVG우) -->
-  ${seg('b_l_elbow',     'M150,148 L138,148 C138,156 138,164 140,170 L152,168 C152,162 152,154 150,148 Z')}
+  ${seg('b_l_elbow',     'M158,130 L144,133 C146,141 146,150 144,158 L158,160 C161,151 161,140 158,130 Z')}
   <!-- 우측 전완(후) (SVG좌) -->
-  ${seg('b_r_forearm',   'M48,168 L60,170 C58,182 56,196 56,208 L44,208 C44,194 44,180 48,168 Z')}
+  ${seg('b_r_forearm',   'M42,160 L56,158 C59,170 61,183 61,195 L47,197 C44,185 42,172 42,160 Z')}
   <!-- 좌측 전완(후) (SVG우) -->
-  ${seg('b_l_forearm',   'M152,168 L140,170 C142,182 144,196 144,208 L156,208 C156,194 156,180 152,168 Z')}
+  ${seg('b_l_forearm',   'M158,160 L144,158 C141,170 139,183 139,195 L153,197 C156,185 158,172 158,160 Z')}
   <!-- 우측 손목 (SVG좌) -->
-  ${seg('b_r_wrist',     'M44,208 L56,208 C56,216 56,222 54,228 L42,226 C42,220 42,214 44,208 Z')}
+  ${seg('b_r_wrist',     'M47,197 L61,195 C62,201 62,206 61,211 L45,213 C45,207 46,201 47,197 Z')}
   <!-- 좌측 손목 (SVG우) -->
-  ${seg('b_l_wrist',     'M156,208 L144,208 C144,216 144,222 146,228 L158,226 C158,220 158,214 156,208 Z')}
+  ${seg('b_l_wrist',     'M153,197 L139,195 C138,201 138,206 139,211 L155,213 C155,207 154,201 153,197 Z')}
   <!-- 우측 손(후) (SVG좌) -->
-  ${seg('b_r_hand',      'M42,226 L54,228 C52,238 50,248 48,256 C44,260 38,260 36,254 C34,248 36,238 42,226 Z')}
+  ${seg('b_r_hand',      'M45,213 L61,211 C62,217 60,223 58,228 C53,233 45,233 40,228 C36,224 36,216 39,208 Z')}
   <!-- 좌측 손(후) (SVG우) -->
-  ${seg('b_l_hand',      'M158,226 L146,228 C148,238 150,248 152,256 C156,260 162,260 164,254 C166,248 164,238 158,226 Z')}
+  ${seg('b_l_hand',      'M155,213 L139,211 C138,217 140,223 142,228 C147,233 155,233 160,228 C164,224 164,216 161,208 Z')}
   <!-- 우측 허벅지(후) (SVG좌) -->
-  ${seg('b_r_thigh',     'M64,208 L78,222 C76,234 74,252 74,268 L62,268 C60,252 60,236 64,208 Z')}
+  ${seg('b_r_thigh',     'M70,230 C80,234 90,234 98,228 L96,272 C90,276 84,278 78,276 L68,272 Z')}
   <!-- 좌측 허벅지(후) (SVG우) -->
-  ${seg('b_l_thigh',     'M136,208 L122,222 C124,234 126,252 126,268 L138,268 C140,252 140,236 136,208 Z')}
+  ${seg('b_l_thigh',     'M130,230 C120,234 110,234 102,228 L104,272 C110,276 116,278 122,276 L132,272 Z')}
   <!-- 우측 무릎오금 (SVG좌) -->
-  ${seg('b_r_knee_pop',  'M62,268 L74,268 C74,280 74,290 72,298 L60,296 C60,286 60,276 62,268 Z')}
+  ${seg('b_r_knee_pop',  'M68,272 L78,276 C84,278 90,276 96,272 L96,294 C90,298 84,300 78,298 L68,294 Z')}
   <!-- 좌측 무릎오금 (SVG우) -->
-  ${seg('b_l_knee_pop',  'M138,268 L126,268 C126,280 126,290 128,298 L140,296 C140,286 140,276 138,268 Z')}
+  ${seg('b_l_knee_pop',  'M132,272 L122,276 C116,278 110,276 104,272 L104,294 C110,298 116,300 122,298 L132,294 Z')}
   <!-- 우측 종아리(후) (SVG좌) -->
-  ${seg('b_r_calf',      'M60,296 L72,298 C70,316 68,332 68,348 L56,346 C56,330 56,314 60,296 Z')}
+  ${seg('b_r_calf',      'M68,294 L78,298 C84,300 90,298 96,294 L96,348 C90,352 84,354 78,352 L68,348 Z')}
   <!-- 좌측 종아리(후) (SVG우) -->
-  ${seg('b_l_calf',      'M140,296 L128,298 C130,316 132,332 132,348 L144,346 C144,330 144,314 140,296 Z')}
+  ${seg('b_l_calf',      'M132,294 L122,298 C116,300 110,298 104,294 L104,348 C110,352 116,354 122,352 L132,348 Z')}
   <!-- 우측 발목 (SVG좌) -->
-  ${seg('b_r_ankle',     'M56,346 L68,348 C68,356 66,364 64,370 L52,368 C52,360 52,352 56,346 Z')}
+  ${seg('b_r_ankle',     'M68,348 L78,352 C84,354 90,352 96,348 L96,360 L68,360 Z')}
   <!-- 좌측 발목 (SVG우) -->
-  ${seg('b_l_ankle',     'M144,346 L132,348 C132,356 134,364 136,370 L148,368 C148,360 148,352 144,346 Z')}
+  ${seg('b_l_ankle',     'M132,348 L122,352 C116,354 110,352 104,348 L104,360 L132,360 Z')}
   <!-- 우측 발(후) (SVG좌) -->
-  ${seg('b_r_foot',      'M52,368 L64,370 C62,380 58,388 52,392 C46,394 40,390 40,384 C40,376 44,370 52,368 Z')}
+  ${seg('b_r_foot',      'M68,360 L96,360 L98,368 C94,376 86,380 78,380 L66,374 Z')}
   <!-- 좌측 발(후) (SVG우) -->
-  ${seg('b_l_foot',      'M148,368 L136,370 C138,380 142,388 148,392 C154,394 160,390 160,384 C160,376 156,370 148,368 Z')}
+  ${seg('b_l_foot',      'M132,360 L104,360 L102,368 C106,376 114,380 122,380 L134,374 Z')}
   <!-- 척추선 -->
   <path d="M100,82 L100,212" stroke="rgba(0,0,0,0.10)" stroke-width="2" fill="none" stroke-dasharray="5,3" pointer-events="none"/>
+</g>
 </svg>`; }
 
   function renderBedDetailTreatmentChips(bed, bedNo) {
@@ -4661,16 +4847,17 @@ let migratedCount = 0;
   };
 
   window.clearBed = async (bedNo) => {
-    const bed = bedAssignments[bedNo - 1];
+    const bed = getBedData(bedNo);
     clearLocalTimerAlertsForBed(bedNo);
 
     // IndexedDB에 먼저 저장 (차트번호 있는 경우)
     if (bed?.chartNo) {
-      window.saveChartPatient?.({
-        chartNo: bed.chartNo,
+      await window.saveChartPatient?.({
+        chartNo: normalizeChartNo(bed.chartNo),
         name: bed.name || '',
         age: bed.age || '',
         gender: bed.gender || '',
+        visitType: bed.visitType || '',
         chiefComplaint: bed.chiefComplaint || '',
         memo: bed.memo || '',
         treatments: bed.treatments || [],
@@ -4776,6 +4963,7 @@ let migratedCount = 0;
       : panel?.classList.contains('input-form-open');
     if (isOpen && formEditBedNoByScope[scope] === bedNo) {
       if (scope === 'receive') {
+        panel?.classList.remove('receive-edit-open');
         setReceiveFormOpen(false);
         setFormEditMode(scope, null);
       } else {
@@ -4788,6 +4976,7 @@ let migratedCount = 0;
     setFormEditMode(scope, bedNo);
     populatePatientForm(scope, bed);
     if (scope === 'receive') {
+      document.getElementById('receivePanel')?.classList.add('receive-edit-open');
       setReceiveFormOpen(true);
     } else {
       setInputFormOpen(true);
@@ -5064,7 +5253,13 @@ let migratedCount = 0;
         ? 'done'
         : (index < status.currentIndex ? 'done' : (index === status.currentIndex ? 'current' : 'waiting'));
       const runningClass = status.stageState === 'running' && index === status.currentIndex ? ' running' : '';
-      return `<span class="bed-treatment-chip ${chipClass}${runningClass}">${escapeHtml(treatment)}</span>`;
+      return `<span class="bed-treatment-chip ${chipClass}${runningClass}" draggable="true"
+        ondragstart="handleTreatChipDragStart(event,${status.bedNo},${index})"
+        ondragover="handleTreatChipDragOver(event,${status.bedNo},${index})"
+        ondrop="handleTreatChipDrop(event,${status.bedNo},${index})"
+        ondragend="handleTreatChipDragEnd(event)"
+        ondragleave="handleTreatChipDragLeave(event)"
+      >${escapeHtml(treatment)}</span>`;
     }).join('');
 
     return `
@@ -5707,7 +5902,7 @@ let migratedCount = 0;
       window.applyTreatmentsToForm?.('desk', patient.treatments || []);
       // 치료 부위 복원
       window.applyBodyPartsToForm?.('desk', patient.bodyParts);
-      badge.textContent = '재진';
+      badge.textContent = '재';
       badge.className = 'chart-lookup-badge returning';
     } else {
       document.getElementById('patientName').value = '';
@@ -5717,7 +5912,7 @@ let migratedCount = 0;
       document.querySelector(`input[name="visitType"][value="초진"]`).click();
       window.applyTreatmentsToForm?.('desk', []);
       window.applyBodyPartsToForm?.('desk', null);
-      badge.textContent = '신규';
+      badge.textContent = '초';
       badge.className = 'chart-lookup-badge new';
     }
     document.getElementById('patientName').focus();
@@ -5811,6 +6006,12 @@ let migratedCount = 0;
     }
   }
 
+  function resetDeskInputToggles() {
+    document.querySelector('input[name="visitType"][value="초진"]')?.click();
+    document.querySelector('input[name="gender"][value="남"]')?.click();
+    window.clearChartLookupBadge?.();
+  }
+
   window.toggleInputForm = () => {
     const button = document.getElementById('inputFormToggle');
     const shouldClose = button?.getAttribute('aria-label')?.includes('닫기');
@@ -5818,10 +6019,12 @@ let migratedCount = 0;
       setInputFormOpen(false);
       window.setFormEditMode?.('desk', null);
       window.populatePatientForm?.('desk');
+      resetDeskInputToggles();
     } else {
       window.setFormEditMode?.('desk', null);
       setInputFormOpen(true);
       window.populatePatientForm?.('desk');
+      resetDeskInputToggles();
       window.applyRoundRobinNurseToForm?.('desk');
     }
   };
@@ -5832,6 +6035,7 @@ let migratedCount = 0;
     const column = panel?.querySelector('.receive-form-column');
     if (!panel) return;
     panel.classList.toggle('receive-form-open', Boolean(open));
+    if (!open) panel.classList.remove('receive-edit-open');
     if (column) {
       column.hidden = !open;
       if (open) {
@@ -5856,6 +6060,7 @@ let migratedCount = 0;
       window.setFormEditMode?.('receive', null);
       window.populatePatientForm?.('receive');
     } else {
+      document.getElementById('receivePanel')?.classList.remove('receive-edit-open');
       window.setFormEditMode?.('receive', null);
       setReceiveFormOpen(true);
       window.populatePatientForm?.('receive');
