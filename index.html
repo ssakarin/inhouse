@@ -2232,7 +2232,10 @@
             <div class="patient-info-grid desk-chart-grid">
               <div class="chart-lookup-row">
                 <span class="chart-lookup-badge" id="chartLookupBadge"></span>
-                <input class="name-input" id="chartNo" type="text" placeholder="차트번호" maxlength="20">
+                <input class="name-input" id="chartNo" type="text" placeholder="차트번호" maxlength="20"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault(); window.runDeskChartNoLookup?.();}"
+                  onchange="window.runDeskChartNoLookup?.()"
+                  oninput="window.clearChartLookupBadge?.()">
               </div>
               <input class="name-input" id="patientName" type="text" placeholder="성함" maxlength="10">
               <input class="name-input" id="ageInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="나이" maxlength="3">
@@ -2701,7 +2704,6 @@
   const queuedDoctorProcedureAlerts = new Set();
   const knownAssignedPatientKeys = new Set();
   const assignmentAlertItems = [];
-  const dismissedAppointmentAlertIds = new Set();
   let hasLoadedBedsOnce = false;
   let isClearingPatientDatabase = false;
   window.currentMode = 'input';
@@ -3939,7 +3941,8 @@
           total: getTreatmentSeconds(form.treatments[nextIndex]),
           remaining: getTreatmentSeconds(form.treatments[nextIndex]),
           lastAlertId: null,
-          lastAlertMessage: null
+          lastAlertMessage: null,
+          doctorProcedureAlert: null
         }
         : { currentIndex: nextIndex };
 
@@ -4046,7 +4049,8 @@
           startedAt: null,
           complete: false,
           lastAlertId: null,
-          lastAlertMessage: null
+          lastAlertMessage: null,
+          doctorProcedureAlert: null
         }
       : {};
 
@@ -4537,7 +4541,8 @@ let migratedCount = 0;
       remaining: total,
       running: false,
       startedAt: null,
-      complete: false
+      complete: false,
+      doctorProcedureAlert: null
     };
   }
 
@@ -4838,6 +4843,22 @@ let migratedCount = 0;
     return match?.[1] || bed.treatments?.[Math.max(0, Number(bed.currentIndex || 0) - 1)] || bed.treatments?.[bed.currentIndex] || '치료';
   }
 
+  function getAppointmentAlertDismissField(mode = window.currentMode) {
+    if (mode === 'input') return 'deskDismissed';
+    if (mode === 'receive') return 'receiveDismissed';
+    if (mode === 'notify') return 'notifyDismissed';
+    return '';
+  }
+
+  function shouldShowAppointmentAlertForMode(data, mode = window.currentMode) {
+    const field = getAppointmentAlertDismissField(mode);
+    if (!field) return false;
+    if (!data?.appointmentDate) return false;
+    const alert = data.appointmentAlert || {};
+    if (alert.date && alert.date !== data.appointmentDate) return true;
+    return alert[field] !== true;
+  }
+
   function renderUpcomingAlerts() {
     const assignmentHtml = assignmentAlertItems.map(item => `
       <div class="upcoming-item assignment" onclick="dismissAssignmentAlert('${escapeHtml(item.id)}')">
@@ -4854,13 +4875,14 @@ let migratedCount = 0;
         id: `${key}:${data?.appointmentDate || ''}`,
         key,
         name: data?.name || '',
-        appointmentDate: data?.appointmentDate || ''
+        appointmentDate: data?.appointmentDate || '',
+        data
       }))
-      .filter(item => item.name && item.appointmentDate && !dismissedAppointmentAlertIds.has(item.id))
+      .filter(item => item.name && shouldShowAppointmentAlertForMode(item.data))
       .sort((a, b) => String(a.appointmentDate).localeCompare(String(b.appointmentDate)) || String(a.name).localeCompare(String(b.name)));
 
     const appointmentHtml = appointmentItems.map(item => `
-      <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.id)}')">
+      <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.key)}')">
         <div class="upcoming-time">예약</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.name)}님 ${escapeHtml(formatAppointmentDate(item.appointmentDate))} 예약</div>
@@ -4914,9 +4936,8 @@ let migratedCount = 0;
 
     const doctorProcedureHtml = shouldShowDoctorProcedureAlerts()
       ? getDoctorProcedureAlertItems()
-        .filter(item => !seenDoctorProcedureAlerts.has(item.alertId))
         .map(item => `
-        <div class="upcoming-item assignment" onclick="dismissDoctorProcedureAlert('${escapeHtml(item.alertId)}')">
+        <div class="upcoming-item assignment" onclick="dismissDoctorProcedureAlert(${item.bedNo}, '${escapeHtml(item.alertId)}')">
           <div class="upcoming-time">시술</div>
           <div>
             <div class="upcoming-main">${escapeHtml(item.message)}</div>
@@ -4950,17 +4971,51 @@ let migratedCount = 0;
     }
   };
 
-  window.dismissAppointmentAlert = (id) => {
-    dismissedAppointmentAlertIds.add(id);
+  window.dismissAppointmentAlert = async (patientKey) => {
+    const field = getAppointmentAlertDismissField();
+    if (!patientKey || !field) return;
+    const patient = patientsByKey.get(patientKey) || {};
+    const appointmentDate = patient.appointmentDate || '';
+    await update(ref(db, `${PATIENTS_PATH}/${patientKey}/appointmentAlert`), {
+      date: appointmentDate,
+      [field]: true
+    });
+    patientsByKey.set(patientKey, {
+      ...patient,
+      appointmentAlert: {
+        ...(patient.appointmentAlert || {}),
+        date: appointmentDate,
+        [field]: true
+      }
+    });
     renderUpcomingAlerts();
   };
 
-  window.dismissDoctorProcedureAlert = (id) => {
-    if (!id) return;
+  window.dismissDoctorProcedureAlert = async (bedNo, id) => {
+    if (!bedNo || !id) return;
+    const bed = getBedData(bedNo);
+    const treatment = bed?.treatments?.[bed.currentIndex || 0] || '';
+    const patch = {
+      id,
+      bedNo,
+      treatment,
+      dismissed: true,
+      dismissedAt: Date.now()
+    };
     seenDoctorProcedureAlerts.add(id);
     queuedDoctorProcedureAlerts.delete(id);
     if (activeDoctorProcedureAlert?.alertId === id) activeDoctorProcedureAlert = null;
+    if (bed) bed.doctorProcedureAlert = patch;
     renderUpcomingAlerts();
+    renderBedMonitors();
+    renderBedDetail();
+    renderReceiveBedDetail();
+    try {
+      await update(ref(db, `${BEDS_PATH}/${bedNo}/doctorProcedureAlert`), patch);
+    } catch (e) {
+      console.error(e);
+      showToast('시술 알림 확인 저장 실패');
+    }
     syncDoctorProcedureAlerts();
   };
 
@@ -5303,11 +5358,12 @@ let migratedCount = 0;
     }
 
     const currentIndex = Number(bed.currentIndex || 0);
+    const procedureBlinking = isDoctorProcedureBlinking(bedNo, bed);
     return treatments.map((treatment, index) => {
       const chipClass = bed.complete
         ? 'done'
         : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'waiting'));
-      const runningClass = bed.running && index === currentIndex ? ' running' : '';
+      const runningClass = (bed.running || procedureBlinking) && index === currentIndex ? ' running' : '';
       return `<span class="bed-treatment-chip ${chipClass}${runningClass}" draggable="true"
         ondragstart="handleTreatChipDragStart(event,${bedNo},${index})"
         ondragover="handleTreatChipDragOver(event,${bedNo},${index})"
@@ -5560,7 +5616,8 @@ let migratedCount = 0;
           remaining: 0,
           complete: true,
           lastAlertId: alertId,
-          lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${bed.treatments[bed.currentIndex]} 완료`
+          lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${bed.treatments[bed.currentIndex]} 완료`,
+          doctorProcedureAlert: null
         };
       }
 
@@ -5574,7 +5631,8 @@ let migratedCount = 0;
         startedAt: null,
         complete: false,
         lastAlertId: alertId,
-        lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${bed.treatments[bed.currentIndex]} 완료`
+        lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${bed.treatments[bed.currentIndex]} 완료`,
+        doctorProcedureAlert: null
       };
     });
 
@@ -5678,7 +5736,8 @@ let migratedCount = 0;
       total: getTreatmentSeconds(nextTreatment),
       remaining: getTreatmentSeconds(nextTreatment),
       running: false, startedAt: null, complete: false,
-      lastAlertId: null, lastAlertMessage: null
+      lastAlertId: null, lastAlertMessage: null,
+      doctorProcedureAlert: null
     } : {};
 
     const payload = {
@@ -5732,7 +5791,8 @@ let migratedCount = 0;
       total,
       remaining: total,
       lastAlertId: null,
-      lastAlertMessage: null
+      lastAlertMessage: null,
+      doctorProcedureAlert: null
     });
     clearLocalTimerAlertsForBed(bedNo);
   };
@@ -5751,7 +5811,8 @@ let migratedCount = 0;
         remaining: 0,
         complete: true,
         lastAlertId: null,
-        lastAlertMessage: null
+        lastAlertMessage: null,
+        doctorProcedureAlert: null
       });
     } else {
       // 다음 치료로 이동
@@ -5764,7 +5825,8 @@ let migratedCount = 0;
         total: nextTotal,
         remaining: nextTotal,
         lastAlertId: null,
-        lastAlertMessage: null
+        lastAlertMessage: null,
+        doctorProcedureAlert: null
       });
     }
     clearLocalTimerAlertsForBed(bedNo);
@@ -6057,7 +6119,8 @@ let migratedCount = 0;
       startedAt: null,
       complete: false,
       lastAlertId: null,
-      lastAlertMessage: null
+      lastAlertMessage: null,
+      doctorProcedureAlert: null
     };
 
     try {
@@ -6095,7 +6158,8 @@ let migratedCount = 0;
       startedAt: null,
       complete: false,
       lastAlertId: null,
-      lastAlertMessage: null
+      lastAlertMessage: null,
+      doctorProcedureAlert: null
     };
 
     try {
@@ -6145,13 +6209,14 @@ let migratedCount = 0;
     const totalSeconds = Number(bed.total || 0);
     const previousTreatment = currentIndex > 0 ? treatments[currentIndex - 1] : '';
     const lastTreatment = treatments[treatments.length - 1] || '';
+    const procedureBlinking = isDoctorProcedureBlinking(bedNo, bed);
     const statusLabel = bed.complete
       ? (lastTreatment ? `${lastTreatment} 완료` : '완료')
       : (previousTreatment ? `${previousTreatment} 완료 ${treatment} 준비` : `${treatment} 준비`);
     const isWaitingToStart = !bed.complete && !bed.running && remainingSeconds >= totalSeconds;
     const stageState = bed.complete
       ? 'complete'
-      : (bed.running ? 'running' : (isWaitingToStart ? 'ready' : 'paused'));
+      : ((bed.running || procedureBlinking) ? 'running' : (isWaitingToStart ? 'ready' : 'paused'));
     const stageLabel = bed.complete
       ? '완료'
       : (bed.running ? '진행중' : (isWaitingToStart ? '시작 전' : '일시정지'));
@@ -6170,6 +6235,7 @@ let migratedCount = 0;
       stageLabel,
       statusDetail: bed.running ? `${treatment} 진행중` : (isWaitingToStart ? statusLabel : treatment),
       noTimer: !bed.complete && isNoTimerTreatment(treatments[currentIndex]),
+      procedureBlinking,
       remaining: bed.complete ? '완료' : formatTimer(remainingSeconds),
       currentIndex,
       treatments,
@@ -6318,11 +6384,39 @@ let migratedCount = 0;
   }
 
   function isDoctorProcedureTreatment(treatment) {
-    return String(treatment || '').trim() === '침';
+    const name = String(treatment || '').trim();
+    if (/약침/.test(name)) return true;
+    return new Set([
+      '왕뜸',
+      '전자뜸',
+      '전침',
+      '진료',
+      '진찰',
+      '추나',
+      '침',
+      '건부항',
+      '습부항'
+    ]).has(name);
   }
 
   function getDoctorProcedureAlertId(bedNo, bed, treatment) {
     return `${bed.patientKey || bed.chartNo || bedNo}:${bedNo}:${Number(bed.currentIndex || 0)}:${treatment}`;
+  }
+
+  function getCurrentDoctorProcedureAlertId(bedNo, bed) {
+    if (!bed || bed.complete) return '';
+    const treatment = bed.treatments?.[bed.currentIndex || 0] || '';
+    if (!isDoctorProcedureTreatment(treatment)) return '';
+    return getDoctorProcedureAlertId(bedNo, bed, treatment);
+  }
+
+  function isDoctorProcedureAlertDismissed(bedNo, bed) {
+    const alertId = getCurrentDoctorProcedureAlertId(bedNo, bed);
+    return Boolean(alertId && bed?.doctorProcedureAlert?.id === alertId && bed.doctorProcedureAlert.dismissed);
+  }
+
+  function isDoctorProcedureBlinking(bedNo, bed) {
+    return isDoctorProcedureAlertDismissed(bedNo, bed);
   }
 
   function getDoctorProcedureAlertItems() {
@@ -6339,6 +6433,7 @@ let migratedCount = 0;
         const treatment = bed.treatments?.[bed.currentIndex || 0] || '침';
         const doctorName = bed.doctorName || staffByType.doctors.get(selectedDoctorAlertId)?.name || '원장';
         const alertId = getDoctorProcedureAlertId(bedNo, bed, treatment);
+        if (isDoctorProcedureAlertDismissed(bedNo, bed)) return null;
         return {
           alertId,
           bedNo,
@@ -6348,7 +6443,8 @@ let migratedCount = 0;
           treatment,
           message: `${doctorName} 원장님 ${bed.name || '환자'} ${getBedLabel(bedNo)} ${treatment} 시술`
         };
-      });
+      })
+      .filter(Boolean);
   }
 
   function syncAssignedPatientKeys(showNewAssignments = false) {
@@ -6748,6 +6844,24 @@ let migratedCount = 0;
     } catch { return null; }
   }
 
+  async function lookupChartPatientFlexible(rawChartNo) {
+    const raw = String(rawChartNo ?? '').trim();
+    const normalized = normalizeChartNo(raw);
+    const excelText = raw.replace(/\.0$/, '');
+    const candidates = [
+      normalized,
+      raw,
+      excelText,
+      normalizeChartNo(excelText)
+    ].filter(Boolean);
+    const uniqueCandidates = [...new Set(candidates)];
+    for (const key of uniqueCandidates) {
+      const patient = await lookupChartPatient(key);
+      if (patient) return patient;
+    }
+    return null;
+  }
+
   window.saveChartPatient = async function(data) {
     if (!data.chartNo) return;
     try {
@@ -6788,16 +6902,23 @@ let migratedCount = 0;
 
   async function setPatientAppointment(patientKey, data, appointmentDate) {
     if (!patientKey || !appointmentDate) return false;
+    const appointmentAlert = {
+      date: appointmentDate,
+      deskDismissed: false,
+      receiveDismissed: false,
+      notifyDismissed: false
+    };
     await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
       ...data,
-      appointmentDate
+      appointmentDate,
+      appointmentAlert
     });
     patientsByKey.set(patientKey, {
       ...(patientsByKey.get(patientKey) || {}),
       ...data,
-      appointmentDate
+      appointmentDate,
+      appointmentAlert
     });
-    dismissedAppointmentAlertIds.delete(`${patientKey}:${appointmentDate}`);
     renderUpcomingAlerts();
     return true;
   }
@@ -6941,45 +7062,147 @@ let migratedCount = 0;
     }
   };
 
-  window.handleChartNoLookup = async function() {
-    const chartNoEl = document.getElementById('chartNo');
-    const chartNo = normalizeChartNo(chartNoEl.value.trim());
-    if (!chartNo) { document.getElementById('patientName').focus(); return; }
+  window.handleChartNoLookup = async function(scope = 'desk') {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const chartNoEl = document.getElementById(ids.chartNo);
+    const rawChartNo = chartNoEl?.value?.trim() || '';
+    const chartNo = normalizeChartNo(rawChartNo);
+    if (!chartNo) { document.getElementById(ids.name)?.focus(); return; }
+    if (chartNoEl) chartNoEl.value = chartNo;
 
     const badge = document.getElementById('chartLookupBadge');
-    const patient = await lookupChartPatient(chartNo);
+    const patient = await lookupChartPatientFlexible(rawChartNo);
 
+    if (patient) {
+      document.getElementById(ids.name).value = patient.name || '';
+      document.getElementById(ids.age).value = patient.age || '';
+      document.getElementById(ids.chiefComplaint).value = patient.chiefComplaint || '';
+      document.getElementById(ids.memo).value = patient.memo || '';
+      document.querySelector(`input[name="${ids.visitType}"][value="재진"]`)?.click();
+      document.querySelector(`input[name="${ids.gender}"][value="${patient.gender || '남'}"]`)?.click();
+      // 치료 항목 복원
+      window.applyTreatmentsToForm?.(scope, patient.treatments || []);
+      // 치료 부위 복원
+      window.applyBodyPartsToForm?.(scope, patient.bodyParts);
+      window.updateCreditChip?.(ids.treatmentGrid, patient.credit ?? 0);
+      if (badge && scope === 'desk') {
+        badge.textContent = '재';
+        badge.className = 'chart-lookup-badge returning';
+      }
+    } else {
+      document.getElementById(ids.name).value = '';
+      document.getElementById(ids.age).value = '';
+      document.getElementById(ids.chiefComplaint).value = '';
+      document.getElementById(ids.memo).value = '';
+      document.querySelector(`input[name="${ids.visitType}"][value="초진"]`)?.click();
+      window.applyTreatmentsToForm?.(scope, []);
+      window.applyBodyPartsToForm?.(scope, null);
+      window.updateCreditChip?.(ids.treatmentGrid, 0);
+      if (badge && scope === 'desk') {
+        badge.textContent = '초';
+        badge.className = 'chart-lookup-badge new';
+      }
+    }
+    document.getElementById(ids.name)?.focus();
+  };
+</script>
+
+<script>
+  const FALLBACK_CHART_DB_NAME = 'patientChartDB';
+  const FALLBACK_CHART_STORE = 'patients';
+  let fallbackChartDb = null;
+
+  function fallbackNormalizeChartNo(value) {
+    const text = String(value ?? '').trim();
+    if (!/^\d+$/.test(text)) return text;
+    return text.replace(/^0+(?=\d)/, '');
+  }
+
+  function fallbackOpenChartDb() {
+    return new Promise((resolve, reject) => {
+      if (fallbackChartDb) { resolve(fallbackChartDb); return; }
+      const req = indexedDB.open(FALLBACK_CHART_DB_NAME, 1);
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(FALLBACK_CHART_STORE)) {
+          db.createObjectStore(FALLBACK_CHART_STORE, { keyPath: 'chartNo' });
+        }
+      };
+      req.onsuccess = e => { fallbackChartDb = e.target.result; resolve(fallbackChartDb); };
+      req.onerror = e => reject(e.target.error);
+    });
+  }
+
+  async function fallbackLookupChartPatient(chartNo) {
+    if (!chartNo) return null;
+    try {
+      const db = await fallbackOpenChartDb();
+      return await new Promise((resolve, reject) => {
+        const req = db.transaction(FALLBACK_CHART_STORE, 'readonly').objectStore(FALLBACK_CHART_STORE).get(chartNo);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async function fallbackLookupChartPatientFlexible(rawChartNo) {
+    const raw = String(rawChartNo ?? '').trim();
+    const excelText = raw.replace(/\.0$/, '');
+    const candidates = [
+      fallbackNormalizeChartNo(raw),
+      raw,
+      excelText,
+      fallbackNormalizeChartNo(excelText)
+    ].filter(Boolean);
+    for (const key of [...new Set(candidates)]) {
+      const patient = await fallbackLookupChartPatient(key);
+      if (patient) return patient;
+    }
+    return null;
+  }
+
+  async function runDeskChartNoLookup() {
+    if (typeof window.handleChartNoLookup === 'function') {
+      await window.handleChartNoLookup('desk');
+      return;
+    }
+
+    const chartNoEl = document.getElementById('chartNo');
+    const rawChartNo = chartNoEl?.value?.trim() || '';
+    const chartNo = fallbackNormalizeChartNo(rawChartNo);
+    if (!chartNo) { document.getElementById('patientName')?.focus(); return; }
+    if (chartNoEl) chartNoEl.value = chartNo;
+
+    const patient = await fallbackLookupChartPatientFlexible(rawChartNo);
+    const badge = document.getElementById('chartLookupBadge');
     if (patient) {
       document.getElementById('patientName').value = patient.name || '';
       document.getElementById('ageInput').value = patient.age || '';
       document.getElementById('chiefComplaint').value = patient.chiefComplaint || '';
       document.getElementById('memoInput').value = patient.memo || '';
-      document.querySelector(`input[name="visitType"][value="재진"]`).click();
-      document.querySelector(`input[name="gender"][value="${patient.gender || '남'}"]`).click();
-      // 치료 항목 복원
-      window.applyTreatmentsToForm?.('desk', patient.treatments || []);
-      // 치료 부위 복원
-      window.applyBodyPartsToForm?.('desk', patient.bodyParts);
-      window.updateCreditChip?.('treatmentGrid', patient.credit ?? 0);
-      badge.textContent = '재';
-      badge.className = 'chart-lookup-badge returning';
+      document.querySelector('input[name="visitType"][value="재진"]')?.click();
+      document.querySelector(`input[name="gender"][value="${patient.gender || '남'}"]`)?.click();
+      if (badge) {
+        badge.textContent = '재';
+        badge.className = 'chart-lookup-badge returning';
+      }
     } else {
       document.getElementById('patientName').value = '';
       document.getElementById('ageInput').value = '';
       document.getElementById('chiefComplaint').value = '';
       document.getElementById('memoInput').value = '';
-      document.querySelector(`input[name="visitType"][value="초진"]`).click();
-      window.applyTreatmentsToForm?.('desk', []);
-      window.applyBodyPartsToForm?.('desk', null);
-      window.updateCreditChip?.('treatmentGrid', 0);
-      badge.textContent = '초';
-      badge.className = 'chart-lookup-badge new';
+      document.querySelector('input[name="visitType"][value="초진"]')?.click();
+      if (badge) {
+        badge.textContent = '초';
+        badge.className = 'chart-lookup-badge new';
+      }
     }
-    document.getElementById('patientName').focus();
-  };
-</script>
+    document.getElementById('patientName')?.focus();
+  }
+  window.runDeskChartNoLookup = runDeskChartNoLookup;
 
-<script>
   // 모드 전환
   const VIEW_TO_MODE = {
     desk: 'input',
@@ -7189,12 +7412,13 @@ let migratedCount = 0;
     const autoBedAssignInput = document.getElementById('autoBedAssignEnabled');
     if (autoBedAssignInput) autoBedAssignInput.checked = autoBedAssignEnabled;
 
-    // 차트번호 Enter → 조회
-    document.getElementById('chartNo').addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); window.handleChartNoLookup?.(); }
+    // 차트번호 Enter/변경 → 로컬 차트 조회
+    document.getElementById('chartNo')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); runDeskChartNoLookup(); }
     });
-    // 차트번호 변경 시 배지 초기화
-    document.getElementById('chartNo').addEventListener('input', () => window.clearChartLookupBadge?.());
+    document.getElementById('chartNo')?.addEventListener('change', () => runDeskChartNoLookup());
+    // 차트번호 입력 중에는 배지 초기화
+    document.getElementById('chartNo')?.addEventListener('input', () => window.clearChartLookupBadge?.());
 
     document.getElementById('patientName').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('submitBtn').click();
