@@ -84,6 +84,16 @@
     height: 38px;
   }
   .brand-copy { min-width: 0; }
+  .header-left-desk-controls {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+  }
+  body.app-mode-input .header-left-desk-controls,
+  body.app-role-desk .header-left-desk-controls {
+    display: flex;
+  }
   .header-left h1 {
     font-family: 'Noto Sans KR', sans-serif;
     font-size: 24px;
@@ -143,6 +153,59 @@
   body.app-mode-notify .header-notify-controls,
   body.app-mode-doctor .header-notify-controls,
   body.app-mode-receive .header-notify-controls {
+    display: flex;
+  }
+  .doctor-alert-select-wrap {
+    display: none;
+    position: relative;
+    align-items: center;
+    min-width: 190px;
+    max-width: 240px;
+    height: 32px;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .doctor-alert-select-label {
+    min-width: 0;
+    flex: 1;
+    padding: 0 30px 0 10px;
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 32px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .doctor-alert-select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    color: var(--text2);
+    font-size: 12px;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  .doctor-alert-select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+  .doctor-alert-select option {
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+  body.app-mode-doctor .doctor-alert-select-wrap {
     display: flex;
   }
   .header-bed-controls {
@@ -226,6 +289,25 @@
   .input-monitor-column,
   .input-detail-column,
   .receive-form-column { min-width: 0; }
+  .input-panel.input-form-open .input-form-column > .card,
+  .receive-panel.receive-form-open .receive-form-column > .card {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 12px;
+    align-items: start;
+  }
+  .input-panel.input-form-open #deskBodyPartSection,
+  .receive-panel.receive-form-open #receiveBodyPartSection {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-self: center;
+    margin-top: 0;
+  }
+  .input-panel.input-form-open #deskBodyPartForm,
+  .receive-panel.receive-form-open #receiveBodyPartForm {
+    height: auto;
+    min-height: 420px;
+  }
   .input-drawer-toggle {
     display: none;
     position: fixed;
@@ -247,7 +329,7 @@
     transform: translateY(-50%);
     box-shadow: 0 10px 24px rgba(0,0,0,0.32);
   }
-  .input-panel.active .input-drawer-toggle { display: block; }
+  .input-panel.active .input-drawer-toggle { display: none; }
   .receive-panel.active .receive-drawer-toggle { display: block; }
   body.app-mode-notify .receive-drawer-toggle { display: none !important; }
   body.app-mode-doctor .receive-drawer-toggle,
@@ -262,42 +344,23 @@
     background: var(--gold);
     border-color: var(--gold);
   }
-  .bed-panel.active .bed-drawer-toggle { display: block; }
+  .bed-panel.active .bed-drawer-toggle { display: none; }
   .bed-panel.bed-edit-open .bed-drawer-toggle {
     background: var(--gold);
     border-color: var(--gold);
   }
-  .bed-schedule-toggle {
-    left: auto;
-    right: 0;
-    border-left: 1px solid var(--accent);
-    border-right: none;
-    border-radius: 12px 0 0 12px;
-  }
-  .bed-panel.active .bed-schedule-toggle { display: block; }
-  .bed-panel.bed-schedule-open .bed-schedule-toggle {
-    background: var(--gold);
-    border-color: var(--gold);
-  }
-  .bed-schedule-popover {
-    display: none;
-    position: fixed;
-    right: 42px;
-    top: 50%;
-    z-index: 41;
-    width: min(300px, calc(100vw - 72px));
-    transform: translateY(-50%);
-    background: var(--surface);
+  .bed-schedule-toggle { display: none !important; }
+  .bed-schedule-panel {
+    background: rgba(5, 42, 97, 0.22);
     border: 1px solid var(--border);
     border-radius: 12px;
-    box-shadow: 0 18px 36px rgba(0,0,0,0.36);
+    margin-top: 10px;
     padding: 12px;
   }
-  .bed-panel.bed-schedule-open .bed-schedule-popover { display: block; }
-  .bed-schedule-popover .card-label { margin-bottom: 8px; }
+  .bed-schedule-panel .card-label { margin-bottom: 8px; }
   .bed-schedule-calendar {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
   }
   .bed-schedule-day {
@@ -312,6 +375,7 @@
     min-height: 48px;
     padding: 8px 6px;
     text-align: center;
+    min-width: 0;
   }
   .bed-schedule-day:hover,
   .bed-schedule-day.today {
@@ -1082,6 +1146,21 @@
   }
   .bed-status.done { border-color: var(--gold); }
   .bed-status.done.alerting { border-color: var(--danger); }
+  .bed-status.compact {
+    min-height: 48px;
+    padding: 9px 10px;
+    display: flex;
+    align-items: center;
+  }
+  .bed-status.compact .bed-status-top {
+    width: 100%;
+    margin-bottom: 0;
+  }
+  .bed-status.compact .bed-status-no {
+    width: 100%;
+    font-size: 14px;
+    color: var(--text);
+  }
   @keyframes bedAlertPulse {
     0%, 100% { box-shadow: 0 0 0 1px rgba(255,107,107,0.55); background: rgba(255,107,107,0.10); }
     50% { box-shadow: 0 0 0 4px rgba(255,107,107,0.9); background: rgba(255,107,107,0.22); }
@@ -1160,6 +1239,52 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .credit-chip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: rgba(74,222,128,0.12);
+    border: 1.5px solid rgba(74,222,128,0.38);
+    border-radius: 10px;
+    padding: 11px 8px;
+    color: rgb(74,222,128);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    vertical-align: middle;
+    line-height: normal;
+    cursor: pointer;
+    user-select: none;
+    min-height: 42px;
+  }
+  .credit-chip.editing {
+    background: rgba(74,222,128,0.18);
+    border-color: rgba(74,222,128,0.68);
+  }
+  .credit-chip-label { display: inline-flex; align-items: center; justify-content: center; }
+  .credit-chip-value {
+    min-width: 12px;
+    text-align: right;
+  }
+  .credit-input {
+    display: none;
+    width: 44px;
+    background: rgba(0,0,0,0.18);
+    border: 1px solid rgba(74,222,128,0.42);
+    border-radius: 5px;
+    color: rgb(74,222,128);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 2px 3px;
+    text-align: center;
+    outline: none;
+  }
+  .credit-chip.editing .credit-input { display: inline-block; }
+  .credit-chip.editing .credit-chip-label { display: none; }
+  .credit-input:focus { border-color: rgb(74,222,128); }
   .bed-stage-badge {
     display: inline-flex;
     align-items: center;
@@ -1231,11 +1356,10 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    display: none;
+    display: block;
+    margin-bottom: 10px;
     overflow: hidden;
   }
-  .bed-panel.bed-edit-open .bed-input-section { display: block; }
-  .bed-panel.bed-edit-open .body-map-card { display: none; }
   .bed-input-section summary {
     display: none;
   }
@@ -1254,7 +1378,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
-    align-items: start;
+    align-items: stretch;
   }
   body.app-role-bed .receive-header { margin-bottom: 8px; }
   body.app-role-bed .bed-layout { gap: 10px; }
@@ -1262,7 +1386,12 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
     gap: 10px;
   }
-  .bed-left-column { min-width: 0; }
+  .bed-left-column {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   .bed-selector {
     width: 100%;
     background: var(--surface2);
@@ -1301,10 +1430,24 @@
     border-width: 2px;
   }
   body.app-role-bed .body-map-card { padding: 12px; }
+  .bed-panel .body-map-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .bed-panel .body-map-card .empty-state {
+    margin: auto 0;
+  }
   .body-map-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+  }
+  .bed-panel .body-map-card .body-map-grid {
+    margin-top: auto;
+    margin-bottom: auto;
   }
   body.app-role-bed .body-map-grid { gap: 10px; }
   .body-figure-panel {
@@ -1383,7 +1526,13 @@
   .bed-next-btn:hover { border-color: var(--accent); }
   .bed-patient-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
   .bed-detail { display: none; }
-  .bed-detail.active { display: block; }
+  .bed-detail.active {
+    display: block;
+    min-height: 100%;
+  }
+  .bed-detail.active > .card {
+    min-height: 100%;
+  }
   .receive-bed-detail-list {
     display: flex;
     flex-direction: column;
@@ -1701,9 +1850,26 @@
 
   @media (min-width: 860px) {
     .input-panel:not(.input-form-open) .input-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr); align-items: start; }
-    .input-panel.input-form-open .input-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); align-items: start; }
+    .input-panel.input-form-open .input-layout { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; }
     .receive-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr); align-items: start; }
+    .receive-panel.receive-form-open .receive-layout { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; }
     .staff-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  }
+
+  @media (max-width: 1050px) {
+    .input-panel.input-form-open .input-form-column > .card,
+    .receive-panel.receive-form-open .receive-form-column > .card {
+      grid-template-columns: 1fr;
+    }
+    .input-panel.input-form-open #deskBodyPartSection,
+    .receive-panel.receive-form-open #receiveBodyPartSection {
+      grid-column: 1;
+      grid-row: auto;
+    }
+    .input-panel.input-form-open #deskBodyPartForm,
+    .receive-panel.receive-form-open #receiveBodyPartForm {
+      min-height: 0;
+    }
   }
 
   @media (min-width: 1200px) {
@@ -1840,6 +2006,11 @@
     grid-template-columns: minmax(132px, 1.65fr) minmax(72px, 1fr) minmax(52px, 0.62fr) 40px 40px;
     align-items: stretch;
   }
+  .input-panel.input-form-open .desk-chart-grid,
+  .receive-panel.receive-form-open .receive-chart-grid {
+    grid-template-columns: minmax(82px, 1.4fr) minmax(54px, 0.95fr) minmax(42px, 0.55fr) 30px 30px;
+    gap: 8px;
+  }
   .chart-lookup-row {
     grid-column: 1 / 2;
     display: grid;
@@ -1862,6 +2033,12 @@
     font-size: 17px;
     height: 52px;
     box-sizing: border-box;
+  }
+  .input-panel.input-form-open .desk-chart-grid > .name-input,
+  .input-panel.input-form-open .desk-chart-grid .chart-lookup-row .name-input,
+  .receive-panel.receive-form-open .receive-chart-grid > .name-input {
+    padding: 10px 7px;
+    font-size: 14px;
   }
   .desk-chart-grid > .name-input::placeholder,
   .desk-chart-grid .chart-lookup-row .name-input::placeholder,
@@ -1911,6 +2088,12 @@
   .receive-gender-segment .segment-item {
     min-height: 0;
     font-size: 13px;
+  }
+  .input-panel.input-form-open .desk-visit-segment .segment-item,
+  .input-panel.input-form-open .desk-gender-segment .segment-item,
+  .receive-panel.receive-form-open .receive-visit-segment .segment-item,
+  .receive-panel.receive-form-open .receive-gender-segment .segment-item {
+    font-size: 12px;
   }
   .desk-visit-segment .segment-item span,
   .desk-gender-segment .segment-item span,
@@ -1962,6 +2145,12 @@
     text-orientation: upright;
     letter-spacing: 0;
   }
+  .input-panel.input-form-open .desk-chart-grid .desk-submit-btn,
+  .receive-panel.receive-form-open .receive-chart-grid .receive-submit-btn {
+    min-width: 0;
+    padding: 8px 2px;
+    font-size: 13px;
+  }
   .chart-lookup-badge:empty { display: none; }
   .chart-lookup-badge.new {
     background: rgba(255,178,26,0.18);
@@ -1999,16 +2188,23 @@
         <h1><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span><span class="bed-header-bed-chip" id="bedHeaderBedChip">1번</span></h1>
         <p><span class="status-dot"></span>실시간 연결됨</p>
       </div>
+      <div class="header-left-desk-controls">
+        <button class="random-test-btn" onclick="openRandomTestGenerator()">랜덤 테스트생성</button>
+        <button class="random-test-btn danger" id="clearPatientDbBtn" onclick="clearPatientDatabase()">비우기</button>
+      </div>
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
-        <button class="random-test-btn danger" id="clearPatientDbBtn" onclick="clearPatientDatabase()">비우기</button>
-        <button class="random-test-btn" onclick="openRandomTestGenerator()">랜덤 테스트생성</button>
+        <button class="random-test-btn" id="deskInputHeaderBtn" onclick="toggleDeskInputForm()">입력</button>
         <button class="random-test-btn" onclick="assignWaitingPatientsManually()">배정</button>
         <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
       </div>
       <div class="header-notify-controls">
         <span class="header-wait-chip" id="notifyWaitChip">예상대기시간 0분</span>
+        <div class="doctor-alert-select-wrap">
+          <span class="doctor-alert-select-label" id="doctorAlertSelectLabel">원장 선택</span>
+          <select class="doctor-alert-select" id="doctorAlertSelect" onchange="setDoctorAlertFilter(this.value)"></select>
+        </div>
       </div>
       <div class="header-bed-controls">
         <span class="header-wait-chip bed-count-chip" id="bedPatientCount">0/13</span>
@@ -2131,10 +2327,10 @@
               </div>
             </div>
 
-            <div class="form-section">
+            <div class="form-section" id="receiveTreatmentSection">
               <div class="treatment-grid monitor-treatment-grid" id="receiveTreatmentGrid"></div>
             </div>
-            <div class="form-section">
+            <div class="form-section" id="receiveBodyPartSection">
               <div class="form-body-map" id="receiveBodyPartForm"></div>
             </div>
           </div>
@@ -2151,23 +2347,11 @@
 
   <!-- 베드 패널 -->
   <div class="bed-panel" id="bedPanel">
-    <button class="input-drawer-toggle bed-drawer-toggle" id="bedEditToggle" onclick="toggleBedEditForm()" aria-label="정보 수정 열기">›</button>
-    <button class="input-drawer-toggle bed-schedule-toggle" id="bedScheduleToggle" onclick="toggleBedSchedule()" aria-label="예약 날짜 열기">‹</button>
-    <div class="bed-schedule-popover" id="bedSchedulePopover">
-      <div class="card-label">예약 날짜</div>
-      <div class="bed-schedule-calendar" id="bedScheduleCalendar"></div>
-      <input class="bed-schedule-custom-input" id="bedScheduleCustomInput" type="date" onchange="selectBedScheduleDate(this.value)">
-      <div class="bed-schedule-actions">
-        <button class="bed-schedule-cancel" type="button" onclick="setBedScheduleOpen(false)">취소</button>
-        <button class="bed-schedule-confirm" id="bedScheduleConfirmBtn" type="button" onclick="confirmBedScheduleDate()" disabled>확인</button>
-      </div>
-      <div class="bed-schedule-hint">날짜 선택 후 확인을 누르면 예약됩니다.</div>
-    </div>
     <div class="bed-layout">
       <select class="bed-selector" id="bedSelector" onchange="selectBed(Number(this.value))"></select>
       <div class="bed-workspace">
         <div class="bed-left-column">
-          <details class="bed-input-section" id="bedEditSection">
+          <details class="bed-input-section" id="bedEditSection" open>
             <summary>정보 수정</summary>
             <div class="bed-input-body">
               <div class="form-section">
@@ -2504,11 +2688,16 @@
   let receiveAlertBeepTimer = null;
   let isTimerAlertOpen = false;
   let activeTimerAlert = null;
+  let selectedDoctorAlertId = localStorage.getItem('selectedDoctorAlertId') || '';
+  let activeDoctorProcedureAlert = null;
   const timerAlertQueue = [];
+  const doctorProcedureAlertQueue = [];
   const pendingTimerAlertBeds = new Set();
   const finishingBeds = new Set();
   const seenTimerAlerts = new Set();
   const queuedTimerAlerts = new Set();
+  const seenDoctorProcedureAlerts = new Set();
+  const queuedDoctorProcedureAlerts = new Set();
   const knownAssignedPatientKeys = new Set();
   const assignmentAlertItems = [];
   const dismissedAppointmentAlertIds = new Set();
@@ -2553,6 +2742,14 @@
       btn.innerHTML = `<span class="treat-icon">${t.icon}</span><span class="treat-name">${t.name}</span>`;
       btn.onclick = () => treatBtnClick(gridId, t);
       grid.appendChild(btn);
+      if (t.id === 'pharmacopuncture_ja') {
+        const chip = document.createElement('span');
+        chip.id = `credit-chip-${gridId}`;
+        chip.className = 'credit-chip';
+        chip.onclick = () => beginCreditEdit(gridId);
+        chip.innerHTML = `<span class="credit-chip-label">크레딧&nbsp;<span class="credit-chip-value" id="credit-value-${gridId}">0</span></span><input class="credit-input" id="credit-input-${gridId}" type="text" maxlength="3" value="0" inputmode="numeric" pattern="[0-9]*" onchange="updateCreditChip('${gridId}', this.value)" onkeydown="handleCreditKeydown(event, '${gridId}')" onblur="endCreditEdit('${gridId}')" onclick="event.stopPropagation()">`;
+        grid.appendChild(chip);
+      }
     });
 
     // 칩 영역 삽입 (그리드 다음에)
@@ -2567,6 +2764,61 @@
     renderTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
   }
+
+  window.updateCreditChip = function(gridId, credit) {
+    const input = document.getElementById(`credit-input-${gridId}`);
+    const valueEl = document.getElementById(`credit-value-${gridId}`);
+    const value = Math.max(0, Math.min(999, Number(String(credit ?? '').replace(/[^0-9]/g, '')) || 0));
+    if (input) input.value = String(value);
+    if (valueEl) valueEl.textContent = String(value);
+    return value;
+  };
+
+  window.beginCreditEdit = function(gridId) {
+    const chip = document.getElementById(`credit-chip-${gridId}`);
+    const input = document.getElementById(`credit-input-${gridId}`);
+    if (!chip || !input) return;
+    chip.classList.add('editing');
+    input.value = String(getCreditValue(gridId));
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+  };
+
+  window.endCreditEdit = function(gridId) {
+    updateCreditChip(gridId, getCreditValue(gridId));
+    document.getElementById(`credit-chip-${gridId}`)?.classList.remove('editing');
+  };
+
+  window.getCreditValue = function(gridId) {
+    const input = document.getElementById(`credit-input-${gridId}`);
+    return Math.max(0, Math.min(999, Number(String(input?.value ?? '').replace(/[^0-9]/g, '')) || 0));
+  };
+
+  window.handleCreditKeydown = async function(event, gridId) {
+    event.stopPropagation();
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const credit = updateCreditChip(gridId, getCreditValue(gridId));
+    endCreditEdit(gridId);
+    const scope = getScopeFromGridId(gridId);
+    const bedNo = scope === 'bed' ? selectedBedNo : formEditBedNoByScope[scope];
+    const bed = bedNo ? getBedData(bedNo) : null;
+    if (!bed?.patientKey) {
+      showToast('저장할 환자 정보가 없습니다');
+      return;
+    }
+    await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { credit });
+    patientsByKey.set(bed.patientKey, {
+      ...(patientsByKey.get(bed.patientKey) || {}),
+      credit
+    });
+    updateCreditChip(gridId, credit);
+    if (gridId === 'bedTreatmentGrid') populateBedEditForm();
+    renderBedMonitors();
+    showToast(`크레딧 ${credit} 저장 완료`);
+  };
 
   function renderTreatmentPresetSelect(select) {
     const options = treatmentPresets.length
@@ -2871,7 +3123,45 @@
           : `<div class="empty-state"><div class="empty-icon">+</div><div class="empty-text">등록된 ${label}이 없습니다</div></div>`;
       }
     });
+    renderDoctorAlertSelect();
   }
+
+  function renderDoctorAlertSelect() {
+    const select = document.getElementById('doctorAlertSelect');
+    const label = document.getElementById('doctorAlertSelectLabel');
+    if (!select) return;
+    const doctors = getSortedStaff('doctors');
+    const selectedValue = selectedDoctorAlertId;
+    select.innerHTML = doctors.length
+      ? '<option value="">원장 선택</option>' + doctors.map(([key, data]) => `<option value="${escapeHtml(key)}">${escapeHtml(data.name || '')}</option>`).join('')
+      : '<option value="">원장 없음</option>';
+    if (selectedValue && staffByType.doctors.has(selectedValue)) {
+      select.value = selectedValue;
+    } else if (doctors.length) {
+      selectedDoctorAlertId = doctors[0][0];
+      select.value = selectedDoctorAlertId;
+      localStorage.setItem('selectedDoctorAlertId', selectedDoctorAlertId);
+    } else {
+      selectedDoctorAlertId = '';
+      select.value = '';
+      localStorage.removeItem('selectedDoctorAlertId');
+    }
+    const selectedName = staffByType.doctors.get(selectedDoctorAlertId)?.name || (doctors.length ? '원장 선택' : '원장 없음');
+    if (label) label.textContent = selectedName;
+  }
+
+  window.setDoctorAlertFilter = (doctorId) => {
+    selectedDoctorAlertId = doctorId || '';
+    if (selectedDoctorAlertId) localStorage.setItem('selectedDoctorAlertId', selectedDoctorAlertId);
+    else localStorage.removeItem('selectedDoctorAlertId');
+    const label = document.getElementById('doctorAlertSelectLabel');
+    if (label) label.textContent = staffByType.doctors.get(selectedDoctorAlertId)?.name || '원장 선택';
+    activeDoctorProcedureAlert = null;
+    doctorProcedureAlertQueue.length = 0;
+    queuedDoctorProcedureAlerts.clear();
+    syncDoctorProcedureAlerts();
+    renderUpcomingAlerts();
+  };
 
   function getSelectedStaff(type, scope = 'desk') {
     const selectId = type === 'doctors'
@@ -3041,7 +3331,7 @@
           timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
           date: now.toLocaleDateString('ko-KR'),
           bedStatus: 'waiting',
-        chartNo: normalizeChartNo(source.chartNo),
+          chartNo: normalizeChartNo(source.chartNo),
           visitType: source.visitType || '재진',
           chiefComplaint: source.chiefComplaint || '',
           memo: '',
@@ -3051,7 +3341,8 @@
           doctorName: doctor.name,
           nurseId: nurse.id,
           nurseName: nurse.name,
-          testGenerated: true
+          testGenerated: true,
+          credit: 0
         });
       }
 
@@ -3259,7 +3550,8 @@
   window.submitPatient = async (scope = 'desk') => {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     if ((scope === 'desk' || scope === 'receive') && formEditBedNoByScope[scope]) {
-      await saveTextFieldsOnly(scope);
+      const saved = await saveMonitorBedPatientInfo(scope);
+      if (saved) closeMonitorEditForm(scope);
       return;
     }
     const name = document.getElementById(ids.name).value.trim();
@@ -3272,6 +3564,7 @@
     const doctor = getSelectedStaff('doctors', scope);
     let nurse = getSelectedStaff('nurses', scope);
     let treatments = (treatmentSelections[ids.treatmentGrid] || []).map(s => s.name);
+    const credit = window.getCreditValue?.(ids.treatmentGrid) ?? 0;
 
     if (!name) { showToast('❗ 성함을 입력해주세요'); return; }
     if (treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
@@ -3304,7 +3597,8 @@
         doctorId: doctor.id,
         doctorName: doctor.name,
         nurseId: nurse.id,
-        nurseName: nurse.name
+        nurseName: nurse.name,
+        credit
       });
 
       // 초기화
@@ -3324,6 +3618,7 @@
       syncTreatBtnStates(ids.treatmentGrid);
 
       if (scope === 'desk') window.clearChartLookupBadge?.();
+      window.updateCreditChip?.(ids.treatmentGrid, 0);
 
       showToast(`✅ ${name} 알림 전송 완료`);
       if (scope === 'desk') {
@@ -3341,6 +3636,15 @@
     btn.textContent = '입력';
   };
 
+  function closeMonitorEditForm(scope) {
+    setFormEditMode(scope, null);
+    if (scope === 'receive') {
+      setReceiveFormOpen(false);
+    } else {
+      setInputFormOpen(false);
+    }
+  }
+
   function getFormValues(scope) {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const treatments = (treatmentSelections[ids.treatmentGrid] || []).map(s => s.name);
@@ -3357,6 +3661,7 @@
       gender: document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남',
       bodyParts: normalizeBodyParts(formBodyPartsByScope[scope]),
       treatments,
+      credit: window.getCreditValue?.(ids.treatmentGrid) ?? 0,
       doctor,
       nurse
     };
@@ -3395,6 +3700,8 @@
     setTreatmentSelection(ids.treatmentGrid, bed?.treatments || []);
     formBodyPartsByScope[scope] = normalizeBodyParts(bed?.bodyParts);
     renderFormBodyPartSelector(scope);
+    const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    window.updateCreditChip?.(ids.treatmentGrid, patient?.credit ?? 0);
   }
   window.populatePatientForm = populatePatientForm;
 
@@ -3436,6 +3743,7 @@
       setTreatmentSelection(ids.treatmentGrid, []);
       formBodyPartsByScope.bed = { front: [], back: [] };
       renderFormBodyPartSelector('bed');
+      window.updateCreditChip?.('bedTreatmentGrid', 0);
       return;
     }
 
@@ -3452,6 +3760,8 @@
     setTreatmentSelection(ids.treatmentGrid, bed.treatments || []);
     formBodyPartsByScope.bed = normalizeBodyParts(bed.bodyParts);
     renderFormBodyPartSelector('bed');
+    const bedPatient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    window.updateCreditChip?.('bedTreatmentGrid', bedPatient?.credit ?? 0);
   }
 
   window.populateBedEditForm = populateBedEditForm;
@@ -3462,18 +3772,14 @@
     const button = document.getElementById('bedEditToggle');
     if (!panel || !section) return;
 
-    panel.classList.toggle('bed-edit-open', Boolean(open));
-    if (open) {
-      section.setAttribute('open', '');
-      populateBedEditForm();
-    } else {
-      section.removeAttribute('open');
-    }
+    panel.classList.remove('bed-edit-open');
+    section.setAttribute('open', '');
+    populateBedEditForm();
 
     if (button) {
-      button.textContent = open ? '‹' : '›';
-      button.setAttribute('aria-label', open ? '정보 수정 닫기' : '정보 수정 열기');
-      button.title = open ? '정보 수정 닫기' : '정보 수정 열기';
+      button.textContent = '›';
+      button.setAttribute('aria-label', '정보 수정');
+      button.title = '정보 수정';
     }
   }
 
@@ -3511,7 +3817,7 @@
     pendingBedScheduleDate = selectedDate || '';
     const today = addLocalDays(new Date(), 0);
     const presetDateItems = [];
-    for (let offset = 0; presetDateItems.length < 7; offset += 1) {
+    for (let offset = 1; presetDateItems.length < 7; offset += 1) {
       const date = addLocalDays(today, offset);
       if (date.getDay() === 0) continue;
       presetDateItems.push({ date, dateValue: toLocalDateInputValue(date), offset });
@@ -3539,6 +3845,7 @@
     const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
     renderBedScheduleCalendar(patient?.appointmentDate || '');
   }
+  window.populateBedSchedulePanel = populateBedSchedulePanel;
 
   function setBedScheduleOpen(open) {
     const panel = document.getElementById('bedPanel');
@@ -3600,7 +3907,7 @@
     }, appointmentDate);
     if (ok) {
       showToast(`${bed.name || '환자'}님 ${formatAppointmentDate(appointmentDate)} 예약`);
-      setBedScheduleOpen(false);
+      populateBedSchedulePanel();
     }
   };
 
@@ -3648,11 +3955,13 @@
         doctorId: form.doctor.id,
         doctorName: form.doctor.name,
         nurseId: form.nurse.id,
-        nurseName: form.nurse.name
+        nurseName: form.nurse.name,
+        credit: form.credit
       };
+      const { credit, ...bedPatch } = patientPatch;
 
       await update(ref(db, `${BEDS_PATH}/${selectedBedNo}`), {
-        ...patientPatch,
+        ...bedPatch,
         ...timerPatch
       });
 
@@ -3711,15 +4020,15 @@
 
   async function saveMonitorBedPatientInfo(scope) {
     const bedNo = formEditBedNoByScope[scope];
-    const bed = bedAssignments[bedNo - 1];
+    const bed = getBedData(bedNo);
     if (!bed) {
       showToast('현재 베드가 비어 있습니다');
-      return;
+      return false;
     }
 
     const form = getFormValues(scope);
-    if (!form.name) { showToast('❗ 성함을 입력해주세요'); return; }
-    if (form.treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
+    if (!form.name) { showToast('❗ 성함을 입력해주세요'); return false; }
+    if (form.treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return false; }
 
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const btn = document.getElementById(ids.submitBtn);
@@ -3756,20 +4065,25 @@
         doctorId: form.doctor.id,
         doctorName: form.doctor.name,
         nurseId: form.nurse.id,
-        nurseName: form.nurse.name
+        nurseName: form.nurse.name,
+        credit: form.credit
       };
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), { ...payload, ...timerUpdates });
+      const { credit, ...bedPayload } = payload;
+      await update(ref(db, `${BEDS_PATH}/${bedNo}`), { ...bedPayload, ...timerUpdates });
       if (bed.patientKey) {
         await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
       }
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(bedNo);
       showToast(`${getBedLabel(bedNo)} 정보 저장 완료`);
+      return true;
     } catch (e) {
       console.error(e);
       showToast('정보 저장 실패');
+      return false;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '정보수정';
     }
-    btn.disabled = false;
-    btn.textContent = '정보수정';
   }
 
   function csvCell(value) {
@@ -4117,6 +4431,7 @@ let migratedCount = 0;
     syncAssignedPatientKeys(hasLoadedBedsOnce);
     syncTimerAlertsWithBeds();
     handleRemoteTimerAlerts(!hasLoadedBedsOnce);
+    syncDoctorProcedureAlerts();
     hasLoadedBedsOnce = true;
     if (!migratedCount) await assignWaitingPatientsToBeds();
     renderBedSelector();
@@ -4432,6 +4747,23 @@ let migratedCount = 0;
     if (!patient) return;
     if (!confirm(`${patient.name || '대기'} 삭제하시겠습니까?`)) return;
 
+    if (patient.chartNo) {
+      const assignedBed = bedAssignments.find(bed => bed?.patientKey === key);
+      await window.saveChartPatient?.({
+        chartNo: normalizeChartNo(patient.chartNo),
+        name: patient.name || '',
+        age: patient.age || '',
+        gender: patient.gender || '',
+        visitType: patient.visitType || '',
+        chiefComplaint: patient.chiefComplaint || '',
+        memo: patient.memo || '',
+        treatments: patient.treatments || [],
+        bodyParts: normalizeBodyParts(assignedBed?.bodyParts || patient.bodyParts),
+        appointmentDate: patient.appointmentDate || '',
+        credit: Number(patient.credit || 0)
+      });
+    }
+
     const assignedBedNo = bedAssignments.findIndex(bed => bed?.patientKey === key) + 1;
     if (assignedBedNo > 0) {
       clearLocalTimerAlertsForBed(assignedBedNo);
@@ -4579,14 +4911,31 @@ let migratedCount = 0;
       }).join('')
       : '';
 
+    const doctorProcedureHtml = shouldShowDoctorProcedureAlerts()
+      ? getDoctorProcedureAlertItems()
+        .filter(item => !seenDoctorProcedureAlerts.has(item.alertId))
+        .map(item => `
+        <div class="upcoming-item assignment" onclick="dismissDoctorProcedureAlert('${escapeHtml(item.alertId)}')">
+          <div class="upcoming-time">시술</div>
+          <div>
+            <div class="upcoming-main">${escapeHtml(item.message)}</div>
+            <div class="upcoming-sub">클릭하면 확인 처리됩니다</div>
+          </div>
+        </div>`)
+        .join('')
+      : '';
+
     const html = assignmentHtml || appointmentHtml || timerHtml
       ? assignmentHtml + appointmentHtml + timerHtml
       : `<div class="empty-state"><div class="empty-icon">⏱</div><div class="empty-text">진행 중인 타이머가 없습니다</div></div>`;
+    const receiveHtml = doctorProcedureHtml
+      ? doctorProcedureHtml + assignmentHtml + appointmentHtml + timerHtml
+      : html;
 
-    ['inputUpcomingAlerts', 'receiveUpcomingAlerts'].forEach(id => {
-      const list = document.getElementById(id);
-      if (list) list.innerHTML = html;
-    });
+    const inputList = document.getElementById('inputUpcomingAlerts');
+    if (inputList) inputList.innerHTML = html;
+    const receiveList = document.getElementById('receiveUpcomingAlerts');
+    if (receiveList) receiveList.innerHTML = receiveHtml;
   }
 
   window.dismissAssignmentAlert = (id) => {
@@ -4600,6 +4949,15 @@ let migratedCount = 0;
   window.dismissAppointmentAlert = (id) => {
     dismissedAppointmentAlertIds.add(id);
     renderUpcomingAlerts();
+  };
+
+  window.dismissDoctorProcedureAlert = (id) => {
+    if (!id) return;
+    seenDoctorProcedureAlerts.add(id);
+    queuedDoctorProcedureAlerts.delete(id);
+    if (activeDoctorProcedureAlert?.alertId === id) activeDoctorProcedureAlert = null;
+    renderUpcomingAlerts();
+    syncDoctorProcedureAlerts();
   };
 
   function formatTimer(seconds) {
@@ -4642,6 +5000,7 @@ let migratedCount = 0;
   function renderBedDetail() {
     const detail = document.getElementById('bedDetail');
     renderBodyPartSelector();
+    populateBedEditForm();
     renderBedDetailInto(detail, selectedBedNo, true);
     updateBedRemainingChip();
   }
@@ -4655,6 +5014,7 @@ let migratedCount = 0;
     if (!detail) return;
     detail.classList.add('active');
     detail.innerHTML = renderBedDetailMarkup(bedNo, allowControls, context);
+    if (context === 'bed') populateBedSchedulePanel();
   }
 
   function getBedRemainingTreatmentSeconds(bed) {
@@ -4688,10 +5048,11 @@ let migratedCount = 0;
   }
   window.updateBedHeaderBedChip = updateBedHeaderBedChip;
 
-  function normalizeBodyParts(bodyParts = {}) {
+  function normalizeBodyParts(bodyParts) {
+    const bp = bodyParts || {};
     return {
-      front: Array.isArray(bodyParts.front) ? bodyParts.front : [],
-      back: Array.isArray(bodyParts.back) ? bodyParts.back : []
+      front: Array.isArray(bp.front) ? bp.front : [],
+      back: Array.isArray(bp.back) ? bp.back : []
     };
   }
 
@@ -4993,6 +5354,18 @@ let migratedCount = 0;
       </div>`;
   }
 
+  function renderBedSchedulePanelMarkup() {
+    return `
+      <div class="bed-schedule-panel" id="bedSchedulePanel">
+        <div class="bed-schedule-calendar" id="bedScheduleCalendar"></div>
+        <input class="bed-schedule-custom-input" id="bedScheduleCustomInput" type="date" onchange="selectBedScheduleDate(this.value)">
+        <div class="bed-schedule-actions">
+          <button class="bed-schedule-cancel" type="button" onclick="populateBedSchedulePanel()">취소</button>
+          <button class="bed-schedule-confirm" id="bedScheduleConfirmBtn" type="button" onclick="confirmBedScheduleDate()" disabled>확인</button>
+        </div>
+      </div>`;
+  }
+
   function renderBedDetailMarkup(bedNo, allowControls, context = 'bed') {
     const bed = getBedData(bedNo);
     const bedLabel = getBedLabel(bedNo);
@@ -5023,6 +5396,7 @@ let migratedCount = 0;
         <div class="timer-list">
           ${bed.complete ? renderCompleteCard(bedNo, bed, allowControls, context) : renderTimerCard(bedNo, bed, currentTreatment, allowControls, context)}
         </div>
+        ${allowControls && context === 'bed' ? renderBedSchedulePanelMarkup() : ''}
         ${allowControls && context !== 'bed' && !bed.complete ? `<button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
       </div>`;
   }
@@ -5088,7 +5462,7 @@ let migratedCount = 0;
         ${allowControls ? `<div class="timer-settings${isBedContext ? ' bed-timer-settings' : ''}">
           <input class="timer-minute-input" id="${inputId}" type="number" min="1" max="120" step="1" value="${Math.max(1, Math.round(bed.total / 60))}" aria-label="타이머 시간 분">
           <button class="timer-set-btn" onclick="setTimerMinutes(${bedNo}, '${context}')">시간 설정</button>
-          ${isBedContext ? `<button class="timer-set-btn" onclick="resetTimer(${bedNo})">초기화</button>` : ''}
+          ${isBedContext ? `<button class="timer-set-btn" onclick="resetTimer(${bedNo})">프리셋</button>` : ''}
         </div>` : ''}
         ${allowControls ? `<div class="timer-actions${isBedContext ? ' bed-timer-actions' : ''}">
           <button class="timer-btn ${toggleClass}" onclick="toggleTimer(${bedNo})">${toggleLabel}</button>
@@ -5423,10 +5797,11 @@ let migratedCount = 0;
         gender: bed.gender || '',
         visitType: bed.visitType || '',
         chiefComplaint: bed.chiefComplaint || '',
-        memo: bed.memo || '',
+        memo: patient?.memo || bed.memo || '',
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
-        appointmentDate: patient?.appointmentDate || ''
+        appointmentDate: patient?.appointmentDate || '',
+        credit: Number(patient?.credit || 0)
       });
     }
 
@@ -5800,7 +6175,8 @@ let migratedCount = 0;
       age: bed.age || '',
       chiefComplaint: bed.chiefComplaint || '',
       memo: bed.memo || '',
-      bodyParts: normalizeBodyParts(bed.bodyParts)
+      bodyParts: normalizeBodyParts(bed.bodyParts),
+      credit: Number((bed.patientKey ? patientsByKey.get(bed.patientKey) : null)?.credit || 0)
     };
   }
 
@@ -5854,12 +6230,18 @@ let migratedCount = 0;
     updateDeskWaitChip();
     updateReceiveAlertAudioState();
   }
+  window.renderBedMonitors = renderBedMonitors;
 
   function renderBedStatusCard(status, context) {
     const isReceive = context === 'receive';
     const isInput = context === 'input';
     const canMoveBed = isInput || isReceive;
+    const compact = (isInput && document.getElementById('inputPanel')?.classList.contains('input-form-open'))
+      || (isReceive && document.getElementById('receivePanel')?.classList.contains('receive-form-open'));
+    const editingBedNo = isInput ? formEditBedNoByScope['desk'] : (isReceive ? formEditBedNoByScope['receive'] : null);
+    const isEditingBed = compact && editingBedNo && status.bedNo === editingBedNo;
     const activeClass = [
+      isEditingBed ? ' selected' : '',
       canMoveBed && status.bedNo === selectedMoveBedNo ? ' move-source' : '',
       canMoveBed && selectedMoveBedNo && status.bedNo !== selectedMoveBedNo ? ' move-target' : ''
     ].join('');
@@ -5869,13 +6251,13 @@ let migratedCount = 0;
 
     if (status.empty) {
       return `
-        <div class="bed-status${activeClass}" tabindex="0"${moveHandlers}>
+        <div class="bed-status${compact ? ' compact' : ''}${activeClass}" tabindex="0"${moveHandlers}>
           <div class="bed-status-top">
-            <span class="bed-status-no">${escapeHtml(status.bedLabel)} 비어 있음</span>
-            <span class="bed-status-time">-</span>
+            <span class="bed-status-no">${compact ? '비어 있음' : `${escapeHtml(status.bedLabel)} 비어 있음`}</span>
+            ${compact ? '' : '<span class="bed-status-time">-</span>'}
           </div>
-          <div class="bed-status-treatment"><span class="bed-stage-badge empty">비어 있음</span></div>
-          ${renderBedPopover(status)}
+          ${compact ? '' : '<div class="bed-status-treatment"><span class="bed-stage-badge empty">비어 있음</span></div>'}
+          ${compact ? '' : renderBedPopover(status)}
         </div>`;
     }
 
@@ -5893,14 +6275,14 @@ let migratedCount = 0;
       status.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">${escapeHtml(status.memo)}</span>` : ''
     ].filter(Boolean).join('');
     return `
-      <div class="bed-status${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${canMoveBed ? ` oncontextmenu="confirmClearBed(event, ${status.bedNo})"` : ''}>
+      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${canMoveBed ? ` oncontextmenu="confirmClearBed(event, ${status.bedNo})"` : ''}>
         <div class="bed-status-top">
-          <span class="bed-status-no">${escapeHtml(status.bedLabel)} ${escapeHtml(status.name)}</span>
-          <span class="bed-status-time">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>
+          <span class="bed-status-no">${compact ? escapeHtml(status.name) : `${escapeHtml(status.bedLabel)} ${escapeHtml(status.name)}`}</span>
+          ${compact ? '' : `<span class="bed-status-time">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
-        ${infoChips ? `<div class="bed-status-info">${infoChips}</div>` : ''}
-        ${staffHtml ? `<div class="bed-status-treatment">${staffHtml}</div>` : ''}
-        ${renderBedPopover(status)}
+        ${compact ? '' : (infoChips ? `<div class="bed-status-info">${infoChips}</div>` : '')}
+        ${compact ? '' : (staffHtml ? `<div class="bed-status-treatment">${staffHtml}</div>` : '')}
+        ${compact ? '' : renderBedPopover(status)}
       </div>`;
   }
 
@@ -5922,6 +6304,47 @@ let migratedCount = 0;
     const receivePanelActive = document.getElementById('receivePanel')?.classList.contains('active');
     if (view) return (view === 'doctor' || view === 'clinic') && receivePanelActive;
     return receivePanelActive;
+  }
+
+  function shouldShowDoctorProcedureAlerts() {
+    const view = (new URLSearchParams(window.location.search).get('view') || '').toLowerCase();
+    const receivePanelActive = document.getElementById('receivePanel')?.classList.contains('active');
+    if (view) return view === 'doctor' && receivePanelActive;
+    return window.currentMode === 'doctor' && receivePanelActive;
+  }
+
+  function isDoctorProcedureTreatment(treatment) {
+    return String(treatment || '').trim() === '침';
+  }
+
+  function getDoctorProcedureAlertId(bedNo, bed, treatment) {
+    return `${bed.patientKey || bed.chartNo || bedNo}:${bedNo}:${Number(bed.currentIndex || 0)}:${treatment}`;
+  }
+
+  function getDoctorProcedureAlertItems() {
+    if (!selectedDoctorAlertId) return [];
+    return ACTIVE_BED_NUMBERS
+      .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
+      .filter(({ bed }) => {
+        if (!bed || bed.complete || bed.running) return false;
+        if (bed.doctorId !== selectedDoctorAlertId) return false;
+        const treatment = bed.treatments?.[bed.currentIndex || 0];
+        return isDoctorProcedureTreatment(treatment);
+      })
+      .map(({ bedNo, bed }) => {
+        const treatment = bed.treatments?.[bed.currentIndex || 0] || '침';
+        const doctorName = bed.doctorName || staffByType.doctors.get(selectedDoctorAlertId)?.name || '원장';
+        const alertId = getDoctorProcedureAlertId(bedNo, bed, treatment);
+        return {
+          alertId,
+          bedNo,
+          doctorId: bed.doctorId || '',
+          bedLabel: getBedLabel(bedNo),
+          name: bed.name || '',
+          treatment,
+          message: `${doctorName} 원장님 ${bed.name || '환자'} ${getBedLabel(bedNo)} ${treatment} 시술`
+        };
+      });
   }
 
   function syncAssignedPatientKeys(showNewAssignments = false) {
@@ -6016,6 +6439,7 @@ let migratedCount = 0;
       renderUpcomingAlerts();
       updateDeskWaitChip();
       updateBedRemainingChip();
+      syncDoctorProcedureAlerts();
     }, 1000);
   }
 
@@ -6145,6 +6569,22 @@ let migratedCount = 0;
       if (alert.bedNo) pendingTimerAlertBeds.add(alert.bedNo);
     });
     renderBedMonitors();
+  }
+
+  function syncDoctorProcedureAlerts() {
+    const activeItems = getDoctorProcedureAlertItems();
+    const activeIds = new Set(activeItems.map(item => item.alertId));
+
+    if (activeDoctorProcedureAlert?.alertId && !activeIds.has(activeDoctorProcedureAlert.alertId)) {
+      activeDoctorProcedureAlert = null;
+    }
+
+    for (let i = doctorProcedureAlertQueue.length - 1; i >= 0; i--) {
+      if (!activeIds.has(doctorProcedureAlertQueue[i].alertId)) {
+        queuedDoctorProcedureAlerts.delete(doctorProcedureAlertQueue[i].alertId);
+        doctorProcedureAlertQueue.splice(i, 1);
+      }
+    }
   }
 
   function clearLocalTimerAlertsForBed(bedNo) {
@@ -6475,7 +6915,7 @@ let migratedCount = 0;
 
             const chiefComplaint = colDiag ? String(row[colDiag] || '').trim() : '';
 
-            store.put({ chartNo, name, age: age ? Number(age) : '', gender, chiefComplaint, memo: '' });
+            store.put({ chartNo, name, age: age ? Number(age) : '', gender, chiefComplaint, memo: '', credit: 0 });
             saved++;
           }
           tx.oncomplete = resolve;
@@ -6512,6 +6952,7 @@ let migratedCount = 0;
       window.applyTreatmentsToForm?.('desk', patient.treatments || []);
       // 치료 부위 복원
       window.applyBodyPartsToForm?.('desk', patient.bodyParts);
+      window.updateCreditChip?.('treatmentGrid', patient.credit ?? 0);
       badge.textContent = '재';
       badge.className = 'chart-lookup-badge returning';
     } else {
@@ -6522,6 +6963,7 @@ let migratedCount = 0;
       document.querySelector(`input[name="visitType"][value="초진"]`).click();
       window.applyTreatmentsToForm?.('desk', []);
       window.applyBodyPartsToForm?.('desk', null);
+      window.updateCreditChip?.('treatmentGrid', 0);
       badge.textContent = '초';
       badge.className = 'chart-lookup-badge new';
     }
@@ -6593,6 +7035,7 @@ let migratedCount = 0;
     window.updateReceiveAlertAudioState?.();
     if (mode === 'settings') window.updateChartDbCount?.();
     if (mode === 'notify') setReceiveFormOpen(false);
+    syncDoctorProcedureAlerts();
   }
 
   function setInputFormOpen(open) {
@@ -6624,13 +7067,42 @@ let migratedCount = 0;
       button.setAttribute('aria-label', open ? '입력 닫기' : '입력 열기');
       button.title = open ? '입력 닫기' : '입력 열기';
     }
+    const headerButton = document.getElementById('deskInputHeaderBtn');
+    if (headerButton) {
+      headerButton.textContent = open ? '닫기' : '입력';
+      headerButton.classList.toggle('active', Boolean(open));
+      headerButton.setAttribute('aria-label', open ? '입력 닫기' : '입력 열기');
+      headerButton.title = open ? '입력 닫기' : '입력 열기';
+    }
+    window.renderBedMonitors?.();
   }
 
   function resetDeskInputToggles() {
     document.querySelector('input[name="visitType"][value="초진"]')?.click();
     document.querySelector('input[name="gender"][value="남"]')?.click();
     window.clearChartLookupBadge?.();
+    window.updateCreditChip?.('treatmentGrid', 0);
   }
+
+  window.openDeskInputForm = () => {
+    window.setFormEditMode?.('desk', null);
+    window.populatePatientForm?.('desk', null);
+    resetDeskInputToggles();
+    setInputFormOpen(true);
+    window.applyRoundRobinNurseToForm?.('desk');
+  };
+
+  window.toggleDeskInputForm = () => {
+    const isOpen = document.getElementById('inputPanel')?.classList.contains('input-form-open');
+    if (isOpen) {
+      setInputFormOpen(false);
+      window.setFormEditMode?.('desk', null);
+      window.populatePatientForm?.('desk');
+      resetDeskInputToggles();
+    } else {
+      window.openDeskInputForm?.();
+    }
+  };
 
   window.toggleInputForm = () => {
     const button = document.getElementById('inputFormToggle');
@@ -6670,6 +7142,7 @@ let migratedCount = 0;
       button.setAttribute('aria-label', open ? '입력 닫기' : '입력 열기');
       button.title = open ? '입력 닫기' : '입력 열기';
     }
+    window.renderBedMonitors?.();
   }
 
   window.toggleReceiveForm = () => {
