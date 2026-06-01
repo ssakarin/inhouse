@@ -2686,6 +2686,7 @@
   let timerAlertBeepTimer = null;
   let timerAlertStopTimer = null;
   let receiveAlertBeepTimer = null;
+  let alertListBeepTimer = null;
   let isTimerAlertOpen = false;
   let activeTimerAlert = null;
   let selectedDoctorAlertId = localStorage.getItem('selectedDoctorAlertId') || '';
@@ -4925,7 +4926,9 @@ let migratedCount = 0;
         .join('')
       : '';
 
-    const html = assignmentHtml || appointmentHtml || timerHtml
+    const baseHasAlerts = Boolean(assignmentHtml || appointmentHtml || timerHtml);
+    const receiveHasAlerts = Boolean(doctorProcedureHtml || assignmentHtml || appointmentHtml || timerHtml);
+    const html = baseHasAlerts
       ? assignmentHtml + appointmentHtml + timerHtml
       : `<div class="empty-state"><div class="empty-icon">⏱</div><div class="empty-text">진행 중인 타이머가 없습니다</div></div>`;
     const receiveHtml = doctorProcedureHtml
@@ -4936,6 +4939,7 @@ let migratedCount = 0;
     if (inputList) inputList.innerHTML = html;
     const receiveList = document.getElementById('receiveUpcomingAlerts');
     if (receiveList) receiveList.innerHTML = receiveHtml;
+    updateAlertListAudioState();
   }
 
   window.dismissAssignmentAlert = (id) => {
@@ -6450,29 +6454,27 @@ let migratedCount = 0;
       }
       const ctx = timerAlertAudioCtx;
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.55, ctx.currentTime);
+      master.gain.setValueAtTime(0.42, ctx.currentTime);
       master.connect(ctx.destination);
 
       const notes = [
-        { freq: 523.25, at: 0.00, type: 'sine', volume: 0.18 },
-        { freq: 659.25, at: 0.16, type: 'sine', volume: 0.16 },
-        { freq: 783.99, at: 0.32, type: 'triangle', volume: 0.14 },
-        { freq: 1046.5, at: 0.52, type: 'sine', volume: 0.10 }
+        { freq: 392.00, at: 0.00, volume: 0.13 },
+        { freq: 493.88, at: 0.34, volume: 0.12 }
       ];
 
-      notes.forEach(({ freq, at, type, volume }) => {
+      notes.forEach(({ freq, at, volume }) => {
         const start = ctx.currentTime + at;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = type;
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, start);
         osc.connect(gain);
         gain.connect(master);
         gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(volume, start + 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.9);
+        gain.gain.linearRampToValueAtTime(volume, start + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 1.15);
         osc.start(start);
-        osc.stop(start + 0.95);
+        osc.stop(start + 1.2);
       });
     } catch(e) {}
   }
@@ -6491,31 +6493,37 @@ let migratedCount = 0;
     timerAlertStopTimer = null;
   }
 
-  function hasAnyBedAlert() {
-    return bedAssignments.some(bed => Boolean(bed?.lastAlertId));
-  }
-
-  function isReceivePanelActive() {
-    return document.getElementById('receivePanel')?.classList.contains('active');
-  }
-
-  function startReceiveAlertBeeps() {
-    if (receiveAlertBeepTimer) return;
-    playSoftTimerChime();
-    receiveAlertBeepTimer = setInterval(playSoftTimerChime, 3000);
-  }
-
   function stopReceiveAlertBeeps() {
     if (receiveAlertBeepTimer) clearInterval(receiveAlertBeepTimer);
     receiveAlertBeepTimer = null;
   }
 
+  function shouldPlayAlertListAudio() {
+    if (!['input', 'doctor', 'receive'].includes(window.currentMode)) return false;
+    const listId = window.currentMode === 'input' ? 'inputUpcomingAlerts' : 'receiveUpcomingAlerts';
+    return Boolean(document.getElementById(listId)?.querySelector('.upcoming-item'));
+  }
+
+  function startAlertListBeeps() {
+    if (alertListBeepTimer) return;
+    playSoftTimerChime();
+    alertListBeepTimer = setInterval(playSoftTimerChime, 8000);
+  }
+
+  function stopAlertListBeeps() {
+    if (alertListBeepTimer) clearInterval(alertListBeepTimer);
+    alertListBeepTimer = null;
+  }
+
+  function updateAlertListAudioState() {
+    stopReceiveAlertBeeps();
+    if (shouldPlayAlertListAudio()) startAlertListBeeps();
+    else stopAlertListBeeps();
+  }
+  window.updateAlertListAudioState = updateAlertListAudioState;
+
   function updateReceiveAlertAudioState() {
-    if (isReceivePanelActive() && hasAnyBedAlert()) {
-      startReceiveAlertBeeps();
-    } else {
-      stopReceiveAlertBeeps();
-    }
+    updateAlertListAudioState();
   }
   window.updateReceiveAlertAudioState = updateReceiveAlertAudioState;
 
@@ -7036,6 +7044,7 @@ let migratedCount = 0;
     if (mode === 'settings') window.updateChartDbCount?.();
     if (mode === 'notify') setReceiveFormOpen(false);
     syncDoctorProcedureAlerts();
+    renderUpcomingAlerts();
   }
 
   function setInputFormOpen(open) {
