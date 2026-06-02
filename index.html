@@ -4667,6 +4667,14 @@ let migratedCount = 0;
     return Math.max(0, Number(procedureMinutes || 0)) * 60;
   }
 
+  function isNeedleMoxaPair(first, second) {
+    const a = String(first || '').trim();
+    const b = String(second || '').trim();
+    const isNeedle = value => value === '침';
+    const isMoxa = value => value === '왕뜸' || value === '전자뜸';
+    return (isNeedle(a) && isMoxa(b)) || (isMoxa(a) && isNeedle(b));
+  }
+
   function getPreferredBedOrder(gender) {
     const primary = gender === '여' ? FEMALE_PRIMARY_BED_NUMBERS : MALE_PRIMARY_BED_NUMBERS;
     const fallback = gender === '여' ? MALE_PRIMARY_BED_NUMBERS : FEMALE_PRIMARY_BED_NUMBERS;
@@ -5143,28 +5151,39 @@ let migratedCount = 0;
   }
 
   function renderUpcomingAlerts() {
-    const renderBedAssignmentHtml = (mode) => getVisibleBedAssignmentAlertItems(mode).map(item => `
+    const renderAlertItemsHtml = (items) => items
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
+      .map(item => item.html)
+      .join('');
+
+    const renderBedAssignmentItems = (mode) => getVisibleBedAssignmentAlertItems(mode).map(item => ({
+      timestamp: Number(item.timestamp || 0),
+      html: `
       <div class="upcoming-item assignment" onclick="dismissBedAssignmentAlert('${escapeHtml(item.key)}')">
         <div class="upcoming-time">배정</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.message)}</div>
           <div class="upcoming-sub">클릭하면 사라집니다</div>
         </div>
-      </div>`).join('');
-    const inputAssignmentHtml = renderBedAssignmentHtml('input');
+      </div>`
+    }));
+    const inputAssignmentItems = renderBedAssignmentItems('input');
     const receiveModeForAlerts = window.currentMode === 'notify'
       ? 'notify'
       : (window.currentMode === 'receive' ? 'receive' : window.currentMode);
-    const receiveAssignmentHtml = renderBedAssignmentHtml(receiveModeForAlerts);
+    const receiveAssignmentItems = renderBedAssignmentItems(receiveModeForAlerts);
 
-    const doctorAssignmentHtml = getVisibleDoctorAssignmentAlertItems().map(item => `
+    const doctorAssignmentItems = getVisibleDoctorAssignmentAlertItems().map(item => ({
+      timestamp: Number(item.timestamp || 0),
+      html: `
       <div class="upcoming-item assignment" onclick="dismissDoctorAssignmentAlert('${escapeHtml(item.key)}')">
         <div class="upcoming-time">배정</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.message)}</div>
           <div class="upcoming-sub">클릭하면 사라집니다</div>
         </div>
-      </div>`).join('');
+      </div>`
+    }));
 
     const appointmentItems = [...patientsByKey.entries()]
       .map(([key, data]) => ({
@@ -5177,25 +5196,31 @@ let migratedCount = 0;
       .filter(item => item.name && shouldShowAppointmentAlertForMode(item.data))
       .sort((a, b) => String(a.appointmentDate).localeCompare(String(b.appointmentDate)) || String(a.name).localeCompare(String(b.name)));
 
-    const appointmentHtml = appointmentItems.map(item => `
+    const appointmentAlertItems = appointmentItems.map(item => ({
+      timestamp: Number(item.data?.appointmentAlert?.timestamp || item.data?.timestamp || 0),
+      html: `
       <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.key)}')">
         <div class="upcoming-time">예약</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.name)}님 ${escapeHtml(formatAppointmentDate(item.appointmentDate))} 예약</div>
           <div class="upcoming-sub">클릭하면 사라집니다</div>
         </div>
-      </div>`).join('');
+      </div>`
+    }));
 
-    const renderCallHtml = (mode) => getVisibleCallAlertItems(mode).map(item => `
+    const renderCallItems = (mode) => getVisibleCallAlertItems(mode).map(item => ({
+      timestamp: Number(item.timestamp || 0),
+      html: `
       <div class="upcoming-item assignment" onclick="dismissDoctorCallAlert('${escapeHtml(item.key)}')">
         <div class="upcoming-time">호출</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.message)}</div>
           <div class="upcoming-sub">클릭하면 사라집니다</div>
         </div>
-      </div>`).join('');
-    const inputCallHtml = renderCallHtml('input');
-    const receiveCallHtml = renderCallHtml(receiveModeForAlerts);
+      </div>`
+    }));
+    const inputCallItems = renderCallItems('input');
+    const receiveCallItems = renderCallItems(receiveModeForAlerts);
 
     const upcoming = bedAssignments
       .map((bed, index) => {
@@ -5214,22 +5239,22 @@ let migratedCount = 0;
           nurseName: bed.nurseName || '',
           treatment,
           remaining,
-          alertPending: isAlertPending
+          alertPending: isAlertPending,
+          timestamp: Number(String(bed.lastAlertId || '').split('-').pop()) || Number(bed.startedAt || bed.timestamp || 0)
         };
       })
       .filter(Boolean)
-      .sort((a, b) => {
-        if (a.alertPending !== b.alertPending) return a.alertPending ? -1 : 1;
-        return a.remaining - b.remaining;
-      });
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
 
-    const timerHtml = upcoming.length
+    const timerAlertItems = upcoming.length
       ? upcoming.map(item => {
         const staffLine = [
           item.doctorName ? `원장 ${escapeHtml(item.doctorName)}` : '',
           item.nurseName ? `간호사 ${escapeHtml(item.nurseName)}` : ''
         ].filter(Boolean).join(' · ');
-        return `
+        return {
+          timestamp: Number(item.timestamp || 0),
+          html: `
         <div class="upcoming-item">
           <div class="upcoming-time">${item.alertPending ? '완료' : formatUpcomingTime(item.remaining)}</div>
           <div>
@@ -5237,31 +5262,36 @@ let migratedCount = 0;
             <div class="upcoming-sub">${escapeHtml(item.name)} · ${item.alertPending ? '확인 대기' : formatTimer(item.remaining)}</div>
             ${staffLine ? `<div class="upcoming-staff">${staffLine}</div>` : ''}
           </div>
-        </div>`;
-      }).join('')
-      : '';
+        </div>`
+        };
+      })
+      : [];
 
-    const doctorProcedureHtml = shouldShowDoctorProcedureAlerts()
+    const doctorProcedureItems = shouldShowDoctorProcedureAlerts()
       ? getDoctorProcedureAlertItems()
-        .map(item => `
+        .map(item => ({
+          timestamp: Number(item.timestamp || 0),
+          html: `
         <div class="upcoming-item assignment" onclick="dismissDoctorProcedureAlert(${item.bedNo}, '${escapeHtml(item.alertId)}')">
           <div class="upcoming-time">시술</div>
           <div>
             <div class="upcoming-main">${escapeHtml(item.message)}</div>
             <div class="upcoming-sub">클릭하면 확인 처리됩니다</div>
           </div>
-        </div>`)
-        .join('')
-      : '';
+        </div>`
+        }))
+      : [];
 
-    const baseHasAlerts = Boolean(inputCallHtml || inputAssignmentHtml || appointmentHtml || timerHtml);
-    const receiveSpecificHtml = doctorProcedureHtml + doctorAssignmentHtml;
-    const receiveHasAlerts = Boolean(receiveSpecificHtml || receiveCallHtml || receiveAssignmentHtml || appointmentHtml || timerHtml);
+    const receiveTimerItems = (receiveModeForAlerts === 'notify' || receiveModeForAlerts === 'receive') ? timerAlertItems : [];
+    const inputItems = [...inputCallItems, ...inputAssignmentItems, ...appointmentAlertItems];
+    const receiveItems = [...doctorProcedureItems, ...doctorAssignmentItems, ...receiveCallItems, ...receiveAssignmentItems, ...appointmentAlertItems, ...receiveTimerItems];
+    const baseHasAlerts = inputItems.length > 0;
+    const receiveHasAlerts = receiveItems.length > 0;
     const html = baseHasAlerts
-      ? inputCallHtml + inputAssignmentHtml + appointmentHtml + timerHtml
+      ? renderAlertItemsHtml(inputItems)
       : `<div class="empty-state"><div class="empty-icon">⏱</div><div class="empty-text">진행 중인 타이머가 없습니다</div></div>`;
     const receiveHtml = receiveHasAlerts
-      ? receiveSpecificHtml + receiveCallHtml + receiveAssignmentHtml + appointmentHtml + timerHtml
+      ? renderAlertItemsHtml(receiveItems)
       : html;
 
     const inputList = document.getElementById('inputUpcomingAlerts');
@@ -5350,6 +5380,8 @@ let migratedCount = 0;
     queuedDoctorProcedureAlerts.delete(id);
     if (activeDoctorProcedureAlert?.alertId === id) activeDoctorProcedureAlert = null;
     if (bed) bed.doctorProcedureAlert = patch;
+    selectedReceiveBedNo = Number(bedNo);
+    if (window.currentMode === 'bed') selectedBedNo = Number(bedNo);
     renderUpcomingAlerts();
     renderBedMonitors();
     renderBedDetail();
@@ -5951,8 +5983,11 @@ let migratedCount = 0;
       const remaining = getRemaining(bed);
       if (!bed.running || remaining > 0) return bed;
 
-      const nextIndex = bed.currentIndex + 1;
-      if (nextIndex >= (bed.treatments || []).length) {
+      const treatments = bed.treatments || [];
+      const currentTreatment = treatments[bed.currentIndex];
+      const followingTreatment = treatments[bed.currentIndex + 1];
+      const nextIndex = bed.currentIndex + (isNeedleMoxaPair(currentTreatment, followingTreatment) ? 2 : 1);
+      if (nextIndex >= treatments.length) {
         return {
           ...bed,
           running: false,
@@ -5960,12 +5995,12 @@ let migratedCount = 0;
           remaining: 0,
           complete: true,
           lastAlertId: alertId,
-          lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${bed.treatments[bed.currentIndex]} 완료`,
+          lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${currentTreatment} 완료`,
           doctorProcedureAlert: null
         };
       }
 
-      const nextTotal = getTreatmentSeconds(bed.treatments[nextIndex]);
+      const nextTotal = getTreatmentSeconds(treatments[nextIndex]);
       return {
         ...bed,
         currentIndex: nextIndex,
@@ -5975,7 +6010,7 @@ let migratedCount = 0;
         startedAt: null,
         complete: false,
         lastAlertId: alertId,
-        lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${bed.treatments[bed.currentIndex]} 완료`,
+        lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${currentTreatment} 완료`,
         doctorProcedureAlert: null
       };
     });
@@ -6831,7 +6866,7 @@ let migratedCount = 0;
 
   function getDoctorProcedureAlertItems() {
     if (!selectedDoctorAlertId) return [];
-    return ACTIVE_BED_NUMBERS
+    return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS]
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
       .filter(({ bed }) => {
         if (!bed || bed.complete || bed.running) return false;
@@ -6851,6 +6886,7 @@ let migratedCount = 0;
           bedLabel: getBedLabel(bedNo),
           name: bed.name || '',
           treatment,
+          timestamp: Number(bed.doctorProcedureAlert?.dismissedAt || bed.startedAt || bed.timestamp || 0),
           message: `${doctorName} 원장님 ${bed.name || '환자'} ${getBedLabel(bedNo)} ${treatment} 시술`
         };
       })
