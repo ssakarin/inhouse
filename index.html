@@ -336,6 +336,10 @@
   body.app-mode-receive .receive-drawer-toggle,
   body.app-role-doctor .receive-drawer-toggle,
   body.app-role-clinic .receive-drawer-toggle { display: none !important; }
+  body.app-mode-doctor .receive-panel.receive-edit-open .receive-drawer-toggle,
+  body.app-mode-receive .receive-panel.receive-edit-open .receive-drawer-toggle,
+  body.app-role-doctor .receive-panel.receive-edit-open .receive-drawer-toggle,
+  body.app-role-clinic .receive-panel.receive-edit-open .receive-drawer-toggle { display: block !important; }
   .input-panel.input-form-open .input-drawer-toggle {
     background: var(--gold);
     border-color: var(--gold);
@@ -7831,10 +7835,12 @@ let migratedCount = 0;
     if (shouldClose) {
       setReceiveFormOpen(false);
       window.setFormEditMode?.('receive', null);
+      setWaitingPatientEditMode('receive', null);
       window.populatePatientForm?.('receive');
     } else {
       document.getElementById('receivePanel')?.classList.remove('receive-edit-open');
       window.setFormEditMode?.('receive', null);
+      setWaitingPatientEditMode('receive', null);
       setReceiveFormOpen(true);
       window.populatePatientForm?.('receive');
       window.applyRoundRobinNurseToForm?.('receive');
