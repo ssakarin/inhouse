@@ -329,7 +329,7 @@
     transform: translateY(-50%);
     box-shadow: 0 10px 24px rgba(0,0,0,0.32);
   }
-  .input-panel.active .input-drawer-toggle { display: none; }
+  .input-panel.active > #inputFormToggle { display: block; }
   .receive-panel.active .receive-drawer-toggle { display: block; }
   body.app-mode-notify .receive-drawer-toggle { display: none !important; }
   body.app-mode-doctor .receive-drawer-toggle,
@@ -894,6 +894,31 @@
     font-weight: 900;
     outline: none;
     cursor: pointer;
+  }
+  .doctor-call-controls {
+    display: none;
+    align-items: center;
+    gap: 5px;
+  }
+  body.app-mode-doctor .doctor-call-controls,
+  body.app-role-doctor .doctor-call-controls {
+    display: flex;
+  }
+  .doctor-call-btn {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .doctor-call-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
   .treatment-preset-select:focus { border-color: var(--accent2); }
   .treat-btn {
@@ -2195,12 +2220,15 @@
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
-        <button class="random-test-btn" id="deskInputHeaderBtn" onclick="toggleDeskInputForm()">입력</button>
         <button class="random-test-btn" onclick="assignWaitingPatientsManually()">배정</button>
         <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
       </div>
       <div class="header-notify-controls">
         <span class="header-wait-chip" id="notifyWaitChip">예상대기시간 0분</span>
+        <div class="doctor-call-controls">
+          <button class="doctor-call-btn" onclick="sendDoctorCallAlert('desk')">데스크 호출</button>
+          <button class="doctor-call-btn" onclick="sendDoctorCallAlert('clinic')">치료실 호출</button>
+        </div>
         <div class="doctor-alert-select-wrap">
           <span class="doctor-alert-select-label" id="doctorAlertSelectLabel">원장 선택</span>
           <select class="doctor-alert-select" id="doctorAlertSelect" onchange="setDoctorAlertFilter(this.value)"></select>
@@ -2224,7 +2252,7 @@
 
   <!-- 입력 패널 -->
   <div class="input-panel active" id="inputPanel">
-    <button class="input-drawer-toggle" id="inputFormToggle" data-open="0" onclick="toggleInputForm()" aria-label="입력 열기">›</button>
+    <button class="input-drawer-toggle" id="inputFormToggle" data-open="0" onclick="toggleDeskInputForm()" aria-label="입력 열기">›</button>
     <div class="input-layout">
       <div class="input-form-column">
         <div class="card">
@@ -2276,7 +2304,7 @@
           <div class="card-label">알림</div>
           <div class="upcoming-list" id="inputUpcomingAlerts"></div>
           <div class="card-label" style="margin-top:14px;">대기</div>
-          <div class="waiting-list waiting-list--compact" id="inputWaitingList"></div>
+          <div class="waiting-list waiting-list--compact" id="inputWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
       </div>
 
@@ -2342,7 +2370,7 @@
           <div class="card-label">알림</div>
           <div class="upcoming-list" id="receiveUpcomingAlerts"></div>
           <div class="card-label" style="margin-top:14px;">대기</div>
-          <div class="waiting-list waiting-list--compact" id="receiveWaitingList"></div>
+          <div class="waiting-list waiting-list--compact" id="receiveWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
       </div>
     </div>
@@ -2513,6 +2541,9 @@
   const db = getDatabase(app);
   const PATIENTS_PATH  = 'patients';
   const BEDS_PATH      = 'beds';
+  const CALL_ALERTS_PATH = 'callAlerts';
+  const DOCTOR_ASSIGNMENT_ALERTS_PATH = 'doctorAssignmentAlerts';
+  const BED_ASSIGNMENT_ALERTS_PATH = 'bedAssignmentAlerts';
 
 
 
@@ -2635,11 +2666,7 @@
   };
 
   function getBedLabel(bedNo) {
-    if (bedNo >= 101) {
-      const doctors = getSortedStaff('doctors');
-      const name = doctors[bedNo - 101]?.[1]?.name;
-      return name || `원장실${bedNo - 100}`;
-    }
+    if (bedNo >= 101) return `원장실${bedNo - 100}`;
     return SPECIAL_BED_LABELS[bedNo] || `${bedNo}번`;
   }
 
@@ -2676,6 +2703,10 @@
     desk: null,
     receive: null
   };
+  const formEditPatientKeyByScope = {
+    desk: null,
+    receive: null
+  };
   const normalizedBedChartKeys = new Set();
   const migratingDisabledBedKeys = new Set();
   const cleaningDisabledBedKeys = new Set();
@@ -2704,6 +2735,9 @@
   const queuedDoctorProcedureAlerts = new Set();
   const knownAssignedPatientKeys = new Set();
   const assignmentAlertItems = [];
+  const callAlertItems = new Map();
+  const doctorAssignmentAlertItems = new Map();
+  const bedAssignmentAlertItems = new Map();
   let hasLoadedBedsOnce = false;
   let isClearingPatientDatabase = false;
   window.currentMode = 'input';
@@ -3166,6 +3200,36 @@
     renderUpcomingAlerts();
   };
 
+  function getSelectedDoctorCallInfo() {
+    const doctors = getSortedStaff('doctors');
+    let id = selectedDoctorAlertId;
+    if (!id && doctors.length) id = doctors[0][0];
+    const doctor = id ? staffByType.doctors.get(id) : null;
+    return doctor ? { id, name: doctor.name || '원장' } : null;
+  }
+
+  window.sendDoctorCallAlert = async (target) => {
+    const doctor = getSelectedDoctorCallInfo();
+    if (!doctor) {
+      showToast('원장을 먼저 선택해주세요');
+      return;
+    }
+    const safeTarget = target === 'desk' ? 'desk' : 'clinic';
+    try {
+      await push(ref(db, CALL_ALERTS_PATH), {
+        target: safeTarget,
+        doctorId: doctor.id,
+        doctorName: doctor.name,
+        message: `${doctor.name}원장님 호출`,
+        timestamp: Date.now()
+      });
+      showToast(safeTarget === 'desk' ? '데스크 호출 전송' : '치료실 호출 전송');
+    } catch (e) {
+      console.error(e);
+      showToast('호출 전송 실패');
+    }
+  };
+
   function getSelectedStaff(type, scope = 'desk') {
     const selectId = type === 'doctors'
       ? (scope === 'bed' ? 'bedDoctorSelect' : scope === 'receive' ? 'receiveDoctorSelect' : 'doctorSelect')
@@ -3465,6 +3529,33 @@
     if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
   });
 
+  onValue(ref(db, CALL_ALERTS_PATH), (snapshot) => {
+    callAlertItems.clear();
+    const rows = snapshot.val() || {};
+    Object.entries(rows).forEach(([key, data]) => {
+      if (data) callAlertItems.set(key, data);
+    });
+    renderUpcomingAlerts();
+  });
+
+  onValue(ref(db, DOCTOR_ASSIGNMENT_ALERTS_PATH), (snapshot) => {
+    doctorAssignmentAlertItems.clear();
+    const rows = snapshot.val() || {};
+    Object.entries(rows).forEach(([key, data]) => {
+      if (data) doctorAssignmentAlertItems.set(key, data);
+    });
+    renderUpcomingAlerts();
+  });
+
+  onValue(ref(db, BED_ASSIGNMENT_ALERTS_PATH), (snapshot) => {
+    bedAssignmentAlertItems.clear();
+    const rows = snapshot.val() || {};
+    Object.entries(rows).forEach(([key, data]) => {
+      if (data) bedAssignmentAlertItems.set(key, data);
+    });
+    renderUpcomingAlerts();
+  });
+
   window.saveProcedureMinutes = async () => {
     const input = document.getElementById('procedureMinutesInput');
     const value = Math.max(0, Math.min(120, Number(input?.value) || 0));
@@ -3557,6 +3648,11 @@
       if (saved) closeMonitorEditForm(scope);
       return;
     }
+    if ((scope === 'desk' || scope === 'receive') && formEditPatientKeyByScope[scope]) {
+      const saved = await saveWaitingPatientInfo(scope);
+      if (saved) closeMonitorEditForm(scope);
+      return;
+    }
     const name = document.getElementById(ids.name).value.trim();
     const chartNo = normalizeChartNo(document.getElementById(ids.chartNo).value);
     const chiefComplaint = document.getElementById(ids.chiefComplaint).value.trim();
@@ -3641,6 +3737,7 @@
 
   function closeMonitorEditForm(scope) {
     setFormEditMode(scope, null);
+    setWaitingPatientEditMode(scope, null);
     if (scope === 'receive') {
       setReceiveFormOpen(false);
     } else {
@@ -3704,7 +3801,7 @@
     formBodyPartsByScope[scope] = normalizeBodyParts(bed?.bodyParts);
     renderFormBodyPartSelector(scope);
     const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
-    window.updateCreditChip?.(ids.treatmentGrid, patient?.credit ?? 0);
+    window.updateCreditChip?.(ids.treatmentGrid, patient?.credit ?? bed?.credit ?? 0);
   }
   window.populatePatientForm = populatePatientForm;
 
@@ -3721,13 +3818,24 @@
 
   function setFormEditMode(scope, bedNo = null) {
     formEditBedNoByScope[scope] = bedNo;
+    if (bedNo || bedNo === null) formEditPatientKeyByScope[scope] = null;
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const button = document.getElementById(ids.submitBtn);
-    if (button) button.textContent = bedNo ? '정보수정' : '입력';
+    const patientKey = formEditPatientKeyByScope[scope];
+    if (button) button.textContent = bedNo || patientKey ? '정보수정' : '입력';
     setIdentityFieldsLocked(scope, Boolean(bedNo));
   }
 
   window.setFormEditMode = setFormEditMode;
+
+  function setWaitingPatientEditMode(scope, patientKey = null) {
+    formEditPatientKeyByScope[scope] = patientKey;
+    if (patientKey) formEditBedNoByScope[scope] = null;
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const button = document.getElementById(ids.submitBtn);
+    if (button) button.textContent = patientKey ? '정보수정' : (formEditBedNoByScope[scope] ? '정보수정' : '입력');
+    setIdentityFieldsLocked(scope, false);
+  }
 
   function populateBedEditForm() {
     const bed = getBedData(selectedBedNo);
@@ -4022,6 +4130,54 @@
     btn.textContent = '정보수정';
   }
 
+  async function saveWaitingPatientInfo(scope) {
+    const patientKey = formEditPatientKeyByScope[scope];
+    const patient = patientKey ? patientsByKey.get(patientKey) : null;
+    if (!patientKey || !patient) {
+      showToast('대기환자 정보를 찾을 수 없습니다');
+      return false;
+    }
+
+    const form = getFormValues(scope);
+    if (!form.name) { showToast('❗ 성함을 입력해주세요'); return false; }
+    if (form.treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return false; }
+
+    const payload = {
+      name: form.name,
+      chartNo: form.chartNo,
+      visitType: form.visitType,
+      chiefComplaint: form.chiefComplaint,
+      memo: form.memo,
+      age: form.age ? Number(form.age) : '',
+      gender: form.gender,
+      bodyParts: form.bodyParts,
+      treatments: form.treatments,
+      doctorId: form.doctor.id,
+      doctorName: form.doctor.name,
+      nurseId: form.nurse.id,
+      nurseName: form.nurse.name,
+      credit: form.credit
+    };
+
+    const btn = document.getElementById(form.ids.submitBtn);
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
+    try {
+      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), payload);
+      patientsByKey.set(patientKey, { ...patient, ...payload });
+      renderWaitingLists();
+      showToast(`${form.name} 정보수정 완료`);
+      return true;
+    } catch (e) {
+      console.error(e);
+      showToast('정보수정 실패');
+      return false;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '정보수정';
+    }
+  }
+
   async function saveMonitorBedPatientInfo(scope) {
     const bedNo = formEditBedNoByScope[scope];
     const bed = getBedData(bedNo);
@@ -4238,12 +4394,16 @@
       isClearingPatientDatabase = true;
       await remove(ref(db, BEDS_PATH));
       await remove(ref(db, PATIENTS_PATH));
+      await remove(ref(db, DOCTOR_ASSIGNMENT_ALERTS_PATH));
+      await remove(ref(db, BED_ASSIGNMENT_ALERTS_PATH));
 
       patientsByKey.clear();
       loadedKeys.clear();
       bedAssignments = Array(BED_COUNT).fill(null);
       Object.keys(doctorBedMap).forEach(k => delete doctorBedMap[k]);
       assignmentAlertItems.length = 0;
+      doctorAssignmentAlertItems.clear();
+      bedAssignmentAlertItems.clear();
       selectedMoveBedNo = null;
       pendingTimerAlertBeds.clear();
       timerAlertQueue.length = 0;
@@ -4553,6 +4713,49 @@ let migratedCount = 0;
     return index >= 0 ? 101 + index : null;
   }
 
+  async function createDoctorAssignmentAlert(patientKey, data, bedNo) {
+    if (!patientKey || Number(bedNo) < 101) return;
+    const doctorId = data.doctorId || '';
+    if (!doctorId) return;
+    const doctorName = data.doctorName || getBedLabel(bedNo) || '원장';
+    const name = data.name || '환자';
+    try {
+      await push(ref(db, DOCTOR_ASSIGNMENT_ALERTS_PATH), {
+        patientKey,
+        bedNo: Number(bedNo),
+        bedLabel: getBedLabel(bedNo),
+        doctorId,
+        doctorName,
+        patientName: name,
+        message: `${doctorName} 원장님 ${name} ${getBedLabel(bedNo)} 배정`,
+        timestamp: Date.now()
+      });
+    } catch (e) {
+      console.error('원장 베드 배정 알림 저장 실패', e);
+    }
+  }
+
+  async function createBedAssignmentAlert(patientKey, data, bedNo) {
+    if (!patientKey || !bedNo) return;
+    const name = data.name || '환자';
+    try {
+      await push(ref(db, BED_ASSIGNMENT_ALERTS_PATH), {
+        patientKey,
+        bedNo: Number(bedNo),
+        bedLabel: getBedLabel(bedNo),
+        patientName: name,
+        doctorId: data.doctorId || '',
+        doctorName: data.doctorName || '',
+        nurseId: data.nurseId || '',
+        nurseName: data.nurseName || '',
+        message: `${getBedLabel(bedNo)} ${name} 배정`,
+        timestamp: Date.now()
+      });
+    } catch (e) {
+      console.error('베드 배정 알림 저장 실패', e);
+    }
+  }
+
   async function assignPatientToBed(patientKey, data, silent = false, force = false) {
     if (!force && !autoBedAssignEnabled) return false;
     if (data.bedStatus === 'discharged') return false;
@@ -4575,6 +4778,8 @@ let migratedCount = 0;
       if (result.committed && bedNo) {
         patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: Number(bedNo) });
         await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), { bedStatus: 'assigned', bedNo: Number(bedNo) });
+        await createDoctorAssignmentAlert(patientKey, data, Number(bedNo));
+        await createBedAssignmentAlert(patientKey, data, Number(bedNo));
         return Number(bedNo);
       }
       return false;
@@ -4600,6 +4805,7 @@ let migratedCount = 0;
     if (result.committed && bedNo) {
       patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: Number(bedNo) });
       await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), { bedStatus: 'assigned', bedNo: Number(bedNo) });
+      await createBedAssignmentAlert(patientKey, data, Number(bedNo));
       return Number(bedNo);
     }
 
@@ -4672,8 +4878,8 @@ let migratedCount = 0;
   async function assignWaitingPatientToSpecificBed(patientKey, bedNo) {
     bedNo = Number(bedNo);
     const isDocBed = bedNo >= 101;
-    if (!isDocBed && (!REGULAR_BED_NUMBERS.includes(bedNo) || AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(bedNo))) {
-      showToast('자동 배정 대상 베드가 아닙니다');
+    if (!isDocBed && !ACTIVE_BED_NUMBERS.includes(bedNo)) {
+      showToast('배정할 수 없는 베드입니다');
       return false;
     }
     if (isDocBed && !getDoctorBedNumbers().includes(bedNo)) {
@@ -4699,6 +4905,8 @@ let migratedCount = 0;
     if (result.committed && beds[String(bedNo)]?.patientKey === patientKey) {
       patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo });
       await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), { bedStatus: 'assigned', bedNo });
+      if (isDocBed) await createDoctorAssignmentAlert(patientKey, data, bedNo);
+      await createBedAssignmentAlert(patientKey, data, bedNo);
       showToast(`${bedNo}번 배정 완료`);
       return true;
     }
@@ -4730,7 +4938,7 @@ let migratedCount = 0;
           data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : '',
         ].filter(Boolean).join('');
         return `
-          <div class="waiting-item" id="waiting-${key}" draggable="true" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)" oncontextmenu="confirmDeleteWaitingPatient(event, '${key}')">
+          <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)" oncontextmenu="confirmDeleteWaitingPatient(event, '${key}')">
             <div class="waiting-rank">${index + 1}</div>
             <div>
               <div class="waiting-name">${escapeHtml(data.name)}</div>
@@ -4745,6 +4953,29 @@ let migratedCount = 0;
       if (list) list.innerHTML = html;
     });
   }
+
+  window.handleWaitingPatientClick = (event, key) => {
+    if (event?.button && event.button !== 0) return;
+    if (!key || draggedWaitingPatientKey) return;
+    if (window.currentMode === 'notify') return;
+    const patient = patientsByKey.get(key);
+    if (!patient) {
+      showToast('대기환자 정보를 찾을 수 없습니다');
+      return;
+    }
+
+    const scope = window.currentMode === 'receive' || window.currentMode === 'doctor' ? 'receive' : 'desk';
+
+    setWaitingPatientEditMode(scope, key);
+    populatePatientForm(scope, patient);
+    if (scope === 'receive') {
+      document.getElementById('receivePanel')?.classList.add('receive-edit-open');
+      setReceiveFormOpen(true);
+    } else {
+      setInputFormOpen(true);
+    }
+    showToast(`${patient.name || '대기환자'} 정보 불러옴`);
+  };
 
   window.confirmDeleteWaitingPatient = async (event, key) => {
     event?.preventDefault();
@@ -4794,6 +5025,26 @@ let migratedCount = 0;
     draggedWaitingPatientKey = null;
     event.currentTarget?.classList.remove('waiting-dragging');
     document.querySelectorAll('.waiting-drag-over').forEach(el => el.classList.remove('waiting-drag-over'));
+  };
+
+  window.handleWaitingListDragOver = (event) => {
+    const bedNo = draggedBedNo || Number(event.dataTransfer?.getData('text/plain'));
+    if (!bedNo || !getBedData(bedNo)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  };
+
+  window.handleWaitingListDrop = async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const bedNo = draggedBedNo || Number(event.dataTransfer?.getData('text/plain'));
+    draggedBedNo = null;
+    selectedMoveBedNo = null;
+    suppressBedClickUntil = Date.now() + 350;
+    if (!bedNo) return;
+    await moveBedToWaiting(bedNo);
+    renderWaitingLists();
+    renderBedMonitors();
   };
 
   function getEstimatedWaitMinutesList(waitingPatients) {
@@ -4859,14 +5110,59 @@ let migratedCount = 0;
     return alert[field] !== true;
   }
 
+  function getVisibleCallAlertItems(mode = window.currentMode) {
+    return [...callAlertItems.entries()]
+      .map(([key, data]) => ({ key, ...(data || {}) }))
+      .filter(item => {
+        if (!item.message) return false;
+        if (mode === 'input') return item.target === 'desk';
+        if (mode === 'notify' || mode === 'receive') return item.target === 'clinic';
+        return false;
+      })
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  }
+
+  function getVisibleDoctorAssignmentAlertItems(mode = window.currentMode) {
+    if (mode !== 'doctor') return [];
+    return [...doctorAssignmentAlertItems.entries()]
+      .map(([key, data]) => ({ key, ...(data || {}) }))
+      .filter(item => {
+        if (!item.message) return false;
+        if (!selectedDoctorAlertId) return false;
+        return item.doctorId === selectedDoctorAlertId;
+      })
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  }
+
+  function getVisibleBedAssignmentAlertItems(mode = window.currentMode) {
+    if (mode !== 'notify' && mode !== 'receive') return [];
+    return [...bedAssignmentAlertItems.entries()]
+      .map(([key, data]) => ({ key, ...(data || {}) }))
+      .filter(item => item.message)
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  }
+
   function renderUpcomingAlerts() {
-    const assignmentHtml = assignmentAlertItems.map(item => `
-      <div class="upcoming-item assignment" onclick="dismissAssignmentAlert('${escapeHtml(item.id)}')">
+    const renderBedAssignmentHtml = (mode) => getVisibleBedAssignmentAlertItems(mode).map(item => `
+      <div class="upcoming-item assignment" onclick="dismissBedAssignmentAlert('${escapeHtml(item.key)}')">
         <div class="upcoming-time">배정</div>
         <div>
-          <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}</div>
+          <div class="upcoming-main">${escapeHtml(item.message)}</div>
           <div class="upcoming-sub">클릭하면 사라집니다</div>
-          ${item.staffLine ? `<div class="upcoming-staff">${item.staffLine}</div>` : ''}
+        </div>
+      </div>`).join('');
+    const inputAssignmentHtml = renderBedAssignmentHtml('input');
+    const receiveModeForAlerts = window.currentMode === 'notify'
+      ? 'notify'
+      : (window.currentMode === 'receive' ? 'receive' : window.currentMode);
+    const receiveAssignmentHtml = renderBedAssignmentHtml(receiveModeForAlerts);
+
+    const doctorAssignmentHtml = getVisibleDoctorAssignmentAlertItems().map(item => `
+      <div class="upcoming-item assignment" onclick="dismissDoctorAssignmentAlert('${escapeHtml(item.key)}')">
+        <div class="upcoming-time">배정</div>
+        <div>
+          <div class="upcoming-main">${escapeHtml(item.message)}</div>
+          <div class="upcoming-sub">클릭하면 사라집니다</div>
         </div>
       </div>`).join('');
 
@@ -4889,6 +5185,17 @@ let migratedCount = 0;
           <div class="upcoming-sub">클릭하면 사라집니다</div>
         </div>
       </div>`).join('');
+
+    const renderCallHtml = (mode) => getVisibleCallAlertItems(mode).map(item => `
+      <div class="upcoming-item assignment" onclick="dismissDoctorCallAlert('${escapeHtml(item.key)}')">
+        <div class="upcoming-time">호출</div>
+        <div>
+          <div class="upcoming-main">${escapeHtml(item.message)}</div>
+          <div class="upcoming-sub">클릭하면 사라집니다</div>
+        </div>
+      </div>`).join('');
+    const inputCallHtml = renderCallHtml('input');
+    const receiveCallHtml = renderCallHtml(receiveModeForAlerts);
 
     const upcoming = bedAssignments
       .map((bed, index) => {
@@ -4947,13 +5254,14 @@ let migratedCount = 0;
         .join('')
       : '';
 
-    const baseHasAlerts = Boolean(assignmentHtml || appointmentHtml || timerHtml);
-    const receiveHasAlerts = Boolean(doctorProcedureHtml || assignmentHtml || appointmentHtml || timerHtml);
+    const baseHasAlerts = Boolean(inputCallHtml || inputAssignmentHtml || appointmentHtml || timerHtml);
+    const receiveSpecificHtml = doctorProcedureHtml + doctorAssignmentHtml;
+    const receiveHasAlerts = Boolean(receiveSpecificHtml || receiveCallHtml || receiveAssignmentHtml || appointmentHtml || timerHtml);
     const html = baseHasAlerts
-      ? assignmentHtml + appointmentHtml + timerHtml
+      ? inputCallHtml + inputAssignmentHtml + appointmentHtml + timerHtml
       : `<div class="empty-state"><div class="empty-icon">⏱</div><div class="empty-text">진행 중인 타이머가 없습니다</div></div>`;
-    const receiveHtml = doctorProcedureHtml
-      ? doctorProcedureHtml + assignmentHtml + appointmentHtml + timerHtml
+    const receiveHtml = receiveHasAlerts
+      ? receiveSpecificHtml + receiveCallHtml + receiveAssignmentHtml + appointmentHtml + timerHtml
       : html;
 
     const inputList = document.getElementById('inputUpcomingAlerts');
@@ -4968,6 +5276,42 @@ let migratedCount = 0;
     if (index >= 0) {
       assignmentAlertItems.splice(index, 1);
       renderUpcomingAlerts();
+    }
+  };
+
+  window.dismissBedAssignmentAlert = async (id) => {
+    if (!id) return;
+    bedAssignmentAlertItems.delete(id);
+    renderUpcomingAlerts();
+    try {
+      await remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${id}`));
+    } catch (e) {
+      console.error(e);
+      showToast('베드 배정 알림 확인 실패');
+    }
+  };
+
+  window.dismissDoctorAssignmentAlert = async (id) => {
+    if (!id) return;
+    doctorAssignmentAlertItems.delete(id);
+    renderUpcomingAlerts();
+    try {
+      await remove(ref(db, `${DOCTOR_ASSIGNMENT_ALERTS_PATH}/${id}`));
+    } catch (e) {
+      console.error(e);
+      showToast('원장 배정 알림 확인 실패');
+    }
+  };
+
+  window.dismissDoctorCallAlert = async (id) => {
+    if (!id) return;
+    callAlertItems.delete(id);
+    renderUpcomingAlerts();
+    try {
+      await remove(ref(db, `${CALL_ALERTS_PATH}/${id}`));
+    } catch (e) {
+      console.error(e);
+      showToast('호출 확인 실패');
     }
   };
 
@@ -5916,6 +6260,7 @@ let migratedCount = 0;
 
     const fromBed = getBedData(fromBedNo);
     if (!fromBed) return false;
+    const hadTargetBed = Boolean(getBedData(toBedNo));
 
     const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
       beds = beds || {};
@@ -5941,14 +6286,79 @@ let migratedCount = 0;
         updatePatientBedNoForBed(fromBedNo, movedBeds[String(fromBedNo)]),
         updatePatientBedNoForBed(toBedNo, movedBeds[String(toBedNo)])
       ]);
+      const assignmentAlertPromises = [];
+      if (Number(fromBedNo) >= 101 && movedBeds[String(fromBedNo)]?.patientKey) {
+        assignmentAlertPromises.push(createDoctorAssignmentAlert(
+          movedBeds[String(fromBedNo)].patientKey,
+          movedBeds[String(fromBedNo)],
+          Number(fromBedNo)
+        ));
+      }
+      if (Number(toBedNo) >= 101 && movedBeds[String(toBedNo)]?.patientKey) {
+        assignmentAlertPromises.push(createDoctorAssignmentAlert(
+          movedBeds[String(toBedNo)].patientKey,
+          movedBeds[String(toBedNo)],
+          Number(toBedNo)
+        ));
+      }
+      if (assignmentAlertPromises.length) await Promise.all(assignmentAlertPromises);
       remapLocalAlertBedNo(movedBeds[String(fromBedNo)]?.lastAlertId, fromBedNo);
       remapLocalAlertBedNo(movedBeds[String(toBedNo)]?.lastAlertId, toBedNo);
-      showToast(`${getBedLabel(fromBedNo)} → ${getBedLabel(toBedNo)} 이동 완료`);
+      showToast(hadTargetBed
+        ? `${getBedLabel(fromBedNo)} ${getBedLabel(toBedNo)} 교환`
+        : `${getBedLabel(fromBedNo)} → ${getBedLabel(toBedNo)} 이동 완료`);
       return true;
     }
 
     showToast('베드 이동 실패');
     return false;
+  };
+
+  window.moveBedToWaiting = async (bedNo) => {
+    bedNo = Number(bedNo);
+    const bed = getBedData(bedNo);
+    if (!bed?.patientKey) {
+      showToast('대기로 보낼 환자가 없습니다');
+      return false;
+    }
+
+    clearLocalTimerAlertsForBed(bedNo);
+    const queueTimestamp = Date.now();
+    const patientPatch = {
+      ...bed,
+      bedStatus: 'waiting',
+      bedNo: null,
+      timestamp: queueTimestamp,
+      timeStr: new Date(queueTimestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+      date: new Date(queueTimestamp).toLocaleDateString('ko-KR')
+    };
+    delete patientPatch.currentIndex;
+    delete patientPatch.total;
+    delete patientPatch.remaining;
+    delete patientPatch.running;
+    delete patientPatch.startedAt;
+    delete patientPatch.complete;
+    delete patientPatch.lastAlertId;
+    delete patientPatch.lastAlertMessage;
+    delete patientPatch.doctorProcedureAlert;
+    delete patientPatch.patientKey;
+
+    try {
+      await Promise.all([
+        update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), patientPatch),
+        remove(ref(db, `${BEDS_PATH}/${bedNo}`))
+      ]);
+      patientsByKey.set(bed.patientKey, {
+        ...(patientsByKey.get(bed.patientKey) || {}),
+        ...patientPatch
+      });
+      showToast(`${bed.name || '환자'} 대기로 이동`);
+      return true;
+    } catch (e) {
+      console.error(e);
+      showToast('대기로 이동 실패');
+      return false;
+    }
   };
 
   window.handleInputBedClick = async (bedNo) => {
@@ -6014,7 +6424,7 @@ let migratedCount = 0;
     if (draggedWaitingPatientKey) {
       const n = Number(bedNo);
       const isDocBed = n >= 101;
-      if (!isDocBed && (!REGULAR_BED_NUMBERS.includes(n) || AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(n))) return;
+      if (!isDocBed && !ACTIVE_BED_NUMBERS.includes(n)) return;
       if (isDocBed && !getDoctorBedNumbers().includes(n)) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
@@ -6453,6 +6863,7 @@ let migratedCount = 0;
       ...Object.entries(doctorBedMap).map(([bedNo, bed]) => ({ bed, bedNo: Number(bedNo) }))
     ];
     allBeds.forEach(({ bed, bedNo }) => {
+      if (Number(bedNo) >= 101) return;
       if (!bed?.patientKey) return;
       const alreadyKnown = knownAssignedPatientKeys.has(bed.patientKey);
       knownAssignedPatientKeys.add(bed.patientKey);
@@ -7207,6 +7618,7 @@ let migratedCount = 0;
   const VIEW_TO_MODE = {
     desk: 'input',
     doctor: 'doctor',
+    notify: 'notify',
     clinic: 'receive',
     bed: 'bed'
   };
@@ -7233,7 +7645,7 @@ let migratedCount = 0;
   function syncAppViewClass() {
     const view = getAppView();
     document.body.classList.toggle('app-role-locked', Boolean(view));
-    ['desk', 'doctor', 'clinic', 'bed'].forEach(name => {
+    ['desk', 'doctor', 'notify', 'clinic', 'bed'].forEach(name => {
       document.body.classList.toggle(`app-role-${name}`, view === name);
     });
     document.body.classList.toggle(
@@ -7301,7 +7713,7 @@ let migratedCount = 0;
     }
     const headerButton = document.getElementById('deskInputHeaderBtn');
     if (headerButton) {
-      headerButton.textContent = open ? '닫기' : '입력';
+      headerButton.textContent = open ? '‹' : '›';
       headerButton.classList.toggle('active', Boolean(open));
       headerButton.setAttribute('aria-label', open ? '입력 닫기' : '입력 열기');
       headerButton.title = open ? '입력 닫기' : '입력 열기';
