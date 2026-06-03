@@ -122,6 +122,13 @@
     display: inline-flex;
     align-items: center;
   }
+  body.app-mode-bed .bed-header-bed-chip,
+  body.app-role-bed .bed-header-bed-chip {
+    min-height: 38px;
+    padding: 0 13px 2px;
+    font-size: 26px;
+    line-height: 1;
+  }
   .header-left p { font-size: 11px; color: var(--text3); margin-top: 2px; }
   .mode-toggle {
     display: flex;
@@ -289,6 +296,12 @@
   .input-monitor-column,
   .input-detail-column,
   .receive-form-column { min-width: 0; }
+  .input-monitor-column,
+  .receive-main-column {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+  }
   .input-panel.input-form-open .input-form-column > .card,
   .receive-panel.receive-form-open .receive-form-column > .card {
     display: grid;
@@ -360,6 +373,10 @@
     border-radius: 12px;
     margin-top: 10px;
     padding: 12px;
+  }
+  body.app-mode-bed .bed-schedule-panel,
+  body.app-role-bed .bed-schedule-panel {
+    margin-top: 0;
   }
   .bed-schedule-panel .card-label { margin-bottom: 8px; }
   .bed-schedule-calendar {
@@ -691,7 +708,7 @@
     display: grid;
     grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1fr) 74px;
-    grid-template-rows: minmax(44px, auto) minmax(78px, auto);
+    grid-template-rows: minmax(44px, auto) auto;
     gap: 10px;
     align-items: stretch;
   }
@@ -699,14 +716,38 @@
     grid-column: 1;
     grid-row: 1;
   }
-  .bed-edit-visible-grid .bed-memo-field {
+  .bed-memo-wrap {
     grid-column: 1;
     grid-row: 2;
+    display: grid;
+    gap: 8px;
+  }
+  .bed-memo-toggle {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+  .bed-memo-toggle.has-memo {
+    color: var(--gold);
+    border-color: rgba(255,178,26,0.55);
+    background: rgba(255,178,26,0.12);
+  }
+  .bed-edit-visible-grid .bed-memo-field {
+    display: none;
     min-height: 78px;
     resize: vertical;
     line-height: 1.45;
     text-align: left;
   }
+  .bed-memo-wrap.open .bed-memo-field { display: block; }
   .bed-edit-visible-grid .bed-submit-btn {
     grid-column: 2;
     grid-row: 1 / span 2;
@@ -1288,32 +1329,131 @@
     user-select: none;
     min-height: 42px;
   }
-  .credit-chip.editing {
+  .credit-chip-label { display: inline-flex; align-items: center; justify-content: center; }
+  .credit-chip:hover {
     background: rgba(74,222,128,0.18);
     border-color: rgba(74,222,128,0.68);
   }
-  .credit-chip-label { display: inline-flex; align-items: center; justify-content: center; }
-  .credit-chip-value {
-    min-width: 12px;
-    text-align: right;
+  .credit-popup {
+    width: min(1120px, calc(100vw - 32px));
+    max-width: min(1120px, calc(100vw - 32px));
+    max-height: min(88vh, 780px);
+    overflow: auto;
   }
-  .credit-input {
-    display: none;
-    width: 44px;
-    background: rgba(0,0,0,0.18);
-    border: 1px solid rgba(74,222,128,0.42);
-    border-radius: 5px;
-    color: rgb(74,222,128);
-    font: inherit;
-    font-size: 11px;
+  .credit-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin: 6px 0 18px;
+  }
+  .package-card {
+    background: rgba(5, 42, 97, 0.32);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: left;
+  }
+  .package-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .package-title {
+    color: var(--text);
+    font-size: 17px;
     font-weight: 900;
-    padding: 2px 3px;
+  }
+  .package-balance {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 54px;
+    border-radius: 999px;
+    background: rgba(74,222,128,0.14);
+    border: 1px solid rgba(74,222,128,0.42);
+    color: rgb(74,222,128);
+    font-size: 15px;
+    font-weight: 900;
+    padding: 5px 9px;
+  }
+  .package-entry-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) auto;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .package-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    padding: 9px 8px;
     text-align: center;
     outline: none;
+    min-width: 0;
   }
-  .credit-chip.editing .credit-input { display: inline-block; }
-  .credit-chip.editing .credit-chip-label { display: none; }
-  .credit-input:focus { border-color: rgb(74,222,128); }
+  .package-input:focus { border-color: rgb(74,222,128); }
+  .package-entry-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+  .package-entry-btn:hover { border-color: rgb(74,222,128); }
+  .package-history {
+    display: grid;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .package-history-title {
+    color: var(--text3);
+    font-size: 11px;
+    font-weight: 900;
+    margin-top: 6px;
+  }
+  .package-history-row {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 7px;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 800;
+    padding: 6px 7px;
+  }
+  .package-history-delete {
+    background: transparent;
+    border: 0;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 900;
+    padding: 2px 4px;
+  }
+  .credit-popup-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 760px) {
+    .credit-form { grid-template-columns: 1fr; }
+    .package-entry-grid { grid-template-columns: 1fr 72px auto; }
+  }
   .bed-stage-badge {
     display: inline-flex;
     align-items: center;
@@ -1412,7 +1552,7 @@
   body.app-role-bed .receive-header { margin-bottom: 8px; }
   body.app-role-bed .bed-layout { gap: 10px; }
   body.app-role-bed .bed-workspace {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
   }
   .bed-left-column {
@@ -1562,6 +1702,115 @@
   .bed-detail.active > .card {
     min-height: 100%;
   }
+  body.app-mode-bed .bed-workspace,
+  body.app-role-bed .bed-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "info timer"
+      "package schedule"
+      "body schedule"
+      "body edit";
+    align-items: stretch;
+  }
+  body.app-mode-bed .bed-detail.active,
+  body.app-role-bed .bed-detail.active,
+  body.app-mode-bed .bed-detail-card--bed,
+  body.app-role-bed .bed-detail-card--bed,
+  body.app-mode-bed .bed-left-column,
+  body.app-role-bed .bed-left-column {
+    display: contents;
+  }
+  body.app-mode-bed .bed-left-column,
+  body.app-role-bed .bed-left-column {
+    min-width: 0;
+  }
+  body.app-mode-bed #bodyMap,
+  body.app-role-bed #bodyMap {
+    grid-area: body;
+    min-height: 100%;
+  }
+  body.app-mode-bed #bedEditSection,
+  body.app-role-bed #bedEditSection {
+    grid-area: edit;
+    margin-bottom: 0;
+    min-height: 100%;
+  }
+  body.app-mode-bed #bedEditSection .bed-input-body,
+  body.app-role-bed #bedEditSection .bed-input-body {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  body.app-mode-bed #bedTreatmentGrid,
+  body.app-role-bed #bedTreatmentGrid {
+    flex: 1 1 auto;
+  }
+  .bed-info-zone {
+    grid-area: info;
+    min-width: 0;
+  }
+  body.app-mode-bed .bed-info-zone,
+  body.app-role-bed .bed-info-zone {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .bed-timer-zone {
+    grid-area: timer;
+    min-width: 0;
+  }
+  .bed-package-zone {
+    grid-area: package;
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .bed-package-title {
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+    margin-bottom: 8px;
+  }
+  .bed-package-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .bed-package-chip {
+    display: grid;
+    gap: 4px;
+    align-content: center;
+    justify-items: center;
+    min-height: 54px;
+    background: rgba(74,222,128,0.10);
+    border: 1px solid rgba(74,222,128,0.32);
+    border-radius: 10px;
+    color: rgb(74,222,128);
+    font-weight: 900;
+    min-width: 0;
+    padding: 7px 6px;
+  }
+  .bed-package-name {
+    color: var(--text2);
+    font-size: 11px;
+  }
+  .bed-package-count {
+    font-size: 18px;
+    line-height: 1;
+  }
+  .bed-schedule-zone {
+    grid-area: schedule;
+    min-width: 0;
+  }
+  .bed-detail-card--bed .bed-detail-info {
+    margin-bottom: 0;
+  }
+  .bed-detail-card--bed .timer-list {
+    min-height: 100%;
+  }
   .receive-bed-detail-list {
     display: flex;
     flex-direction: column;
@@ -1581,6 +1830,25 @@
     flex-wrap: wrap;
     align-items: baseline;
     gap: 8px;
+  }
+  .bed-name-meta {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .bed-name-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    color: var(--text2);
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 3px 8px 5px;
   }
   .bed-patient-summary {
     display: inline-flex;
@@ -1908,16 +2176,50 @@
 
   @media (max-width: 859px) {
     .bed-workspace { grid-template-columns: 1fr; }
+    body.app-mode-bed .bed-workspace,
+    body.app-role-bed .bed-workspace {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "info"
+        "package"
+        "timer"
+        "schedule"
+        "body"
+        "edit";
+    }
+    body.app-mode-bed .bed-left-column,
+    body.app-role-bed .bed-left-column,
+    .bed-detail-card--bed {
+      grid-template-columns: 1fr;
+    }
+    body.app-mode-bed .bed-left-column,
+    body.app-role-bed .bed-left-column {
+      grid-template-areas:
+        "body"
+        "edit";
+    }
+    .bed-detail-card--bed {
+      grid-template-areas:
+        "info"
+        "timer"
+        "schedule";
+    }
   }
 
   @media (max-height: 820px) and (orientation: landscape) {
     body.app-role-bed .app { padding: 8px 8px 16px; }
     body.app-role-bed .header { padding: 8px 12px; margin-bottom: 8px; }
     body.app-role-bed .brand-icon { width: 34px; height: 34px; }
+    body.app-role-bed .bed-header-bed-chip {
+      min-height: 34px;
+      padding: 0 11px 2px;
+      font-size: 23px;
+    }
     body.app-role-bed .header-left h1 { font-size: 19px; }
     body.app-role-bed .header-left p { display: none; }
     body.app-role-bed .receive-title { font-size: 13px; }
     body.app-role-bed .bed-name { font-size: 22px; }
+    body.app-role-bed .bed-name-meta-chip { font-size: 22px; }
     body.app-role-bed .body-map-card,
     body.app-role-bed .timer-card { padding: 10px; }
     body.app-role-bed .bed-detail-info { padding: 9px; }
@@ -1933,6 +2235,31 @@
   }
 
   /* 빈 상태 */
+  .bed-arrival-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: none;
+    place-items: center;
+    border: 0;
+    background: radial-gradient(circle at 50% 35%, rgba(57,169,245,0.24), rgba(5,42,97,0.96) 48%, rgba(2,18,42,0.98));
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    padding: 28px;
+    text-align: center;
+  }
+  .bed-arrival-overlay.show {
+    display: grid;
+  }
+  .bed-arrival-name {
+    max-width: 92vw;
+    overflow-wrap: anywhere;
+    font-size: clamp(64px, 15vw, 168px);
+    font-weight: 900;
+    line-height: 1.06;
+  }
+
   .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -1983,6 +2310,11 @@
     text-align: center;
     animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
     box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(240,192,96,0.15);
+  }
+  .notif-popup.credit-popup {
+    width: min(1120px, calc(100vw - 32px));
+    max-width: min(1120px, calc(100vw - 32px));
+    padding-inline: 28px;
   }
   @keyframes popIn {
     from { opacity: 0; transform: scale(0.8) translateY(-20px); }
@@ -2307,15 +2639,16 @@
         <div class="card">
           <div class="card-label">알림</div>
           <div class="upcoming-list" id="inputUpcomingAlerts"></div>
-          <div class="card-label" style="margin-top:14px;">대기</div>
-          <div class="waiting-list waiting-list--compact" id="inputWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
       </div>
 
       <div class="input-monitor-column">
         <div class="card">
-          <div class="card-label">베드 사용 현황</div>
           <div class="bed-monitor" id="inputBedMonitor"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">대기</div>
+          <div class="waiting-list waiting-list--compact" id="inputWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
       </div>
     </div>
@@ -2327,8 +2660,11 @@
     <div class="receive-layout">
       <div class="receive-main-column">
         <div class="card">
-          <div class="card-label">베드 사용 현황</div>
           <div class="bed-monitor" id="receiveBedMonitor"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">대기</div>
+          <div class="waiting-list waiting-list--compact" id="receiveWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
       </div>
       <div class="receive-detail-column">
@@ -2373,8 +2709,6 @@
         <div class="card">
           <div class="card-label">알림</div>
           <div class="upcoming-list" id="receiveUpcomingAlerts"></div>
-          <div class="card-label" style="margin-top:14px;">대기</div>
-          <div class="waiting-list waiting-list--compact" id="receiveWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
       </div>
     </div>
@@ -2389,6 +2723,10 @@
           <details class="bed-input-section" id="bedEditSection" open>
             <summary>정보 수정</summary>
             <div class="bed-input-body">
+              <div class="form-section">
+                <div class="treatment-grid monitor-treatment-grid" id="bedTreatmentGrid"></div>
+              </div>
+
               <div class="form-section">
                 <div class="patient-info-grid monitor-patient-grid">
                   <div class="bed-edit-hidden-fields">
@@ -2408,8 +2746,11 @@
                   </div>
                   <div class="bed-edit-visible-grid">
                     <input class="name-input bed-chief-field" id="bedChiefComplaint" type="text" placeholder="주상병명" maxlength="60">
-                    <textarea class="name-input bed-memo-field" id="bedMemoInput" placeholder="메모" maxlength="300" rows="3"></textarea>
-                    <button class="submit-btn bed-submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">정보수정</button>
+                    <div class="bed-memo-wrap" id="bedMemoWrap">
+                      <button class="bed-memo-toggle" id="bedMemoToggle" type="button" onclick="toggleBedMemoInput()">메모</button>
+                      <textarea class="name-input bed-memo-field" id="bedMemoInput" placeholder="메모" maxlength="300" rows="3"></textarea>
+                    </div>
+                    <button class="submit-btn bed-submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">확인</button>
                   </div>
                 </div>
               </div>
@@ -2420,10 +2761,6 @@
                   <select class="staff-select" id="bedNurseSelect"></select>
                 </div>
               </div>
-
-              <div class="form-section">
-                <div class="treatment-grid monitor-treatment-grid" id="bedTreatmentGrid"></div>
-              </div>
             </div>
           </details>
           <div class="body-map-card" id="bodyMap"></div>
@@ -2432,6 +2769,10 @@
       </div>
     </div>
   </div>
+
+  <button class="bed-arrival-overlay" id="bedArrivalOverlay" type="button" onclick="openFixedBedArrival()">
+    <span class="bed-arrival-name" id="bedArrivalName"></span>
+  </button>
 
   <!-- 설정 패널 -->
   <div class="settings-panel" id="settingsPanel">
@@ -2518,6 +2859,17 @@
     <div class="popup-icon">⏰</div>
     <div class="timer-alert-body" id="timerAlertBody"></div>
     <button class="popup-close" onclick="closeTimerAlert()">확인</button>
+  </div>
+</div>
+
+<!-- 패키지 입력 -->
+<div class="notif-overlay" id="creditOverlay" onclick="closeCreditPopup()">
+  <div class="notif-popup credit-popup" onclick="event.stopPropagation()">
+    <div class="popup-name">패키지</div>
+    <div class="credit-form" id="creditForm"></div>
+    <div class="credit-popup-actions">
+      <button class="popup-close" type="button" onclick="closeCreditPopup()">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -2679,6 +3031,13 @@
     return SPECIAL_BED_LABELS[bedNo] || `${bedNo}번`;
   }
 
+  function getCompactBedMarker(bedNo) {
+    if (bedNo >= 101) return `원${bedNo - 100}`;
+    if (SPECIAL_BED_LABELS[bedNo] === '스파인') return '스';
+    const circledNumbers = ['', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
+    return circledNumbers[bedNo] || `${bedNo}번`;
+  }
+
   function getUrlBedNo() {
     const value = Number(new URLSearchParams(window.location.search).get('bed'));
     return ACTIVE_BED_NUMBERS.includes(value) ? value : 1;
@@ -2703,6 +3062,7 @@
   let isAssigningWaitingPatients = false;
   let shouldAssignWaitingAgain = false;
   let suppressBedClickUntil = 0;
+  let fixedBedArrivalVisiblePatientKey = '';
   const formEditBedNoByScope = {
     desk: null,
     receive: null
@@ -2754,6 +3114,15 @@
 
   // 각 그리드별 선택된 치료 순서 목록
   const treatmentSelections = {};
+  const PCREDIT_FIELDS = [
+    { key: 'p6', label: 'p6', defaultPurchaseQty: 6 },
+    { key: 'p13', label: 'p13', defaultPurchaseQty: 13 },
+    { key: 'p자하거', label: 'p자하거', defaultPurchaseQty: 1 },
+    { key: 'p라인', label: 'p라인', defaultPurchaseQty: 1 }
+  ];
+  const pCreditValuesByGrid = {};
+  const packageStatesByGrid = {};
+  let activeCreditGridId = '';
 
   function getTreatmentChipsId(gridId) {
     return gridId + 'Chips';
@@ -2787,8 +3156,8 @@
         const chip = document.createElement('span');
         chip.id = `credit-chip-${gridId}`;
         chip.className = 'credit-chip';
-        chip.onclick = () => beginCreditEdit(gridId);
-        chip.innerHTML = `<span class="credit-chip-label">크레딧&nbsp;<span class="credit-chip-value" id="credit-value-${gridId}">0</span></span><input class="credit-input" id="credit-input-${gridId}" type="text" maxlength="3" value="0" inputmode="numeric" pattern="[0-9]*" onchange="updateCreditChip('${gridId}', this.value)" onkeydown="handleCreditKeydown(event, '${gridId}')" onblur="endCreditEdit('${gridId}')" onclick="event.stopPropagation()">`;
+        chip.onclick = () => openCreditPopup(gridId);
+        chip.innerHTML = `<span class="credit-chip-label">패키지</span>`;
         grid.appendChild(chip);
       }
     });
@@ -2806,59 +3175,255 @@
     syncTreatBtnStates(gridId);
   }
 
-  window.updateCreditChip = function(gridId, credit) {
-    const input = document.getElementById(`credit-input-${gridId}`);
-    const valueEl = document.getElementById(`credit-value-${gridId}`);
-    const value = Math.max(0, Math.min(999, Number(String(credit ?? '').replace(/[^0-9]/g, '')) || 0));
-    if (input) input.value = String(value);
-    if (valueEl) valueEl.textContent = String(value);
-    return value;
-  };
+  function normalizePCredits(values = {}) {
+    return Object.fromEntries(PCREDIT_FIELDS.map(({ key }) => {
+      const value = Math.max(0, Math.min(999, Number(String(values?.[key] ?? '').replace(/[^0-9]/g, '')) || 0));
+      return [key, value];
+    }));
+  }
 
-  window.beginCreditEdit = function(gridId) {
-    const chip = document.getElementById(`credit-chip-${gridId}`);
-    const input = document.getElementById(`credit-input-${gridId}`);
-    if (!chip || !input) return;
-    chip.classList.add('editing');
-    input.value = String(getCreditValue(gridId));
-    setTimeout(() => {
-      input.focus();
-      input.select();
-    }, 0);
-  };
+  function normalizePackageEntries(entries = [], type = 'purchase') {
+    if (Array.isArray(entries)) {
+      return entries.map((entry, index) => {
+        const date = String(entry?.date || toLocalDateInputValue());
+        const qty = Math.max(0, Math.min(999, Number(entry?.qty ?? entry?.totalQty ?? 0) || 0));
+        return {
+          id: String(entry?.id || `${type}-${date}-${qty}-${index}`),
+          date,
+          qty
+        };
+      }).filter(entry => entry.qty > 0);
+    }
+    return Object.entries(entries || {}).map(([id, entry]) => ({
+      id,
+      date: String(entry?.date || toLocalDateInputValue()),
+      qty: Math.max(0, Math.min(999, Number(entry?.qty ?? entry?.totalQty ?? 0) || 0))
+    })).filter(entry => entry.qty > 0);
+  }
 
-  window.endCreditEdit = function(gridId) {
-    updateCreditChip(gridId, getCreditValue(gridId));
-    document.getElementById(`credit-chip-${gridId}`)?.classList.remove('editing');
+  function createEmptyPackageState(source = {}) {
+    const sourcePackages = source?.packages || {};
+    const result = {};
+    PCREDIT_FIELDS.forEach(({ key }) => {
+      const saved = sourcePackages[key] || {};
+      const purchases = normalizePackageEntries(saved.purchases, 'purchase');
+      const usages = normalizePackageEntries(saved.usages, 'usage');
+      const hasPackageData = Boolean(sourcePackages[key]);
+      const openingQty = Math.max(0, Math.min(999, Number(saved.openingQty ?? (!hasPackageData ? source?.[key] : 0)) || 0));
+      const balance = calculatePackageBalance({ openingQty, purchases, usages });
+      result[key] = { openingQty, purchases, usages, balance };
+    });
+    return result;
+  }
+
+  function calculatePackageBalance(pkg = {}) {
+    const openingQty = Number(pkg.openingQty || 0);
+    const purchaseQty = normalizePackageEntries(pkg.purchases, 'purchase').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    const usageQty = normalizePackageEntries(pkg.usages, 'usage').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    return Math.max(0, openingQty + purchaseQty - usageQty);
+  }
+
+  function normalizePackageState(state = {}) {
+    const result = {};
+    PCREDIT_FIELDS.forEach(({ key }) => {
+      const pkg = state[key] || {};
+      const purchases = normalizePackageEntries(pkg.purchases, 'purchase');
+      const usages = normalizePackageEntries(pkg.usages, 'usage');
+      const openingQty = Math.max(0, Math.min(999, Number(pkg.openingQty || 0) || 0));
+      result[key] = {
+        openingQty,
+        purchases,
+        usages,
+        balance: calculatePackageBalance({ openingQty, purchases, usages })
+      };
+    });
+    return result;
+  }
+
+  function getPCreditsFromPackages(packages = {}) {
+    return Object.fromEntries(PCREDIT_FIELDS.map(({ key }) => [key, Number(packages?.[key]?.balance || 0)]));
+  }
+
+  function getPackageStateFromPatient(data = {}) {
+    return normalizePackageState(createEmptyPackageState(data));
+  }
+
+  function getPCreditsFromPatient(data = {}) {
+    return getPCreditsFromPackages(getPackageStateFromPatient(data));
+  }
+
+  function getPCreditPayload(gridId) {
+    return normalizePCredits(pCreditValuesByGrid[gridId]);
+  }
+
+  function getPackageStateForGrid(gridId) {
+    if (!packageStatesByGrid[gridId]) packageStatesByGrid[gridId] = createEmptyPackageState();
+    return normalizePackageState(packageStatesByGrid[gridId]);
+  }
+
+  function setPackageStateForGrid(gridId, state) {
+    const normalized = normalizePackageState(state);
+    packageStatesByGrid[gridId] = normalized;
+    pCreditValuesByGrid[gridId] = getPCreditsFromPackages(normalized);
+    updateCreditChip(gridId);
+    return normalized;
+  }
+
+  function getPackagePayload(gridId) {
+    const packages = getPackageStateForGrid(gridId);
+    return {
+      packages,
+      ...getPCreditsFromPackages(packages)
+    };
+  }
+
+  function getPCreditTotal(values = {}) {
+    return Object.values(normalizePCredits(values)).reduce((sum, value) => sum + value, 0);
+  }
+
+  function getPatientKeyForCreditGrid(gridId) {
+    const scope = getScopeFromGridId(gridId);
+    if (scope === 'bed') {
+      return getBedData(selectedBedNo)?.patientKey || '';
+    }
+    if (scope === 'desk' || scope === 'receive') {
+      if (formEditPatientKeyByScope[scope]) return formEditPatientKeyByScope[scope];
+      const bedNo = formEditBedNoByScope[scope];
+      return bedNo ? (getBedData(bedNo)?.patientKey || '') : '';
+    }
+    return '';
+  }
+
+  function resetPCredits(gridId) {
+    setPackageStateForGrid(gridId, createEmptyPackageState());
+    updateCreditChip(gridId);
+  }
+
+  window.updateCreditChip = function(gridId, values = null) {
+    if (values !== null && values !== undefined) {
+      if (values.packages) setPackageStateForGrid(gridId, createEmptyPackageState(values));
+      else {
+        pCreditValuesByGrid[gridId] = normalizePCredits(typeof values === 'number' ? {} : values);
+        packageStatesByGrid[gridId] = createEmptyPackageState(values);
+      }
+    }
+    return getPCreditPayload(gridId);
   };
 
   window.getCreditValue = function(gridId) {
-    const input = document.getElementById(`credit-input-${gridId}`);
-    return Math.max(0, Math.min(999, Number(String(input?.value ?? '').replace(/[^0-9]/g, '')) || 0));
+    return getPCreditPayload(gridId);
   };
 
-  window.handleCreditKeydown = async function(event, gridId) {
-    event.stopPropagation();
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    const credit = updateCreditChip(gridId, getCreditValue(gridId));
-    endCreditEdit(gridId);
-    const scope = getScopeFromGridId(gridId);
-    const bedNo = scope === 'bed' ? selectedBedNo : formEditBedNoByScope[scope];
-    const bed = bedNo ? getBedData(bedNo) : null;
-    if (!bed?.patientKey) {
-      showToast('저장할 환자 정보가 없습니다');
-      return;
+  window.openCreditPopup = function(gridId) {
+    activeCreditGridId = gridId;
+    const overlay = document.getElementById('creditOverlay');
+    if (!overlay) return;
+    renderPackagePopup();
+    overlay.classList.add('show');
+  };
+
+  function renderPackagePopup() {
+    const form = document.getElementById('creditForm');
+    if (!form || !activeCreditGridId) return;
+    const packages = getPackageStateForGrid(activeCreditGridId);
+    const today = toLocalDateInputValue();
+    form.innerHTML = PCREDIT_FIELDS.map(({ key, label, defaultPurchaseQty }) => {
+      const pkg = packages[key] || { openingQty: 0, purchases: [], usages: [], balance: 0 };
+      const purchases = normalizePackageEntries(pkg.purchases, 'purchase');
+      const usages = normalizePackageEntries(pkg.usages, 'usage');
+      const renderRows = (items, type) => items.length
+        ? items.map(item => `
+          <div class="package-history-row">
+            <span>${escapeHtml(item.date)}</span>
+            <span>${type === 'purchase' ? '결제' : '사용'} ${escapeHtml(item.qty)}개</span>
+            <button class="package-history-delete" type="button" onclick="removePackageEntry('${key}', '${type}', '${escapeHtml(item.id)}')">×</button>
+          </div>`).join('')
+        : `<div class="package-history-row"><span>-</span><span>기록 없음</span><span></span></div>`;
+      return `
+        <div class="package-card">
+          <div class="package-card-head">
+            <div class="package-title">${escapeHtml(label)}</div>
+            <div class="package-balance">잔량 ${escapeHtml(pkg.balance)}</div>
+          </div>
+          <div class="package-entry-grid">
+            <input class="package-input" id="pkg-${key}-purchase-date" type="date" value="${today}">
+            <input class="package-input" id="pkg-${key}-purchase-qty" type="text" inputmode="numeric" maxlength="3" value="${escapeHtml(defaultPurchaseQty)}" aria-label="${escapeHtml(label)} 결제 수량">
+            <button class="package-entry-btn" type="button" onclick="addPackageEntry('${key}', 'purchase')">결제 추가</button>
+          </div>
+          <div class="package-entry-grid">
+            <input class="package-input" id="pkg-${key}-usage-date" type="date" value="${today}">
+            <input class="package-input" id="pkg-${key}-usage-qty" type="text" inputmode="numeric" maxlength="3" value="1" aria-label="${escapeHtml(label)} 사용 수량">
+            <button class="package-entry-btn" type="button" onclick="addPackageEntry('${key}', 'usage')">사용 추가</button>
+          </div>
+          <div class="package-history-title">결제일</div>
+          <div class="package-history">${renderRows(purchases, 'purchase')}</div>
+          <div class="package-history-title">사용일</div>
+          <div class="package-history">${renderRows(usages, 'usage')}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function getPackageQtyInputValue(id) {
+    return Math.max(1, Math.min(999, Number(String(document.getElementById(id)?.value || '').replace(/[^0-9]/g, '')) || 1));
+  }
+
+  async function persistPackageState(gridId) {
+    const packages = getPackageStateForGrid(gridId);
+    const payload = { packages, ...getPCreditsFromPackages(packages), credit: null };
+    const patientKey = getPatientKeyForCreditGrid(gridId);
+    if (patientKey) {
+      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), payload);
+      const nextPatient = {
+        ...(patientsByKey.get(patientKey) || {}),
+        ...payload
+      };
+      delete nextPatient.credit;
+      patientsByKey.set(patientKey, nextPatient);
+      renderBedMonitors();
     }
-    await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { credit });
-    patientsByKey.set(bed.patientKey, {
-      ...(patientsByKey.get(bed.patientKey) || {}),
-      credit
-    });
-    updateCreditChip(gridId, credit);
-    if (gridId === 'bedTreatmentGrid') populateBedEditForm();
-    renderBedMonitors();
-    showToast(`크레딧 ${credit} 저장 완료`);
+    updateCreditChip(gridId);
+  }
+
+  window.addPackageEntry = async function(key, type) {
+    const gridId = activeCreditGridId;
+    if (!gridId) return;
+    const packages = getPackageStateForGrid(gridId);
+    const pkg = packages[key] || { openingQty: 0, purchases: [], usages: [] };
+    const dateId = `pkg-${key}-${type === 'purchase' ? 'purchase' : 'usage'}-date`;
+    const qtyId = `pkg-${key}-${type === 'purchase' ? 'purchase' : 'usage'}-qty`;
+    const date = document.getElementById(dateId)?.value || toLocalDateInputValue();
+    const qty = getPackageQtyInputValue(qtyId);
+    const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date, qty };
+    if (type === 'purchase') pkg.purchases = [...normalizePackageEntries(pkg.purchases, 'purchase'), entry];
+    else pkg.usages = [...normalizePackageEntries(pkg.usages, 'usage'), entry];
+    packages[key] = pkg;
+    setPackageStateForGrid(gridId, packages);
+    await persistPackageState(gridId);
+    renderPackagePopup();
+    showToast(type === 'purchase' ? '결제 기록 추가' : '사용 기록 추가');
+  };
+
+  window.removePackageEntry = async function(key, type, id) {
+    const gridId = activeCreditGridId;
+    if (!gridId) return;
+    const packages = getPackageStateForGrid(gridId);
+    const pkg = packages[key] || { openingQty: 0, purchases: [], usages: [] };
+    const field = type === 'purchase' ? 'purchases' : 'usages';
+    pkg[field] = normalizePackageEntries(pkg[field], type).filter(entry => entry.id !== id);
+    packages[key] = pkg;
+    setPackageStateForGrid(gridId, packages);
+    await persistPackageState(gridId);
+    renderPackagePopup();
+    showToast('패키지 기록 삭제');
+  };
+
+  window.closeCreditPopup = function() {
+    document.getElementById('creditOverlay')?.classList.remove('show');
+    activeCreditGridId = '';
+  };
+
+  window.saveCreditPopup = async function() {
+    closeCreditPopup();
   };
 
   function renderTreatmentPresetSelect(select) {
@@ -3413,7 +3978,7 @@
           nurseId: nurse.id,
           nurseName: nurse.name,
           testGenerated: true,
-          credit: 0
+          ...normalizePCredits()
         });
       }
 
@@ -3667,7 +4232,7 @@
     const doctor = getSelectedStaff('doctors', scope);
     let nurse = getSelectedStaff('nurses', scope);
     let treatments = (treatmentSelections[ids.treatmentGrid] || []).map(s => s.name);
-    const credit = window.getCreditValue?.(ids.treatmentGrid) ?? 0;
+    const packagePayload = getPackagePayload(ids.treatmentGrid);
 
     if (!name) { showToast('❗ 성함을 입력해주세요'); return; }
     if (treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
@@ -3701,7 +4266,7 @@
         doctorName: doctor.name,
         nurseId: nurse.id,
         nurseName: nurse.name,
-        credit
+        ...packagePayload
       });
 
       // 초기화
@@ -3721,7 +4286,7 @@
       syncTreatBtnStates(ids.treatmentGrid);
 
       if (scope === 'desk') window.clearChartLookupBadge?.();
-      window.updateCreditChip?.(ids.treatmentGrid, 0);
+      resetPCredits(ids.treatmentGrid);
 
       showToast(`✅ ${name} 알림 전송 완료`);
       if (scope === 'desk') {
@@ -3765,7 +4330,7 @@
       gender: document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남',
       bodyParts: normalizeBodyParts(formBodyPartsByScope[scope]),
       treatments,
-      credit: window.getCreditValue?.(ids.treatmentGrid) ?? 0,
+      packagePayload: getPackagePayload(ids.treatmentGrid),
       doctor,
       nurse
     };
@@ -3805,7 +4370,7 @@
     formBodyPartsByScope[scope] = normalizeBodyParts(bed?.bodyParts);
     renderFormBodyPartSelector(scope);
     const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
-    window.updateCreditChip?.(ids.treatmentGrid, patient?.credit ?? bed?.credit ?? 0);
+    window.updateCreditChip?.(ids.treatmentGrid, patient || bed || {});
   }
   window.populatePatientForm = populatePatientForm;
 
@@ -3826,7 +4391,7 @@
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const button = document.getElementById(ids.submitBtn);
     const patientKey = formEditPatientKeyByScope[scope];
-    if (button) button.textContent = bedNo || patientKey ? '정보수정' : '입력';
+    if (button) button.textContent = bedNo || patientKey ? '확인' : '입력';
     setIdentityFieldsLocked(scope, Boolean(bedNo));
   }
 
@@ -3837,7 +4402,7 @@
     if (patientKey) formEditBedNoByScope[scope] = null;
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const button = document.getElementById(ids.submitBtn);
-    if (button) button.textContent = patientKey ? '정보수정' : (formEditBedNoByScope[scope] ? '정보수정' : '입력');
+    if (button) button.textContent = patientKey ? '확인' : (formEditBedNoByScope[scope] ? '확인' : '입력');
     setIdentityFieldsLocked(scope, false);
   }
 
@@ -3858,7 +4423,8 @@
       setTreatmentSelection(ids.treatmentGrid, []);
       formBodyPartsByScope.bed = { front: [], back: [] };
       renderFormBodyPartSelector('bed');
-      window.updateCreditChip?.('bedTreatmentGrid', 0);
+      resetPCredits('bedTreatmentGrid');
+      setBedMemoOpen(false);
       return;
     }
 
@@ -3876,10 +4442,27 @@
     formBodyPartsByScope.bed = normalizeBodyParts(bed.bodyParts);
     renderFormBodyPartSelector('bed');
     const bedPatient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
-    window.updateCreditChip?.('bedTreatmentGrid', bedPatient?.credit ?? 0);
+    window.updateCreditChip?.('bedTreatmentGrid', bedPatient || {});
+    setBedMemoOpen(false);
   }
 
   window.populateBedEditForm = populateBedEditForm;
+
+  function setBedMemoOpen(open) {
+    const wrap = document.getElementById('bedMemoWrap');
+    const toggle = document.getElementById('bedMemoToggle');
+    const memo = document.getElementById('bedMemoInput')?.value?.trim() || '';
+    if (wrap) wrap.classList.toggle('open', Boolean(open));
+    if (toggle) {
+      toggle.classList.toggle('has-memo', Boolean(memo));
+      toggle.textContent = open ? '메모 닫기' : (memo ? '메모있음' : '메모');
+    }
+  }
+
+  window.toggleBedMemoInput = function() {
+    const wrap = document.getElementById('bedMemoWrap');
+    setBedMemoOpen(!wrap?.classList.contains('open'));
+  };
 
   function setBedEditOpen(open) {
     const panel = document.getElementById('bedPanel');
@@ -4072,9 +4655,10 @@
         doctorName: form.doctor.name,
         nurseId: form.nurse.id,
         nurseName: form.nurse.name,
-        credit: form.credit
+        ...form.packagePayload,
+        credit: null
       };
-      const { credit, ...bedPatch } = patientPatch;
+      const { credit, packages, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPatch } = patientPatch;
 
       await update(ref(db, `${BEDS_PATH}/${selectedBedNo}`), {
         ...bedPatch,
@@ -4094,7 +4678,7 @@
     }
 
     btn.disabled = false;
-    btn.textContent = '정보수정';
+    btn.textContent = '확인';
   };
 
   async function saveTextFieldsOnly(scope) {
@@ -4131,7 +4715,7 @@
       showToast('저장 실패');
     }
     btn.disabled = false;
-    btn.textContent = '정보수정';
+    btn.textContent = '확인';
   }
 
   async function saveWaitingPatientInfo(scope) {
@@ -4160,7 +4744,8 @@
       doctorName: form.doctor.name,
       nurseId: form.nurse.id,
       nurseName: form.nurse.name,
-      credit: form.credit
+      ...form.packagePayload,
+      credit: null
     };
 
     const btn = document.getElementById(form.ids.submitBtn);
@@ -4170,15 +4755,15 @@
       await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), payload);
       patientsByKey.set(patientKey, { ...patient, ...payload });
       renderWaitingLists();
-      showToast(`${form.name} 정보수정 완료`);
+      showToast(`${form.name} 확인 완료`);
       return true;
     } catch (e) {
       console.error(e);
-      showToast('정보수정 실패');
+      showToast('확인 실패');
       return false;
     } finally {
       btn.disabled = false;
-      btn.textContent = '정보수정';
+      btn.textContent = '확인';
     }
   }
 
@@ -4231,9 +4816,10 @@
         doctorName: form.doctor.name,
         nurseId: form.nurse.id,
         nurseName: form.nurse.name,
-        credit: form.credit
+        ...form.packagePayload,
+        credit: null
       };
-      const { credit, ...bedPayload } = payload;
+      const { credit, packages, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPayload } = payload;
       await update(ref(db, `${BEDS_PATH}/${bedNo}`), { ...bedPayload, ...timerUpdates });
       if (bed.patientKey) {
         await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
@@ -4247,7 +4833,7 @@
       return false;
     } finally {
       btn.disabled = false;
-      btn.textContent = '정보수정';
+      btn.textContent = '확인';
     }
   }
 
@@ -4446,6 +5032,35 @@
     startAt(todayStart.getTime())
   );
 
+  function syncPatientPCreditSchema(patientKey, data) {
+    if (!patientKey || !data) return;
+    const patch = {};
+    if (!data.packages) {
+      const packages = createEmptyPackageState(data);
+      patch.packages = packages;
+      data.packages = packages;
+    } else {
+      const packages = getPackageStateFromPatient(data);
+      if (JSON.stringify(data.packages) !== JSON.stringify(packages)) patch.packages = packages;
+      data.packages = packages;
+    }
+    const balances = getPCreditsFromPackages(data.packages);
+    PCREDIT_FIELDS.forEach(({ key }) => {
+      if (!Object.prototype.hasOwnProperty.call(data, key) || Number(data[key] || 0) !== Number(balances[key] || 0)) {
+        patch[key] = Number(balances[key] || 0);
+        data[key] = Number(balances[key] || 0);
+      }
+    });
+    if (Object.prototype.hasOwnProperty.call(data, 'credit')) {
+      patch.credit = null;
+      delete data.credit;
+    }
+    if (!Object.keys(patch).length) return;
+    update(ref(db, `${PATIENTS_PATH}/${patientKey}`), patch).catch(e => {
+      console.error('크레딧 필드 동기화 실패', e);
+    });
+  }
+
   onChildAdded(patientsRef, (snapshot) => {
     if (isClearingPatientDatabase) return;
     const key = snapshot.key;
@@ -4453,6 +5068,7 @@
     loadedKeys.add(key);
 
     const data = snapshot.val();
+    syncPatientPCreditSchema(key, data);
     const normalizedChartNo = normalizeChartNo(data.chartNo);
     if ((data.chartNo || '') !== normalizedChartNo) {
       data.chartNo = normalizedChartNo;
@@ -4474,6 +5090,7 @@
     if (isClearingPatientDatabase) return;
     const key = snapshot.key;
     const data = snapshot.val();
+    syncPatientPCreditSchema(key, data);
     const normalizedChartNo = normalizeChartNo(data.chartNo);
     if ((data.chartNo || '') !== normalizedChartNo) {
       data.chartNo = normalizedChartNo;
@@ -4581,6 +5198,7 @@
       renderWaitingLists();
       renderUpcomingAlerts();
       updateCount();
+      syncFixedBedArrivalOverlay();
       return;
     }
 let migratedCount = 0;
@@ -4610,6 +5228,7 @@ let migratedCount = 0;
     renderWaitingLists();
     renderUpcomingAlerts();
     updateCount();
+    syncFixedBedArrivalOverlay();
     ensureBedTicker();
   });
 
@@ -4688,26 +5307,51 @@ let migratedCount = 0;
       );
   }
 
-  function createBedAssignment(patientKey, data) {
-    const firstTreatment = data.treatments?.[0];
+  function getBedAssignedNurse(bedNo) {
+    const nurseGroups = [
+      { beds: [1, 2, 8, 13, 14], index: 0 },
+      { beds: [3, 4, 9, 10], index: 1 },
+      { beds: [5, 6, 11, 12], index: 2 }
+    ];
+    const group = nurseGroups.find(item => item.beds.includes(Number(bedNo)));
+    if (!group) return null;
+
+    const nurses = getSortedStaff('nurses');
+    const [id, nurse] = nurses[group.index] || [];
+    return id ? { id, name: nurse?.name || '' } : null;
+  }
+
+  function applyBedAssignedNurse(data, bedNo) {
+    const nurse = getBedAssignedNurse(bedNo);
+    if (!nurse) return data;
+    return {
+      ...data,
+      nurseId: nurse.id,
+      nurseName: nurse.name
+    };
+  }
+
+  function createBedAssignment(patientKey, data, bedNo = null) {
+    const assignmentData = bedNo ? applyBedAssignedNurse(data, bedNo) : data;
+    const firstTreatment = assignmentData.treatments?.[0];
     const total = getTreatmentSeconds(firstTreatment);
     return {
       patientKey,
-      name: data.name,
-      treatments: data.treatments || [],
-      timeStr: data.timeStr || '',
-      timestamp: data.timestamp || Date.now(),
-      chartNo: normalizeChartNo(data.chartNo),
-      visitType: data.visitType || '',
-      chiefComplaint: data.chiefComplaint || '',
-      memo: data.memo || '',
-      age: data.age || '',
-      gender: data.gender || '',
-      doctorId: data.doctorId || '',
-      doctorName: data.doctorName || '',
-      nurseId: data.nurseId || '',
-      nurseName: data.nurseName || '',
-      bodyParts: data.bodyParts || { front: [], back: [] },
+      name: assignmentData.name,
+      treatments: assignmentData.treatments || [],
+      timeStr: assignmentData.timeStr || '',
+      timestamp: assignmentData.timestamp || Date.now(),
+      chartNo: normalizeChartNo(assignmentData.chartNo),
+      visitType: assignmentData.visitType || '',
+      chiefComplaint: assignmentData.chiefComplaint || '',
+      memo: assignmentData.memo || '',
+      age: assignmentData.age || '',
+      gender: assignmentData.gender || '',
+      doctorId: assignmentData.doctorId || '',
+      doctorName: assignmentData.doctorName || '',
+      nurseId: assignmentData.nurseId || '',
+      nurseName: assignmentData.nurseName || '',
+      bodyParts: assignmentData.bodyParts || { front: [], back: [] },
       currentIndex: 0,
       total,
       remaining: total,
@@ -4781,17 +5425,23 @@ let migratedCount = 0;
         beds = beds || {};
         const existing = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
         if (existing || beds[String(docBedNo)]) return beds;
-        beds[String(docBedNo)] = createBedAssignment(patientKey, data);
+        beds[String(docBedNo)] = createBedAssignment(patientKey, data, docBedNo);
         return beds;
       });
 
       const beds = result.snapshot.val() || {};
       const bedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
       if (result.committed && bedNo) {
-        patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: Number(bedNo) });
-        await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), { bedStatus: 'assigned', bedNo: Number(bedNo) });
-        await createDoctorAssignmentAlert(patientKey, data, Number(bedNo));
-        await createBedAssignmentAlert(patientKey, data, Number(bedNo));
+        const assignedData = applyBedAssignedNurse(data, Number(bedNo));
+        patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo: Number(bedNo) });
+        await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
+          bedStatus: 'assigned',
+          bedNo: Number(bedNo),
+          nurseId: assignedData.nurseId || '',
+          nurseName: assignedData.nurseName || ''
+        });
+        await createDoctorAssignmentAlert(patientKey, assignedData, Number(bedNo));
+        await createBedAssignmentAlert(patientKey, assignedData, Number(bedNo));
         return Number(bedNo);
       }
       return false;
@@ -4808,16 +5458,22 @@ let migratedCount = 0;
         .find(bedNo => !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(Number(bedNo)) && !beds[bedNo]);
       if (!emptyBedNo) return beds;
 
-      beds[emptyBedNo] = createBedAssignment(patientKey, data);
+      beds[emptyBedNo] = createBedAssignment(patientKey, data, Number(emptyBedNo));
       return beds;
     });
 
     const beds = result.snapshot.val() || {};
     const bedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
     if (result.committed && bedNo) {
-      patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: Number(bedNo) });
-      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), { bedStatus: 'assigned', bedNo: Number(bedNo) });
-      await createBedAssignmentAlert(patientKey, data, Number(bedNo));
+      const assignedData = applyBedAssignedNurse(data, Number(bedNo));
+      patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo: Number(bedNo) });
+      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
+        bedStatus: 'assigned',
+        bedNo: Number(bedNo),
+        nurseId: assignedData.nurseId || '',
+        nurseName: assignedData.nurseName || ''
+      });
+      await createBedAssignmentAlert(patientKey, assignedData, Number(bedNo));
       return Number(bedNo);
     }
 
@@ -4909,16 +5565,22 @@ let migratedCount = 0;
       beds = beds || {};
       const existingBedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
       if (existingBedNo || beds[String(bedNo)]) return beds;
-      beds[String(bedNo)] = createBedAssignment(patientKey, data);
+      beds[String(bedNo)] = createBedAssignment(patientKey, data, bedNo);
       return beds;
     });
 
     const beds = result.snapshot.val() || {};
     if (result.committed && beds[String(bedNo)]?.patientKey === patientKey) {
-      patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo });
-      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), { bedStatus: 'assigned', bedNo });
-      if (isDocBed) await createDoctorAssignmentAlert(patientKey, data, bedNo);
-      await createBedAssignmentAlert(patientKey, data, bedNo);
+      const assignedData = applyBedAssignedNurse(data, bedNo);
+      patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo });
+      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
+        bedStatus: 'assigned',
+        bedNo,
+        nurseId: assignedData.nurseId || '',
+        nurseName: assignedData.nurseName || ''
+      });
+      if (isDocBed) await createDoctorAssignmentAlert(patientKey, assignedData, bedNo);
+      await createBedAssignmentAlert(patientKey, assignedData, bedNo);
       showToast(`${bedNo}번 배정 완료`);
       return true;
     }
@@ -5009,7 +5671,8 @@ let migratedCount = 0;
         treatments: patient.treatments || [],
         bodyParts: normalizeBodyParts(assignedBed?.bodyParts || patient.bodyParts),
         appointmentDate: patient.appointmentDate || '',
-        credit: Number(patient.credit || 0)
+        packages: getPackageStateFromPatient(patient),
+        ...getPCreditsFromPatient(patient)
       });
     }
 
@@ -5434,6 +6097,7 @@ let migratedCount = 0;
     renderBedDetail();
     if (document.getElementById('bedPanel')?.classList.contains('bed-schedule-open')) populateBedSchedulePanel();
     if (document.getElementById('bedPanel')?.classList.contains('bed-edit-open')) populateBedEditForm();
+    syncFixedBedArrivalOverlay();
   };
 
   function renderBedDetail() {
@@ -5515,7 +6179,8 @@ let migratedCount = 0;
       <div class="body-map-grid">
         ${renderBodyFigure('front', '전면', selectedParts.front)}
         ${renderBodyFigure('back', '후면', selectedParts.back)}
-      </div>`;
+      </div>
+      <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>`;
   }
 
   function renderFormBodyPartSelector(scope) {
@@ -5761,22 +6426,45 @@ let migratedCount = 0;
     return parts.map(part => `<span class="body-part-chip">${escapeHtml(part)}</span>`).join('');
   }
 
-  function getBedDetailPatientSummaryChips(bed) {
+  function getShortVisitTypeLabel(visitType) {
+    const value = String(visitType || '').trim();
+    if (!value) return '';
+    if (value.includes('초')) return '초진';
+    if (value.includes('재')) return '재진';
+    return value;
+  }
+
+  function getBedNameMetaChips(bed) {
     const parts = [
+      bed.chartNo ? `${bed.chartNo}` : '',
+      getShortVisitTypeLabel(bed.visitType),
+      bed.gender || '',
+      bed.age ? `${bed.age}세` : ''
+    ].filter(Boolean);
+
+    if (!parts.length) return '';
+    return `<span class="bed-name-meta">${parts.map(part => `<span class="bed-name-meta-chip">${escapeHtml(part)}</span>`).join('')}</span>`;
+  }
+
+  function getBedDetailPatientSummaryChips(bed, includeIdentity = true) {
+    const identityParts = includeIdentity ? [
       bed.chartNo ? `${bed.chartNo}번` : '',
       bed.visitType || '',
       bed.gender || '',
-      bed.age ? `${bed.age}세` : '',
+      bed.age ? `${bed.age}세` : ''
+    ] : [];
+    const parts = [
+      ...identityParts,
       bed.chiefComplaint || '',
-      bed.memo || ''
+      bed.memo ? '메모있음' : ''
     ].filter(Boolean);
 
     if (!parts.length) return '';
     return parts.map(part => `<span class="bed-patient-summary-chip">${escapeHtml(part)}</span>`).join('');
   }
 
-  function renderBedDetailPatientInfo(bed, bedNo, showClearButton = false) {
-    const patientSummary = getBedDetailPatientSummaryChips(bed);
+  function renderBedDetailPatientInfo(bed, bedNo, showClearButton = false, options = {}) {
+    const patientSummary = getBedDetailPatientSummaryChips(bed, options.includeIdentity !== false);
     const infoChips = [
       bed.doctorName || '-',
       bed.nurseName || '-'
@@ -5788,9 +6476,24 @@ let migratedCount = 0;
           ${patientSummary ? `<div class="bed-detail-chip-row">${patientSummary}</div>` : ''}
           <div class="bed-detail-chip-row">${infoChips}</div>
           <div class="bed-detail-treatment-row">${renderBedDetailTreatmentChips(bed, bedNo)}</div>
-          <div class="body-selected-list">${renderBodyPartChips(bed)}</div>
         </div>
         ${showClearButton ? `<button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
+      </div>`;
+  }
+
+  function renderBedPackageBalanceBox(bed) {
+    const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    const balances = getPCreditsFromPatient(patient || {});
+    return `
+      <div class="bed-package-zone">
+        <div class="bed-package-title">패키지 잔여량</div>
+        <div class="bed-package-grid">
+          ${PCREDIT_FIELDS.map(({ key, label }) => `
+            <div class="bed-package-chip">
+              <span class="bed-package-name">${escapeHtml(label)}</span>
+              <span class="bed-package-count">${escapeHtml(balances[key] || 0)}</span>
+            </div>`).join('')}
+        </div>
       </div>`;
   }
 
@@ -5818,6 +6521,37 @@ let migratedCount = 0;
     }
 
     const currentTreatment = bed.treatments?.[bed.currentIndex];
+    if (context === 'bed') {
+      return `
+        <div class="card bed-detail-card--bed">
+          <div class="bed-info-zone">
+            <div class="bed-summary">
+              <div>
+                <div class="bed-name-row">
+                  <div class="bed-name">${escapeHtml(bed.name)}</div>
+                  ${getBedNameMetaChips(bed)}
+                </div>
+              </div>
+              <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
+            </div>
+            ${renderBedDetailPatientInfo(bed, bedNo, allowControls, { includeIdentity: false })}
+            ${bed.lastAlertId ? `<div class="bed-alert-card">
+              <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`)}</div>
+              <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
+            </div>` : ''}
+          </div>
+          ${renderBedPackageBalanceBox(bed)}
+          <div class="bed-timer-zone">
+            <div class="timer-list">
+              ${bed.complete ? renderCompleteCard(bedNo, bed, allowControls, context) : renderTimerCard(bedNo, bed, currentTreatment, allowControls, context)}
+            </div>
+          </div>
+          <div class="bed-schedule-zone">
+            ${allowControls ? renderBedSchedulePanelMarkup() : ''}
+          </div>
+        </div>`;
+    }
+
     return `
       <div class="card">
         <div class="bed-summary">
@@ -6250,7 +6984,8 @@ let migratedCount = 0;
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
         appointmentDate: patient?.appointmentDate || '',
-        credit: Number(patient?.credit || 0)
+        packages: getPackageStateFromPatient(patient || {}),
+        ...getPCreditsFromPatient(patient || {})
       });
     }
 
@@ -6695,7 +7430,7 @@ let migratedCount = 0;
       chiefComplaint: bed.chiefComplaint || '',
       memo: bed.memo || '',
       bodyParts: normalizeBodyParts(bed.bodyParts),
-      credit: Number((bed.patientKey ? patientsByKey.get(bed.patientKey) : null)?.credit || 0)
+      pCredits: getPCreditsFromPatient(bed.patientKey ? patientsByKey.get(bed.patientKey) : {})
     };
   }
 
@@ -6725,7 +7460,6 @@ let migratedCount = 0;
     return `
       <div class="bed-popover">
         <div class="bed-treatment-strip">${chips}</div>
-        <div class="body-selected-list">${renderBodyPartChips({ bodyParts: status.bodyParts })}</div>
       </div>`;
   }
 
@@ -6769,10 +7503,11 @@ let migratedCount = 0;
       : '';
 
     if (status.empty) {
+      const compactLabel = `${getCompactBedMarker(status.bedNo)} 비어 있음`;
       return `
         <div class="bed-status${compact ? ' compact' : ''}${activeClass}" tabindex="0"${moveHandlers}>
           <div class="bed-status-top">
-            <span class="bed-status-no">${compact ? '비어 있음' : `${escapeHtml(status.bedLabel)} 비어 있음`}</span>
+            <span class="bed-status-no">${compact ? escapeHtml(compactLabel) : `${escapeHtml(status.bedLabel)} 비어 있음`}</span>
             ${compact ? '' : '<span class="bed-status-time">-</span>'}
           </div>
           ${compact ? '' : '<div class="bed-status-treatment"><span class="bed-stage-badge empty">비어 있음</span></div>'}
@@ -6791,12 +7526,13 @@ let migratedCount = 0;
       status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : '',
     ].filter(Boolean).join('');
     const staffHtml = [
-      status.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">${escapeHtml(status.memo)}</span>` : ''
+      status.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">메모있음</span>` : ''
     ].filter(Boolean).join('');
+    const compactName = `${getCompactBedMarker(status.bedNo)} ${status.name}`;
     return `
       <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${canMoveBed ? ` oncontextmenu="confirmClearBed(event, ${status.bedNo})"` : ''}>
         <div class="bed-status-top">
-          <span class="bed-status-no">${compact ? escapeHtml(status.name) : `${escapeHtml(status.bedLabel)} ${escapeHtml(status.name)}`}</span>
+          <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(status.bedLabel)} ${escapeHtml(status.name)}`}</span>
           ${compact ? '' : `<span class="bed-status-time">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
         ${compact ? '' : (infoChips ? `<div class="bed-status-info">${infoChips}</div>` : '')}
@@ -7495,7 +8231,7 @@ let migratedCount = 0;
 
             const chiefComplaint = colDiag ? String(row[colDiag] || '').trim() : '';
 
-            store.put({ chartNo, name, age: age ? Number(age) : '', gender, chiefComplaint, memo: '', credit: 0 });
+            store.put({ chartNo, name, age: age ? Number(age) : '', gender, chiefComplaint, memo: '', packages: createEmptyPackageState(), ...normalizePCredits() });
             saved++;
           }
           tx.oncomplete = resolve;
@@ -7535,7 +8271,7 @@ let migratedCount = 0;
       window.applyTreatmentsToForm?.(scope, patient.treatments || []);
       // 치료 부위 복원
       window.applyBodyPartsToForm?.(scope, patient.bodyParts);
-      window.updateCreditChip?.(ids.treatmentGrid, patient.credit ?? 0);
+      window.updateCreditChip?.(ids.treatmentGrid, patient);
       if (badge && scope === 'desk') {
         badge.textContent = '재';
         badge.className = 'chart-lookup-badge returning';
@@ -7548,7 +8284,7 @@ let migratedCount = 0;
       document.querySelector(`input[name="${ids.visitType}"][value="초진"]`)?.click();
       window.applyTreatmentsToForm?.(scope, []);
       window.applyBodyPartsToForm?.(scope, null);
-      window.updateCreditChip?.(ids.treatmentGrid, 0);
+      resetPCredits(ids.treatmentGrid);
       if (badge && scope === 'desk') {
         badge.textContent = '초';
         badge.className = 'chart-lookup-badge new';
@@ -7694,6 +8430,65 @@ let migratedCount = 0;
     );
   }
 
+  function getFixedBedArrivalBedNo() {
+    const fixedBedNo = getFixedBedNoFromUrl();
+    if (fixedBedNo) return fixedBedNo;
+    return window.currentMode === 'bed' ? selectedBedNo : 0;
+  }
+
+  function getFixedBedArrivalSeenStorageKey(bedNo) {
+    return `fixedBedArrivalSeen:${bedNo}`;
+  }
+
+  function hideFixedBedArrivalOverlay() {
+    const overlay = document.getElementById('bedArrivalOverlay');
+    if (overlay) overlay.classList.remove('show');
+    fixedBedArrivalVisiblePatientKey = '';
+  }
+
+  function syncFixedBedArrivalOverlay() {
+    const bedNo = getFixedBedArrivalBedNo();
+    const overlay = document.getElementById('bedArrivalOverlay');
+    const nameEl = document.getElementById('bedArrivalName');
+    if (!overlay || !nameEl || !bedNo) {
+      hideFixedBedArrivalOverlay();
+      return;
+    }
+
+    const bed = getBedData(bedNo);
+    const patientKey = bed?.patientKey ? String(bed.patientKey) : '';
+    if (!patientKey) {
+      localStorage.removeItem(getFixedBedArrivalSeenStorageKey(bedNo));
+      hideFixedBedArrivalOverlay();
+      return;
+    }
+
+    if (localStorage.getItem(getFixedBedArrivalSeenStorageKey(bedNo)) === patientKey) {
+      hideFixedBedArrivalOverlay();
+      return;
+    }
+
+    fixedBedArrivalVisiblePatientKey = patientKey;
+    nameEl.textContent = bed.name || '';
+    overlay.classList.add('show');
+  }
+
+  window.openFixedBedArrival = () => {
+    const bedNo = getFixedBedArrivalBedNo();
+    if (!bedNo) {
+      hideFixedBedArrivalOverlay();
+      return;
+    }
+    const patientKey = fixedBedArrivalVisiblePatientKey || String(getBedData(bedNo)?.patientKey || '');
+    if (patientKey) localStorage.setItem(getFixedBedArrivalSeenStorageKey(bedNo), patientKey);
+    selectedBedNo = bedNo;
+    hideFixedBedArrivalOverlay();
+    renderBedSelector();
+    renderBedDetail();
+    updateBedHeaderBedChip();
+    updateBedRemainingChip();
+  };
+
   function setMode(mode, updateHash = true) {
     const fixedMode = getModeFromView();
     if (fixedMode) mode = fixedMode;
@@ -7720,6 +8515,7 @@ let migratedCount = 0;
     if (mode === 'notify') setReceiveFormOpen(false);
     syncDoctorProcedureAlerts();
     renderUpcomingAlerts();
+    syncFixedBedArrivalOverlay();
   }
 
   function setInputFormOpen(open) {
@@ -7765,7 +8561,7 @@ let migratedCount = 0;
     document.querySelector('input[name="visitType"][value="초진"]')?.click();
     document.querySelector('input[name="gender"][value="남"]')?.click();
     window.clearChartLookupBadge?.();
-    window.updateCreditChip?.('treatmentGrid', 0);
+    resetPCredits('treatmentGrid');
   }
 
   window.openDeskInputForm = () => {
@@ -7882,6 +8678,10 @@ let migratedCount = 0;
     });
     document.getElementById('bedPatientName')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('bedSubmitBtn').click();
+    });
+    document.getElementById('bedMemoInput')?.addEventListener('input', () => {
+      const open = document.getElementById('bedMemoWrap')?.classList.contains('open');
+      setBedMemoOpen(open);
     });
     document.getElementById('doctorNameInput')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') addStaff('doctors');
