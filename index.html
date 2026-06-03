@@ -2237,12 +2237,15 @@
   /* 빈 상태 */
   .bed-arrival-overlay {
     position: fixed;
-    inset: 0;
+    inset: 72px 12px 16px;
     z-index: 120;
     display: none;
     place-items: center;
     border: 0;
-    background: radial-gradient(circle at 50% 35%, rgba(57,169,245,0.24), rgba(5,42,97,0.96) 48%, rgba(2,18,42,0.98));
+    background: radial-gradient(circle at 50% 35%, rgba(57,169,245,0.30), rgba(5,42,97,0.98) 52%, rgba(2,18,42,0.99));
+    border: 2px solid var(--gold);
+    border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.72), 0 0 60px rgba(240,192,96,0.22);
     color: var(--text);
     cursor: pointer;
     font-family: 'Noto Sans KR', sans-serif;
@@ -2253,11 +2256,18 @@
     display: grid;
   }
   .bed-arrival-name {
-    max-width: 92vw;
+    max-width: 96%;
     overflow-wrap: anywhere;
-    font-size: clamp(64px, 15vw, 168px);
+    font-size: clamp(72px, 19vw, 220px);
     font-weight: 900;
     line-height: 1.06;
+  }
+  @media (max-width: 760px) {
+    .bed-arrival-overlay {
+      inset: 66px 8px 12px;
+      border-radius: 16px;
+      padding: 18px;
+    }
   }
 
   .empty-state {
@@ -4124,6 +4134,7 @@
       if (data) bedAssignmentAlertItems.set(key, data);
     });
     renderUpcomingAlerts();
+    syncFixedBedArrivalOverlay();
   });
 
   window.saveProcedureMinutes = async () => {
@@ -5827,11 +5838,11 @@ let migratedCount = 0;
     const renderBedAssignmentItems = (mode) => getVisibleBedAssignmentAlertItems(mode).map(item => ({
       timestamp: Number(item.timestamp || 0),
       html: `
-      <div class="upcoming-item assignment" onclick="dismissBedAssignmentAlert('${escapeHtml(item.key)}')">
+      <div class="upcoming-item assignment">
         <div class="upcoming-time">배정</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.message)}</div>
-          <div class="upcoming-sub">클릭하면 사라집니다</div>
+          <div class="upcoming-sub">베드에서 확인하면 사라집니다</div>
         </div>
       </div>`
     }));
@@ -8437,6 +8448,35 @@ let migratedCount = 0;
     return window.currentMode === 'bed' ? selectedBedNo : 0;
   }
 
+  function getBedAssignmentAlertForBedPatient(bedNo, patientKey) {
+    if (!bedNo || !patientKey) return null;
+    return [...bedAssignmentAlertItems.entries()]
+      .map(([key, data]) => ({ key, ...(data || {}) }))
+      .filter(item => String(item.patientKey || '') === String(patientKey) && Number(item.bedNo) === Number(bedNo))
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))[0] || null;
+  }
+
+  function getBedAssignmentAlertForBed(bedNo) {
+    if (!bedNo) return null;
+    return [...bedAssignmentAlertItems.entries()]
+      .map(([key, data]) => ({ key, ...(data || {}) }))
+      .filter(item => Number(item.bedNo) === Number(bedNo))
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))[0] || null;
+  }
+
+  async function removeBedAssignmentAlertForBedPatient(bedNo, patientKey) {
+    const alert = getBedAssignmentAlertForBedPatient(bedNo, patientKey) || getBedAssignmentAlertForBed(bedNo);
+    if (!alert?.key) return;
+    bedAssignmentAlertItems.delete(alert.key);
+    renderUpcomingAlerts();
+    try {
+      await remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${alert.key}`));
+    } catch (e) {
+      console.error(e);
+      showToast('베드 배정 알림 확인 실패');
+    }
+  }
+
   function hideFixedBedArrivalOverlay() {
     const overlay = document.getElementById('bedArrivalOverlay');
     if (overlay) overlay.classList.remove('show');
@@ -8453,8 +8493,10 @@ let migratedCount = 0;
     }
 
     const bed = getBedData(bedNo);
-    const patientKey = bed?.patientKey ? String(bed.patientKey) : '';
-    if (!patientKey) {
+    const bedPatientKey = bed?.patientKey ? String(bed.patientKey) : '';
+    const assignmentAlert = getBedAssignmentAlertForBed(bedNo);
+    const patientKey = String(assignmentAlert?.patientKey || bedPatientKey || '');
+    if (!assignmentAlert || !patientKey) {
       delete fixedBedArrivalAcknowledgedByBed[bedNo];
       hideFixedBedArrivalOverlay();
       return;
@@ -8466,7 +8508,7 @@ let migratedCount = 0;
     }
 
     fixedBedArrivalVisiblePatientKey = patientKey;
-    nameEl.textContent = bed.name || '';
+    nameEl.textContent = assignmentAlert.patientName || bed?.name || '';
     overlay.classList.add('show');
   }
 
@@ -8484,6 +8526,7 @@ let migratedCount = 0;
     renderBedDetail();
     updateBedHeaderBedChip();
     updateBedRemainingChip();
+    removeBedAssignmentAlertForBedPatient(bedNo, patientKey);
   };
 
   function setMode(mode, updateHash = true) {
