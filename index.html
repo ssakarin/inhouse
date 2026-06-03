@@ -3063,6 +3063,7 @@
   let shouldAssignWaitingAgain = false;
   let suppressBedClickUntil = 0;
   let fixedBedArrivalVisiblePatientKey = '';
+  const fixedBedArrivalAcknowledgedByBed = {};
   const formEditBedNoByScope = {
     desk: null,
     receive: null
@@ -8436,10 +8437,6 @@ let migratedCount = 0;
     return window.currentMode === 'bed' ? selectedBedNo : 0;
   }
 
-  function getFixedBedArrivalSeenStorageKey(bedNo) {
-    return `fixedBedArrivalSeen:${bedNo}`;
-  }
-
   function hideFixedBedArrivalOverlay() {
     const overlay = document.getElementById('bedArrivalOverlay');
     if (overlay) overlay.classList.remove('show');
@@ -8458,12 +8455,12 @@ let migratedCount = 0;
     const bed = getBedData(bedNo);
     const patientKey = bed?.patientKey ? String(bed.patientKey) : '';
     if (!patientKey) {
-      localStorage.removeItem(getFixedBedArrivalSeenStorageKey(bedNo));
+      delete fixedBedArrivalAcknowledgedByBed[bedNo];
       hideFixedBedArrivalOverlay();
       return;
     }
 
-    if (localStorage.getItem(getFixedBedArrivalSeenStorageKey(bedNo)) === patientKey) {
+    if (fixedBedArrivalAcknowledgedByBed[bedNo] === patientKey) {
       hideFixedBedArrivalOverlay();
       return;
     }
@@ -8480,7 +8477,7 @@ let migratedCount = 0;
       return;
     }
     const patientKey = fixedBedArrivalVisiblePatientKey || String(getBedData(bedNo)?.patientKey || '');
-    if (patientKey) localStorage.setItem(getFixedBedArrivalSeenStorageKey(bedNo), patientKey);
+    if (patientKey) fixedBedArrivalAcknowledgedByBed[bedNo] = patientKey;
     selectedBedNo = bedNo;
     hideFixedBedArrivalOverlay();
     renderBedSelector();
