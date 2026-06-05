@@ -2,7 +2,7 @@
     "name":  "Inhouse Bed 15",
     "short_name":  "Bed 15",
     "description":  "Fixed Bed 15 tablet view",
-    "start_url":  "./index.html?view=bed\u0026bed=15",
+    "start_url":  "./?view=bed\u0026bed=15",
     "scope":  "./",
     "display":  "fullscreen",
     "orientation":  "portrait",
