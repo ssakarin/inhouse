@@ -3,6 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#052a61">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest" id="appManifestLink">
+<script>
+  (() => {
+    const manifestLink = document.getElementById('appManifestLink');
+    const bedNo = Number(new URLSearchParams(window.location.search).get('bed'));
+    const regularBeds = new Set([1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15]);
+    if (regularBeds.has(bedNo)) manifestLink.href = `manifest-bed${bedNo}.webmanifest`;
+    if (bedNo === 101 || bedNo === 102) manifestLink.href = `manifest-doctor${bedNo - 100}.webmanifest`;
+  })();
+</script>
+<link rel="apple-touch-icon" href="assets/logo-icon.png">
 <title>경희홍익 진료보드</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
@@ -3166,6 +3181,46 @@
   const BEDS_PATH      = 'beds';
   const CALL_ALERTS_PATH = 'callAlerts';
   const BED_ASSIGNMENT_ALERTS_PATH = 'bedAssignmentAlerts';
+  let bedScreenWakeLock = null;
+
+  function isBedScreenWakeLockTarget() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('view') === 'bed' || params.has('bed');
+  }
+
+  async function requestBedScreenWakeLock(reason = 'bed-view') {
+    if (!isBedScreenWakeLockTarget()) return;
+    if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+    try {
+      if (bedScreenWakeLock) return;
+      bedScreenWakeLock = await navigator.wakeLock.request('screen');
+      bedScreenWakeLock.addEventListener('release', () => {
+        bedScreenWakeLock = null;
+      });
+    } catch (error) {
+      console.info('Screen Wake Lock unavailable:', reason, error);
+      bedScreenWakeLock = null;
+    }
+  }
+
+  function setupBedScreenWakeLock() {
+    if (!isBedScreenWakeLockTarget()) return;
+    requestBedScreenWakeLock('init');
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') requestBedScreenWakeLock('visible');
+    });
+    window.addEventListener('pointerdown', () => requestBedScreenWakeLock('pointer'), { passive: true });
+    window.addEventListener('focus', () => requestBedScreenWakeLock('focus'));
+  }
+
+  async function registerPwaServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      await navigator.serviceWorker.register('./sw.js');
+    } catch (error) {
+      console.info('Service worker registration failed:', error);
+    }
+  }
 
 
 
@@ -9256,6 +9311,7 @@ let migratedCount = 0;
     fixedBedArrivalVisiblePatientKey = patientKey;
     fixedBedArrivalVisibleAlertKey = assignmentAlert.key;
     nameEl.textContent = assignmentAlert.patientName || bed?.name || '';
+    requestBedScreenWakeLock('bed-assignment-overlay');
     overlay.classList.add('show');
   }
   window.syncFixedBedArrivalOverlay = syncFixedBedArrivalOverlay;
@@ -9583,6 +9639,8 @@ let migratedCount = 0;
 
   // 엔터키로 전송
   document.addEventListener('DOMContentLoaded', () => {
+    registerPwaServiceWorker();
+    setupBedScreenWakeLock();
     syncAppViewClass();
     setMode(getInitialMode(), false);
     setInputFormOpen(false);

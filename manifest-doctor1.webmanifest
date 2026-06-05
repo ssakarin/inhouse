@@ -1,0 +1,19 @@
+﻿{
+    "name":  "Inhouse Doctor Room 1",
+    "short_name":  "Doctor 1",
+    "description":  "Fixed Doctor Room 1 tablet view",
+    "start_url":  "./index.html?view=bed\u0026bed=101",
+    "scope":  "./",
+    "display":  "fullscreen",
+    "orientation":  "portrait",
+    "background_color":  "#052a61",
+    "theme_color":  "#052a61",
+    "icons":  [
+                  {
+                      "src":  "assets/logo-icon.png",
+                      "sizes":  "any",
+                      "type":  "image/png",
+                      "purpose":  "any maskable"
+                  }
+              ]
+}
