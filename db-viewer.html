@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DB Editor</title>
+<title>경희홍익한의원 DB</title>
 <style>
   :root {
     --bg: #07111f;
@@ -27,8 +27,18 @@
   .app { width: min(1500px, 100%); margin: 0 auto; padding: 18px 18px 18px 42px; }
   .header { margin-bottom: 14px; }
   h1 { margin: 0; font-size: 24px; letter-spacing: 0; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
+  .brand-icon { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+  .brand-title { font-size: 20px; font-weight: 900; color: #fff; line-height: 1; white-space: nowrap; }
+  .brand-highlight { color: var(--gold); }
+  input[readonly], textarea[readonly] {
+    background: rgba(255,255,255,0.03);
+    color: var(--muted);
+    cursor: default;
+  }
+  input[readonly]:focus, textarea[readonly]:focus { border-color: var(--line); }
   .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
-  .actions, .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+  .actions, .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   button, input, select, textarea {
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -119,6 +129,22 @@
   .metric { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; }
   .metric-label { color: var(--muted); font-size: 11px; font-weight: 900; }
   .metric-value { color: var(--green); font-size: 20px; font-weight: 900; margin-top: 4px; }
+  .indexed-summary {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+    padding: 0;
+    border-bottom: 0;
+    margin-left: auto;
+  }
+  .indexed-summary .metric { padding: 4px 9px; text-align: center; }
+  .indexed-summary .metric-label { font-size: 10px; }
+  .indexed-summary .metric-value { font-size: 13px; margin-top: 2px; white-space: nowrap; }
+  .memo-row { display: flex; gap: 10px; align-items: stretch; }
+  .memo-field { flex: 1; min-width: 0; }
+  .memo-actions { display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; width: 190px; flex-shrink: 0; }
+  .memo-buttons { display: flex; flex-direction: column; gap: 8px; }
+  .memo-buttons button { width: 100%; }
   pre {
     margin: 0;
     padding: 12px;
@@ -161,6 +187,8 @@
   .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; }
   .form-grid label, .wide-field { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 900; }
   .wide-field { grid-column: 1 / -1; }
+  .info-grid { grid-template-columns: 1fr; }
+  .info-row1 { display: grid; grid-template-columns: 1.3fr 1fr 0.6fr 0.7fr 1.5fr; gap: 10px; }
   .section-title { padding: 12px 12px 0; color: var(--gold); font-weight: 900; font-size: 13px; }
   .text-input {
     font-family: inherit;
@@ -172,6 +200,30 @@
     display: grid;
     gap: 10px;
   }
+  .visit-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .visit-stat-input {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+    padding: 3px 6px;
+    font-size: 13px;
+  }
+  .visit-stat {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .visit-stat-label { color: var(--muted); font-size: 12px; font-weight: 900; }
+  .visit-stat-value { color: var(--gold); font-size: 15px; font-weight: 900; white-space: nowrap; }
   .visit-calendar-head {
     display: grid;
     grid-template-columns: auto 1fr auto;
@@ -272,9 +324,15 @@
     gap: 10px;
   }
   .package-toggle-row {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .package-toggle-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    line-height: 1.3;
+    width: auto;
   }
   .package-toggle-btn.active {
     border-color: rgba(255,202,106,0.75);
@@ -294,6 +352,12 @@
     gap: 10px;
     margin-bottom: 10px;
   }
+  .package-balance-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .package-balance-key { color: var(--gold); margin-right: 2px; }
   .package-title {
     color: var(--text);
     font-size: 17px;
@@ -416,12 +480,6 @@
 </head>
 <body>
 <div class="app">
-  <div class="header">
-    <div>
-      <h1>DB Editor</h1>
-    </div>
-  </div>
-
   <div class="grid">
     <button class="firebase-toggle" type="button" id="firebaseToggleBtn" aria-label="Firebase 패널 열기">›</button>
     <section class="card firebase-card" id="firebaseCard">
@@ -451,13 +509,17 @@
     <section class="card">
       <div class="status" id="indexedStatus" hidden></div>
       <div class="toolbar">
+        <div class="brand">
+          <img class="brand-icon" src="assets/logo-icon.png" alt="경희홍익한의원 로고">
+          <h1 class="brand-title"><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span></h1>
+        </div>
         <button type="button" id="loadIndexedBtn">새로고침</button>
         <button class="good" type="button" id="newPatientBtn">새 환자</button>
-        <button type="button" id="exportIndexedBtn">백업 다운로드</button>
-        <button type="button" id="importIndexedBtn">JSON 복원</button>
+        <button type="button" id="exportIndexedBtn">백업</button>
+        <button type="button" id="importIndexedBtn">복원</button>
         <input class="file-input" id="importFileInput" type="file" accept="application/json,.json">
+        <div class="summary indexed-summary" id="indexedSummary"></div>
       </div>
-      <div class="summary" id="indexedSummary"></div>
       <div class="editor-layout">
         <div class="patient-list-pane">
           <div class="search-box">
@@ -467,27 +529,38 @@
         </div>
         <div class="editor-pane">
           <div class="section-title">기본 정보</div>
-          <div class="form-grid">
-            <label>차트번호<input id="editChartNo" type="text"></label>
-            <label>이름<input id="editName" type="text"></label>
-            <label>나이<input id="editAge" type="number" min="0" max="130"></label>
-            <label>성별
-              <select id="editGender">
-                <option value=""></option>
-                <option value="남">남</option>
-                <option value="여">여</option>
-              </select>
-            </label>
-            <label class="wide-field">주상병명<input id="editChiefComplaint" type="text"></label>
-            <label class="wide-field">최근 담당원장<input id="editDoctorName" type="text"></label>
-            <label class="wide-field">최근 치료목록<input class="text-input" id="editTreatmentsText" type="text" placeholder="핫팩, 침"></label>
-            <label class="wide-field">최근 치료부위<input class="text-input" id="editBodyPartsText" type="text" placeholder="좌측 회전근개, 우측 회전근개, 목(후)"></label>
-            <label class="wide-field">예약일<input id="editAppointmentDate" type="date"></label>
-            <label class="wide-field">메모<textarea id="editMemo"></textarea></label>
+          <div class="form-grid info-grid">
+            <div class="info-row1">
+              <label>차트번호<input id="editChartNo" type="text" readonly></label>
+              <label>이름<input id="editName" type="text"></label>
+              <label>나이<input id="editAge" type="number" min="0" max="130"></label>
+              <label>성별<input id="editGender" type="text" readonly></label>
+              <label>최근 담당원장<input id="editDoctorName" type="text" readonly></label>
+            </div>
+            <label>주상병명<input id="editChiefComplaint" type="text"></label>
+            <label>과거 주상병명<input class="text-input" id="editPastChiefComplaints" type="text" placeholder="과거 진료 기록의 다른 주상병명" readonly></label>
+            <label>최근 치료목록<input class="text-input" id="editTreatmentsText" type="text" readonly></label>
+            <label>최근 치료부위<input class="text-input" id="editBodyPartsText" type="text" readonly></label>
+            <div class="memo-row">
+              <label class="memo-field">메모<textarea id="editMemo"></textarea></label>
+              <div class="memo-actions">
+                <div class="status" id="selectedPatientStatus">환자를 선택하거나 새 환자를 만드세요.</div>
+                <div class="memo-buttons">
+                  <button class="good" type="button" id="savePatientBtn">수정</button>
+                  <button class="danger" type="button" id="deletePatientBtn">삭제</button>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="section-title">진료 기록 / 패키지</div>
           <div class="form-grid">
             <div class="visit-calendar-wrap">
+              <div class="visit-stats">
+                <div class="visit-stat"><span class="visit-stat-label">초진일</span><span class="visit-stat-value" id="statFirstVisit">-</span></div>
+                <div class="visit-stat"><span class="visit-stat-label">최근진료일</span><span class="visit-stat-value" id="statLastVisit">-</span></div>
+                <div class="visit-stat"><span class="visit-stat-label">총 진료 횟수</span><span class="visit-stat-value" id="statVisitCount">0회</span></div>
+                <div class="visit-stat"><span class="visit-stat-label">예약일</span><input class="visit-stat-input" id="editAppointmentDate" type="date" readonly></div>
+              </div>
               <div class="package-viewer" id="packageViewer"></div>
               <div class="visit-calendar-head">
                 <button type="button" id="visitPrevMonthBtn">이전</button>
@@ -496,13 +569,6 @@
               </div>
               <div class="visit-calendar" id="visitCalendar"></div>
               <div class="visit-detail-card" id="visitDetail"></div>
-            </div>
-          </div>
-          <div class="editor-row">
-            <div class="status" id="selectedPatientStatus">환자를 선택하거나 새 환자를 만드세요.</div>
-            <div class="actions">
-              <button class="good" type="button" id="savePatientBtn">폼 저장</button>
-              <button class="danger" type="button" id="deletePatientBtn">삭제</button>
             </div>
           </div>
           <div class="section-title">선택 환자 전체 JSON</div>
@@ -578,7 +644,6 @@
 
   function renderSummary(targetId, value, extra = {}) {
     const rows = [
-      ["타입", getType(value)],
       ["항목 수", countChildren(value)],
       ["크기", `${new Blob([stringify(value)]).size.toLocaleString()} B`],
       ["조회", new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })]
@@ -749,17 +814,12 @@
     const viewer = $("packageViewer");
     if (!viewer) return;
     const packages = normalizePackages(activePackages);
-    const activePkg = packages[activePackageKey] || { openingQty: 0, purchases: [], usages: [], balance: 0 };
-    const toggles = PACKAGE_KEYS.map(key => `
-      <button class="package-toggle-btn${key === activePackageKey ? " active" : ""}" type="button" data-package-key="${escapeHtml(key)}">${escapeHtml(key)}</button>
+    const balances = PACKAGE_KEYS.map(key => `
+      <div class="package-balance"><span class="package-balance-key">${escapeHtml(key)}</span> 잔여량 ${escapeHtml(packages[key]?.balance || 0)}</div>
     `).join("");
     viewer.innerHTML = `
-      <div class="package-toggle-row">${toggles}</div>
       <div class="package-card">
-        <div class="package-card-head">
-          <div class="package-title">${escapeHtml(activePackageKey)}</div>
-          <div class="package-balance">잔량 ${escapeHtml(activePkg.balance || 0)}</div>
-        </div>
+        <div class="package-balance-row">${balances}</div>
       </div>
     `;
   }
@@ -853,16 +913,20 @@
     }
     const record = activeVisitHistory?.[date] || {};
     const packages = normalizePackages(activePackages);
-    const activePkg = packages[activePackageKey] || {};
-    const packageRows = getPackageDayEntries(activePkg, date);
-    const packageDetailRows = packageRows.length
-      ? packageRows.map(entry => `
+    const packageSections = PACKAGE_KEYS.map(key => {
+      const rows = getPackageDayEntries(packages[key] || {}, date);
+      if (!rows.length) return "";
+      const rowsHtml = rows.map(entry => `
         <div class="package-history-row">
           <span>${escapeHtml(entry.label)}</span>
           <span>${escapeHtml(entry.qty)}개</span>
         </div>
-      `).join("")
-      : `<div class="package-history-row"><span>-</span><span>기록 없음</span></div>`;
+      `).join("");
+      return `
+        <div class="package-history-title">${escapeHtml(key)}</div>
+        <div class="package-history">${rowsHtml}</div>
+      `;
+    }).filter(Boolean).join("");
     detailEl.innerHTML = `
       <div class="visit-detail-title">${escapeHtml(date)}</div>
       <div class="visit-detail-section">
@@ -874,10 +938,19 @@
         </div>
       </div>
       <div class="visit-detail-section">
-        <div class="package-history-title">${escapeHtml(activePackageKey)} 패키지</div>
-        <div class="package-history">${packageDetailRows}</div>
+        ${packageSections || `<div class="package-history-row"><span>-</span><span>패키지 기록 없음</span></div>`}
       </div>
     `;
+  }
+
+  function renderVisitStats() {
+    const dates = (Array.isArray(activeVisitDates) ? activeVisitDates : []).filter(Boolean);
+    const firstEl = $("statFirstVisit");
+    const lastEl = $("statLastVisit");
+    const countEl = $("statVisitCount");
+    if (firstEl) firstEl.textContent = dates.length ? dates[0] : "-";
+    if (lastEl) lastEl.textContent = dates.length ? dates[dates.length - 1] : "-";
+    if (countEl) countEl.textContent = `${dates.length}회`;
   }
 
   function renderVisitCalendar() {
@@ -894,17 +967,21 @@
       .join("");
     const blanks = Array.from({ length: startOffset }, () => `<button class="visit-day" type="button" disabled></button>`).join("");
     const packages = normalizePackages(activePackages);
-    const activePkg = packages[activePackageKey] || {};
     const days = Array.from({ length: lastDate }, (_, index) => {
       const day = index + 1;
       const date = `${activeVisitMonth}-${String(day).padStart(2, "0")}`;
       const record = activeVisitHistory?.[date];
       const hasVisit = Boolean(record);
-      const packageSummary = packageDaySummary(activePkg, date);
-      const hasPackage = Boolean(packageSummary);
+      const packageNotes = PACKAGE_KEYS
+        .map(key => {
+          const summary = packageDaySummary(packages[key] || {}, date);
+          return summary ? `${key} ${summary}` : "";
+        })
+        .filter(Boolean);
+      const hasPackage = packageNotes.length > 0;
       const selected = date === selectedVisitDate;
       const visitNote = hasVisit ? `<span class="visit-day-note">${escapeHtml(visitSummary(record) || "진료")}</span>` : "";
-      const packageNote = hasPackage ? `<span class="visit-day-note package">${escapeHtml(`${activePackageKey} ${packageSummary}`)}</span>` : "";
+      const packageNote = packageNotes.map(text => `<span class="visit-day-note package">${escapeHtml(text)}</span>`).join("");
       return `<button class="visit-day${hasVisit ? " has-visit" : ""}${hasPackage ? " has-package" : ""}${selected ? " selected" : ""}" type="button" data-visit-date="${date}">${day}${visitNote}${packageNote}</button>`;
     }).join("");
     calendarEl.innerHTML = weekdayHtml + blanks + days;
@@ -962,7 +1039,7 @@
     try {
       latestIndexedValue = await getAllIndexedRecords();
       latestIndexedValue.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko") || String(a.chartNo || "").localeCompare(String(b.chartNo || "")));
-      renderSummary("indexedSummary", latestIndexedValue, { 레코드: latestIndexedValue.length });
+      renderSummary("indexedSummary", latestIndexedValue);
       renderPatientList();
       if (selectedChartNo) selectPatient(selectedChartNo, false);
       setStatus("indexedStatus", "완료");
@@ -1013,6 +1090,14 @@
     $("editBodyPartsText").value = formatBodyPartsText(patient.bodyParts || { front: [], back: [] });
     activeVisitDates = visitDatesFromRecord(patient);
     activeVisitHistory = patient.visitHistory && typeof patient.visitHistory === "object" ? { ...patient.visitHistory } : {};
+    // 과거 주상병명: 진료기록 중 현재(최신) 주상병명과 다른 값들을 최근순으로 중복 없이 표시
+    const currentCc = (patient.chiefComplaint || "").trim();
+    const pastChiefComplaints = Object.keys(activeVisitHistory)
+      .sort()
+      .reverse()
+      .map(date => (activeVisitHistory[date]?.chiefComplaint || "").trim())
+      .filter(Boolean);
+    $("editPastChiefComplaints").value = [...new Set(pastChiefComplaints)].filter(cc => cc !== currentCc).join(", ");
     selectedVisitDate = activeVisitDates[activeVisitDates.length - 1] || "";
     activeVisitMonth = selectedVisitDate ? selectedVisitDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
     activePackages = normalizePackages(patient.packages, patient);
@@ -1020,6 +1105,7 @@
     activePackageMonth = activeVisitMonth;
     renderVisitCalendar();
     renderPackageViewer();
+    renderVisitStats();
     $("selectedPatientJson").value = stringify(patient);
     $("selectedPatientStatus").textContent = `${patient.name || "환자"} 선택됨`;
     if (renderList) renderPatientList();
@@ -1027,13 +1113,13 @@
 
   function clearEditor() {
     selectedChartNo = "";
-    ["editChartNo", "editName", "editAge", "editChiefComplaint", "editDoctorName", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText", "selectedPatientJson"].forEach(id => { $(id).value = ""; });
-    $("editGender").value = "";
+    ["editChartNo", "editName", "editAge", "editGender", "editDoctorName", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText", "selectedPatientJson"].forEach(id => { $(id).value = ""; });
     activeVisitDates = [];
     activeVisitHistory = {};
     activeVisitMonth = new Date().toISOString().slice(0, 7);
     selectedVisitDate = "";
     renderVisitCalendar();
+    renderVisitStats();
     activePackages = normalizePackages();
     activePackageKey = "p6";
     activePackageDate = new Date().toISOString().slice(0, 10);
@@ -1044,34 +1130,29 @@
   }
 
   function readFormRecord() {
-    const chartNo = normalizeChartNo($("editChartNo").value);
-    if (!chartNo) throw new Error("차트번호를 입력하세요.");
-    const packages = normalizePackages(activePackages);
-    const existing = getSelectedPatient() || {};
-    const treatments = parseCommaText($("editTreatmentsText").value);
-    const bodyParts = parseBodyPartsText($("editBodyPartsText").value, existing.bodyParts || { front: [], back: [] });
-    const visitHistory = activeVisitHistory && typeof activeVisitHistory === "object" ? { ...activeVisitHistory } : {};
-    const normalizedVisitDates = [...new Set([
-      ...activeVisitDates.map(String),
-      ...Object.keys(visitHistory).map(String)
-    ].filter(Boolean))].sort();
-    const latestVisit = getLatestVisitRecord(normalizedVisitDates, visitHistory);
-    const latestChiefComplaint = getLatestVisitChiefComplaint(normalizedVisitDates, visitHistory);
+    // 수정 가능한 항목: 이름·나이·메모·주상병명. 나머지는 기존 레코드 값을 그대로 보존
+    const existing = getSelectedPatient();
+    if (!existing) throw new Error("수정할 환자를 먼저 선택하세요.");
+    const chartNo = normalizeChartNo(existing.chartNo || selectedChartNo);
+    if (!chartNo) throw new Error("차트번호가 없습니다.");
+
+    // 주상병명 수정 → 최신 진료일 기록의 주상병명을 갱신하고, 상단 주상병명도 그 값으로 맞춤
+    const chiefComplaint = $("editChiefComplaint").value.trim();
+    const visitHistory = existing.visitHistory && typeof existing.visitHistory === "object" ? { ...existing.visitHistory } : {};
+    const visitDates = visitDatesFromRecord(existing);
+    const latestDate = visitDates[visitDates.length - 1] || "";
+    if (latestDate) {
+      visitHistory[latestDate] = { ...(visitHistory[latestDate] || {}), chiefComplaint };
+    }
+
     return withPackageBalances({
       ...existing,
       chartNo,
       name: $("editName").value.trim(),
       age: $("editAge").value ? Number($("editAge").value) : "",
-      gender: $("editGender").value,
-      chiefComplaint: latestChiefComplaint || $("editChiefComplaint").value.trim(),
-      doctorName: latestVisit?.doctorName || $("editDoctorName").value.trim(),
-      treatments: Array.isArray(treatments) ? treatments : [],
-      bodyParts,
-      appointmentDate: $("editAppointmentDate").value,
       memo: $("editMemo").value.trim(),
-      visitDates: normalizedVisitDates,
       visitHistory,
-      packages
+      chiefComplaint
     });
   }
 
@@ -1149,13 +1230,6 @@
   });
   renderVisitCalendar();
   renderPackageViewer();
-  $("packageViewer").addEventListener("click", event => {
-    const packageButton = event.target.closest("[data-package-key]");
-    if (packageButton) {
-      selectPackageType(packageButton.dataset.packageKey);
-      return;
-    }
-  });
 
   document.querySelectorAll("[data-fb-path]").forEach(button => {
     button.addEventListener("click", () => loadFirebase(button.dataset.fbPath));
@@ -1170,7 +1244,7 @@
   });
   $("newPatientBtn").addEventListener("click", clearEditor);
   $("savePatientBtn").addEventListener("click", savePatientForm);
-  $("deletePatientBtn").addEventListener("click", deleteSelectedPatient);
+  $("deletePatientBtn")?.addEventListener("click", deleteSelectedPatient);
   $("exportIndexedBtn").addEventListener("click", exportIndexedBackup);
   $("importIndexedBtn").addEventListener("click", () => $("importFileInput").click());
   $("importFileInput").addEventListener("change", event => importIndexedBackup(event.target.files?.[0]).catch(error => {
