@@ -1443,9 +1443,63 @@
   }
   .credit-form {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 14px;
     margin: 6px 0 18px;
+  }
+  .package-balance-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .package-balance-tile {
+    background: rgba(5, 42, 97, 0.32);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+  }
+  .package-balance-name {
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .package-balance-value {
+    color: rgb(74,222,128);
+    font-size: 22px;
+    font-weight: 900;
+    margin-top: 4px;
+  }
+  .package-toggle-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .package-toggle-btn {
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    padding: 10px 8px;
+  }
+  .package-toggle-btn.active {
+    background: rgba(255,178,26,0.18);
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .package-after-treatment {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,178,26,0.42);
+    background: rgba(255,178,26,0.12);
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 900;
+    text-align: center;
   }
   .package-card {
     background: rgba(5, 42, 97, 0.32);
@@ -1546,13 +1600,89 @@
     font-weight: 900;
     padding: 2px 4px;
   }
+  .package-calendar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 12px 0 8px;
+  }
+  .package-calendar-title {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 900;
+  }
+  .package-calendar-nav {
+    display: inline-flex;
+    gap: 6px;
+  }
+  .package-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .package-calendar-dow {
+    color: var(--text3);
+    font-size: 11px;
+    font-weight: 900;
+    text-align: center;
+  }
+  .package-calendar-day {
+    min-height: 74px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    padding: 6px;
+    text-align: left;
+  }
+  .package-calendar-day.empty {
+    cursor: default;
+    opacity: 0.35;
+  }
+  .package-calendar-day.selected {
+    border-color: var(--gold);
+    background: rgba(255,178,26,0.14);
+  }
+  .package-calendar-date {
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .package-calendar-badges {
+    display: grid;
+    gap: 3px;
+    margin-top: 5px;
+  }
+  .package-calendar-badge {
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 5px;
+  }
+  .package-calendar-badge.purchase {
+    background: rgba(74,222,128,0.18);
+    color: rgb(74,222,128);
+  }
+  .package-calendar-badge.usage {
+    background: rgba(244,63,94,0.18);
+    color: rgb(251,113,133);
+  }
+  .package-day-detail {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    margin-top: 10px;
+    padding: 10px;
+  }
   .credit-popup-actions {
     display: grid;
     grid-template-columns: 1fr;
     gap: 10px;
   }
   @media (max-width: 760px) {
-    .credit-form { grid-template-columns: 1fr; }
+    .package-balance-strip,
+    .package-toggle-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .package-entry-grid { grid-template-columns: 1fr 72px auto; }
   }
   .bed-stage-badge {
@@ -1808,9 +1938,9 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "info timer"
-      "package schedule"
       "body schedule"
-      "body edit";
+      "body edit"
+      "body package";
     align-items: stretch;
   }
   body.app-mode-bed .bed-detail.active,
@@ -1901,6 +2031,17 @@
   .bed-package-count {
     font-size: 18px;
     line-height: 1;
+  }
+  .bed-package-after {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,178,26,0.42);
+    background: rgba(255,178,26,0.12);
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 900;
+    text-align: center;
   }
   .bed-schedule-zone {
     grid-area: schedule;
@@ -2292,11 +2433,11 @@
       grid-template-columns: 1fr;
       grid-template-areas:
         "info"
-        "package"
         "timer"
         "schedule"
         "body"
-        "edit";
+        "edit"
+        "package";
     }
     body.app-mode-bed .bed-left-column,
     body.app-role-bed .bed-left-column,
@@ -2998,7 +3139,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getDatabase, ref, push, onChildAdded, onChildChanged, onChildRemoved, onValue, query, orderByChild, startAt, get, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+  import { getDatabase, ref, push, onChildAdded, onChildChanged, onChildRemoved, onValue, query, orderByChild, get, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC0bPN-bEaEe7dLnfHPrQY10pnNdlkE1RA",
@@ -3246,12 +3387,15 @@
   const PCREDIT_FIELDS = [
     { key: 'p6', label: 'p6', defaultPurchaseQty: 6 },
     { key: 'p13', label: 'p13', defaultPurchaseQty: 13 },
-    { key: 'p자하거', label: 'p자하거', defaultPurchaseQty: 1 },
-    { key: 'p라인', label: 'p라인', defaultPurchaseQty: 1 }
+    { key: 'p자하거', label: 'p자하거', defaultPurchaseQty: 10 },
+    { key: 'p라인', label: 'p라인', defaultPurchaseQty: 10 }
   ];
   const pCreditValuesByGrid = {};
   const packageStatesByGrid = {};
   let activeCreditGridId = '';
+  let activePackageKey = 'p6';
+  let activePackageMonth = toLocalDateInputValue().slice(0, 7);
+  let activePackageDate = toLocalDateInputValue();
 
   function getTreatmentChipsId(gridId) {
     return gridId + 'Chips';
@@ -3381,6 +3525,61 @@
     return getPCreditsFromPackages(getPackageStateFromPatient(data));
   }
 
+  function applyPostTreatmentPackageBalances(packages = {}, bed = {}, usageDate = '') {
+    const next = normalizePackageState(packages);
+    const balances = getPCreditsFromPackages(next);
+    const treatments = Array.isArray(bed?.treatments) ? bed.treatments : [];
+    if (!treatments.length) return next;
+    const date = usageDate || toLocalDateInputValue();
+
+    const normalizedTreatments = treatments.map(treatment => String(treatment || '').replace(/\s+/g, ''));
+    const hasChuna = normalizedTreatments.some(name => name.includes('추나'));
+    const unitMap = {
+      '약침1': hasChuna ? 0.5 : 1,
+      '약침2': hasChuna ? 1 : 2,
+      '약침3': hasChuna ? 1 : 2,
+      '약침4': hasChuna ? 2 : 4
+    };
+    const deduction = normalizedTreatments.reduce((sum, name) => {
+      const match = Object.keys(unitMap).find(key => name.includes(key));
+      return match ? sum + unitMap[match] : sum;
+    }, 0);
+    const hasPackageRecord = (key) => {
+      const pkg = next?.[key] || {};
+      return Number(pkg.openingQty || 0) > 0
+        || normalizePackageEntries(pkg.purchases, 'purchase').length > 0
+        || normalizePackageEntries(pkg.usages, 'usage').length > 0
+        || Number(balances[key] || 0) > 0;
+    };
+    const addUsage = (key, qty) => {
+      if (!next[key]) return;
+      const currentBalance = Number(balances[key] || 0);
+      const usageQty = Math.max(0, Math.min(currentBalance, Number(qty) || 0));
+      if (!usageQty) return;
+      const usages = normalizePackageEntries(next[key].usages, 'usage');
+      usages.push({
+        id: `bed-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        date,
+        qty: usageQty
+      });
+      next[key] = { ...next[key], usages };
+      balances[key] = Math.max(0, currentBalance - usageQty);
+    };
+
+    const targetKey = hasPackageRecord('p13') ? 'p13' : (hasPackageRecord('p6') ? 'p6' : '');
+    if (deduction && targetKey) addUsage(targetKey, deduction);
+
+    [
+      { key: 'p자하거', treatment: '약침자' },
+      { key: 'p라인', treatment: '약침l' }
+    ].forEach(({ key, treatment }) => {
+      const hasTreatment = normalizedTreatments.some(name => name.toLowerCase().includes(treatment));
+      if (hasTreatment && hasPackageRecord(key)) addUsage(key, 1);
+    });
+
+    return normalizePackageState(next);
+  }
+
   function getPCreditPayload(gridId) {
     return normalizePCredits(pCreditValuesByGrid[gridId]);
   }
@@ -3456,45 +3655,129 @@
     if (!form || !activeCreditGridId) return;
     const packages = getPackageStateForGrid(activeCreditGridId);
     const today = toLocalDateInputValue();
-    form.innerHTML = PCREDIT_FIELDS.map(({ key, label, defaultPurchaseQty }) => {
-      const pkg = packages[key] || { openingQty: 0, purchases: [], usages: [], balance: 0 };
-      const purchases = normalizePackageEntries(pkg.purchases, 'purchase');
-      const usages = normalizePackageEntries(pkg.usages, 'usage');
-      const renderRows = (items, type) => items.length
-        ? items.map(item => `
-          <div class="package-history-row">
-            <span>${escapeHtml(item.date)}</span>
-            <span>${type === 'purchase' ? '결제' : '사용'} ${escapeHtml(item.qty)}개</span>
-            <button class="package-history-delete" type="button" onclick="removePackageEntry('${key}', '${type}', '${escapeHtml(item.id)}')">×</button>
-          </div>`).join('')
-        : `<div class="package-history-row"><span>-</span><span>기록 없음</span><span></span></div>`;
-      return `
-        <div class="package-card">
-          <div class="package-card-head">
-            <div class="package-title">${escapeHtml(label)}</div>
-            <div class="package-balance">잔량 ${escapeHtml(pkg.balance)}</div>
-          </div>
-          <div class="package-entry-grid">
-            <input class="package-input" id="pkg-${key}-purchase-date" type="date" value="${today}">
-            <input class="package-input" id="pkg-${key}-purchase-qty" type="text" inputmode="numeric" maxlength="3" value="${escapeHtml(defaultPurchaseQty)}" aria-label="${escapeHtml(label)} 결제 수량">
-            <button class="package-entry-btn" type="button" onclick="addPackageEntry('${key}', 'purchase')">결제 추가</button>
-          </div>
-          <div class="package-entry-grid">
-            <input class="package-input" id="pkg-${key}-usage-date" type="date" value="${today}">
-            <input class="package-input" id="pkg-${key}-usage-qty" type="text" inputmode="numeric" maxlength="3" value="1" aria-label="${escapeHtml(label)} 사용 수량">
-            <button class="package-entry-btn" type="button" onclick="addPackageEntry('${key}', 'usage')">사용 추가</button>
-          </div>
-          <div class="package-history-title">결제일</div>
-          <div class="package-history">${renderRows(purchases, 'purchase')}</div>
-          <div class="package-history-title">사용일</div>
-          <div class="package-history">${renderRows(usages, 'usage')}</div>
-        </div>`;
-    }).join('');
+    if (!PCREDIT_FIELDS.some(field => field.key === activePackageKey)) activePackageKey = PCREDIT_FIELDS[0].key;
+    if (!activePackageMonth) activePackageMonth = today.slice(0, 7);
+    if (!activePackageDate || !activePackageDate.startsWith(activePackageMonth)) activePackageDate = today.startsWith(activePackageMonth) ? today : `${activePackageMonth}-01`;
+
+    const activeField = PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_FIELDS[0];
+    const activePkg = packages[activeField.key] || { openingQty: 0, purchases: [], usages: [], balance: 0 };
+    const balances = getPCreditsFromPackages(packages);
+    const popupTreatments = (treatmentSelections[activeCreditGridId] || []).map(item => item.name);
+    const postTreatmentMessage = getPostTreatmentPackageBalanceMessage({ treatments: popupTreatments }, packages, balances);
+    const purchases = normalizePackageEntries(activePkg.purchases, 'purchase');
+    const usages = normalizePackageEntries(activePkg.usages, 'usage');
+    const entriesByDate = new Map();
+    const addToDate = (entry, type) => {
+      const list = entriesByDate.get(entry.date) || [];
+      list.push({ ...entry, type });
+      entriesByDate.set(entry.date, list);
+    };
+    purchases.forEach(entry => addToDate(entry, 'purchase'));
+    usages.forEach(entry => addToDate(entry, 'usage'));
+
+    const [year, month] = activePackageMonth.split('-').map(Number);
+    const firstDate = new Date(year, month - 1, 1);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const leading = firstDate.getDay();
+    const dayCells = [];
+    for (let i = 0; i < leading; i++) dayCells.push('<button class="package-calendar-day empty" type="button" tabindex="-1"></button>');
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = `${activePackageMonth}-${String(day).padStart(2, '0')}`;
+      const entries = entriesByDate.get(date) || [];
+      const purchaseQty = entries.filter(entry => entry.type === 'purchase').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+      const usageQty = entries.filter(entry => entry.type === 'usage').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+      const badges = [
+        purchaseQty ? `<div class="package-calendar-badge purchase">결제 ${purchaseQty}</div>` : '',
+        usageQty ? `<div class="package-calendar-badge usage">사용 ${usageQty}</div>` : ''
+      ].filter(Boolean).join('');
+      dayCells.push(`
+        <button class="package-calendar-day${date === activePackageDate ? ' selected' : ''}" type="button" onclick="selectPackageDate('${date}')">
+          <div class="package-calendar-date">${day}</div>
+          ${badges ? `<div class="package-calendar-badges">${badges}</div>` : ''}
+        </button>`);
+    }
+
+    const selectedEntries = (entriesByDate.get(activePackageDate) || [])
+      .sort((a, b) => (a.type === b.type ? 0 : a.type === 'purchase' ? -1 : 1));
+    const detailRows = selectedEntries.length
+      ? selectedEntries.map(entry => `
+        <div class="package-history-row">
+          <span>${entry.type === 'purchase' ? '결제' : '사용'}</span>
+          <span>${escapeHtml(entry.qty)}개</span>
+          <button class="package-history-delete" type="button" onclick="removePackageEntry('${activeField.key}', '${entry.type}', '${escapeHtml(entry.id)}')">×</button>
+        </div>`).join('')
+      : `<div class="package-history-row"><span>-</span><span>기록 없음</span><span></span></div>`;
+
+    form.innerHTML = `
+      <div class="package-balance-strip">
+        ${PCREDIT_FIELDS.map(({ key, label }) => {
+          const pkg = packages[key] || { balance: 0 };
+          return `
+            <div class="package-balance-tile">
+              <div class="package-balance-name">${escapeHtml(label)}</div>
+              <div class="package-balance-value">${escapeHtml(pkg.balance || 0)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${postTreatmentMessage ? `<div class="package-after-treatment">${escapeHtml(postTreatmentMessage)}</div>` : ''}
+      <div class="package-toggle-row">
+        ${PCREDIT_FIELDS.map(({ key, label }) => `
+          <button class="package-toggle-btn${key === activeField.key ? ' active' : ''}" type="button" onclick="selectPackageType('${key}')">${escapeHtml(label)}</button>
+        `).join('')}
+      </div>
+      <div class="package-card">
+        <div class="package-card-head">
+          <div class="package-title">${escapeHtml(activeField.label)}</div>
+          <div class="package-balance">잔량 ${escapeHtml(activePkg.balance || 0)}</div>
+        </div>
+        <div class="package-entry-grid">
+          <input class="package-input" id="pkg-${activeField.key}-purchase-date" type="date" value="${activePackageDate || today}">
+          <input class="package-input" id="pkg-${activeField.key}-purchase-qty" type="text" inputmode="numeric" maxlength="3" value="${escapeHtml(activeField.defaultPurchaseQty)}" aria-label="${escapeHtml(activeField.label)} 결제 수량">
+          <button class="package-entry-btn" type="button" onclick="addPackageEntry('${activeField.key}', 'purchase')">결제 추가</button>
+        </div>
+        <div class="package-entry-grid">
+          <input class="package-input" id="pkg-${activeField.key}-usage-date" type="date" value="${activePackageDate || today}">
+          <input class="package-input" id="pkg-${activeField.key}-usage-qty" type="text" inputmode="numeric" maxlength="3" value="1" aria-label="${escapeHtml(activeField.label)} 사용 수량">
+          <button class="package-entry-btn" type="button" onclick="addPackageEntry('${activeField.key}', 'usage')">사용 추가</button>
+        </div>
+        <div class="package-calendar-head">
+          <button class="package-entry-btn" type="button" onclick="changePackageMonth(-1)">이전</button>
+          <div class="package-calendar-title">${year}년 ${month}월</div>
+          <button class="package-entry-btn" type="button" onclick="changePackageMonth(1)">다음</button>
+        </div>
+        <div class="package-calendar">
+          ${['일','월','화','수','목','금','토'].map(day => `<div class="package-calendar-dow">${day}</div>`).join('')}
+          ${dayCells.join('')}
+        </div>
+        <div class="package-day-detail">
+          <div class="package-history-title">${escapeHtml(activePackageDate)} 상세</div>
+          <div class="package-history">${detailRows}</div>
+        </div>
+      </div>`;
   }
 
   function getPackageQtyInputValue(id) {
     return Math.max(1, Math.min(999, Number(String(document.getElementById(id)?.value || '').replace(/[^0-9]/g, '')) || 1));
   }
+
+  window.selectPackageType = function(key) {
+    activePackageKey = key;
+    renderPackagePopup();
+  };
+
+  window.selectPackageDate = function(date) {
+    activePackageDate = date;
+    activePackageMonth = String(date || '').slice(0, 7) || activePackageMonth;
+    renderPackagePopup();
+  };
+
+  window.changePackageMonth = function(offset) {
+    const [year, month] = activePackageMonth.split('-').map(Number);
+    const next = new Date(year, month - 1 + Number(offset || 0), 1);
+    activePackageMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+    activePackageDate = `${activePackageMonth}-01`;
+    renderPackagePopup();
+  };
 
   async function persistPackageState(gridId) {
     const packages = getPackageStateForGrid(gridId);
@@ -3526,6 +3809,9 @@
     if (type === 'purchase') pkg.purchases = [...normalizePackageEntries(pkg.purchases, 'purchase'), entry];
     else pkg.usages = [...normalizePackageEntries(pkg.usages, 'usage'), entry];
     packages[key] = pkg;
+    activePackageKey = key;
+    activePackageDate = date;
+    activePackageMonth = date.slice(0, 7);
     setPackageStateForGrid(gridId, packages);
     await persistPackageState(gridId);
     renderPackagePopup();
@@ -3948,6 +4234,25 @@
     const key = select?.value || '';
     const data = key ? staffByType[type].get(key) : null;
     return data ? { id: key, name: data.name || '' } : { id: '', name: '' };
+  }
+
+  function setSelectedStaffByStoredValue(type, scope = 'desk', stored = {}) {
+    const selectId = type === 'doctors'
+      ? (scope === 'bed' ? 'bedDoctorSelect' : scope === 'receive' ? 'receiveDoctorSelect' : 'doctorSelect')
+      : (scope === 'bed' ? 'bedNurseSelect' : scope === 'receive' ? 'receiveNurseSelect' : 'nurseSelect');
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    const id = stored[`${type === 'doctors' ? 'doctor' : 'nurse'}Id`] || '';
+    const name = stored[`${type === 'doctors' ? 'doctor' : 'nurse'}Name`] || '';
+    if (id && staffByType[type].has(id)) {
+      select.value = id;
+      return;
+    }
+    if (name) {
+      const match = getSortedStaff(type).find(([, data]) => (data?.name || '') === name);
+      if (match) select.value = match[0];
+    }
   }
 
   function getTodayKey() {
@@ -4585,6 +4890,62 @@
     return `${yyyy}-${mm}-${dd}`;
   }
 
+  function getVisitDateFromTimestamp(timestamp) {
+    const value = Number(timestamp || 0);
+    return toLocalDateInputValue(value ? new Date(value) : new Date());
+  }
+
+  function createChartVisitEntry(source = {}) {
+    const date = source.visitDate || getVisitDateFromTimestamp(source.timestamp);
+    return {
+      date,
+      treatments: Array.isArray(source.treatments) ? source.treatments : [],
+      bodyParts: normalizeBodyParts(source.bodyParts),
+      doctorName: source.doctorName || '',
+      chiefComplaint: source.chiefComplaint || ''
+    };
+  }
+
+  function mergeChartVisitHistory(existing = {}, data = {}) {
+    const entries = [];
+    const pushEntry = (entry) => {
+      if (!entry?.date) return;
+      entries.push({
+        date: String(entry.date),
+        treatments: Array.isArray(entry.treatments) ? entry.treatments : [],
+        bodyParts: normalizeBodyParts(entry.bodyParts),
+        doctorName: entry.doctorName || '',
+        chiefComplaint: entry.chiefComplaint || ''
+      });
+    };
+
+    (Array.isArray(existing.visitDates) ? existing.visitDates : []).forEach(date => {
+      const saved = existing.visitHistory?.[date] || {};
+      pushEntry({ date, ...saved });
+    });
+    Object.entries(existing.visitHistory || {}).forEach(([date, saved]) => {
+      if (entries.some(entry => entry.date === date)) return;
+      pushEntry({ date, ...saved });
+    });
+    (Array.isArray(data.visitEntries) ? data.visitEntries : []).forEach(pushEntry);
+    pushEntry(data.visitEntry);
+
+    const byDate = {};
+    entries.forEach(entry => {
+      byDate[entry.date] = {
+        treatments: entry.treatments,
+        bodyParts: entry.bodyParts,
+        doctorName: entry.doctorName,
+        chiefComplaint: entry.chiefComplaint
+      };
+    });
+    const visitDates = Object.keys(byDate).sort();
+    const latestDate = visitDates[visitDates.length - 1] || '';
+    const latestVisit = latestDate ? (byDate[latestDate] || null) : null;
+    const latestChiefComplaint = latestVisit?.chiefComplaint || '';
+    return { visitDates, visitHistory: byDate, latestVisit, latestChiefComplaint };
+  }
+
   function addLocalDays(date, days) {
     const next = new Date(date);
     next.setHours(0, 0, 0, 0);
@@ -5118,8 +5479,7 @@
 
   const patientsRef = query(
     ref(db, PATIENTS_PATH),
-    orderByChild('timestamp'),
-    startAt(todayStart.getTime())
+    orderByChild('timestamp')
   );
 
   function syncPatientPCreditSchema(patientKey, data) {
@@ -5694,7 +6054,7 @@ let migratedCount = 0;
           data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : '',
         ].filter(Boolean).join('');
         return `
-          <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)" oncontextmenu="confirmDeleteWaitingPatient(event, '${key}')">
+          <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)">
             <div class="waiting-rank">${index + 1}</div>
             <div>
               <div class="waiting-name">${escapeHtml(data.name)}</div>
@@ -5750,8 +6110,16 @@ let migratedCount = 0;
         visitType: patient.visitType || '',
         chiefComplaint: patient.chiefComplaint || '',
         memo: patient.memo || '',
-        treatments: patient.treatments || [],
+        treatments: assignedBed?.treatments || patient.treatments || [],
         bodyParts: normalizeBodyParts(assignedBed?.bodyParts || patient.bodyParts),
+        doctorName: assignedBed?.doctorName || patient.doctorName || '',
+        visitEntry: createChartVisitEntry({
+          timestamp: assignedBed?.timestamp || patient.timestamp,
+          treatments: assignedBed?.treatments || patient.treatments || [],
+          bodyParts: assignedBed?.bodyParts || patient.bodyParts,
+          doctorName: assignedBed?.doctorName || patient.doctorName || '',
+          chiefComplaint: assignedBed?.chiefComplaint || patient.chiefComplaint || ''
+        }),
         appointmentDate: patient.appointmentDate || '',
         packages: getPackageStateFromPatient(patient),
         ...getPCreditsFromPatient(patient)
@@ -5853,8 +6221,7 @@ let migratedCount = 0;
 
   function getAppointmentAlertDismissField(mode = window.currentMode) {
     if (mode === 'input') return 'deskDismissed';
-    if (mode === 'receive') return 'receiveDismissed';
-    if (mode === 'notify') return 'notifyDismissed';
+    if (mode === 'receive' || mode === 'notify') return 'clinicDismissed';
     return '';
   }
 
@@ -5864,6 +6231,7 @@ let migratedCount = 0;
     if (!data?.appointmentDate) return false;
     const alert = data.appointmentAlert || {};
     if (alert.date && alert.date !== data.appointmentDate) return true;
+    if (field === 'clinicDismissed' && (alert.clinicDismissed === true || alert.receiveDismissed === true || alert.notifyDismissed === true)) return false;
     return alert[field] !== true;
   }
 
@@ -6126,14 +6494,16 @@ let migratedCount = 0;
     const appointmentDate = patient.appointmentDate || '';
     await update(ref(db, `${PATIENTS_PATH}/${patientKey}/appointmentAlert`), {
       date: appointmentDate,
-      [field]: true
+      [field]: true,
+      ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
     });
     patientsByKey.set(patientKey, {
       ...patient,
       appointmentAlert: {
         ...(patient.appointmentAlert || {}),
         date: appointmentDate,
-        [field]: true
+        [field]: true,
+        ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
       }
     });
     renderUpcomingAlerts();
@@ -6653,9 +7023,57 @@ let migratedCount = 0;
       </div>`;
   }
 
+  function getPostTreatmentPackageBalanceMessage(bed, packages, balances) {
+    const treatments = Array.isArray(bed?.treatments) ? bed.treatments : [];
+    if (!treatments.length) return '';
+
+    const normalizedTreatments = treatments.map(treatment => String(treatment || '').replace(/\s+/g, ''));
+    const hasChuna = normalizedTreatments.some(name => name.includes('추나'));
+    const unitMap = {
+      '약침1': hasChuna ? 0.5 : 1,
+      '약침2': hasChuna ? 1 : 2,
+      '약침3': hasChuna ? 1 : 2,
+      '약침4': hasChuna ? 2 : 4
+    };
+    const deduction = normalizedTreatments.reduce((sum, name) => {
+      const match = Object.keys(unitMap).find(key => name.includes(key));
+      return match ? sum + unitMap[match] : sum;
+    }, 0);
+
+    const hasPackageRecord = (key) => {
+      const pkg = packages?.[key] || {};
+      return Number(pkg.openingQty || 0) > 0
+        || normalizePackageEntries(pkg.purchases, 'purchase').length > 0
+        || normalizePackageEntries(pkg.usages, 'usage').length > 0
+        || Number(balances[key] || 0) > 0;
+    };
+
+    const messages = [];
+    const targetKey = hasPackageRecord('p13') ? 'p13' : (hasPackageRecord('p6') ? 'p6' : '');
+    if (deduction && targetKey) {
+      const afterBalance = Number(balances[targetKey] || 0) - deduction;
+      messages.push(`오늘 치료 후 ${targetKey} 잔여량은 ${afterBalance} 입니다`);
+    }
+
+    const specialDeductions = [
+      { key: 'p자하거', treatment: '약침자' },
+      { key: 'p라인', treatment: '약침l' }
+    ];
+    specialDeductions.forEach(({ key, treatment }) => {
+      const hasTreatment = normalizedTreatments.some(name => name.toLowerCase().includes(treatment));
+      if (!hasTreatment || !hasPackageRecord(key)) return;
+      const afterBalance = Number(balances[key] || 0) - 1;
+      messages.push(`오늘 치료 후 ${key} 잔여량은 ${afterBalance} 입니다`);
+    });
+
+    return messages.join(' / ');
+  }
+
   function renderBedPackageBalanceBox(bed) {
     const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
-    const balances = getPCreditsFromPatient(patient || {});
+    const packages = getPackageStateFromPatient(patient || {});
+    const balances = getPCreditsFromPackages(packages);
+    const postTreatmentMessage = getPostTreatmentPackageBalanceMessage(bed, packages, balances);
     return `
       <div class="bed-package-zone">
         <div class="bed-package-title">패키지 잔여량</div>
@@ -6666,6 +7084,7 @@ let migratedCount = 0;
               <span class="bed-package-count">${escapeHtml(balances[key] || 0)}</span>
             </div>`).join('')}
         </div>
+        ${postTreatmentMessage ? `<div class="bed-package-after">${escapeHtml(postTreatmentMessage)}</div>` : ''}
       </div>`;
   }
 
@@ -7187,13 +7606,14 @@ let migratedCount = 0;
     await setTimerSeconds(bedNo, Math.round(minutes * 60));
   };
 
-  window.clearBed = async (bedNo) => {
+  window.clearBed = async (bedNo, visitDate = '') => {
     const bed = getBedData(bedNo);
     clearLocalTimerAlertsForBed(bedNo);
 
     // IndexedDB에 먼저 저장 (차트번호 있는 경우)
     if (bed?.chartNo) {
       const patient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
+      const indexDbPackages = applyPostTreatmentPackageBalances(getPackageStateFromPatient(patient || {}), bed, visitDate || '');
       await window.saveChartPatient?.({
         chartNo: normalizeChartNo(bed.chartNo),
         name: bed.name || '',
@@ -7204,9 +7624,11 @@ let migratedCount = 0;
         memo: patient?.memo || bed.memo || '',
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
+        doctorName: bed.doctorName || '',
+        visitEntry: createChartVisitEntry({ ...bed, visitDate: visitDate || '' }),
         appointmentDate: patient?.appointmentDate || '',
-        packages: getPackageStateFromPatient(patient || {}),
-        ...getPCreditsFromPatient(patient || {})
+        packages: indexDbPackages,
+        ...getPCreditsFromPackages(indexDbPackages)
       });
     }
 
@@ -7229,7 +7651,15 @@ let migratedCount = 0;
     if (!bed) return;
 
     if (confirm(`${getBedLabel(bedNo)} ${bed.name} 삭제하시겠습니까?`)) {
-      await clearBed(bedNo);
+      const defaultVisitDate = getVisitDateFromTimestamp(bed.timestamp);
+      const visitDate = prompt('IndexedDB에 저장할 진료일자를 입력하세요. 예: 2026-06-05', defaultVisitDate);
+      if (visitDate === null) return;
+      const normalizedVisitDate = String(visitDate || '').trim() || defaultVisitDate;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedVisitDate)) {
+        showToast('진료일자는 YYYY-MM-DD 형식으로 입력해주세요');
+        return;
+      }
+      await clearBed(bedNo, normalizedVisitDate);
     }
   };
 
@@ -7720,7 +8150,7 @@ let migratedCount = 0;
       canMoveBed && selectedMoveBedNo && status.bedNo !== selectedMoveBedNo ? ' move-target' : ''
     ].join('');
     const moveHandlers = canMoveBed
-      ? ` onclick="handleInputBedClick(${status.bedNo})" oncontextmenu="confirmClearBed(event, ${status.bedNo})" ondragover="handleBedDragOver(event, ${status.bedNo})" ondrop="handleBedDrop(event, ${status.bedNo})"`
+      ? ` onclick="handleInputBedClick(${status.bedNo})" ondragover="handleBedDragOver(event, ${status.bedNo})" ondrop="handleBedDrop(event, ${status.bedNo})"`
       : '';
 
     if (status.empty) {
@@ -7751,7 +8181,7 @@ let migratedCount = 0;
     ].filter(Boolean).join('');
     const compactName = `${getCompactBedMarker(status.bedNo)} ${status.name}`;
     return `
-      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${canMoveBed ? ` oncontextmenu="confirmClearBed(event, ${status.bedNo})"` : ''}>
+      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}>
         <div class="bed-status-top">
           <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(status.bedLabel)} ${escapeHtml(status.name)}`}</span>
           ${compact ? '' : `<span class="bed-status-time">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
@@ -8323,7 +8753,16 @@ let migratedCount = 0;
         const getReq = store.get(data.chartNo);
         getReq.onsuccess = () => {
           const existing = getReq.result || {};
-          const next = { ...existing, ...data };
+          const { visitEntry, visitEntries, ...plainData } = data;
+          const visitPatch = mergeChartVisitHistory(existing, { visitEntry, visitEntries });
+          const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
+          const next = { ...existing, ...plainData, ...visitFields };
+          if (latestVisit) {
+            next.treatments = latestVisit.treatments || [];
+            next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
+            next.doctorName = latestVisit.doctorName || '';
+          }
+          if (latestChiefComplaint) next.chiefComplaint = latestChiefComplaint;
           if (data.appointmentDate === null) delete next.appointmentDate;
           store.put(next);
         };
@@ -8356,6 +8795,7 @@ let migratedCount = 0;
     const appointmentAlert = {
       date: appointmentDate,
       deskDismissed: false,
+      clinicDismissed: false,
       receiveDismissed: false,
       notifyDismissed: false
     };
@@ -8531,6 +8971,7 @@ let migratedCount = 0;
       document.getElementById(ids.memo).value = patient.memo || '';
       document.querySelector(`input[name="${ids.visitType}"][value="재진"]`)?.click();
       document.querySelector(`input[name="${ids.gender}"][value="${patient.gender || '남'}"]`)?.click();
+      setSelectedStaffByStoredValue('doctors', scope, patient);
       // 치료 항목 복원
       window.applyTreatmentsToForm?.(scope, patient.treatments || []);
       // 치료 부위 복원
@@ -8733,6 +9174,9 @@ let migratedCount = 0;
       document.getElementById('memoInput').value = patient.memo || '';
       document.querySelector('input[name="visitType"][value="재진"]')?.click();
       document.querySelector(`input[name="gender"][value="${patient.gender || '남'}"]`)?.click();
+      setSelectedStaffByStoredValue?.('doctors', 'desk', patient);
+      window.applyTreatmentsToForm?.('desk', patient.treatments || []);
+      window.applyBodyPartsToForm?.('desk', patient.bodyParts);
       if (badge) {
         badge.textContent = '재';
         badge.className = 'chart-lookup-badge returning';

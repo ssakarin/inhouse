@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DB Editor</title>
+<style>
+  :root {
+    --bg: #07111f;
+    --panel: #101b2d;
+    --panel2: #16243a;
+    --line: rgba(255,255,255,0.12);
+    --text: #e7eef8;
+    --muted: #9badbf;
+    --accent: #39a9f5;
+    --gold: #ffca6a;
+    --green: #4ade80;
+    --danger: #fb7185;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .app { width: min(1500px, 100%); margin: 0 auto; padding: 18px 18px 18px 42px; }
+  .header { margin-bottom: 14px; }
+  h1 { margin: 0; font-size: 24px; letter-spacing: 0; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .actions, .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+  button, input, select, textarea {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel2);
+    color: var(--text);
+    font: inherit;
+  }
+  button { cursor: pointer; font-weight: 900; padding: 9px 12px; }
+  button:hover { border-color: var(--accent); }
+  button.primary { border-color: rgba(57,169,245,0.65); color: var(--accent); }
+  button.danger { border-color: rgba(251,113,133,0.55); color: var(--danger); }
+  button.good { border-color: rgba(74,222,128,0.55); color: var(--green); }
+  input, select, textarea { width: 100%; padding: 9px 10px; }
+  textarea {
+    min-height: 110px;
+    resize: vertical;
+    font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .grid { display: block; }
+  .card {
+    min-width: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .firebase-card {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 20;
+    width: min(560px, calc(100vw - 48px));
+    height: 100vh;
+    border-radius: 0;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: 18px 0 30px rgba(0,0,0,0.30);
+  }
+  body.firebase-open .firebase-card { transform: translateX(0); }
+  .firebase-toggle {
+    position: fixed;
+    top: 50%;
+    left: 0;
+    z-index: 30;
+    width: 31px;
+    height: 64px;
+    transform: translateY(-50%);
+    border-radius: 0 8px 8px 0;
+    border-left: 0;
+    background: var(--panel2);
+    color: var(--gold);
+    font-size: 22px;
+    line-height: 1;
+    padding: 0;
+    transition: left 0.22s ease;
+  }
+  body.firebase-open .firebase-toggle {
+    left: min(560px, calc(100vw - 48px));
+    color: var(--accent);
+  }
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .card-title { font-size: 16px; font-weight: 900; }
+  .toolbar { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .toolbar button { padding: 7px 10px; font-size: 12px; }
+  .path-row, .editor-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; }
+  .metric-label { color: var(--muted); font-size: 11px; font-weight: 900; }
+  .metric-value { color: var(--green); font-size: 20px; font-weight: 900; margin-top: 4px; }
+  pre {
+    margin: 0;
+    padding: 12px;
+    min-height: 460px;
+    max-height: calc(100vh - 290px);
+    overflow: auto;
+    color: #d6e3f2;
+    background: #07111f;
+    font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .status { color: var(--gold); font-size: 12px; font-weight: 900; }
+  .error { color: var(--danger); }
+  .editor-layout {
+    display: grid;
+    grid-template-columns: 230px minmax(0, 1fr);
+    min-height: 640px;
+  }
+  .patient-list-pane { border-right: 1px solid var(--line); min-width: 0; }
+  .search-box { padding: 10px; border-bottom: 1px solid var(--line); }
+  .patient-list { max-height: 590px; overflow: auto; }
+  .patient-item {
+    width: 100%;
+    display: block;
+    border: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0;
+    background: transparent;
+    color: var(--text);
+    padding: 10px;
+    text-align: left;
+  }
+  .patient-item.active { background: rgba(57,169,245,0.16); }
+  .patient-name { font-size: 14px; font-weight: 900; }
+  .patient-sub { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .editor-pane { min-width: 0; }
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; }
+  .form-grid label, .wide-field { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 900; }
+  .wide-field { grid-column: 1 / -1; }
+  .section-title { padding: 12px 12px 0; color: var(--gold); font-weight: 900; font-size: 13px; }
+  .text-input {
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .visit-calendar-wrap {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 10px;
+  }
+  .visit-calendar-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+  }
+  .visit-calendar-title {
+    text-align: center;
+    color: var(--text);
+    font-weight: 900;
+    font-size: 16px;
+  }
+  .visit-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .visit-weekday {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+    text-align: center;
+    padding: 4px 0;
+  }
+  .visit-day {
+    min-height: 58px;
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    color: var(--muted);
+    padding: 7px;
+    text-align: left;
+    font-weight: 900;
+  }
+  .visit-day.has-visit {
+    color: var(--text);
+    border-color: rgba(255,202,106,0.55);
+    background: rgba(255,202,106,0.13);
+  }
+  .visit-day.has-package {
+    color: var(--text);
+    border-color: rgba(74,222,128,0.38);
+  }
+  .visit-day.selected {
+    border-color: rgba(57,169,245,0.85);
+    box-shadow: 0 0 0 2px rgba(57,169,245,0.18) inset;
+  }
+  .visit-day:disabled {
+    cursor: default;
+    opacity: 0.35;
+  }
+  .visit-day-note {
+    display: block;
+    margin-top: 6px;
+    color: var(--gold);
+    font-size: 10px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .visit-day-note.package {
+    color: var(--green);
+  }
+  .visit-day-note + .visit-day-note {
+    margin-top: 3px;
+  }
+  .visit-detail-card {
+    min-height: 96px;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    padding: 12px;
+  }
+  .visit-detail-title {
+    color: var(--gold);
+    font-weight: 900;
+    margin-bottom: 8px;
+  }
+  .visit-detail-grid {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 7px 10px;
+    font-size: 13px;
+  }
+  .visit-detail-section + .visit-detail-section {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+  .visit-detail-label {
+    color: var(--muted);
+    font-weight: 900;
+  }
+  .package-viewer {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 10px;
+  }
+  .package-toggle-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .package-toggle-btn.active {
+    border-color: rgba(255,202,106,0.75);
+    background: rgba(255,202,106,0.15);
+    color: var(--gold);
+  }
+  .package-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .package-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .package-title {
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 900;
+  }
+  .package-balance {
+    border-radius: 999px;
+    background: rgba(74,222,128,0.14);
+    border: 1px solid rgba(74,222,128,0.42);
+    color: var(--green);
+    font-size: 14px;
+    font-weight: 900;
+    padding: 5px 9px;
+    white-space: nowrap;
+  }
+  .package-calendar-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .package-calendar-title {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 900;
+    text-align: center;
+  }
+  .package-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .package-calendar-dow {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+    text-align: center;
+  }
+  .package-calendar-day {
+    min-height: 74px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 6px;
+    text-align: left;
+    font-weight: 900;
+  }
+  .package-calendar-day.empty {
+    cursor: default;
+    opacity: 0.35;
+  }
+  .package-calendar-day.selected {
+    border-color: rgba(255,202,106,0.80);
+    background: rgba(255,202,106,0.14);
+  }
+  .package-calendar-date {
+    font-size: 12px;
+  }
+  .package-calendar-badges {
+    display: grid;
+    gap: 3px;
+    margin-top: 5px;
+  }
+  .package-calendar-badge {
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 5px;
+  }
+  .package-calendar-badge.purchase {
+    background: rgba(74,222,128,0.18);
+    color: var(--green);
+  }
+  .package-calendar-badge.usage {
+    background: rgba(251,113,133,0.18);
+    color: var(--danger);
+  }
+  .package-day-detail {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    margin-top: 10px;
+    padding: 10px;
+  }
+  .package-history {
+    display: grid;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .package-history-title {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .package-history-row {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 800;
+    padding: 6px 7px;
+  }
+  .file-input { display: none; }
+  @media (max-width: 1080px) {
+    .editor-layout { grid-template-columns: 1fr; }
+    .patient-list-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+    .patient-list { max-height: 260px; }
+  }
+  @media (max-width: 760px) {
+    .summary, .form-grid, .package-toggle-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div>
+      <h1>DB Editor</h1>
+    </div>
+  </div>
+
+  <div class="grid">
+    <button class="firebase-toggle" type="button" id="firebaseToggleBtn" aria-label="Firebase 패널 열기">›</button>
+    <section class="card firebase-card" id="firebaseCard">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Firebase DB 읽기 전용</div>
+          <div class="meta" id="firebaseMeta">대기 중</div>
+        </div>
+        <div class="status" id="firebaseStatus"></div>
+      </div>
+      <div class="toolbar">
+        <button type="button" data-fb-path="/">전체</button>
+        <button type="button" data-fb-path="patients">patients</button>
+        <button type="button" data-fb-path="beds">beds</button>
+        <button type="button" data-fb-path="settings">settings</button>
+        <button type="button" data-fb-path="callAlerts">callAlerts</button>
+        <button type="button" data-fb-path="bedAssignmentAlerts">bedAssignmentAlerts</button>
+      </div>
+      <div class="path-row">
+        <input id="firebasePathInput" type="text" value="/" aria-label="Firebase path">
+        <button type="button" id="loadFirebasePathBtn">읽기</button>
+      </div>
+      <div class="summary" id="firebaseSummary"></div>
+      <pre id="firebaseOutput">Firebase 읽기 버튼을 누르면 현재 경로만 불러옵니다.</pre>
+    </section>
+
+    <section class="card">
+      <div class="status" id="indexedStatus" hidden></div>
+      <div class="toolbar">
+        <button type="button" id="loadIndexedBtn">새로고침</button>
+        <button class="good" type="button" id="newPatientBtn">새 환자</button>
+        <button type="button" id="exportIndexedBtn">백업 다운로드</button>
+        <button type="button" id="importIndexedBtn">JSON 복원</button>
+        <input class="file-input" id="importFileInput" type="file" accept="application/json,.json">
+      </div>
+      <div class="summary" id="indexedSummary"></div>
+      <div class="editor-layout">
+        <div class="patient-list-pane">
+          <div class="search-box">
+            <input id="patientSearchInput" type="text" placeholder="이름 또는 차트번호 검색">
+          </div>
+          <div class="patient-list" id="patientList"></div>
+        </div>
+        <div class="editor-pane">
+          <div class="section-title">기본 정보</div>
+          <div class="form-grid">
+            <label>차트번호<input id="editChartNo" type="text"></label>
+            <label>이름<input id="editName" type="text"></label>
+            <label>나이<input id="editAge" type="number" min="0" max="130"></label>
+            <label>성별
+              <select id="editGender">
+                <option value=""></option>
+                <option value="남">남</option>
+                <option value="여">여</option>
+              </select>
+            </label>
+            <label class="wide-field">주상병명<input id="editChiefComplaint" type="text"></label>
+            <label class="wide-field">최근 담당원장<input id="editDoctorName" type="text"></label>
+            <label class="wide-field">최근 치료목록<input class="text-input" id="editTreatmentsText" type="text" placeholder="핫팩, 침"></label>
+            <label class="wide-field">최근 치료부위<input class="text-input" id="editBodyPartsText" type="text" placeholder="좌측 회전근개, 우측 회전근개, 목(후)"></label>
+            <label class="wide-field">예약일<input id="editAppointmentDate" type="date"></label>
+            <label class="wide-field">메모<textarea id="editMemo"></textarea></label>
+          </div>
+          <div class="section-title">진료 기록 / 패키지</div>
+          <div class="form-grid">
+            <div class="visit-calendar-wrap">
+              <div class="package-viewer" id="packageViewer"></div>
+              <div class="visit-calendar-head">
+                <button type="button" id="visitPrevMonthBtn">이전</button>
+                <div class="visit-calendar-title" id="visitCalendarTitle"></div>
+                <button type="button" id="visitNextMonthBtn">다음</button>
+              </div>
+              <div class="visit-calendar" id="visitCalendar"></div>
+              <div class="visit-detail-card" id="visitDetail"></div>
+            </div>
+          </div>
+          <div class="editor-row">
+            <div class="status" id="selectedPatientStatus">환자를 선택하거나 새 환자를 만드세요.</div>
+            <div class="actions">
+              <button class="good" type="button" id="savePatientBtn">폼 저장</button>
+              <button class="danger" type="button" id="deletePatientBtn">삭제</button>
+            </div>
+          </div>
+          <div class="section-title">선택 환자 전체 JSON</div>
+          <div class="form-grid">
+            <label class="wide-field">patient<textarea id="selectedPatientJson" spellcheck="false" readonly></textarea></label>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC0bPN-bEaEe7dLnfHPrQY10pnNdlkE1RA",
+    authDomain: "khhongik-inhouse.firebaseapp.com",
+    databaseURL: "https://khhongik-inhouse-default-rtdb.firebaseio.com",
+    projectId: "khhongik-inhouse",
+    storageBucket: "khhongik-inhouse.firebasestorage.app",
+    messagingSenderId: "399934659057",
+    appId: "1:399934659057:web:299e94b388f853442dcc50",
+    measurementId: "G-MPN5V3CYY8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const firebaseDb = getDatabase(app);
+  const DEFAULT_INDEXED_DB = "patientChartDB";
+  const DEFAULT_INDEXED_STORE = "patients";
+  const PACKAGE_KEYS = ["p6", "p13", "p자하거", "p라인"];
+  let latestFirebaseValue = null;
+  let latestIndexedValue = [];
+  let selectedChartNo = "";
+  let activeVisitDates = [];
+  let activeVisitHistory = {};
+  let activeVisitMonth = new Date().toISOString().slice(0, 7);
+  let selectedVisitDate = "";
+  let activePackages = {};
+  let activePackageKey = "p6";
+  let activePackageMonth = new Date().toISOString().slice(0, 7);
+  let activePackageDate = new Date().toISOString().slice(0, 10);
+
+  const $ = (id) => document.getElementById(id);
+  const stringify = (value) => JSON.stringify(value, null, 2) || "null";
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function setStatus(id, text, isError = false) {
+    const el = $(id);
+    el.textContent = text;
+    el.classList.toggle("error", isError);
+  }
+
+  function getType(value) {
+    if (Array.isArray(value)) return "array";
+    if (value === null) return "null";
+    return typeof value;
+  }
+
+  function countChildren(value) {
+    if (!value || typeof value !== "object") return 0;
+    return Object.keys(value).length;
+  }
+
+  function renderSummary(targetId, value, extra = {}) {
+    const rows = [
+      ["타입", getType(value)],
+      ["항목 수", countChildren(value)],
+      ["크기", `${new Blob([stringify(value)]).size.toLocaleString()} B`],
+      ["조회", new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })]
+    ];
+    Object.entries(extra).forEach(([label, val]) => rows.push([label, val]));
+    $(targetId).innerHTML = rows.map(([label, val]) => `
+      <div class="metric">
+        <div class="metric-label">${escapeHtml(label)}</div>
+        <div class="metric-value">${escapeHtml(String(val))}</div>
+      </div>
+    `).join("");
+  }
+
+  function normalizeFirebasePath(path) {
+    const trimmed = String(path || "/").trim();
+    if (!trimmed || trimmed === "/") return "/";
+    return trimmed.replace(/^\/+|\/+$/g, "");
+  }
+
+  async function loadFirebase(path = $("firebasePathInput").value) {
+    const normalized = normalizeFirebasePath(path);
+    $("firebasePathInput").value = normalized;
+    setStatus("firebaseStatus", "조회 중");
+    $("firebaseOutput").textContent = "Loading...";
+    try {
+      const snapshot = await get(ref(firebaseDb, normalized));
+      latestFirebaseValue = snapshot.exists() ? snapshot.val() : null;
+      $("firebaseOutput").textContent = stringify(latestFirebaseValue);
+      $("firebaseMeta").textContent = `path: ${normalized}`;
+      renderSummary("firebaseSummary", latestFirebaseValue);
+      setStatus("firebaseStatus", "완료");
+    } catch (error) {
+      latestFirebaseValue = null;
+      $("firebaseOutput").textContent = error?.message || String(error);
+      renderSummary("firebaseSummary", null);
+      setStatus("firebaseStatus", "오류", true);
+    }
+  }
+
+  function openIndexedDb(name) {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(name);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error("IndexedDB 열기가 차단되었습니다."));
+    });
+  }
+
+  function transactionStore(mode = "readonly") {
+    const dbName = DEFAULT_INDEXED_DB;
+    const storeName = DEFAULT_INDEXED_STORE;
+    return openIndexedDb(dbName).then(db => {
+      if (!db.objectStoreNames.contains(storeName)) {
+        db.close();
+        throw new Error(`${dbName} 안에 ${storeName} 스토어가 없습니다.`);
+      }
+      const tx = db.transaction(storeName, mode);
+      return { db, tx, store: tx.objectStore(storeName) };
+    });
+  }
+
+  async function getAllIndexedRecords() {
+    const { db, store } = await transactionStore("readonly");
+    try {
+      return await new Promise((resolve, reject) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+        req.onerror = () => reject(req.error);
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  async function putIndexedRecord(record, oldChartNo = "") {
+    if (!record?.chartNo) throw new Error("chartNo가 필요합니다.");
+    const { db, tx, store } = await transactionStore("readwrite");
+    try {
+      await new Promise((resolve, reject) => {
+        if (oldChartNo && oldChartNo !== record.chartNo) store.delete(oldChartNo);
+        store.put(record);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  async function deleteIndexedRecord(chartNo) {
+    if (!chartNo) return;
+    const { db, tx, store } = await transactionStore("readwrite");
+    try {
+      await new Promise((resolve, reject) => {
+        store.delete(chartNo);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  function normalizeChartNo(value) {
+    return String(value || "").trim().replace(/\.0$/, "");
+  }
+
+  function normalizePackageEntries(entries = []) {
+    if (Array.isArray(entries)) {
+      return entries.map((entry, index) => ({
+        id: String(entry?.id || `entry-${index}`),
+        date: String(entry?.date || ""),
+        qty: Math.max(0, Number(entry?.qty ?? entry?.totalQty ?? 0) || 0)
+      })).filter(entry => entry.qty > 0);
+    }
+    return Object.entries(entries || {}).map(([id, entry]) => ({
+      id,
+      date: String(entry?.date || ""),
+      qty: Math.max(0, Number(entry?.qty ?? entry?.totalQty ?? 0) || 0)
+    })).filter(entry => entry.qty > 0);
+  }
+
+  function calculatePackageBalance(pkg = {}) {
+    const openingQty = Number(pkg.openingQty || 0);
+    const purchaseQty = normalizePackageEntries(pkg.purchases).reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    const usageQty = normalizePackageEntries(pkg.usages).reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    return Math.max(0, openingQty + purchaseQty - usageQty);
+  }
+
+  function normalizePackages(packages = {}, source = {}) {
+    const next = {};
+    PACKAGE_KEYS.forEach(key => {
+      const saved = packages?.[key] || {};
+      const openingQty = Math.max(0, Number(saved.openingQty ?? source[key] ?? 0) || 0);
+      const purchases = normalizePackageEntries(saved.purchases);
+      const usages = normalizePackageEntries(saved.usages);
+      next[key] = { openingQty, purchases, usages, balance: calculatePackageBalance({ openingQty, purchases, usages }) };
+    });
+    return next;
+  }
+
+  function withPackageBalances(record) {
+    const packages = normalizePackages(record.packages, record);
+    const next = { ...record, packages };
+    PACKAGE_KEYS.forEach(key => { next[key] = Number(packages[key]?.balance || 0); });
+    delete next.credit;
+    return next;
+  }
+
+  function getPackageDayEntries(pkg = {}, date = "") {
+    const rows = [];
+    normalizePackageEntries(pkg.purchases).forEach(entry => {
+      if (entry.date === date) rows.push({ ...entry, type: "purchase", label: "결제" });
+    });
+    normalizePackageEntries(pkg.usages).forEach(entry => {
+      if (entry.date === date) rows.push({ ...entry, type: "usage", label: "사용" });
+    });
+    return rows.sort((a, b) => String(a.id || "").localeCompare(String(b.id || "")));
+  }
+
+  function sumPackageEntriesByDate(entries = [], date = "") {
+    return normalizePackageEntries(entries)
+      .filter(entry => entry.date === date)
+      .reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+  }
+
+  function renderPackageViewer() {
+    const viewer = $("packageViewer");
+    if (!viewer) return;
+    const packages = normalizePackages(activePackages);
+    const activePkg = packages[activePackageKey] || { openingQty: 0, purchases: [], usages: [], balance: 0 };
+    const toggles = PACKAGE_KEYS.map(key => `
+      <button class="package-toggle-btn${key === activePackageKey ? " active" : ""}" type="button" data-package-key="${escapeHtml(key)}">${escapeHtml(key)}</button>
+    `).join("");
+    viewer.innerHTML = `
+      <div class="package-toggle-row">${toggles}</div>
+      <div class="package-card">
+        <div class="package-card-head">
+          <div class="package-title">${escapeHtml(activePackageKey)}</div>
+          <div class="package-balance">잔량 ${escapeHtml(activePkg.balance || 0)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function selectPackageType(key) {
+    activePackageKey = PACKAGE_KEYS.includes(key) ? key : PACKAGE_KEYS[0];
+    renderPackageViewer();
+    renderVisitCalendar();
+  }
+
+  function getLatestVisitChiefComplaint(visitDates = [], visitHistory = {}) {
+    const dates = (Array.isArray(visitDates) ? visitDates : Object.keys(visitHistory || {})).map(String).sort();
+    const latestDate = dates[dates.length - 1] || "";
+    return latestDate ? (visitHistory?.[latestDate]?.chiefComplaint || "") : "";
+  }
+
+  function getLatestVisitRecord(visitDates = [], visitHistory = {}) {
+    const dates = (Array.isArray(visitDates) ? visitDates : Object.keys(visitHistory || {})).map(String).sort();
+    const latestDate = dates[dates.length - 1] || "";
+    return latestDate ? (visitHistory?.[latestDate] || null) : null;
+  }
+
+  function formatTreatmentsText(treatments) {
+    return (Array.isArray(treatments) ? treatments : [])
+      .map(item => String(item || "").trim())
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  function parseCommaText(text) {
+    return String(text || "")
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  function normalizeBodyParts(bodyParts = {}) {
+    if (Array.isArray(bodyParts)) return { front: [], back: bodyParts.map(String).filter(Boolean) };
+    return {
+      front: Array.isArray(bodyParts.front) ? bodyParts.front.map(String).filter(Boolean) : [],
+      back: Array.isArray(bodyParts.back) ? bodyParts.back.map(String).filter(Boolean) : []
+    };
+  }
+
+  function getBodyPartList(bodyParts = {}) {
+    const normalized = normalizeBodyParts(bodyParts);
+    return [...normalized.front, ...normalized.back]
+      .map(item => String(item || "").trim())
+      .filter(Boolean);
+  }
+
+  function formatBodyPartsText(bodyParts = {}) {
+    return getBodyPartList(bodyParts).join(", ");
+  }
+
+  function parseBodyPartsText(text, previousBodyParts = {}) {
+    const previous = normalizeBodyParts(previousBodyParts);
+    const previousText = formatBodyPartsText(previous);
+    const nextText = String(text || "").trim();
+    if (nextText === previousText) return previous;
+    return { front: [], back: parseCommaText(nextText) };
+  }
+
+  function visitDatesFromRecord(patient = {}) {
+    const dates = Array.isArray(patient.visitDates) ? patient.visitDates.map(String) : [];
+    Object.keys(patient.visitHistory || {}).forEach(date => dates.push(String(date)));
+    return [...new Set(dates.filter(Boolean))].sort();
+  }
+
+  function visitSummary(record = {}) {
+    const treatments = formatTreatmentsText(record.treatments);
+    const bodyParts = formatBodyPartsText(record.bodyParts);
+    return [record.doctorName, treatments, bodyParts].filter(Boolean).join(" / ");
+  }
+
+  function packageDaySummary(pkg = {}, date = "") {
+    const purchaseQty = sumPackageEntriesByDate(pkg.purchases, date);
+    const usageQty = sumPackageEntriesByDate(pkg.usages, date);
+    return [
+      purchaseQty ? `결제 ${purchaseQty}` : "",
+      usageQty ? `사용 ${usageQty}` : ""
+    ].filter(Boolean).join(" / ");
+  }
+
+  function renderVisitDetail(date = selectedVisitDate) {
+    const detailEl = $("visitDetail");
+    if (!detailEl) return;
+    if (!date) {
+      detailEl.innerHTML = `<div class="meta">날짜를 선택하면 진료기록과 패키지 기록이 함께 표시됩니다.</div>`;
+      return;
+    }
+    const record = activeVisitHistory?.[date] || {};
+    const packages = normalizePackages(activePackages);
+    const activePkg = packages[activePackageKey] || {};
+    const packageRows = getPackageDayEntries(activePkg, date);
+    const packageDetailRows = packageRows.length
+      ? packageRows.map(entry => `
+        <div class="package-history-row">
+          <span>${escapeHtml(entry.label)}</span>
+          <span>${escapeHtml(entry.qty)}개</span>
+        </div>
+      `).join("")
+      : `<div class="package-history-row"><span>-</span><span>기록 없음</span></div>`;
+    detailEl.innerHTML = `
+      <div class="visit-detail-title">${escapeHtml(date)}</div>
+      <div class="visit-detail-section">
+        <div class="visit-detail-grid">
+          <div class="visit-detail-label">담당원장</div><div>${escapeHtml(record.doctorName || "-")}</div>
+          <div class="visit-detail-label">치료목록</div><div>${escapeHtml(formatTreatmentsText(record.treatments) || "-")}</div>
+          <div class="visit-detail-label">치료부위</div><div>${escapeHtml(formatBodyPartsText(record.bodyParts) || "-")}</div>
+          <div class="visit-detail-label">주상병명</div><div>${escapeHtml(record.chiefComplaint || "-")}</div>
+        </div>
+      </div>
+      <div class="visit-detail-section">
+        <div class="package-history-title">${escapeHtml(activePackageKey)} 패키지</div>
+        <div class="package-history">${packageDetailRows}</div>
+      </div>
+    `;
+  }
+
+  function renderVisitCalendar() {
+    const titleEl = $("visitCalendarTitle");
+    const calendarEl = $("visitCalendar");
+    if (!titleEl || !calendarEl) return;
+    const [year, month] = activeVisitMonth.split("-").map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDate = new Date(year, month, 0).getDate();
+    const startOffset = firstDay.getDay();
+    titleEl.textContent = `${year}년 ${String(month).padStart(2, "0")}월`;
+    const weekdayHtml = ["일", "월", "화", "수", "목", "금", "토"]
+      .map(day => `<div class="visit-weekday">${day}</div>`)
+      .join("");
+    const blanks = Array.from({ length: startOffset }, () => `<button class="visit-day" type="button" disabled></button>`).join("");
+    const packages = normalizePackages(activePackages);
+    const activePkg = packages[activePackageKey] || {};
+    const days = Array.from({ length: lastDate }, (_, index) => {
+      const day = index + 1;
+      const date = `${activeVisitMonth}-${String(day).padStart(2, "0")}`;
+      const record = activeVisitHistory?.[date];
+      const hasVisit = Boolean(record);
+      const packageSummary = packageDaySummary(activePkg, date);
+      const hasPackage = Boolean(packageSummary);
+      const selected = date === selectedVisitDate;
+      const visitNote = hasVisit ? `<span class="visit-day-note">${escapeHtml(visitSummary(record) || "진료")}</span>` : "";
+      const packageNote = hasPackage ? `<span class="visit-day-note package">${escapeHtml(`${activePackageKey} ${packageSummary}`)}</span>` : "";
+      return `<button class="visit-day${hasVisit ? " has-visit" : ""}${hasPackage ? " has-package" : ""}${selected ? " selected" : ""}" type="button" data-visit-date="${date}">${day}${visitNote}${packageNote}</button>`;
+    }).join("");
+    calendarEl.innerHTML = weekdayHtml + blanks + days;
+    renderVisitDetail(selectedVisitDate);
+  }
+
+  function selectVisitDate(date) {
+    selectedVisitDate = String(date || "");
+    activePackageDate = selectedVisitDate || activePackageDate;
+    renderVisitCalendar();
+  }
+
+  function changeVisitMonth(offset) {
+    const [year, month] = activeVisitMonth.split("-").map(Number);
+    const next = new Date(year, month - 1 + offset, 1);
+    activeVisitMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    renderVisitCalendar();
+  }
+
+  async function deleteCombinedDate(date) {
+    if (!date) return;
+    if (!confirm(`${date} 진료기록과 패키지 기록을 모두 삭제할까요?`)) return;
+    delete activeVisitHistory[date];
+    activeVisitDates = activeVisitDates.filter(item => String(item) !== String(date));
+    const packages = normalizePackages(activePackages);
+    PACKAGE_KEYS.forEach(key => {
+      const pkg = packages[key] || {};
+      packages[key] = {
+        ...pkg,
+        purchases: normalizePackageEntries(pkg.purchases).filter(entry => entry.date !== date),
+        usages: normalizePackageEntries(pkg.usages).filter(entry => entry.date !== date)
+      };
+    });
+    activePackages = normalizePackages(packages);
+    renderPackageViewer();
+    renderVisitCalendar();
+    try {
+      const record = readFormRecord();
+      await putIndexedRecord(record, selectedChartNo);
+      selectedChartNo = record.chartNo;
+      const index = latestIndexedValue.findIndex(patient => String(patient.chartNo || "") === String(record.chartNo));
+      if (index >= 0) latestIndexedValue[index] = record;
+      else latestIndexedValue.push(record);
+      $("selectedPatientJson").value = stringify(record);
+      renderPatientList();
+      setStatus("indexedStatus", "날짜 기록 삭제됨");
+    } catch (error) {
+      setStatus("indexedStatus", "오류", true);
+      $("selectedPatientStatus").textContent = error?.message || String(error);
+    }
+  }
+
+  async function loadIndexed() {
+    setStatus("indexedStatus", "조회 중");
+    try {
+      latestIndexedValue = await getAllIndexedRecords();
+      latestIndexedValue.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko") || String(a.chartNo || "").localeCompare(String(b.chartNo || "")));
+      renderSummary("indexedSummary", latestIndexedValue, { 레코드: latestIndexedValue.length });
+      renderPatientList();
+      if (selectedChartNo) selectPatient(selectedChartNo, false);
+      setStatus("indexedStatus", "완료");
+    } catch (error) {
+      latestIndexedValue = [];
+      renderSummary("indexedSummary", null);
+      setStatus("indexedStatus", "오류", true);
+      $("selectedPatientStatus").textContent = error?.message || String(error);
+    }
+  }
+
+  function renderPatientList() {
+    const query = $("patientSearchInput").value.trim().toLowerCase();
+    const rows = latestIndexedValue.filter(patient => {
+      const haystack = `${patient.chartNo || ""} ${patient.name || ""}`.toLowerCase();
+      return !query || haystack.includes(query);
+    });
+    $("patientList").innerHTML = rows.length
+      ? rows.map(patient => `
+        <button class="patient-item${String(patient.chartNo || "") === selectedChartNo ? " active" : ""}" type="button" data-chart-no="${escapeHtml(patient.chartNo || "")}">
+          <div class="patient-name">${escapeHtml(patient.name || "(이름 없음)")}</div>
+          <div class="patient-sub">${escapeHtml(patient.chartNo || "-")} · ${escapeHtml(patient.gender || "-")} · ${escapeHtml(patient.age || "-")} · 진료 ${escapeHtml((patient.visitDates || []).length || 0)}회</div>
+        </button>
+      `).join("")
+      : `<div class="meta" style="padding:12px;">표시할 환자가 없습니다.</div>`;
+  }
+
+  function getSelectedPatient() {
+    return latestIndexedValue.find(patient => String(patient.chartNo || "") === selectedChartNo) || null;
+  }
+
+  function selectPatient(chartNo, renderList = true) {
+    selectedChartNo = String(chartNo || "");
+    const patient = getSelectedPatient();
+    if (!patient) {
+      clearEditor();
+      return;
+    }
+    $("editChartNo").value = patient.chartNo || "";
+    $("editName").value = patient.name || "";
+    $("editAge").value = patient.age ?? "";
+    $("editGender").value = patient.gender || "";
+    $("editChiefComplaint").value = patient.chiefComplaint || "";
+    $("editDoctorName").value = patient.doctorName || "";
+    $("editAppointmentDate").value = patient.appointmentDate || "";
+    $("editMemo").value = patient.memo || "";
+    $("editTreatmentsText").value = formatTreatmentsText(Array.isArray(patient.treatments) ? patient.treatments : []);
+    $("editBodyPartsText").value = formatBodyPartsText(patient.bodyParts || { front: [], back: [] });
+    activeVisitDates = visitDatesFromRecord(patient);
+    activeVisitHistory = patient.visitHistory && typeof patient.visitHistory === "object" ? { ...patient.visitHistory } : {};
+    selectedVisitDate = activeVisitDates[activeVisitDates.length - 1] || "";
+    activeVisitMonth = selectedVisitDate ? selectedVisitDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+    activePackages = normalizePackages(patient.packages, patient);
+    activePackageDate = selectedVisitDate || new Date().toISOString().slice(0, 10);
+    activePackageMonth = activeVisitMonth;
+    renderVisitCalendar();
+    renderPackageViewer();
+    $("selectedPatientJson").value = stringify(patient);
+    $("selectedPatientStatus").textContent = `${patient.name || "환자"} 선택됨`;
+    if (renderList) renderPatientList();
+  }
+
+  function clearEditor() {
+    selectedChartNo = "";
+    ["editChartNo", "editName", "editAge", "editChiefComplaint", "editDoctorName", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText", "selectedPatientJson"].forEach(id => { $(id).value = ""; });
+    $("editGender").value = "";
+    activeVisitDates = [];
+    activeVisitHistory = {};
+    activeVisitMonth = new Date().toISOString().slice(0, 7);
+    selectedVisitDate = "";
+    renderVisitCalendar();
+    activePackages = normalizePackages();
+    activePackageKey = "p6";
+    activePackageDate = new Date().toISOString().slice(0, 10);
+    activePackageMonth = activePackageDate.slice(0, 7);
+    renderPackageViewer();
+    $("selectedPatientStatus").textContent = "환자를 선택하거나 새 환자를 만드세요.";
+    renderPatientList();
+  }
+
+  function readFormRecord() {
+    const chartNo = normalizeChartNo($("editChartNo").value);
+    if (!chartNo) throw new Error("차트번호를 입력하세요.");
+    const packages = normalizePackages(activePackages);
+    const existing = getSelectedPatient() || {};
+    const treatments = parseCommaText($("editTreatmentsText").value);
+    const bodyParts = parseBodyPartsText($("editBodyPartsText").value, existing.bodyParts || { front: [], back: [] });
+    const visitHistory = activeVisitHistory && typeof activeVisitHistory === "object" ? { ...activeVisitHistory } : {};
+    const normalizedVisitDates = [...new Set([
+      ...activeVisitDates.map(String),
+      ...Object.keys(visitHistory).map(String)
+    ].filter(Boolean))].sort();
+    const latestVisit = getLatestVisitRecord(normalizedVisitDates, visitHistory);
+    const latestChiefComplaint = getLatestVisitChiefComplaint(normalizedVisitDates, visitHistory);
+    return withPackageBalances({
+      ...existing,
+      chartNo,
+      name: $("editName").value.trim(),
+      age: $("editAge").value ? Number($("editAge").value) : "",
+      gender: $("editGender").value,
+      chiefComplaint: latestChiefComplaint || $("editChiefComplaint").value.trim(),
+      doctorName: latestVisit?.doctorName || $("editDoctorName").value.trim(),
+      treatments: Array.isArray(treatments) ? treatments : [],
+      bodyParts,
+      appointmentDate: $("editAppointmentDate").value,
+      memo: $("editMemo").value.trim(),
+      visitDates: normalizedVisitDates,
+      visitHistory,
+      packages
+    });
+  }
+
+  async function savePatientForm() {
+    try {
+      const record = readFormRecord();
+      await putIndexedRecord(record, selectedChartNo);
+      selectedChartNo = record.chartNo;
+      await loadIndexed();
+      selectPatient(record.chartNo);
+      setStatus("indexedStatus", "저장됨");
+    } catch (error) {
+      setStatus("indexedStatus", "오류", true);
+      $("selectedPatientStatus").textContent = error?.message || String(error);
+    }
+  }
+
+  async function deleteSelectedPatient() {
+    const patient = getSelectedPatient();
+    if (!patient) return;
+    if (!confirm(`${patient.name || patient.chartNo} 삭제하시겠습니까?`)) return;
+    await deleteIndexedRecord(patient.chartNo);
+    clearEditor();
+    await loadIndexed();
+    setStatus("indexedStatus", "삭제됨");
+  }
+
+  function exportIndexedBackup() {
+    const blob = new Blob([stringify(latestIndexedValue)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `patientChartDB-patients-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importIndexedBackup(file) {
+    if (!file) return;
+    const text = await file.text();
+    const records = JSON.parse(text);
+    if (!Array.isArray(records)) throw new Error("JSON 배열 파일만 복원할 수 있습니다.");
+    if (!confirm(`${records.length}개 레코드를 현재 IndexedDB에 덮어쓰기/추가할까요?`)) return;
+    const { db, tx, store } = await transactionStore("readwrite");
+    try {
+      await new Promise((resolve, reject) => {
+        records.forEach(record => {
+          if (record?.chartNo) store.put(withPackageBalances(record));
+        });
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+    await loadIndexed();
+    setStatus("indexedStatus", "복원됨");
+  }
+
+  async function refreshAll() {
+    await loadIndexed();
+  }
+
+  $("visitPrevMonthBtn").addEventListener("click", () => changeVisitMonth(-1));
+  $("visitNextMonthBtn").addEventListener("click", () => changeVisitMonth(1));
+  $("visitCalendar").addEventListener("click", event => {
+    const day = event.target.closest("[data-visit-date]");
+    if (day) selectVisitDate(day.dataset.visitDate);
+  });
+  $("visitCalendar").addEventListener("contextmenu", event => {
+    const day = event.target.closest("[data-visit-date]");
+    if (!day) return;
+    event.preventDefault();
+    deleteCombinedDate(day.dataset.visitDate);
+  });
+  renderVisitCalendar();
+  renderPackageViewer();
+  $("packageViewer").addEventListener("click", event => {
+    const packageButton = event.target.closest("[data-package-key]");
+    if (packageButton) {
+      selectPackageType(packageButton.dataset.packageKey);
+      return;
+    }
+  });
+
+  document.querySelectorAll("[data-fb-path]").forEach(button => {
+    button.addEventListener("click", () => loadFirebase(button.dataset.fbPath));
+  });
+  $("loadFirebasePathBtn").addEventListener("click", () => loadFirebase());
+  $("firebasePathInput").addEventListener("keydown", event => { if (event.key === "Enter") loadFirebase(); });
+  $("loadIndexedBtn").addEventListener("click", loadIndexed);
+  $("patientSearchInput").addEventListener("input", renderPatientList);
+  $("patientList").addEventListener("click", event => {
+    const item = event.target.closest(".patient-item");
+    if (item) selectPatient(item.dataset.chartNo);
+  });
+  $("newPatientBtn").addEventListener("click", clearEditor);
+  $("savePatientBtn").addEventListener("click", savePatientForm);
+  $("deletePatientBtn").addEventListener("click", deleteSelectedPatient);
+  $("exportIndexedBtn").addEventListener("click", exportIndexedBackup);
+  $("importIndexedBtn").addEventListener("click", () => $("importFileInput").click());
+  $("importFileInput").addEventListener("change", event => importIndexedBackup(event.target.files?.[0]).catch(error => {
+    setStatus("indexedStatus", "오류", true);
+    $("selectedPatientStatus").textContent = error?.message || String(error);
+  }));
+  $("firebaseToggleBtn").addEventListener("click", () => {
+    const open = !document.body.classList.contains("firebase-open");
+    document.body.classList.toggle("firebase-open", open);
+    $("firebaseToggleBtn").textContent = open ? "‹" : "›";
+    $("firebaseToggleBtn").setAttribute("aria-label", open ? "Firebase 패널 닫기" : "Firebase 패널 열기");
+  });
+
+  refreshAll();
+</script>
+</body>
+</html>
