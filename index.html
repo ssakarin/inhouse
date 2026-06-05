@@ -11,7 +11,13 @@
 <script>
   (() => {
     const manifestLink = document.getElementById('appManifestLink');
-    const bedNo = Number(new URLSearchParams(window.location.search).get('bed'));
+    const params = new URLSearchParams(window.location.search);
+    const view = (params.get('view') || '').toLowerCase();
+    const bedNo = Number(params.get('bed'));
+    if (new Set(['desk', 'notify', 'clinic']).has(view)) {
+      manifestLink.href = `manifest-${view}.webmanifest`;
+      return;
+    }
     const regularBeds = new Set([1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15]);
     if (regularBeds.has(bedNo)) manifestLink.href = `manifest-bed${bedNo}.webmanifest`;
     if (bedNo === 101 || bedNo === 102) manifestLink.href = `manifest-doctor${bedNo - 100}.webmanifest`;

@@ -1,0 +1,19 @@
+{
+  "name": "Inhouse Desk",
+  "short_name": "Desk",
+  "description": "Desk tablet view",
+  "start_url": "./?view=desk",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#052a61",
+  "theme_color": "#052a61",
+  "icons": [
+    {
+      "src": "assets/logo-icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
