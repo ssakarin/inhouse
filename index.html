@@ -3221,6 +3221,8 @@
       console.info('Service worker registration failed:', error);
     }
   }
+  window.setupBedScreenWakeLock = setupBedScreenWakeLock;
+  window.registerPwaServiceWorker = registerPwaServiceWorker;
 
 
 
@@ -9639,8 +9641,8 @@ let migratedCount = 0;
 
   // 엔터키로 전송
   document.addEventListener('DOMContentLoaded', () => {
-    registerPwaServiceWorker();
-    setupBedScreenWakeLock();
+    window.registerPwaServiceWorker?.();
+    window.setupBedScreenWakeLock?.();
     syncAppViewClass();
     setMode(getInitialMode(), false);
     setInputFormOpen(false);
