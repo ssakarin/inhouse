@@ -1118,6 +1118,22 @@
     min-height: 0;
   }
   .treat-chips-wrap:empty { display: none; }
+  .body-treatment-chip-slot {
+    margin-top: 12px;
+  }
+  .body-treatment-chip-slot:empty { display: none; }
+  .body-treatment-chip-slot:has(.treat-chips-wrap:empty) { display: none; }
+  .body-treatment-chip-slot .treat-chips-wrap {
+    gap: 12px;
+    margin-top: 0;
+  }
+  .body-treatment-chip-slot .treat-chip {
+    min-height: 42px;
+    gap: 10px;
+    font-size: 24px;
+    font-weight: 900;
+    padding: 10px 20px 10px 22px;
+  }
   .treat-chip {
     display: inline-flex;
     align-items: center;
@@ -1491,27 +1507,6 @@
     font-weight: 900;
     margin-top: 4px;
   }
-  .package-toggle-row {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .package-toggle-btn {
-    background: var(--surface2);
-    border: 1.5px solid var(--border);
-    border-radius: 9px;
-    color: var(--text2);
-    cursor: pointer;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-size: 13px;
-    font-weight: 900;
-    padding: 10px 8px;
-  }
-  .package-toggle-btn.active {
-    background: rgba(255,178,26,0.18);
-    border-color: var(--gold);
-    color: var(--gold);
-  }
   .package-after-treatment {
     padding: 10px 12px;
     border-radius: 10px;
@@ -1529,36 +1524,12 @@
     padding: 12px;
     text-align: left;
   }
-  .package-card-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  .package-title {
-    color: var(--text);
-    font-size: 17px;
-    font-weight: 900;
-  }
-  .package-balance {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 54px;
-    border-radius: 999px;
-    background: rgba(74,222,128,0.14);
-    border: 1px solid rgba(74,222,128,0.42);
-    color: rgb(74,222,128);
-    font-size: 15px;
-    font-weight: 900;
-    padding: 5px 9px;
-  }
   .package-entry-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .7fr) auto minmax(0, .7fr) auto;
     gap: 6px;
     margin-bottom: 8px;
+    align-items: center;
   }
   .package-input {
     width: 100%;
@@ -1680,8 +1651,15 @@
     font-size: 10px;
     font-weight: 900;
     padding: 2px 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .package-calendar-badge.purchase {
+    background: rgba(74,222,128,0.18);
+    color: rgb(74,222,128);
+  }
+  .package-calendar-badge.bonus {
     background: rgba(74,222,128,0.18);
     color: rgb(74,222,128);
   }
@@ -1702,9 +1680,9 @@
     gap: 10px;
   }
   @media (max-width: 760px) {
-    .package-balance-strip,
-    .package-toggle-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .package-entry-grid { grid-template-columns: 1fr 72px auto; }
+    .package-balance-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .package-entry-grid { grid-template-columns: 1fr 1fr; }
+    .package-entry-grid .package-entry-btn { grid-column: span 1; }
   }
   .bed-stage-badge {
     display: inline-flex;
@@ -3472,6 +3450,31 @@
     return gridId + 'Chips';
   }
 
+  function getTreatmentChipSlotId(gridId) {
+    return gridId + 'ChipSlot';
+  }
+
+  function placeTreatmentChips(gridId) {
+    let chipsWrap = document.getElementById(getTreatmentChipsId(gridId));
+    if (!chipsWrap) {
+      chipsWrap = document.createElement('div');
+      chipsWrap.className = 'treat-chips-wrap';
+      chipsWrap.id = getTreatmentChipsId(gridId);
+    }
+
+    const slot = document.getElementById(getTreatmentChipSlotId(gridId));
+    if (slot) {
+      slot.appendChild(chipsWrap);
+      chipsWrap.classList.add('treat-chips-wrap--body');
+    } else {
+      const grid = document.getElementById(gridId);
+      if (grid && chipsWrap.parentElement !== grid.parentElement) grid.after(chipsWrap);
+      chipsWrap.classList.remove('treat-chips-wrap--body');
+    }
+
+    renderTreatmentChips(gridId);
+  }
+
   function renderTreatmentGrid(gridId) {
     const grid = document.getElementById(gridId);
     if (!grid) return;
@@ -3507,15 +3510,7 @@
     });
 
     // 칩 영역 삽입 (그리드 다음에)
-    let chipsWrap = document.getElementById(getTreatmentChipsId(gridId));
-    if (!chipsWrap) {
-      chipsWrap = document.createElement('div');
-      chipsWrap.className = 'treat-chips-wrap';
-      chipsWrap.id = getTreatmentChipsId(gridId);
-      grid.after(chipsWrap);
-    }
-
-    renderTreatmentChips(gridId);
+    placeTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
   }
 
@@ -3534,14 +3529,16 @@
         return {
           id: String(entry?.id || `${type}-${date}-${qty}-${index}`),
           date,
-          qty
+          qty,
+          ...(entry?.kind ? { kind: String(entry.kind) } : {})
         };
       }).filter(entry => entry.qty > 0);
     }
     return Object.entries(entries || {}).map(([id, entry]) => ({
       id,
       date: String(entry?.date || toLocalDateInputValue()),
-      qty: Math.max(0, Math.min(999, Number(entry?.qty ?? entry?.totalQty ?? 0) || 0))
+      qty: Math.max(0, Math.min(999, Number(entry?.qty ?? entry?.totalQty ?? 0) || 0)),
+      ...(entry?.kind ? { kind: String(entry.kind) } : {})
     })).filter(entry => entry.qty > 0);
   }
 
@@ -3730,21 +3727,20 @@
     if (!activePackageMonth) activePackageMonth = today.slice(0, 7);
     if (!activePackageDate || !activePackageDate.startsWith(activePackageMonth)) activePackageDate = today.startsWith(activePackageMonth) ? today : `${activePackageMonth}-01`;
 
-    const activeField = PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_FIELDS[0];
-    const activePkg = packages[activeField.key] || { openingQty: 0, purchases: [], usages: [], balance: 0 };
     const balances = getPCreditsFromPackages(packages);
     const popupTreatments = (treatmentSelections[activeCreditGridId] || []).map(item => item.name);
     const postTreatmentMessage = getPostTreatmentPackageBalanceMessage({ treatments: popupTreatments }, packages, balances);
-    const purchases = normalizePackageEntries(activePkg.purchases, 'purchase');
-    const usages = normalizePackageEntries(activePkg.usages, 'usage');
     const entriesByDate = new Map();
-    const addToDate = (entry, type) => {
+    const addToDate = (entry, field, type) => {
       const list = entriesByDate.get(entry.date) || [];
-      list.push({ ...entry, type });
+      list.push({ ...entry, key: field.key, label: field.label, type });
       entriesByDate.set(entry.date, list);
     };
-    purchases.forEach(entry => addToDate(entry, 'purchase'));
-    usages.forEach(entry => addToDate(entry, 'usage'));
+    PCREDIT_FIELDS.forEach(field => {
+      const pkg = packages[field.key] || { openingQty: 0, purchases: [], usages: [], balance: 0 };
+      normalizePackageEntries(pkg.purchases, 'purchase').forEach(entry => addToDate(entry, field, entry.kind === 'bonus' ? 'bonus' : 'purchase'));
+      normalizePackageEntries(pkg.usages, 'usage').forEach(entry => addToDate(entry, field, 'usage'));
+    });
 
     const [year, month] = activePackageMonth.split('-').map(Number);
     const firstDate = new Date(year, month - 1, 1);
@@ -3755,12 +3751,17 @@
     for (let day = 1; day <= daysInMonth; day++) {
       const date = `${activePackageMonth}-${String(day).padStart(2, '0')}`;
       const entries = entriesByDate.get(date) || [];
-      const purchaseQty = entries.filter(entry => entry.type === 'purchase').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
-      const usageQty = entries.filter(entry => entry.type === 'usage').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
-      const badges = [
-        purchaseQty ? `<div class="package-calendar-badge purchase">결제 ${purchaseQty}</div>` : '',
-        usageQty ? `<div class="package-calendar-badge usage">사용 ${usageQty}</div>` : ''
-      ].filter(Boolean).join('');
+      const badges = PCREDIT_FIELDS.flatMap(field => {
+        const fieldEntries = entries.filter(entry => entry.key === field.key);
+        const purchaseQty = fieldEntries.filter(entry => entry.type === 'purchase').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+        const bonusQty = fieldEntries.filter(entry => entry.type === 'bonus').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+        const usageQty = fieldEntries.filter(entry => entry.type === 'usage').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+        return [
+          purchaseQty ? `<div class="package-calendar-badge purchase">${escapeHtml(field.label)} 결제 ${purchaseQty}</div>` : '',
+          bonusQty ? `<div class="package-calendar-badge bonus">${escapeHtml(field.label)} 보너스 ${bonusQty}</div>` : '',
+          usageQty ? `<div class="package-calendar-badge usage">${escapeHtml(field.label)} 사용 ${usageQty}</div>` : ''
+        ];
+      }).filter(Boolean).join('');
       dayCells.push(`
         <button class="package-calendar-day${date === activePackageDate ? ' selected' : ''}" type="button" onclick="selectPackageDate('${date}')">
           <div class="package-calendar-date">${day}</div>
@@ -3769,13 +3770,13 @@
     }
 
     const selectedEntries = (entriesByDate.get(activePackageDate) || [])
-      .sort((a, b) => (a.type === b.type ? 0 : a.type === 'purchase' ? -1 : 1));
+      .sort((a, b) => (a.key === b.key ? (a.type === b.type ? 0 : a.type === 'usage' ? 1 : -1) : a.key.localeCompare(b.key)));
     const detailRows = selectedEntries.length
       ? selectedEntries.map(entry => `
         <div class="package-history-row">
-          <span>${entry.type === 'purchase' ? '결제' : '사용'}</span>
+          <span>${escapeHtml(entry.label)} ${entry.type === 'bonus' ? '보너스' : (entry.type === 'purchase' ? '결제' : '사용')}</span>
           <span>${escapeHtml(entry.qty)}개</span>
-          <button class="package-history-delete" type="button" onclick="removePackageEntry('${activeField.key}', '${entry.type}', '${escapeHtml(entry.id)}')">×</button>
+          <button class="package-history-delete" type="button" onclick="removePackageEntry('${entry.key}', '${entry.type}', '${escapeHtml(entry.id)}')">×</button>
         </div>`).join('')
       : `<div class="package-history-row"><span>-</span><span>기록 없음</span><span></span></div>`;
 
@@ -3787,29 +3788,20 @@
             <div class="package-balance-tile">
               <div class="package-balance-name">${escapeHtml(label)}</div>
               <div class="package-balance-value">${escapeHtml(pkg.balance || 0)}</div>
-          </div>`;
+            </div>`;
         }).join('')}
       </div>
       ${postTreatmentMessage ? `<div class="package-after-treatment">${escapeHtml(postTreatmentMessage)}</div>` : ''}
-      <div class="package-toggle-row">
-        ${PCREDIT_FIELDS.map(({ key, label }) => `
-          <button class="package-toggle-btn${key === activeField.key ? ' active' : ''}" type="button" onclick="selectPackageType('${key}')">${escapeHtml(label)}</button>
-        `).join('')}
-      </div>
       <div class="package-card">
-        <div class="package-card-head">
-          <div class="package-title">${escapeHtml(activeField.label)}</div>
-          <div class="package-balance">잔량 ${escapeHtml(activePkg.balance || 0)}</div>
-        </div>
         <div class="package-entry-grid">
-          <input class="package-input" id="pkg-${activeField.key}-purchase-date" type="date" value="${activePackageDate || today}">
-          <input class="package-input" id="pkg-${activeField.key}-purchase-qty" type="text" inputmode="numeric" maxlength="3" value="${escapeHtml(activeField.defaultPurchaseQty)}" aria-label="${escapeHtml(activeField.label)} 결제 수량">
-          <button class="package-entry-btn" type="button" onclick="addPackageEntry('${activeField.key}', 'purchase')">결제 추가</button>
-        </div>
-        <div class="package-entry-grid">
-          <input class="package-input" id="pkg-${activeField.key}-usage-date" type="date" value="${activePackageDate || today}">
-          <input class="package-input" id="pkg-${activeField.key}-usage-qty" type="text" inputmode="numeric" maxlength="3" value="1" aria-label="${escapeHtml(activeField.label)} 사용 수량">
-          <button class="package-entry-btn" type="button" onclick="addPackageEntry('${activeField.key}', 'usage')">사용 추가</button>
+          <select class="package-input" id="pkg-selected-key" onchange="selectPackageEntryType(this.value)" aria-label="패키지 종류">
+            ${PCREDIT_FIELDS.map(field => `<option value="${escapeHtml(field.key)}" ${field.key === activePackageKey ? 'selected' : ''}>${escapeHtml(field.label)}</option>`).join('')}
+          </select>
+          <input class="package-input" id="pkg-selected-date" type="date" value="${activePackageDate || today}">
+          <input class="package-input" id="pkg-selected-purchase-qty" type="text" inputmode="numeric" maxlength="3" value="${escapeHtml((PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_FIELDS[0]).defaultPurchaseQty)}" aria-label="결제 수량">
+          <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('purchase')">결제 추가</button>
+          <input class="package-input" id="pkg-selected-bonus-qty" type="text" inputmode="numeric" maxlength="3" value="1" aria-label="보너스 수량">
+          <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('bonus')">보너스 추가</button>
         </div>
         <div class="package-calendar-head">
           <button class="package-entry-btn" type="button" onclick="changePackageMonth(-1)">이전</button>
@@ -3830,6 +3822,19 @@
   function getPackageQtyInputValue(id) {
     return Math.max(1, Math.min(999, Number(String(document.getElementById(id)?.value || '').replace(/[^0-9]/g, '')) || 1));
   }
+
+  window.selectPackageEntryType = function(key) {
+    if (!PCREDIT_FIELDS.some(field => field.key === key)) return;
+    activePackageKey = key;
+    const field = PCREDIT_FIELDS.find(item => item.key === key);
+    const purchaseQty = document.getElementById('pkg-selected-purchase-qty');
+    if (purchaseQty && field) purchaseQty.value = field.defaultPurchaseQty;
+  };
+
+  window.addSelectedPackageEntry = function(type) {
+    const key = document.getElementById('pkg-selected-key')?.value || activePackageKey || PCREDIT_FIELDS[0].key;
+    return addPackageEntry(key, type);
+  };
 
   window.selectPackageType = function(key) {
     activePackageKey = key;
@@ -3872,12 +3877,18 @@
     if (!gridId) return;
     const packages = getPackageStateForGrid(gridId);
     const pkg = packages[key] || { openingQty: 0, purchases: [], usages: [] };
-    const dateId = `pkg-${key}-${type === 'purchase' ? 'purchase' : 'usage'}-date`;
-    const qtyId = `pkg-${key}-${type === 'purchase' ? 'purchase' : 'usage'}-qty`;
-    const date = document.getElementById(dateId)?.value || toLocalDateInputValue();
-    const qty = getPackageQtyInputValue(qtyId);
+    const isIncrease = type === 'purchase' || type === 'bonus';
+    const dateId = `pkg-${key}-${isIncrease ? 'purchase' : 'usage'}-date`;
+    const qtyId = `pkg-${key}-${type}-qty`;
+    const dateEl = document.getElementById(dateId);
+    const date = (dateEl && !dateEl.hidden ? dateEl.value : '')
+      || document.getElementById(`pkg-${key}-purchase-date`)?.value
+      || document.getElementById('pkg-selected-date')?.value
+      || toLocalDateInputValue();
+    const selectedQtyId = type === 'purchase' ? 'pkg-selected-purchase-qty' : (type === 'bonus' ? 'pkg-selected-bonus-qty' : 'pkg-selected-usage-qty');
+    const qty = document.getElementById(qtyId) ? getPackageQtyInputValue(qtyId) : getPackageQtyInputValue(selectedQtyId);
     const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date, qty };
-    if (type === 'purchase') pkg.purchases = [...normalizePackageEntries(pkg.purchases, 'purchase'), entry];
+    if (isIncrease) pkg.purchases = [...normalizePackageEntries(pkg.purchases, 'purchase'), { ...entry, kind: type === 'bonus' ? 'bonus' : 'purchase' }];
     else pkg.usages = [...normalizePackageEntries(pkg.usages, 'usage'), entry];
     packages[key] = pkg;
     activePackageKey = key;
@@ -3886,7 +3897,7 @@
     setPackageStateForGrid(gridId, packages);
     await persistPackageState(gridId);
     renderPackagePopup();
-    showToast(type === 'purchase' ? '결제 기록 추가' : '사용 기록 추가');
+    showToast(type === 'purchase' ? '결제 기록 추가' : (type === 'bonus' ? '보너스 기록 추가' : '사용 기록 추가'));
   };
 
   window.removePackageEntry = async function(key, type, id) {
@@ -3894,8 +3905,9 @@
     if (!gridId) return;
     const packages = getPackageStateForGrid(gridId);
     const pkg = packages[key] || { openingQty: 0, purchases: [], usages: [] };
-    const field = type === 'purchase' ? 'purchases' : 'usages';
-    pkg[field] = normalizePackageEntries(pkg[field], type).filter(entry => entry.id !== id);
+    const isIncrease = type === 'purchase' || type === 'bonus';
+    const field = isIncrease ? 'purchases' : 'usages';
+    pkg[field] = normalizePackageEntries(pkg[field], isIncrease ? 'purchase' : 'usage').filter(entry => entry.id !== id);
     packages[key] = pkg;
     setPackageStateForGrid(gridId, packages);
     await persistPackageState(gridId);
@@ -6793,7 +6805,9 @@ let migratedCount = 0;
         ${renderBodyFigure('front', '전면', selectedParts.front)}
         ${renderBodyFigure('back', '후면', selectedParts.back)}
       </div>
-      <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>`;
+      <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>
+      <div class="body-treatment-chip-slot" id="${getTreatmentChipSlotId('bedTreatmentGrid')}"></div>`;
+    placeTreatmentChips('bedTreatmentGrid');
   }
 
   function renderFormBodyPartSelector(scope) {
@@ -6808,7 +6822,9 @@ let migratedCount = 0;
         ${renderBodyFigure('front', '전면', selectedParts.front, `toggleFormBodyPart('${scope}', 'front', '__PART__')`)}
         ${renderBodyFigure('back', '후면', selectedParts.back, `toggleFormBodyPart('${scope}', 'back', '__PART__')`)}
       </div>
-      <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>`;
+      <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>
+      <div class="body-treatment-chip-slot" id="${getTreatmentChipSlotId(ids.treatmentGrid)}"></div>`;
+    placeTreatmentChips(ids.treatmentGrid);
   }
 
   function renderAllFormBodyPartSelectors() {
