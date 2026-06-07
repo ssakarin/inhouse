@@ -4376,6 +4376,39 @@
       .map(t => t.name);
   }
 
+  function getRandomPresetTreatments() {
+    const presets = treatmentPresets.filter(p => Array.isArray(p.treatments) && p.treatments.length);
+    if (!presets.length) return getRandomTreatments();
+    const preset = presets[Math.floor(Math.random() * presets.length)];
+    return [...preset.treatments];
+  }
+
+  function getRandomBodyParts(count = 3) {
+    const allParts = ['front', 'back'].flatMap(side =>
+      (BODY_PARTS[side] || []).map(part => ({ side, label: part.label }))
+    );
+    const picked = allParts
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.max(0, count));
+    return picked.reduce((result, part) => {
+      if (!result[part.side].includes(part.label)) result[part.side].push(part.label);
+      return result;
+    }, { front: [], back: [] });
+  }
+
+  function getActiveChartNoSet() {
+    const chartNos = new Set();
+    patientsByKey.forEach(patient => {
+      const chartNo = normalizeChartNo(patient?.chartNo);
+      if (chartNo && patient?.bedStatus !== 'discharged') chartNos.add(chartNo);
+    });
+    getAllBedEntries().forEach(({ bed }) => {
+      const chartNo = normalizeChartNo(bed?.chartNo);
+      if (chartNo) chartNos.add(chartNo);
+    });
+    return chartNos;
+  }
+
   function normalizeExcelHeader(value) {
     return String(value || '').replace(/\s+/g, '').replace(/[()［］\[\]_/.-]/g, '').toLowerCase();
   }
@@ -4446,28 +4479,42 @@
         return;
       }
 
-      const count = pendingRandomTestCount;
+      const activeChartNos = getActiveChartNoSet();
+      const candidates = patients.filter(patient => {
+        const chartNo = normalizeChartNo(patient.chartNo);
+        return !chartNo || !activeChartNos.has(chartNo);
+      });
+      if (!candidates.length) {
+        alert('기존 베드/대기 환자와 차트번호가 겹치지 않는 테스트 후보가 없습니다.');
+        return;
+      }
+
+      const count = Math.min(pendingRandomTestCount, candidates.length);
       pendingRandomTestCount = 0;
       showToast(`테스트 ${count}명 생성 중...`);
 
       for (let i = 0; i < count; i++) {
-        const source = patients[Math.floor(Math.random() * patients.length)];
+        const sourceIndex = Math.floor(Math.random() * candidates.length);
+        const [source] = candidates.splice(sourceIndex, 1);
+        const chartNo = normalizeChartNo(source.chartNo);
+        if (chartNo) activeChartNos.add(chartNo);
         const doctor = await getRoundRobinStaffForTest('doctors');
         const nurse = await getRoundRobinStaffForTest('nurses');
         const now = new Date(Date.now() + i);
         await push(ref(db, PATIENTS_PATH), {
           name: source.name,
-          treatments: getRandomTreatments(),
+          treatments: getRandomPresetTreatments(),
           timestamp: now.getTime(),
           timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
           date: now.toLocaleDateString('ko-KR'),
           bedStatus: 'waiting',
-          chartNo: normalizeChartNo(source.chartNo),
+          chartNo,
           visitType: source.visitType || '재진',
           chiefComplaint: source.chiefComplaint || '',
           memo: '',
           age: source.age || '',
           gender: source.gender || '남',
+          bodyParts: getRandomBodyParts(3),
           doctorId: doctor.id,
           doctorName: doctor.name,
           nurseId: nurse.id,
@@ -7545,6 +7592,16 @@ let migratedCount = 0;
       nurseName: form.nurse.name,
       bodyParts: form.bodyParts
     };
+    const previousBedState = { ...bed };
+    Object.assign(bed, payload, timerUpdates);
+    if (bed.patientKey) {
+      patientsByKey.set(bed.patientKey, {
+        ...(patientsByKey.get(bed.patientKey) || {}),
+        ...payload
+      });
+    }
+    renderBedDetailInto(document.getElementById('bedDetail'), bedNo, true);
+    renderBedMonitors();
 
     try {
       await update(ref(db, `${BEDS_PATH}/${bedNo}`), { ...payload, ...timerUpdates });
@@ -7553,6 +7610,9 @@ let migratedCount = 0;
       }
       if (treatmentChanged) clearLocalTimerAlertsForBed(bedNo);
     } catch(e) {
+      Object.assign(bed, previousBedState);
+      renderBedDetailInto(document.getElementById('bedDetail'), bedNo, true);
+      renderBedMonitors();
       console.error('선택 필드 자동저장 실패', e);
     }
   }
@@ -8051,27 +8111,25 @@ let migratedCount = 0;
     const [moved] = treatments.splice(fromIndex, 1);
     treatments.splice(toIndex, 0, moved);
 
-    const firstTreatment = treatments[0] || '';
-    const firstTotal = getTreatmentSeconds(firstTreatment);
-    const resetPayload = {
-      treatments,
-      currentIndex: 0,
-      total: firstTotal,
-      remaining: firstTotal,
-      running: false,
-      startedAt: null,
-      complete: false,
-      lastAlertId: null,
-      lastAlertMessage: null,
-      doctorProcedureAlert: null
-    };
+    const currentIndex = Number(bed.currentIndex || 0);
+    let nextCurrentIndex = currentIndex;
+    if (fromIndex === currentIndex) {
+      nextCurrentIndex = toIndex;
+    } else if (fromIndex < currentIndex && toIndex >= currentIndex) {
+      nextCurrentIndex = currentIndex - 1;
+    } else if (fromIndex > currentIndex && toIndex <= currentIndex) {
+      nextCurrentIndex = currentIndex + 1;
+    }
+    nextCurrentIndex = Math.max(0, Math.min(treatments.length - 1, nextCurrentIndex));
 
     try {
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), resetPayload);
+      await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+        treatments,
+        currentIndex: nextCurrentIndex
+      });
       if (bed.patientKey) {
         await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { treatments });
       }
-      clearLocalTimerAlertsForBed(bedNo);
     } catch(e) {
       console.error(e);
       showToast('순서 변경 실패 — 연결을 확인해주세요');
