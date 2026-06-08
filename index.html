@@ -2813,8 +2813,6 @@
         <p><span class="status-dot"></span>실시간 연결됨</p>
       </div>
       <div class="header-left-desk-controls">
-        <button class="random-test-btn" onclick="openRandomTestGenerator()">랜덤 테스트생성</button>
-        <button class="random-test-btn danger" id="clearPatientDbBtn" onclick="clearPatientDatabase()">비우기</button>
       </div>
     </div>
     <div class="header-actions">
@@ -3044,6 +3042,26 @@
     <div class="staff-manager-grid">
       <div class="settings-column">
         <div class="card">
+          <div class="card-label">치료 프리셋</div>
+          <div class="preset-builder">
+            <div class="preset-treatment-grid" id="presetTreatmentGrid"></div>
+            <div class="treat-chips-wrap" id="presetTreatmentGridChips"></div>
+            <button class="submit-btn" onclick="saveTreatmentPreset()">프리셋 저장</button>
+            <div class="preset-list" id="treatmentPresetList"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-label">치료시간 설정</div>
+          <div class="treatment-time-list" id="treatmentMinutesList"></div>
+          <button class="submit-btn" onclick="saveTreatmentMinutes()">저장</button>
+        </div>
+      </div>
+      <div class="settings-column">
+        <div class="card">
+          <div class="card-label">테스트 데이터</div>
+          <button class="submit-btn" onclick="openRandomTestGenerator()">랜덤 테스트생성</button>
+        </div>
+        <div class="card">
           <div class="card-label">원장 관리</div>
           <div class="staff-add-row">
             <input class="name-input" id="doctorNameInput" type="text" placeholder="원장 이름 입력" maxlength="20">
@@ -3065,22 +3083,6 @@
             </span>
           </label>
           <div class="staff-list" id="nurseList"></div>
-        </div>
-      </div>
-      <div class="settings-column">
-        <div class="card">
-          <div class="card-label">치료 프리셋</div>
-          <div class="preset-builder">
-            <div class="preset-treatment-grid" id="presetTreatmentGrid"></div>
-            <div class="treat-chips-wrap" id="presetTreatmentGridChips"></div>
-            <button class="submit-btn" onclick="saveTreatmentPreset()">프리셋 저장</button>
-            <div class="preset-list" id="treatmentPresetList"></div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-label">치료시간 설정</div>
-          <div class="treatment-time-list" id="treatmentMinutesList"></div>
-          <button class="submit-btn" onclick="saveTreatmentMinutes()">저장</button>
         </div>
         <div class="card">
           <div class="card-label">환자 차트 DB</div>
