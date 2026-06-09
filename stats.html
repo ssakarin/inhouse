@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경희홍익한의원 통계</title>
+<style>
+  :root {
+    --bg: #07111f;
+    --panel: #101b2d;
+    --panel2: #16243a;
+    --line: rgba(255,255,255,0.12);
+    --text: #e7eef8;
+    --muted: #9badbf;
+    --accent: #39a9f5;
+    --gold: #ffca6a;
+    --green: #4ade80;
+    --danger: #fb7185;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .app { width: min(1400px, 100%); margin: 0 auto; padding: 18px; }
+  .topbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+  .brand-title { font-size: 20px; font-weight: 900; color: #fff; line-height: 1; white-space: nowrap; }
+  .brand-highlight { color: var(--gold); }
+  .top-link { margin-left: auto; }
+  a.btn-link, button {
+    border: 1px solid var(--line);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: 900;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    font-family: inherit;
+  }
+  button:hover, a.btn-link:hover { border-color: var(--accent); }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card-title { color: var(--gold); font-weight: 900; font-size: 14px; margin-bottom: 12px; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .preset-btn.active { border-color: rgba(255,202,106,0.75); background: rgba(255,202,106,0.15); color: var(--gold); }
+  .date-input { display: flex; align-items: center; gap: 6px; }
+  input[type="date"], select {
+    border: 1px solid var(--line);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-family: inherit;
+    font-size: 13px;
+  }
+  .field-label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 900; }
+  select { font-weight: 800; }
+  .range-label { color: var(--muted); font-size: 12px; font-weight: 800; margin-top: 10px; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .metric {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .metric-label { color: var(--muted); font-size: 12px; font-weight: 900; }
+  .metric-value { color: var(--green); font-size: 28px; font-weight: 900; margin-top: 6px; }
+  .metric-value.gold { color: var(--gold); }
+  .metric-value.accent { color: var(--accent); }
+  .metric-sub { color: var(--muted); font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  th { color: var(--muted); font-size: 11px; font-weight: 900; }
+  td.num, th.num { text-align: right; font-weight: 900; }
+  tr.highlight td { color: var(--gold); }
+  .bar-cell { width: 40%; }
+  .bar { height: 8px; border-radius: 999px; background: rgba(57,169,245,0.5); }
+  .bar.gold { background: rgba(255,202,106,0.6); }
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 2px; }
+  .status { color: var(--gold); font-size: 12px; font-weight: 800; }
+  .status.error { color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <img class="brand-icon" src="assets/logo-icon.png" alt="경희홍익한의원 로고">
+      <h1 class="brand-title"><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span> 통계</h1>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">기간 선택</div>
+    <div class="controls" id="presetRow">
+      <button class="preset-btn" data-preset="yesterday">어제</button>
+      <button class="preset-btn" data-preset="7">최근 7일</button>
+      <button class="preset-btn" data-preset="30">최근 30일</button>
+      <button class="preset-btn" data-preset="90">최근 90일</button>
+      <button class="preset-btn" data-preset="month">이번 달</button>
+      <span class="date-input">
+        <input type="date" id="startDate">
+        <span style="color:var(--muted)">~</span>
+        <input type="date" id="endDate">
+      </span>
+      <button id="applyBtn" style="border-color:rgba(74,222,128,0.55);color:var(--green)">조회</button>
+      <button id="reloadBtn">DB 새로고침</button>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label class="field-label">원장
+        <select id="doctorFilter"><option value="">전체</option></select>
+      </label>
+      <button id="csvBtn" style="border-color:rgba(57,169,245,0.6);color:var(--accent)">CSV 다운로드</button>
+      <span style="color:var(--muted);font-size:11px;font-weight:700">오늘은 집계에서 제외됩니다 (전일까지)</span>
+    </div>
+    <div class="range-label" id="rangeLabel"></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">요약</div>
+    <div class="metrics" id="summaryMetrics"></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">치료별 횟수</div>
+      <div id="treatmentTableWrap"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">원장별 진료 건수</div>
+      <div id="doctorTableWrap"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const DB_NAME = "patientChartDB";
+  const STORE = "patients";
+  const $ = id => document.getElementById(id);
+
+  let allRecords = [];
+
+  // ── IndexedDB 읽기 ──────────────────────────────────────────────
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error("IndexedDB 열기가 차단되었습니다."));
+    });
+  }
+  async function loadRecords() {
+    const db = await openDb();
+    if (!db.objectStoreNames.contains(STORE)) {
+      db.close();
+      throw new Error(`${DB_NAME} 안에 ${STORE} 스토어가 없습니다. (먼저 환자 데이터를 저장/가져오기 하세요)`);
+    }
+    try {
+      return await new Promise((resolve, reject) => {
+        const req = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
+        req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+        req.onerror = () => reject(req.error);
+      });
+    } finally { db.close(); }
+  }
+
+  // ── 날짜 유틸 ───────────────────────────────────────────────────
+  function ymd(date) {
+    const d = new Date(date);
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+  }
+  const today = () => ymd(new Date());
+  function addDays(dateStr, n) {
+    const d = new Date(dateStr + "T00:00:00");
+    d.setDate(d.getDate() + n);
+    return ymd(d);
+  }
+
+  function visitDatesOf(rec) {
+    const dates = Array.isArray(rec.visitDates) ? rec.visitDates.map(String) : [];
+    Object.keys(rec.visitHistory || {}).forEach(d => dates.push(String(d)));
+    return [...new Set(dates.filter(Boolean))].sort();
+  }
+
+  // ── 집계 ────────────────────────────────────────────────────────
+  // docFilter: "" = 전체, 그 외에는 해당 원장이 본 진료만 집계
+  function computeStats(start, end, docFilter = "") {
+    const inRange = d => d >= start && d <= end;
+    const patientSet = new Set();
+    let visits = 0;
+    let newPatients = 0;
+    const treatmentCounts = {};
+    let pharmaTotal = 0;       // 약침 합계 (약침1~4·L·자)
+    const doctorCounts = {};
+
+    for (const rec of allRecords) {
+      const dates = visitDatesOf(rec);
+      if (!dates.length) continue;
+      const pid = String(rec.chartNo || rec.name || Math.random());
+      const firstDate = dates[0];
+      let matchedAny = false;
+
+      for (const date of dates.filter(inRange)) {
+        const entry = (rec.visitHistory || {})[date] || {};
+        const doc = String(entry.doctorName || "").trim();
+        if (docFilter && doc !== docFilter) continue;   // 원장 필터
+        matchedAny = true;
+        visits += 1;
+        const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
+        let countedPharma = false;
+        for (const tRaw of treatments) {
+          const t = String(tRaw || "").trim();
+          if (!t) continue;
+          treatmentCounts[t] = (treatmentCounts[t] || 0) + 1;
+          if (t.includes("약침") && !countedPharma) { pharmaTotal += 1; countedPharma = true; }
+        }
+        if (doc) doctorCounts[doc] = (doctorCounts[doc] || 0) + 1;
+      }
+
+      if (matchedAny) patientSet.add(pid);
+
+      // 신환: 전체 초진일이 기간 내 + (필터 시) 그 초진 진료의 원장이 선택 원장
+      if (inRange(firstDate)) {
+        const firstDoc = String(((rec.visitHistory || {})[firstDate] || {}).doctorName || "").trim();
+        if (!docFilter || firstDoc === docFilter) newPatients += 1;
+      }
+    }
+
+    return {
+      uniquePatients: patientSet.size,
+      visits,
+      newPatients,
+      revisitPatients: Math.max(0, patientSet.size - newPatients),
+      pharmaTotal,
+      treatmentCounts,
+      doctorCounts
+    };
+  }
+
+  // 데이터에 등장하는 모든 원장 목록
+  function collectDoctors() {
+    const set = new Set();
+    for (const rec of allRecords) {
+      Object.values(rec.visitHistory || {}).forEach(e => {
+        const d = String(e?.doctorName || "").trim();
+        if (d) set.add(d);
+      });
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "ko"));
+  }
+
+  function populateDoctorFilter() {
+    const sel = $("doctorFilter");
+    const prev = sel.value;
+    const docs = collectDoctors();
+    sel.innerHTML = `<option value="">전체</option>` + docs.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("");
+    if (docs.includes(prev)) sel.value = prev;
+  }
+
+  // ── 렌더 ────────────────────────────────────────────────────────
+  function renderSummary(s) {
+    $("summaryMetrics").innerHTML = `
+      <div class="metric"><div class="metric-label">순 환자 수</div><div class="metric-value">${s.uniquePatients.toLocaleString()}</div><div class="metric-sub">기간 내 다녀간 실인원</div></div>
+      <div class="metric"><div class="metric-label">총 진료 건수</div><div class="metric-value accent">${s.visits.toLocaleString()}</div><div class="metric-sub">연인원(방문 횟수 합)</div></div>
+      <div class="metric"><div class="metric-label">초진(신환)</div><div class="metric-value gold">${s.newPatients.toLocaleString()}</div><div class="metric-sub">기간 내 첫 진료</div></div>
+      <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value">${s.revisitPatients.toLocaleString()}</div><div class="metric-sub">순환자 − 신환</div></div>
+      <div class="metric"><div class="metric-label">약침 합계</div><div class="metric-value gold">${s.pharmaTotal.toLocaleString()}</div><div class="metric-sub">약침1~4·L·자 (1회 진료=1)</div></div>
+      <div class="metric"><div class="metric-label">추나</div><div class="metric-value">${(s.treatmentCounts["추나"] || 0).toLocaleString()}</div><div class="metric-sub">추나 시행 건수</div></div>
+    `;
+  }
+
+  function renderCountTable(wrapId, counts, { gold = false } = {}) {
+    const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const wrap = $(wrapId);
+    if (!rows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
+    const max = rows[0][1] || 1;
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>항목</th><th class="num">건수</th><th class="bar-cell"></th></tr></thead>
+        <tbody>
+          ${rows.map(([name, count]) => `
+            <tr${gold && name.includes("약침") ? ' class="highlight"' : ""}>
+              <td>${escapeHtml(name)}</td>
+              <td class="num">${count.toLocaleString()}</td>
+              <td class="bar-cell"><div class="bar${gold && name.includes("약침") ? " gold" : ""}" style="width:${Math.round((count / max) * 100)}%"></div></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // ── 동작 ────────────────────────────────────────────────────────
+  function setPresetActive(preset) {
+    document.querySelectorAll(".preset-btn").forEach(b => b.classList.toggle("active", b.dataset.preset === preset));
+  }
+
+  function applyPreset(preset) {
+    const y = addDays(today(), -1);  // 오늘 제외 → 어제까지
+    let start = y, end = y;
+    if (preset === "yesterday") { start = end = y; }
+    else if (preset === "7") { start = addDays(y, -6); end = y; }
+    else if (preset === "30") { start = addDays(y, -29); end = y; }
+    else if (preset === "90") { start = addDays(y, -89); end = y; }
+    else if (preset === "month") { start = y.slice(0, 8) + "01"; end = y; }
+    $("startDate").value = start;
+    $("endDate").value = end;
+    setPresetActive(preset);
+    run();
+  }
+
+  let lastResult = null;  // CSV용 마지막 집계 결과
+
+  function run() {
+    let start = $("startDate").value;
+    let end = $("endDate").value;
+    if (!start || !end) { $("status").textContent = "시작일과 종료일을 선택하세요."; return; }
+    if (start > end) { [start, end] = [end, start]; $("startDate").value = start; $("endDate").value = end; }
+    const docFilter = $("doctorFilter").value;
+    const docLabel = docFilter || "전체";
+    $("rangeLabel").textContent = `조회 기간: ${start} ~ ${end} · 원장: ${docLabel} (전체 ${allRecords.length.toLocaleString()}명 환자 기준)`;
+    $("status").textContent = "";
+    const s = computeStats(start, end, docFilter);
+    renderSummary(s);
+    renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
+    renderCountTable("doctorTableWrap", s.doctorCounts);
+    lastResult = { start, end, docLabel, stats: s };
+  }
+
+  // ── CSV 다운로드 ────────────────────────────────────────────────
+  function csvEscape(v) {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+  function downloadCsv() {
+    if (!lastResult) { $("status").textContent = "먼저 조회를 실행하세요."; return; }
+    const { start, end, docLabel, stats } = lastResult;
+    const lines = [];
+    lines.push(["구분", "항목", "값"].map(csvEscape).join(","));
+    lines.push(["기간", "시작", start].map(csvEscape).join(","));
+    lines.push(["기간", "종료", end].map(csvEscape).join(","));
+    lines.push(["기간", "원장", docLabel].map(csvEscape).join(","));
+    lines.push(["요약", "순 환자 수", stats.uniquePatients].map(csvEscape).join(","));
+    lines.push(["요약", "총 진료 건수", stats.visits].map(csvEscape).join(","));
+    lines.push(["요약", "초진(신환)", stats.newPatients].map(csvEscape).join(","));
+    lines.push(["요약", "재진 환자", stats.revisitPatients].map(csvEscape).join(","));
+    lines.push(["요약", "약침 합계", stats.pharmaTotal].map(csvEscape).join(","));
+    Object.entries(stats.treatmentCounts).sort((a, b) => b[1] - a[1])
+      .forEach(([name, c]) => lines.push(["치료별", name, c].map(csvEscape).join(",")));
+    Object.entries(stats.doctorCounts).sort((a, b) => b[1] - a[1])
+      .forEach(([name, c]) => lines.push(["원장별", name, c].map(csvEscape).join(",")));
+    const csv = "﻿" + lines.join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `진료통계_${start}_${end}_${docLabel}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function reload() {
+    $("status").textContent = "DB 읽는 중...";
+    try {
+      allRecords = await loadRecords();
+      populateDoctorFilter();
+      $("status").textContent = "";
+      run();
+    } catch (e) {
+      allRecords = [];
+      $("status").textContent = "오류: " + (e?.message || e);
+      $("status").classList.add("error");
+    }
+  }
+
+  document.querySelectorAll(".preset-btn").forEach(b => b.addEventListener("click", () => applyPreset(b.dataset.preset)));
+  $("applyBtn").addEventListener("click", () => { setPresetActive(""); run(); });
+  $("reloadBtn").addEventListener("click", reload);
+  $("doctorFilter").addEventListener("change", run);
+  $("csvBtn").addEventListener("click", downloadCsv);
+
+  // 초기: 어제 기준으로 로드
+  (async () => {
+    await reload();
+    applyPreset("yesterday");
+  })();
+</script>
+</body>
+</html>

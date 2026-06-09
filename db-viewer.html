@@ -167,7 +167,16 @@
     min-height: 640px;
   }
   .patient-list-pane { border-right: 1px solid var(--line); min-width: 0; }
-  .search-box { padding: 10px; border-bottom: 1px solid var(--line); }
+  .search-box {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .patient-sort-select {
+    font-size: 12px;
+    font-weight: 900;
+  }
   .patient-list { max-height: 590px; overflow: auto; }
   .patient-item {
     width: 100%;
@@ -524,6 +533,11 @@
         <div class="patient-list-pane">
           <div class="search-box">
             <input id="patientSearchInput" type="text" placeholder="이름 또는 차트번호 검색">
+            <select class="patient-sort-select" id="patientSortSelect" aria-label="환자 정렬">
+              <option value="chart">차트번호</option>
+              <option value="recent">최근방문날짜</option>
+              <option value="name">가나다</option>
+            </select>
           </div>
           <div class="patient-list" id="patientList"></div>
         </div>
@@ -612,6 +626,7 @@
   let activePackageKey = "p6";
   let activePackageMonth = new Date().toISOString().slice(0, 7);
   let activePackageDate = new Date().toISOString().slice(0, 10);
+  let patientSortMode = "chart";
 
   const $ = (id) => document.getElementById(id);
   const stringify = (value) => JSON.stringify(value, null, 2) || "null";
@@ -889,6 +904,28 @@
     return [...new Set(dates.filter(Boolean))].sort();
   }
 
+  function getLatestVisitDate(patient = {}) {
+    const dates = visitDatesFromRecord(patient);
+    return dates[dates.length - 1] || "";
+  }
+
+  function compareChartNo(a = {}, b = {}) {
+    return String(a.chartNo || "").localeCompare(String(b.chartNo || ""), "ko", { numeric: true })
+      || String(a.name || "").localeCompare(String(b.name || ""), "ko");
+  }
+
+  function comparePatientRows(a = {}, b = {}) {
+    if (patientSortMode === "recent") {
+      return String(getLatestVisitDate(b)).localeCompare(String(getLatestVisitDate(a)))
+        || compareChartNo(a, b);
+    }
+    if (patientSortMode === "name") {
+      return String(a.name || "").localeCompare(String(b.name || ""), "ko")
+        || compareChartNo(a, b);
+    }
+    return compareChartNo(a, b);
+  }
+
   function visitSummary(record = {}) {
     const treatments = formatTreatmentsText(record.treatments);
     const bodyParts = formatBodyPartsText(record.bodyParts);
@@ -1038,7 +1075,6 @@
     setStatus("indexedStatus", "조회 중");
     try {
       latestIndexedValue = await getAllIndexedRecords();
-      latestIndexedValue.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko") || String(a.chartNo || "").localeCompare(String(b.chartNo || "")));
       renderSummary("indexedSummary", latestIndexedValue);
       renderPatientList();
       if (selectedChartNo) selectPatient(selectedChartNo, false);
@@ -1056,7 +1092,7 @@
     const rows = latestIndexedValue.filter(patient => {
       const haystack = `${patient.chartNo || ""} ${patient.name || ""}`.toLowerCase();
       return !query || haystack.includes(query);
-    });
+    }).sort(comparePatientRows);
     $("patientList").innerHTML = rows.length
       ? rows.map(patient => `
         <button class="patient-item${String(patient.chartNo || "") === selectedChartNo ? " active" : ""}" type="button" data-chart-no="${escapeHtml(patient.chartNo || "")}">
@@ -1238,6 +1274,10 @@
   $("firebasePathInput").addEventListener("keydown", event => { if (event.key === "Enter") loadFirebase(); });
   $("loadIndexedBtn").addEventListener("click", loadIndexed);
   $("patientSearchInput").addEventListener("input", renderPatientList);
+  $("patientSortSelect").addEventListener("change", event => {
+    patientSortMode = event.target.value || "chart";
+    renderPatientList();
+  });
   $("patientList").addEventListener("click", event => {
     const item = event.target.closest(".patient-item");
     if (item) selectPatient(item.dataset.chartNo);
