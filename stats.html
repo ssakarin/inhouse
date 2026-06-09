@@ -144,6 +144,14 @@
       <div class="card-title">원장별 진료 건수</div>
       <div id="doctorTableWrap"></div>
     </div>
+    <div class="card">
+      <div class="card-title">요일별 진료 건수</div>
+      <div id="weekdayTableWrap"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">치료조합 Top 10</div>
+      <div id="comboTableWrap"></div>
+    </div>
   </div>
 </div>
 
@@ -207,6 +215,8 @@
     const treatmentCounts = {};
     let pharmaTotal = 0;       // 약침 합계 (약침1~4·L·자)
     const doctorCounts = {};
+    const weekdayCounts = {};
+    const treatmentComboCounts = {};
 
     for (const rec of allRecords) {
       const dates = visitDatesOf(rec);
@@ -222,13 +232,19 @@
         matchedAny = true;
         visits += 1;
         const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
+        const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(date + "T00:00:00").getDay()];
+        weekdayCounts[weekday] = (weekdayCounts[weekday] || 0) + 1;
         let countedPharma = false;
+        const comboParts = [];
         for (const tRaw of treatments) {
           const t = String(tRaw || "").trim();
           if (!t) continue;
           treatmentCounts[t] = (treatmentCounts[t] || 0) + 1;
+          comboParts.push(t);
           if (t.includes("약침") && !countedPharma) { pharmaTotal += 1; countedPharma = true; }
         }
+        const combo = [...new Set(comboParts)].sort((a, b) => a.localeCompare(b, "ko")).join(" + ");
+        if (combo) treatmentComboCounts[combo] = (treatmentComboCounts[combo] || 0) + 1;
         if (doc) doctorCounts[doc] = (doctorCounts[doc] || 0) + 1;
       }
 
@@ -246,9 +262,13 @@
       visits,
       newPatients,
       revisitPatients: Math.max(0, patientSet.size - newPatients),
+      newPatientRate: patientSet.size ? newPatients / patientSet.size : 0,
+      avgVisitsPerPatient: patientSet.size ? visits / patientSet.size : 0,
       pharmaTotal,
       treatmentCounts,
-      doctorCounts
+      doctorCounts,
+      weekdayCounts,
+      treatmentComboCounts
     };
   }
 
@@ -279,13 +299,18 @@
       <div class="metric"><div class="metric-label">총 진료 건수</div><div class="metric-value accent">${s.visits.toLocaleString()}</div><div class="metric-sub">연인원(방문 횟수 합)</div></div>
       <div class="metric"><div class="metric-label">초진(신환)</div><div class="metric-value gold">${s.newPatients.toLocaleString()}</div><div class="metric-sub">기간 내 첫 진료</div></div>
       <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value">${s.revisitPatients.toLocaleString()}</div><div class="metric-sub">순환자 − 신환</div></div>
+      <div class="metric"><div class="metric-label">신환 비율</div><div class="metric-value gold">${(s.newPatientRate * 100).toFixed(1)}%</div><div class="metric-sub">신환 ÷ 순 환자 수</div></div>
+      <div class="metric"><div class="metric-label">평균 방문 횟수</div><div class="metric-value accent">${s.avgVisitsPerPatient.toFixed(2)}</div><div class="metric-sub">총 진료 ÷ 순 환자 수</div></div>
       <div class="metric"><div class="metric-label">약침 합계</div><div class="metric-value gold">${s.pharmaTotal.toLocaleString()}</div><div class="metric-sub">약침1~4·L·자 (1회 진료=1)</div></div>
       <div class="metric"><div class="metric-label">추나</div><div class="metric-value">${(s.treatmentCounts["추나"] || 0).toLocaleString()}</div><div class="metric-sub">추나 시행 건수</div></div>
     `;
   }
 
-  function renderCountTable(wrapId, counts, { gold = false } = {}) {
-    const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  function renderCountTable(wrapId, counts, { gold = false, limit = 0, order = null } = {}) {
+    const entries = order
+      ? order.map(name => [name, counts[name] || 0]).filter(([, count]) => count > 0)
+      : Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const rows = limit ? entries.slice(0, limit) : entries;
     const wrap = $(wrapId);
     if (!rows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
     const max = rows[0][1] || 1;
@@ -343,6 +368,8 @@
     renderSummary(s);
     renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
     renderCountTable("doctorTableWrap", s.doctorCounts);
+    renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"] });
+    renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
     lastResult = { start, end, docLabel, stats: s };
   }
 
@@ -363,11 +390,18 @@
     lines.push(["요약", "총 진료 건수", stats.visits].map(csvEscape).join(","));
     lines.push(["요약", "초진(신환)", stats.newPatients].map(csvEscape).join(","));
     lines.push(["요약", "재진 환자", stats.revisitPatients].map(csvEscape).join(","));
+    lines.push(["요약", "신환 비율", `${(stats.newPatientRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
+    lines.push(["요약", "평균 방문 횟수", stats.avgVisitsPerPatient.toFixed(2)].map(csvEscape).join(","));
     lines.push(["요약", "약침 합계", stats.pharmaTotal].map(csvEscape).join(","));
     Object.entries(stats.treatmentCounts).sort((a, b) => b[1] - a[1])
       .forEach(([name, c]) => lines.push(["치료별", name, c].map(csvEscape).join(",")));
     Object.entries(stats.doctorCounts).sort((a, b) => b[1] - a[1])
       .forEach(([name, c]) => lines.push(["원장별", name, c].map(csvEscape).join(",")));
+    ["월", "화", "수", "목", "금", "토", "일"]
+      .filter(day => stats.weekdayCounts[day])
+      .forEach(day => lines.push(["요일별", day, stats.weekdayCounts[day]].map(csvEscape).join(",")));
+    Object.entries(stats.treatmentComboCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)
+      .forEach(([name, c]) => lines.push(["치료조합 Top 10", name, c].map(csvEscape).join(",")));
     const csv = "﻿" + lines.join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
