@@ -92,6 +92,16 @@
   .empty { color: var(--muted); font-size: 13px; padding: 8px 2px; }
   .status { color: var(--gold); font-size: 12px; font-weight: 800; }
   .status.error { color: var(--danger); }
+  .chart-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .weekly-chart { min-width: 720px; width: 100%; height: 340px; display: block; }
+  .chart-axis, .chart-grid { stroke: rgba(255,255,255,0.16); stroke-width: 1; }
+  .chart-grid { stroke-dasharray: 4 6; }
+  .chart-text { fill: var(--muted); font-size: 11px; font-weight: 800; }
+  .chart-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .chart-dot { stroke: var(--panel); stroke-width: 2; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; color: var(--muted); font-size: 12px; font-weight: 900; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 18px; height: 3px; border-radius: 999px; display: inline-block; }
 </style>
 </head>
 <body>
@@ -111,6 +121,8 @@
       <button class="preset-btn" data-preset="30">최근 30일</button>
       <button class="preset-btn" data-preset="90">최근 90일</button>
       <button class="preset-btn" data-preset="month">이번 달</button>
+      <button class="preset-btn" data-preset="quarter">이번 분기</button>
+      <button class="preset-btn" data-preset="year">올해</button>
       <span class="date-input">
         <input type="date" id="startDate">
         <span style="color:var(--muted)">~</span>
@@ -123,6 +135,15 @@
       <label class="field-label">원장
         <select id="doctorFilter"><option value="">전체</option></select>
       </label>
+      <label class="field-label">그래프 단위
+        <select id="chartUnit">
+          <option value="day">일</option>
+          <option value="week">주</option>
+          <option value="month">월</option>
+          <option value="quarter">분기</option>
+          <option value="year">년</option>
+        </select>
+      </label>
       <button id="csvBtn" style="border-color:rgba(57,169,245,0.6);color:var(--accent)">CSV 다운로드</button>
       <span style="color:var(--muted);font-size:11px;font-weight:700">오늘은 집계에서 제외됩니다 (전일까지)</span>
     </div>
@@ -133,6 +154,11 @@
   <div class="card">
     <div class="card-title">요약</div>
     <div class="metrics" id="summaryMetrics"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">기간별 추이</div>
+    <div id="weeklyChartWrap"></div>
   </div>
 
   <div class="grid2">
@@ -205,18 +231,55 @@
     return [...new Set(dates.filter(Boolean))].sort();
   }
 
+  function isoWeekKey(dateStr) {
+    const d = new Date(dateStr + "T00:00:00");
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+    const weekYear = d.getFullYear();
+    const week1 = new Date(weekYear, 0, 4);
+    const weekNo = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+    return `${weekYear}${String(weekNo).padStart(2, "0")}`;
+  }
+
+  function periodKey(dateStr, unit = "week") {
+    const d = new Date(dateStr + "T00:00:00");
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    if (unit === "day") return dateStr.replaceAll("-", "");
+    if (unit === "month") return `${year}${String(month).padStart(2, "0")}`;
+    if (unit === "quarter") return `${year}Q${Math.ceil(month / 3)}`;
+    if (unit === "year") return String(year);
+    return isoWeekKey(dateStr);
+  }
+
+  function rangeDays(start, end) {
+    return Math.round((new Date(end + "T00:00:00") - new Date(start + "T00:00:00")) / 86400000) + 1;
+  }
+
+  function defaultChartUnit(start, end) {
+    return rangeDays(start, end) <= 30 ? "day" : "week";
+  }
+
+  function visitsWithinDays(dates, startDate, days) {
+    const endDate = addDays(startDate, days - 1);
+    return dates.filter(d => d >= startDate && d <= endDate).length;
+  }
+
   // ── 집계 ────────────────────────────────────────────────────────
   // docFilter: "" = 전체, 그 외에는 해당 원장이 본 진료만 집계
-  function computeStats(start, end, docFilter = "") {
+  function computeStats(start, end, docFilter = "", chartUnit = "week") {
     const inRange = d => d >= start && d <= end;
     const patientSet = new Set();
     let visits = 0;
     let newPatients = 0;
+    let returningPatients = 0;
+    let thirdVisitPatients = 0;
     const treatmentCounts = {};
     let pharmaTotal = 0;       // 약침 합계 (약침1~4·L·자)
     const doctorCounts = {};
     const weekdayCounts = {};
     const treatmentComboCounts = {};
+    const trendBuckets = {};
 
     for (const rec of allRecords) {
       const dates = visitDatesOf(rec);
@@ -234,6 +297,13 @@
         const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
         const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(date + "T00:00:00").getDay()];
         weekdayCounts[weekday] = (weekdayCounts[weekday] || 0) + 1;
+        const key = periodKey(date, chartUnit);
+        if (!trendBuckets[key]) {
+          trendBuckets[key] = { key, visits: 0, newPatients: 0, returningPatients: 0, thirdVisitPatients: 0, patientIds: new Set(), dates: new Set() };
+        }
+        trendBuckets[key].visits += 1;
+        trendBuckets[key].patientIds.add(pid);
+        trendBuckets[key].dates.add(date);
         let countedPharma = false;
         const comboParts = [];
         for (const tRaw of treatments) {
@@ -253,9 +323,42 @@
       // 신환: 전체 초진일이 기간 내 + (필터 시) 그 초진 진료의 원장이 선택 원장
       if (inRange(firstDate)) {
         const firstDoc = String(((rec.visitHistory || {})[firstDate] || {}).doctorName || "").trim();
-        if (!docFilter || firstDoc === docFilter) newPatients += 1;
+        if (!docFilter || firstDoc === docFilter) {
+          newPatients += 1;
+          const followupVisitCount = visitsWithinDays(dates, firstDate, 21);
+          const isReturning = followupVisitCount >= 2;
+          const isThirdVisit = followupVisitCount >= 3;
+          if (isReturning) returningPatients += 1;
+          if (isThirdVisit) thirdVisitPatients += 1;
+          const key = periodKey(firstDate, chartUnit);
+          if (trendBuckets[key]) {
+            trendBuckets[key].newPatients += 1;
+            if (isReturning) trendBuckets[key].returningPatients += 1;
+            if (isThirdVisit) trendBuckets[key].thirdVisitPatients += 1;
+          }
+        }
       }
     }
+
+    const trendStats = Object.values(trendBuckets)
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map(w => {
+        const clinicDays = Math.max(1, w.dates.size);
+        const uniquePatients = w.patientIds.size;
+        return {
+          key: w.key,
+          clinicDays,
+          visits: w.visits,
+          newPatients: w.newPatients,
+          returningPatients: w.returningPatients,
+          thirdVisitPatients: w.thirdVisitPatients,
+          avgVisitsPerDay: w.visits / clinicDays,
+          avgNewPatientsPerDay: w.newPatients / clinicDays,
+          newPatientRate: uniquePatients ? w.newPatients / uniquePatients : 0,
+          returnRate: w.newPatients ? w.returningPatients / w.newPatients : 0,
+          thirdVisitRate: w.newPatients ? w.thirdVisitPatients / w.newPatients : 0
+        };
+      });
 
     return {
       uniquePatients: patientSet.size,
@@ -263,12 +366,15 @@
       newPatients,
       revisitPatients: Math.max(0, patientSet.size - newPatients),
       newPatientRate: patientSet.size ? newPatients / patientSet.size : 0,
+      returnRate: newPatients ? returningPatients / newPatients : 0,
+      thirdVisitRate: newPatients ? thirdVisitPatients / newPatients : 0,
       avgVisitsPerPatient: patientSet.size ? visits / patientSet.size : 0,
       pharmaTotal,
       treatmentCounts,
       doctorCounts,
       weekdayCounts,
-      treatmentComboCounts
+      treatmentComboCounts,
+      trendStats
     };
   }
 
@@ -300,6 +406,8 @@
       <div class="metric"><div class="metric-label">초진(신환)</div><div class="metric-value gold">${s.newPatients.toLocaleString()}</div><div class="metric-sub">기간 내 첫 진료</div></div>
       <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value">${s.revisitPatients.toLocaleString()}</div><div class="metric-sub">순환자 − 신환</div></div>
       <div class="metric"><div class="metric-label">신환 비율</div><div class="metric-value gold">${(s.newPatientRate * 100).toFixed(1)}%</div><div class="metric-sub">신환 ÷ 순 환자 수</div></div>
+      <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(s.returnRate * 100).toFixed(1)}%</div><div class="metric-sub">초진 후 3주 내 2회 이상</div></div>
+      <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(s.thirdVisitRate * 100).toFixed(1)}%</div><div class="metric-sub">초진 후 3주 내 3회 이상</div></div>
       <div class="metric"><div class="metric-label">평균 방문 횟수</div><div class="metric-value accent">${s.avgVisitsPerPatient.toFixed(2)}</div><div class="metric-sub">총 진료 ÷ 순 환자 수</div></div>
       <div class="metric"><div class="metric-label">약침 합계</div><div class="metric-value gold">${s.pharmaTotal.toLocaleString()}</div><div class="metric-sub">약침1~4·L·자 (1회 진료=1)</div></div>
       <div class="metric"><div class="metric-label">추나</div><div class="metric-value">${(s.treatmentCounts["추나"] || 0).toLocaleString()}</div><div class="metric-sub">추나 시행 건수</div></div>
@@ -330,6 +438,83 @@
     `;
   }
 
+  function renderWeeklyChart(rows, chartUnit = "week") {
+    const wrap = $("weeklyChartWrap");
+    if (!rows.length) {
+      wrap.innerHTML = `<div class="empty">데이터 없음</div>`;
+      return;
+    }
+
+    const width = Math.max(720, rows.length * 78 + 120);
+    const height = 340;
+    const pad = { top: 24, right: 66, bottom: 58, left: 58 };
+    const chartW = width - pad.left - pad.right;
+    const chartH = height - pad.top - pad.bottom;
+    const maxCount = Math.max(1, ...rows.map(r => Math.max(r.avgVisitsPerDay, r.avgNewPatientsPerDay)));
+    const countTop = Math.ceil(maxCount * 1.15);
+    const maxRate = Math.max(0.1, ...rows.map(r => Math.max(r.newPatientRate, r.returnRate, r.thirdVisitRate)));
+    const rateTop = Math.min(1, Math.max(0.1, Math.ceil(maxRate * 10) / 10));
+    const x = idx => pad.left + (rows.length === 1 ? chartW / 2 : (chartW * idx) / (rows.length - 1));
+    const yCount = value => pad.top + chartH - (value / countTop) * chartH;
+    const yRate = value => pad.top + chartH - (value / rateTop) * chartH;
+    const linePath = (yFn, key) => rows.map((r, idx) => `${idx ? "L" : "M"} ${x(idx).toFixed(1)} ${yFn(r[key]).toFixed(1)}`).join(" ");
+    const countTicks = [0, 0.25, 0.5, 0.75, 1].map(p => countTop * p);
+    const rateTicks = [0, 0.25, 0.5, 0.75, 1].map(p => rateTop * p);
+    const colors = {
+      avgVisitsPerDay: "#39a9f5",
+      avgNewPatientsPerDay: "#ffca6a",
+      newPatientRate: "#4ade80",
+      returnRate: "#a78bfa",
+      thirdVisitRate: "#fb7185"
+    };
+    const unitLabel = { day: "일", week: "주차", month: "월", quarter: "분기", year: "년" }[chartUnit] || "기간";
+
+    wrap.innerHTML = `
+      <div class="chart-wrap">
+        <svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${unitLabel}별 추이 그래프">
+          ${countTicks.map(t => {
+            const y = yCount(t);
+            return `
+              <line class="chart-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}"></line>
+              <text class="chart-text" x="${pad.left - 10}" y="${y + 4}" text-anchor="end">${t.toFixed(t < 10 ? 1 : 0)}</text>
+            `;
+          }).join("")}
+          ${rateTicks.map(t => {
+            const y = yRate(t);
+            return `<text class="chart-text" x="${width - pad.right + 10}" y="${y + 4}">${Math.round(t * 100)}%</text>`;
+          }).join("")}
+          <line class="chart-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
+          <line class="chart-axis" x1="${width - pad.right}" y1="${pad.top}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
+          <line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
+          <text class="chart-text" x="${pad.left}" y="14">일평균 인원</text>
+          <text class="chart-text" x="${width - pad.right}" y="14" text-anchor="end">신환 비율</text>
+          <path class="chart-line" d="${linePath(yCount, "avgVisitsPerDay")}" stroke="${colors.avgVisitsPerDay}"></path>
+          <path class="chart-line" d="${linePath(yCount, "avgNewPatientsPerDay")}" stroke="${colors.avgNewPatientsPerDay}"></path>
+          <path class="chart-line" d="${linePath(yRate, "newPatientRate")}" stroke="${colors.newPatientRate}"></path>
+          <path class="chart-line" d="${linePath(yRate, "returnRate")}" stroke="${colors.returnRate}"></path>
+          <path class="chart-line" d="${linePath(yRate, "thirdVisitRate")}" stroke="${colors.thirdVisitRate}"></path>
+          ${rows.map((r, idx) => `
+            <g>
+              <circle class="chart-dot" cx="${x(idx)}" cy="${yCount(r.avgVisitsPerDay)}" r="4" fill="${colors.avgVisitsPerDay}"><title>${r.key} 방문 일평균 ${r.avgVisitsPerDay.toFixed(1)}명</title></circle>
+              <circle class="chart-dot" cx="${x(idx)}" cy="${yCount(r.avgNewPatientsPerDay)}" r="4" fill="${colors.avgNewPatientsPerDay}"><title>${r.key} 초진 일평균 ${r.avgNewPatientsPerDay.toFixed(1)}명</title></circle>
+              <circle class="chart-dot" cx="${x(idx)}" cy="${yRate(r.newPatientRate)}" r="4" fill="${colors.newPatientRate}"><title>${r.key} 신환 비율 ${(r.newPatientRate * 100).toFixed(1)}%</title></circle>
+              <circle class="chart-dot" cx="${x(idx)}" cy="${yRate(r.returnRate)}" r="4" fill="${colors.returnRate}"><title>${r.key} 재진율 ${(r.returnRate * 100).toFixed(1)}%</title></circle>
+              <circle class="chart-dot" cx="${x(idx)}" cy="${yRate(r.thirdVisitRate)}" r="4" fill="${colors.thirdVisitRate}"><title>${r.key} 삼진율 ${(r.thirdVisitRate * 100).toFixed(1)}%</title></circle>
+              <text class="chart-text" x="${x(idx)}" y="${height - pad.bottom + 22}" text-anchor="middle">${r.key}</text>
+            </g>
+          `).join("")}
+        </svg>
+      </div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-swatch" style="background:${colors.avgVisitsPerDay}"></span>일평균 방문 진료 환자 수</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:${colors.avgNewPatientsPerDay}"></span>일평균 초진</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:${colors.newPatientRate}"></span>신환 비율</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:${colors.returnRate}"></span>재진율</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:${colors.thirdVisitRate}"></span>삼진율</span>
+      </div>
+    `;
+  }
+
   function escapeHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -341,19 +526,28 @@
 
   function applyPreset(preset) {
     const y = addDays(today(), -1);  // 오늘 제외 → 어제까지
+    const yDate = new Date(y + "T00:00:00");
     let start = y, end = y;
     if (preset === "yesterday") { start = end = y; }
     else if (preset === "7") { start = addDays(y, -6); end = y; }
     else if (preset === "30") { start = addDays(y, -29); end = y; }
     else if (preset === "90") { start = addDays(y, -89); end = y; }
     else if (preset === "month") { start = y.slice(0, 8) + "01"; end = y; }
+    else if (preset === "quarter") {
+      const quarterStartMonth = Math.floor(yDate.getMonth() / 3) * 3;
+      start = ymd(new Date(yDate.getFullYear(), quarterStartMonth, 1));
+      end = y;
+    }
+    else if (preset === "year") { start = `${y.slice(0, 4)}-01-01`; end = y; }
     $("startDate").value = start;
     $("endDate").value = end;
+    chartUnitTouched = false;
     setPresetActive(preset);
     run();
   }
 
   let lastResult = null;  // CSV용 마지막 집계 결과
+  let chartUnitTouched = false;
 
   function run() {
     let start = $("startDate").value;
@@ -362,15 +556,19 @@
     if (start > end) { [start, end] = [end, start]; $("startDate").value = start; $("endDate").value = end; }
     const docFilter = $("doctorFilter").value;
     const docLabel = docFilter || "전체";
-    $("rangeLabel").textContent = `조회 기간: ${start} ~ ${end} · 원장: ${docLabel} (전체 ${allRecords.length.toLocaleString()}명 환자 기준)`;
+    if (!chartUnitTouched) $("chartUnit").value = defaultChartUnit(start, end);
+    const chartUnit = $("chartUnit").value || "week";
+    const unitLabel = { day: "일", week: "주", month: "월", quarter: "분기", year: "년" }[chartUnit] || "주";
+    $("rangeLabel").textContent = `조회 기간: ${start} ~ ${end} · 원장: ${docLabel} · 그래프: ${unitLabel} 단위 (전체 ${allRecords.length.toLocaleString()}명 환자 기준)`;
     $("status").textContent = "";
-    const s = computeStats(start, end, docFilter);
+    const s = computeStats(start, end, docFilter, chartUnit);
     renderSummary(s);
+    renderWeeklyChart(s.trendStats, chartUnit);
     renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
     renderCountTable("doctorTableWrap", s.doctorCounts);
     renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"] });
     renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
-    lastResult = { start, end, docLabel, stats: s };
+    lastResult = { start, end, docLabel, chartUnit, stats: s };
   }
 
   // ── CSV 다운로드 ────────────────────────────────────────────────
@@ -380,7 +578,8 @@
   }
   function downloadCsv() {
     if (!lastResult) { $("status").textContent = "먼저 조회를 실행하세요."; return; }
-    const { start, end, docLabel, stats } = lastResult;
+    const { start, end, docLabel, chartUnit, stats } = lastResult;
+    const trendLabel = { day: "일별", week: "주차별", month: "월별", quarter: "분기별", year: "연도별" }[chartUnit] || "기간별";
     const lines = [];
     lines.push(["구분", "항목", "값"].map(csvEscape).join(","));
     lines.push(["기간", "시작", start].map(csvEscape).join(","));
@@ -391,8 +590,17 @@
     lines.push(["요약", "초진(신환)", stats.newPatients].map(csvEscape).join(","));
     lines.push(["요약", "재진 환자", stats.revisitPatients].map(csvEscape).join(","));
     lines.push(["요약", "신환 비율", `${(stats.newPatientRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
+    lines.push(["요약", "재진율", `${(stats.returnRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
+    lines.push(["요약", "삼진율", `${(stats.thirdVisitRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
     lines.push(["요약", "평균 방문 횟수", stats.avgVisitsPerPatient.toFixed(2)].map(csvEscape).join(","));
     lines.push(["요약", "약침 합계", stats.pharmaTotal].map(csvEscape).join(","));
+    stats.trendStats.forEach(row => {
+      lines.push([trendLabel, `${row.key} 일평균 방문 진료 환자 수`, row.avgVisitsPerDay.toFixed(2)].map(csvEscape).join(","));
+      lines.push([trendLabel, `${row.key} 일평균 초진`, row.avgNewPatientsPerDay.toFixed(2)].map(csvEscape).join(","));
+      lines.push([trendLabel, `${row.key} 신환 비율`, `${(row.newPatientRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
+      lines.push([trendLabel, `${row.key} 재진율`, `${(row.returnRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
+      lines.push([trendLabel, `${row.key} 삼진율`, `${(row.thirdVisitRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
+    });
     Object.entries(stats.treatmentCounts).sort((a, b) => b[1] - a[1])
       .forEach(([name, c]) => lines.push(["치료별", name, c].map(csvEscape).join(",")));
     Object.entries(stats.doctorCounts).sort((a, b) => b[1] - a[1])
@@ -427,9 +635,10 @@
   }
 
   document.querySelectorAll(".preset-btn").forEach(b => b.addEventListener("click", () => applyPreset(b.dataset.preset)));
-  $("applyBtn").addEventListener("click", () => { setPresetActive(""); run(); });
+  $("applyBtn").addEventListener("click", () => { chartUnitTouched = false; setPresetActive(""); run(); });
   $("reloadBtn").addEventListener("click", reload);
   $("doctorFilter").addEventListener("change", run);
+  $("chartUnit").addEventListener("change", () => { chartUnitTouched = true; run(); });
   $("csvBtn").addEventListener("click", downloadCsv);
 
   // 초기: 어제 기준으로 로드
