@@ -26,11 +26,10 @@
   }
   .app { width: min(1400px, 100%); margin: 0 auto; padding: 18px; }
   .topbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
-  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
   .brand-icon { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
   .brand-title { font-size: 20px; font-weight: 900; color: #fff; line-height: 1; white-space: nowrap; }
   .brand-highlight { color: var(--gold); }
-  .top-link { margin-left: auto; }
   a.btn-link, button {
     border: 1px solid var(--line);
     background: var(--panel2);
@@ -43,6 +42,7 @@
     text-decoration: none;
     font-family: inherit;
   }
+  a.btn-link { color: var(--accent); }
   button:hover, a.btn-link:hover { border-color: var(--accent); }
   .card {
     background: var(--panel);
@@ -102,6 +102,7 @@
   .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; color: var(--muted); font-size: 12px; font-weight: 900; }
   .legend-item { display: inline-flex; align-items: center; gap: 6px; }
   .legend-swatch { width: 18px; height: 3px; border-radius: 999px; display: inline-block; }
+  .wide-card { grid-column: 1 / -1; }
 </style>
 </head>
 <body>
@@ -111,6 +112,7 @@
       <img class="brand-icon" src="assets/logo-icon.png" alt="경희홍익한의원 로고">
       <h1 class="brand-title"><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span> 통계</h1>
     </div>
+    <a class="btn-link" href="db-viewer.html">DB</a>
   </div>
 
   <div class="card">
@@ -129,7 +131,7 @@
         <input type="date" id="endDate">
       </span>
       <button id="applyBtn" style="border-color:rgba(74,222,128,0.55);color:var(--green)">조회</button>
-      <button id="reloadBtn">DB 새로고침</button>
+      <button id="reloadBtn">새로고침</button>
     </div>
     <div class="controls" style="margin-top:10px">
       <label class="field-label">원장
@@ -177,6 +179,10 @@
     <div class="card">
       <div class="card-title">치료조합 Top 10</div>
       <div id="comboTableWrap"></div>
+    </div>
+    <div class="card wide-card">
+      <div class="card-title">11~8일 전 초진 후 미재방문</div>
+      <div id="noFollowupTableWrap"></div>
     </div>
   </div>
 </div>
@@ -241,6 +247,23 @@
     return `${weekYear}${String(weekNo).padStart(2, "0")}`;
   }
 
+  function isoWeekRangeLabel(weekKey) {
+    const match = String(weekKey || "").match(/^(\d{4})(\d{2})$/);
+    if (!match) return "";
+    const year = Number(match[1]);
+    const week = Number(match[2]);
+    const jan4 = new Date(year, 0, 4);
+    const week1Monday = new Date(jan4);
+    week1Monday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+    const start = new Date(week1Monday);
+    start.setDate(week1Monday.getDate() + (week - 1) * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    const startLabel = `${start.getMonth() + 1}.${start.getDate()}`;
+    const endLabel = start.getMonth() === end.getMonth() ? String(end.getDate()) : `${end.getMonth() + 1}.${end.getDate()}`;
+    return `(${startLabel}-${endLabel})`;
+  }
+
   function periodKey(dateStr, unit = "week") {
     const d = new Date(dateStr + "T00:00:00");
     const year = d.getFullYear();
@@ -263,6 +286,33 @@
   function visitsWithinDays(dates, startDate, days) {
     const endDate = addDays(startDate, days - 1);
     return dates.filter(d => d >= startDate && d <= endDate).length;
+  }
+
+  function noFollowupNewPatients(docFilter = "") {
+    const todayStr = today();
+    const targetDates = new Map([11, 10, 9, 8].map(daysAgo => [addDays(todayStr, -daysAgo), daysAgo]));
+    const rows = [];
+    for (const rec of allRecords) {
+      const dates = visitDatesOf(rec).filter(d => d <= todayStr);
+      if (!dates.length) continue;
+      const firstDate = dates[0];
+      if (!targetDates.has(firstDate)) continue;
+      const firstEntry = (rec.visitHistory || {})[firstDate] || {};
+      const doctorName = String(firstEntry.doctorName || rec.doctorName || "").trim();
+      if (docFilter && doctorName !== docFilter) continue;
+      if (dates.some(d => d > firstDate && d <= todayStr)) continue;
+      rows.push({
+        chartNo: rec.chartNo || "",
+        name: rec.name || "",
+        firstDate,
+        daysAgo: targetDates.get(firstDate),
+        doctorName,
+        age: rec.age || "",
+        gender: rec.gender || "",
+        phone: rec.phone || rec.phoneNumber || rec.tel || ""
+      });
+    }
+    return rows.sort((a, b) => b.daysAgo - a.daysAgo || String(a.chartNo).localeCompare(String(b.chartNo), "ko", { numeric: true }));
   }
 
   // ── 집계 ────────────────────────────────────────────────────────
@@ -438,6 +488,40 @@
     `;
   }
 
+  function renderNoFollowupTable(rows) {
+    const wrap = $("noFollowupTableWrap");
+    if (!rows.length) {
+      wrap.innerHTML = `<div class="empty">대상자 없음</div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>경과</th>
+            <th>초진일</th>
+            <th>차트번호</th>
+            <th>이름</th>
+            <th>정보</th>
+            <th>원장</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `
+            <tr>
+              <td class="num">${row.daysAgo}일 전</td>
+              <td>${escapeHtml(row.firstDate)}</td>
+              <td>${escapeHtml(row.chartNo || "-")}</td>
+              <td>${escapeHtml(row.name || "-")}</td>
+              <td>${escapeHtml([row.gender, row.age ? `${row.age}세` : "", row.phone].filter(Boolean).join(" · ") || "-")}</td>
+              <td>${escapeHtml(row.doctorName || "-")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
   function renderWeeklyChart(rows, chartUnit = "week") {
     const wrap = $("weeklyChartWrap");
     if (!rows.length) {
@@ -468,6 +552,9 @@
       thirdVisitRate: "#fb7185"
     };
     const unitLabel = { day: "일", week: "주차", month: "월", quarter: "분기", year: "년" }[chartUnit] || "기간";
+    const xLabel = row => chartUnit === "week"
+      ? `<text class="chart-text" x="${x(row.idx)}" y="${height - pad.bottom + 20}" text-anchor="middle">${row.key}</text><text class="chart-text" x="${x(row.idx)}" y="${height - pad.bottom + 36}" text-anchor="middle">${isoWeekRangeLabel(row.key)}</text>`
+      : `<text class="chart-text" x="${x(row.idx)}" y="${height - pad.bottom + 22}" text-anchor="middle">${row.key}</text>`;
 
     wrap.innerHTML = `
       <div class="chart-wrap">
@@ -500,7 +587,7 @@
               <circle class="chart-dot" cx="${x(idx)}" cy="${yRate(r.newPatientRate)}" r="4" fill="${colors.newPatientRate}"><title>${r.key} 신환 비율 ${(r.newPatientRate * 100).toFixed(1)}%</title></circle>
               <circle class="chart-dot" cx="${x(idx)}" cy="${yRate(r.returnRate)}" r="4" fill="${colors.returnRate}"><title>${r.key} 재진율 ${(r.returnRate * 100).toFixed(1)}%</title></circle>
               <circle class="chart-dot" cx="${x(idx)}" cy="${yRate(r.thirdVisitRate)}" r="4" fill="${colors.thirdVisitRate}"><title>${r.key} 삼진율 ${(r.thirdVisitRate * 100).toFixed(1)}%</title></circle>
-              <text class="chart-text" x="${x(idx)}" y="${height - pad.bottom + 22}" text-anchor="middle">${r.key}</text>
+              ${xLabel({ ...r, idx })}
             </g>
           `).join("")}
         </svg>
@@ -568,6 +655,7 @@
     renderCountTable("doctorTableWrap", s.doctorCounts);
     renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"] });
     renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
+    renderNoFollowupTable(noFollowupNewPatients(docFilter));
     lastResult = { start, end, docLabel, chartUnit, stats: s };
   }
 

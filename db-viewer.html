@@ -25,6 +25,17 @@
     font-family: "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
   .app { width: min(1500px, 100%); margin: 0 auto; padding: 18px 18px 18px 42px; }
+  .nav-link {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel2);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 900;
+    padding: 8px 12px;
+    text-decoration: none;
+  }
+  .nav-link:hover { border-color: var(--accent); }
   .header { margin-bottom: 14px; }
   h1 { margin: 0; font-size: 24px; letter-spacing: 0; }
   .brand { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
@@ -39,6 +50,7 @@
   input[readonly]:focus, textarea[readonly]:focus { border-color: var(--line); }
   .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
   .actions, .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
   button, input, select, textarea {
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -163,10 +175,30 @@
   .error { color: var(--danger); }
   .editor-layout {
     display: grid;
-    grid-template-columns: 230px minmax(0, 1fr);
+    grid-template-columns: 330px minmax(0, 1fr);
     min-height: 640px;
   }
   .patient-list-pane { border-right: 1px solid var(--line); min-width: 0; }
+  .patient-find-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .patient-find-tab {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .patient-find-tab.active {
+    border-color: rgba(255,202,106,0.75);
+    background: rgba(255,202,106,0.12);
+    color: var(--gold);
+  }
+  .patient-find-panel[hidden] { display: none; }
+  .patient-date-panel { padding: 10px; }
+  .patient-date-panel .visit-calendar-wrap { gap: 8px; }
+  .patient-date-panel .visit-detail-card { max-height: 320px; overflow: auto; }
   .search-box {
     display: grid;
     gap: 8px;
@@ -308,10 +340,15 @@
     padding: 12px;
   }
   .visit-detail-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     color: var(--gold);
     font-weight: 900;
     margin-bottom: 8px;
   }
+  .visit-detail-title button { padding: 5px 8px; font-size: 11px; }
   .visit-detail-grid {
     display: grid;
     grid-template-columns: 110px 1fr;
@@ -476,6 +513,22 @@
     font-weight: 800;
     padding: 6px 7px;
   }
+  .day-patient-list {
+    margin-top: 10px;
+    display: grid;
+    gap: 6px;
+  }
+  .day-patient-item {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+  }
+  .day-patient-main { font-weight: 900; }
+  .day-patient-sub { color: var(--muted); font-size: 11px; font-weight: 800; }
   .file-input { display: none; }
   @media (max-width: 1080px) {
     .editor-layout { grid-template-columns: 1fr; }
@@ -522,24 +575,43 @@
           <img class="brand-icon" src="assets/logo-icon.png" alt="경희홍익한의원 로고">
           <h1 class="brand-title"><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span></h1>
         </div>
-        <button type="button" id="loadIndexedBtn">새로고침</button>
-        <button class="good" type="button" id="newPatientBtn">새 환자</button>
-        <button type="button" id="exportIndexedBtn">백업</button>
-        <button type="button" id="importIndexedBtn">복원</button>
+        <a class="nav-link" href="stats.html">통계</a>
         <input class="file-input" id="importFileInput" type="file" accept="application/json,.json">
         <div class="summary indexed-summary" id="indexedSummary"></div>
-      </div>
-      <div class="editor-layout">
-        <div class="patient-list-pane">
-          <div class="search-box">
-            <input id="patientSearchInput" type="text" placeholder="이름 또는 차트번호 검색">
-            <select class="patient-sort-select" id="patientSortSelect" aria-label="환자 정렬">
-              <option value="chart">차트번호</option>
-              <option value="recent">최근방문날짜</option>
-              <option value="name">가나다</option>
-            </select>
+        <div class="toolbar-actions">
+          <button type="button" id="loadIndexedBtn">새로고침</button>
+          <button type="button" id="exportIndexedBtn">백업</button>
+          <button type="button" id="importIndexedBtn">복원</button>
+        </div>
+        </div>
+        <div class="editor-layout">
+          <div class="patient-list-pane">
+          <div class="patient-find-tabs">
+            <button class="patient-find-tab active" type="button" data-find-tab="search">환자 검색</button>
+            <button class="patient-find-tab" type="button" data-find-tab="date">날짜별</button>
           </div>
-          <div class="patient-list" id="patientList"></div>
+          <div class="patient-find-panel" id="patientSearchPanel">
+            <div class="search-box">
+              <input id="patientSearchInput" type="text" placeholder="이름 또는 차트번호 검색">
+              <select class="patient-sort-select" id="patientSortSelect" aria-label="환자 정렬">
+                <option value="chart">차트번호</option>
+                <option value="recent">최근방문날짜</option>
+                <option value="name">가나다</option>
+              </select>
+            </div>
+            <div class="patient-list" id="patientList"></div>
+          </div>
+          <div class="patient-find-panel patient-date-panel" id="patientDatePanel" hidden>
+            <div class="visit-calendar-wrap">
+              <div class="visit-calendar-head">
+                <button type="button" id="globalVisitPrevMonthBtn">이전</button>
+                <div class="visit-calendar-title" id="globalVisitCalendarTitle"></div>
+                <button type="button" id="globalVisitNextMonthBtn">다음</button>
+              </div>
+              <div class="visit-calendar" id="globalVisitCalendar"></div>
+              <div class="visit-detail-card" id="globalVisitPatientList"></div>
+            </div>
+          </div>
         </div>
         <div class="editor-pane">
           <div class="section-title">기본 정보</div>
@@ -558,11 +630,11 @@
             <div class="memo-row">
               <label class="memo-field">메모<textarea id="editMemo"></textarea></label>
               <div class="memo-actions">
-                <div class="status" id="selectedPatientStatus">환자를 선택하거나 새 환자를 만드세요.</div>
                 <div class="memo-buttons">
                   <button class="good" type="button" id="savePatientBtn">수정</button>
                   <button class="danger" type="button" id="deletePatientBtn">삭제</button>
                 </div>
+                <div class="status" id="selectedPatientStatus"></div>
               </div>
             </div>
           </div>
@@ -627,6 +699,8 @@
   let activePackageMonth = new Date().toISOString().slice(0, 7);
   let activePackageDate = new Date().toISOString().slice(0, 10);
   let patientSortMode = "chart";
+  let globalVisitMonth = new Date().toISOString().slice(0, 7);
+  let selectedGlobalVisitDate = "";
 
   const $ = (id) => document.getElementById(id);
   const stringify = (value) => JSON.stringify(value, null, 2) || "null";
@@ -964,8 +1038,12 @@
         <div class="package-history">${rowsHtml}</div>
       `;
     }).filter(Boolean).join("");
+    const hasDateData = Boolean(activeVisitHistory?.[date]) || packageSections.length > 0;
     detailEl.innerHTML = `
-      <div class="visit-detail-title">${escapeHtml(date)}</div>
+      <div class="visit-detail-title">
+        <span>${escapeHtml(date)}</span>
+        ${hasDateData ? `<button class="danger" type="button" data-delete-combined-date="${escapeHtml(date)}">이 날짜 삭제</button>` : ""}
+      </div>
       <div class="visit-detail-section">
         <div class="visit-detail-grid">
           <div class="visit-detail-label">담당원장</div><div>${escapeHtml(record.doctorName || "-")}</div>
@@ -1038,11 +1116,97 @@
     renderVisitCalendar();
   }
 
+  function patientsByVisitDate(date) {
+    return latestIndexedValue
+      .filter(patient => visitDatesFromRecord(patient).includes(date))
+      .sort(compareChartNo);
+  }
+
+  function renderGlobalVisitPatientList(date = selectedGlobalVisitDate) {
+    const el = $("globalVisitPatientList");
+    if (!el) return;
+    if (!date) {
+      el.innerHTML = `<div class="meta">날짜를 선택하면 그날 진료받은 환자 목록이 표시됩니다.</div>`;
+      return;
+    }
+    const rows = patientsByVisitDate(date);
+    if (!rows.length) {
+      el.innerHTML = `<div class="visit-detail-title"><span>${escapeHtml(date)}</span></div><div class="meta">진료받은 환자가 없습니다.</div>`;
+      return;
+    }
+    el.innerHTML = `
+      <div class="visit-detail-title"><span>${escapeHtml(date)} · ${rows.length.toLocaleString()}명</span></div>
+      <div class="day-patient-list">
+        ${rows.map(patient => {
+          const record = patient.visitHistory?.[date] || {};
+          return `
+            <button class="day-patient-item" type="button" data-global-chart-no="${escapeHtml(patient.chartNo || "")}">
+              <span>
+                <span class="day-patient-main">${escapeHtml(patient.name || "(이름 없음)")}</span>
+                <span class="day-patient-sub">${escapeHtml(patient.chartNo || "-")} · ${escapeHtml(patient.gender || "-")} · ${escapeHtml(patient.age || "-")}</span>
+              </span>
+              <span class="day-patient-sub">${escapeHtml(record.doctorName || patient.doctorName || "-")}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function setPatientFindTab(tabName = "search") {
+    const normalized = tabName === "date" ? "date" : "search";
+    document.querySelectorAll("[data-find-tab]").forEach(button => {
+      button.classList.toggle("active", button.dataset.findTab === normalized);
+    });
+    $("patientSearchPanel").hidden = normalized !== "search";
+    $("patientDatePanel").hidden = normalized !== "date";
+    if (normalized === "date") renderGlobalVisitCalendar();
+  }
+
+  function renderGlobalVisitCalendar() {
+    const titleEl = $("globalVisitCalendarTitle");
+    const calendarEl = $("globalVisitCalendar");
+    if (!titleEl || !calendarEl) return;
+    const [year, month] = globalVisitMonth.split("-").map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDate = new Date(year, month, 0).getDate();
+    const startOffset = firstDay.getDay();
+    titleEl.textContent = `${year}년 ${String(month).padStart(2, "0")}월`;
+    const weekdayHtml = ["일", "월", "화", "수", "목", "금", "토"]
+      .map(day => `<div class="visit-weekday">${day}</div>`)
+      .join("");
+    const visitCounts = new Map();
+    latestIndexedValue.forEach(patient => {
+      visitDatesFromRecord(patient).forEach(date => {
+        if (date.slice(0, 7) === globalVisitMonth) visitCounts.set(date, (visitCounts.get(date) || 0) + 1);
+      });
+    });
+    const blanks = Array.from({ length: startOffset }, () => `<button class="visit-day" type="button" disabled></button>`).join("");
+    const days = Array.from({ length: lastDate }, (_, index) => {
+      const day = index + 1;
+      const date = `${globalVisitMonth}-${String(day).padStart(2, "0")}`;
+      const count = visitCounts.get(date) || 0;
+      const selected = date === selectedGlobalVisitDate;
+      const note = count ? `<span class="visit-day-note">${count.toLocaleString()}명</span>` : "";
+      return `<button class="visit-day${count ? " has-visit" : ""}${selected ? " selected" : ""}" type="button" data-global-visit-date="${date}">${day}${note}</button>`;
+    }).join("");
+    calendarEl.innerHTML = weekdayHtml + blanks + days;
+    renderGlobalVisitPatientList();
+  }
+
+  function changeGlobalVisitMonth(offset) {
+    const [year, month] = globalVisitMonth.split("-").map(Number);
+    const next = new Date(year, month - 1 + offset, 1);
+    globalVisitMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    renderGlobalVisitCalendar();
+  }
+
   async function deleteCombinedDate(date) {
     if (!date) return;
     if (!confirm(`${date} 진료기록과 패키지 기록을 모두 삭제할까요?`)) return;
     delete activeVisitHistory[date];
     activeVisitDates = activeVisitDates.filter(item => String(item) !== String(date));
+    if (selectedVisitDate === date) selectedVisitDate = activeVisitDates[activeVisitDates.length - 1] || "";
     const packages = normalizePackages(activePackages);
     PACKAGE_KEYS.forEach(key => {
       const pkg = packages[key] || {};
@@ -1064,6 +1228,7 @@
       else latestIndexedValue.push(record);
       $("selectedPatientJson").value = stringify(record);
       renderPatientList();
+      renderGlobalVisitCalendar();
       setStatus("indexedStatus", "날짜 기록 삭제됨");
     } catch (error) {
       setStatus("indexedStatus", "오류", true);
@@ -1077,6 +1242,7 @@
       latestIndexedValue = await getAllIndexedRecords();
       renderSummary("indexedSummary", latestIndexedValue);
       renderPatientList();
+      renderGlobalVisitCalendar();
       if (selectedChartNo) selectPatient(selectedChartNo, false);
       setStatus("indexedStatus", "완료");
     } catch (error) {
@@ -1143,7 +1309,7 @@
     renderPackageViewer();
     renderVisitStats();
     $("selectedPatientJson").value = stringify(patient);
-    $("selectedPatientStatus").textContent = `${patient.name || "환자"} 선택됨`;
+    $("selectedPatientStatus").textContent = "";
     if (renderList) renderPatientList();
   }
 
@@ -1161,7 +1327,7 @@
     activePackageDate = new Date().toISOString().slice(0, 10);
     activePackageMonth = activePackageDate.slice(0, 7);
     renderPackageViewer();
-    $("selectedPatientStatus").textContent = "환자를 선택하거나 새 환자를 만드세요.";
+    $("selectedPatientStatus").textContent = "";
     renderPatientList();
   }
 
@@ -1174,8 +1340,8 @@
 
     // 주상병명 수정 → 최신 진료일 기록의 주상병명을 갱신하고, 상단 주상병명도 그 값으로 맞춤
     const chiefComplaint = $("editChiefComplaint").value.trim();
-    const visitHistory = existing.visitHistory && typeof existing.visitHistory === "object" ? { ...existing.visitHistory } : {};
-    const visitDates = visitDatesFromRecord(existing);
+    const visitHistory = activeVisitHistory && typeof activeVisitHistory === "object" ? { ...activeVisitHistory } : {};
+    const visitDates = [...new Set((Array.isArray(activeVisitDates) ? activeVisitDates : Object.keys(visitHistory || {})).map(String).filter(Boolean))].sort();
     const latestDate = visitDates[visitDates.length - 1] || "";
     if (latestDate) {
       visitHistory[latestDate] = { ...(visitHistory[latestDate] || {}), chiefComplaint };
@@ -1187,7 +1353,9 @@
       name: $("editName").value.trim(),
       age: $("editAge").value ? Number($("editAge").value) : "",
       memo: $("editMemo").value.trim(),
+      visitDates,
       visitHistory,
+      packages: activePackages,
       chiefComplaint
     });
   }
@@ -1209,7 +1377,9 @@
   async function deleteSelectedPatient() {
     const patient = getSelectedPatient();
     if (!patient) return;
-    if (!confirm(`${patient.name || patient.chartNo} 삭제하시겠습니까?`)) return;
+    const label = `${patient.name || "이름 없음"} / ${patient.chartNo || "차트번호 없음"}`;
+    if (!confirm(`[1차 확인]\n${label}\n\n이 환자 전체 기록을 삭제하시겠습니까?`)) return;
+    if (!confirm(`[2차 최종 확인]\n${label}\n\n삭제하면 기본정보, 진료기록, 패키지 기록이 모두 사라지며 복구할 수 없습니다.\n정말 삭제하시겠습니까?`)) return;
     await deleteIndexedRecord(patient.chartNo);
     clearEditor();
     await loadIndexed();
@@ -1258,6 +1428,10 @@
     const day = event.target.closest("[data-visit-date]");
     if (day) selectVisitDate(day.dataset.visitDate);
   });
+  $("visitDetail").addEventListener("click", event => {
+    const button = event.target.closest("[data-delete-combined-date]");
+    if (button) deleteCombinedDate(button.dataset.deleteCombinedDate);
+  });
   $("visitCalendar").addEventListener("contextmenu", event => {
     const day = event.target.closest("[data-visit-date]");
     if (!day) return;
@@ -1266,6 +1440,26 @@
   });
   renderVisitCalendar();
   renderPackageViewer();
+  $("globalVisitPrevMonthBtn").addEventListener("click", () => changeGlobalVisitMonth(-1));
+  $("globalVisitNextMonthBtn").addEventListener("click", () => changeGlobalVisitMonth(1));
+  $("globalVisitCalendar").addEventListener("click", event => {
+    const day = event.target.closest("[data-global-visit-date]");
+    if (!day) return;
+    selectedGlobalVisitDate = day.dataset.globalVisitDate;
+    renderGlobalVisitCalendar();
+  });
+  $("globalVisitPatientList").addEventListener("click", event => {
+    const item = event.target.closest("[data-global-chart-no]");
+    if (item) {
+      selectPatient(item.dataset.globalChartNo);
+      setPatientFindTab("search");
+    }
+  });
+  document.querySelectorAll("[data-find-tab]").forEach(button => {
+    button.addEventListener("click", () => setPatientFindTab(button.dataset.findTab));
+  });
+  renderGlobalVisitCalendar();
+  setPatientFindTab("search");
 
   document.querySelectorAll("[data-fb-path]").forEach(button => {
     button.addEventListener("click", () => loadFirebase(button.dataset.fbPath));
@@ -1282,7 +1476,6 @@
     const item = event.target.closest(".patient-item");
     if (item) selectPatient(item.dataset.chartNo);
   });
-  $("newPatientBtn").addEventListener("click", clearEditor);
   $("savePatientBtn").addEventListener("click", savePatientForm);
   $("deletePatientBtn")?.addEventListener("click", deleteSelectedPatient);
   $("exportIndexedBtn").addEventListener("click", exportIndexedBackup);
