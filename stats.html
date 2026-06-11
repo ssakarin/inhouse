@@ -181,7 +181,7 @@
       <div id="comboTableWrap"></div>
     </div>
     <div class="card wide-card">
-      <div class="card-title">11~8일 전 초진 후 미재방문</div>
+      <div class="card-title">14~7일 전 초진 후 미재방문</div>
       <div id="noFollowupTableWrap"></div>
     </div>
   </div>
@@ -191,6 +191,7 @@
   const DB_NAME = "patientChartDB";
   const STORE = "patients";
   const $ = id => document.getElementById(id);
+  const SERVER_MODE = location.protocol === "http:" || location.protocol === "https:";
 
   let allRecords = [];
 
@@ -204,6 +205,11 @@
     });
   }
   async function loadRecords() {
+    if (SERVER_MODE) {
+      const res = await fetch("/api/patients", { cache: "no-store" });
+      if (!res.ok) throw new Error(`서버 환자 목록 조회 실패 (${res.status})`);
+      return await res.json();
+    }
     const db = await openDb();
     if (!db.objectStoreNames.contains(STORE)) {
       db.close();
@@ -290,7 +296,7 @@
 
   function noFollowupNewPatients(docFilter = "") {
     const todayStr = today();
-    const targetDates = new Map([11, 10, 9, 8].map(daysAgo => [addDays(todayStr, -daysAgo), daysAgo]));
+    const targetDates = new Map(Array.from({ length: 8 }, (_, index) => 14 - index).map(daysAgo => [addDays(todayStr, -daysAgo), daysAgo]));
     const rows = [];
     for (const rec of allRecords) {
       const dates = visitDatesOf(rec).filter(d => d <= todayStr);
@@ -317,6 +323,13 @@
 
   // ── 집계 ────────────────────────────────────────────────────────
   // docFilter: "" = 전체, 그 외에는 해당 원장이 본 진료만 집계
+  function normalizeTreatmentStatName(name) {
+    const text = String(name || "").trim();
+    if (text === "추나" || text === "단추") return "단순추나";
+    if (text === "복추") return "복잡추나";
+    return text;
+  }
+
   function computeStats(start, end, docFilter = "", chartUnit = "week") {
     const inRange = d => d >= start && d <= end;
     const patientSet = new Set();
@@ -357,7 +370,7 @@
         let countedPharma = false;
         const comboParts = [];
         for (const tRaw of treatments) {
-          const t = String(tRaw || "").trim();
+          const t = normalizeTreatmentStatName(tRaw);
           if (!t) continue;
           treatmentCounts[t] = (treatmentCounts[t] || 0) + 1;
           comboParts.push(t);
@@ -460,7 +473,8 @@
       <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(s.thirdVisitRate * 100).toFixed(1)}%</div><div class="metric-sub">초진 후 3주 내 3회 이상</div></div>
       <div class="metric"><div class="metric-label">평균 방문 횟수</div><div class="metric-value accent">${s.avgVisitsPerPatient.toFixed(2)}</div><div class="metric-sub">총 진료 ÷ 순 환자 수</div></div>
       <div class="metric"><div class="metric-label">약침 합계</div><div class="metric-value gold">${s.pharmaTotal.toLocaleString()}</div><div class="metric-sub">약침1~4·L·자 (1회 진료=1)</div></div>
-      <div class="metric"><div class="metric-label">추나</div><div class="metric-value">${(s.treatmentCounts["추나"] || 0).toLocaleString()}</div><div class="metric-sub">추나 시행 건수</div></div>
+      <div class="metric"><div class="metric-label">단순추나</div><div class="metric-value">${(s.treatmentCounts["단순추나"] || 0).toLocaleString()}</div><div class="metric-sub">단추/기존 추나 시행 건수</div></div>
+      <div class="metric"><div class="metric-label">복잡추나</div><div class="metric-value">${(s.treatmentCounts["복잡추나"] || 0).toLocaleString()}</div><div class="metric-sub">복추 시행 건수</div></div>
     `;
   }
 

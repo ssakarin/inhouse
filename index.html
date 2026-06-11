@@ -247,6 +247,7 @@
     flex-wrap: wrap;
   }
   body.app-mode-doctor .doctor-alert-btns { display: flex; }
+  .bed-doctor-alert-panel .doctor-alert-btns { display: flex; }
   .doctor-alert-btn {
     height: 32px;
     padding: 0 14px;
@@ -683,6 +684,30 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  .upcoming-time.treatment-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    max-width: 72px;
+    padding: 4px 7px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .upcoming-time.treatment-hotpack { background: rgba(250,204,21,0.30); border-color: rgba(250,204,21,0.92); color: #fde047; }
+  .upcoming-time.treatment-physical { background: rgba(57,169,245,0.22); border-color: rgba(57,169,245,0.72); color: #9edcff; }
+  .upcoming-time.treatment-infrared { background: rgba(239,68,68,0.24); border-color: rgba(239,68,68,0.84); color: #ffc0c0; }
+  .upcoming-time.treatment-acu { background: rgba(74,222,128,0.20); border-color: rgba(74,222,128,0.70); color: #9bf2b5; }
+  .upcoming-time.treatment-cupping { background: rgba(251,113,133,0.20); border-color: rgba(251,113,133,0.72); color: #ffb4c0; }
+  .upcoming-time.treatment-chuna { background: rgba(168,139,250,0.22); border-color: rgba(168,139,250,0.72); color: #d8ccff; }
+  .upcoming-time.treatment-moxa { background: rgba(180,83,9,0.36); border-color: rgba(245,158,11,0.88); color: #ffb14a; }
+  .upcoming-time.treatment-pharm { background: rgba(244,114,182,0.20); border-color: rgba(244,114,182,0.72); color: #ffc1df; }
+  .upcoming-time.treatment-exam { background: rgba(148,163,184,0.20); border-color: rgba(148,163,184,0.62); color: #d7dee8; }
   .upcoming-main {
     min-width: 0;
     color: var(--text);
@@ -742,7 +767,7 @@
     gap: 8px;
   }
   .doctor-alert-box-list .upcoming-item {
-    grid-template-columns: 46px minmax(0, 1fr);
+    grid-template-columns: 72px minmax(0, 1fr);
     padding: 9px 10px;
   }
   .doctor-alert-box-list .upcoming-item.doctor-alert-simple-item {
@@ -754,6 +779,32 @@
   }
   body.app-mode-doctor .doctor-alert-split {
     display: none;
+  }
+  .bed-doctor-alert-panel {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .bed-doctor-alert-panel.show { display: block; }
+  .bed-doctor-alert-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .bed-doctor-alert-title {
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .bed-doctor-alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .name-input {
@@ -1355,6 +1406,26 @@
   }
   .bed-status.done { border-color: var(--gold); }
   .bed-status.done.alerting { border-color: var(--danger); }
+  .bed-status.empty {
+    background: linear-gradient(180deg, rgba(148,163,184,0.10), rgba(30,41,59,0.22));
+    border-color: rgba(148,163,184,0.24);
+    box-shadow: 0 2px 0 rgba(0,0,0,0.20), 0 6px 14px rgba(0,0,0,0.10);
+    opacity: 0.72;
+  }
+  .bed-status.empty:hover,
+  .bed-status.empty:focus {
+    border-color: rgba(148,163,184,0.44);
+    box-shadow: 0 3px 0 rgba(0,0,0,0.22), 0 9px 18px rgba(0,0,0,0.14);
+  }
+  .bed-status.empty .bed-status-no,
+  .bed-status.empty .bed-status-time,
+  .bed-status.empty .bed-stage-badge.empty {
+    color: var(--text3);
+  }
+  .bed-status.empty .bed-stage-badge.empty {
+    background: rgba(148,163,184,0.10);
+    border-color: rgba(148,163,184,0.20);
+  }
   .bed-status.compact {
     min-height: 48px;
     padding: 9px 10px;
@@ -1453,11 +1524,11 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    background: rgba(74,222,128,0.12);
-    border: 1.5px solid rgba(74,222,128,0.38);
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
     border-radius: 10px;
     padding: 11px 8px;
-    color: rgb(74,222,128);
+    color: var(--text);
     font-family: 'Noto Sans KR', sans-serif;
     font-size: 12px;
     font-weight: 700;
@@ -1470,6 +1541,15 @@
   }
   .credit-chip-label { display: inline-flex; align-items: center; justify-content: center; }
   .credit-chip:hover {
+    background: var(--surface3);
+    border-color: var(--accent2);
+  }
+  .credit-chip.has-balance {
+    background: rgba(74,222,128,0.12);
+    border-color: rgba(74,222,128,0.38);
+    color: rgb(74,222,128);
+  }
+  .credit-chip.has-balance:hover {
     background: rgba(74,222,128,0.18);
     border-color: rgba(74,222,128,0.68);
   }
@@ -1910,6 +1990,7 @@
     padding: 6px 9px;
   }
   .bed-clear-btn,
+  .bed-move-btn,
   .bed-next-btn {
     width: 100%;
     background: var(--surface2);
@@ -1923,6 +2004,7 @@
     cursor: pointer;
   }
   .bed-clear-btn:hover,
+  .bed-move-btn:hover,
   .bed-next-btn:hover { border-color: var(--accent); }
   .bed-patient-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
   .bed-detail { display: none; }
@@ -2128,7 +2210,13 @@
     align-items: stretch;
     gap: 10px;
   }
-  .bed-detail-info .bed-clear-btn {
+  .bed-detail-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .bed-detail-info .bed-clear-btn,
+  .bed-detail-info .bed-move-btn {
     align-self: stretch;
     display: flex;
     align-items: center;
@@ -2137,6 +2225,50 @@
     min-width: 94px;
     padding: 8px 12px;
     white-space: nowrap;
+  }
+  .bed-detail-info .bed-move-btn {
+    border-color: rgba(57,169,245,0.45);
+    color: var(--accent);
+  }
+  .bed-move-panel {
+    grid-column: 1 / -1;
+    background: rgba(7,17,31,0.62);
+    border: 1px solid rgba(57,169,245,0.25);
+    border-radius: 10px;
+    padding: 10px;
+  }
+  .bed-move-panel-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+    margin-bottom: 8px;
+  }
+  .bed-move-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+  }
+  .bed-move-target {
+    min-height: 44px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .bed-move-target.occupied { border-color: rgba(255,202,106,0.45); color: var(--gold); }
+  .bed-move-target.empty { color: var(--accent); }
+  .bed-move-target:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+    color: var(--text3);
+    border-color: rgba(255,255,255,0.08);
   }
   .bed-detail-chip-row {
     display: flex;
@@ -2796,6 +2928,8 @@
     margin-right: 5px;
     animation: pulse 2s infinite;
   }
+  body.local-fallback-mode .status-dot { background: var(--gold); }
+  body.firebase-offline-mode .status-dot { background: var(--danger); }
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
@@ -2811,23 +2945,19 @@
       <img class="brand-icon" src="assets/logo-icon.png" alt="경희홍익한의원 로고">
       <div class="brand-copy">
         <h1><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span><span class="bed-header-bed-chip" id="bedHeaderBedChip">1번</span></h1>
-        <p><span class="status-dot"></span>실시간 연결됨</p>
+        <p id="connectionStatusText"><span class="status-dot"></span>Online</p>
       </div>
       <div class="header-left-desk-controls">
       </div>
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
-        <button class="random-test-btn" onclick="assignWaitingPatientsManually()">배정</button>
+        <span class="header-wait-chip bed-count-chip" id="deskBedPatientCount">0/13</span>
         <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
         <span class="header-current-time" id="deskCurrentTime"></span>
       </div>
       <div class="header-notify-controls">
         <span class="header-wait-chip" id="notifyWaitChip">예상대기시간 0분</span>
-        <div class="doctor-call-controls">
-          <button class="doctor-call-btn" onclick="sendDoctorCallAlert('desk')">데스크 호출</button>
-          <button class="doctor-call-btn" onclick="sendDoctorCallAlert('clinic')">치료실 호출</button>
-        </div>
         <div class="doctor-alert-btns" id="doctorAlertBtns"></div>
         <span class="header-current-time" id="notifyCurrentTime"></span>
       </div>
@@ -2838,7 +2968,6 @@
       </div>
       <div class="mode-toggle">
         <button class="mode-btn active" onclick="setMode('input')">데스크</button>
-        <button class="mode-btn" onclick="setMode('doctor')">원장실</button>
         <button class="mode-btn" onclick="setMode('notify')">치료실알림</button>
         <button class="mode-btn" onclick="setMode('receive')">치료실</button>
         <button class="mode-btn" onclick="setMode('bed')">베드</button>
@@ -2981,6 +3110,13 @@
   <!-- 베드 패널 -->
   <div class="bed-panel" id="bedPanel">
     <div class="bed-layout">
+      <div class="bed-doctor-alert-panel" id="bedDoctorAlertPanel">
+        <div class="bed-doctor-alert-head">
+          <div class="bed-doctor-alert-title">원장실 알림</div>
+          <div class="doctor-alert-btns bed-doctor-alert-btns" id="bedDoctorAlertBtns"></div>
+        </div>
+        <div class="bed-doctor-alert-list" id="bedDoctorAlertList"></div>
+      </div>
       <select class="bed-selector" id="bedSelector" onchange="selectBed(Number(this.value))"></select>
       <div class="bed-workspace">
         <div class="bed-left-column">
@@ -3177,6 +3313,50 @@
   const CALL_ALERTS_PATH = 'callAlerts';
   const BED_ASSIGNMENT_ALERTS_PATH = 'bedAssignmentAlerts';
   let bedScreenWakeLock = null;
+  const SERVER_MODE = location.protocol === 'http:' || location.protocol === 'https:';
+  let firebaseConnected = true;
+  let localFallbackActive = false;
+  let localFallbackDirty = false;
+  let localFallbackPollTimer = null;
+
+  function updateConnectionStatusLabel() {
+    const el = document.getElementById('connectionStatusText');
+    if (!el) return;
+    document.body.classList.toggle('local-fallback-mode', localFallbackActive);
+    document.body.classList.toggle('firebase-offline-mode', !firebaseConnected);
+    const label = firebaseConnected && !localFallbackActive ? 'Online' : 'Offline';
+    el.innerHTML = `<span class="status-dot"></span>${label}`;
+  }
+
+  async function localStateGet(key) {
+    if (!SERVER_MODE) return null;
+    const res = await fetch(`/api/state/${encodeURIComponent(key)}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`로컬 상태 조회 실패: ${key}`);
+    return (await res.json()).value;
+  }
+
+  async function localStatePut(key, value) {
+    if (!SERVER_MODE) return null;
+    const res = await fetch(`/api/state/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ value })
+    });
+    if (!res.ok) throw new Error(`로컬 상태 저장 실패: ${key}`);
+    return (await res.json()).value;
+  }
+
+  async function syncLocalSnapshot(key, value) {
+    try {
+      await localStatePut(key, value || {});
+      if (key === 'beds') {
+        localFallbackDirty = false;
+        await localStatePut('bedsDirty', false);
+      }
+    } catch (error) {
+      console.warn('로컬 스냅샷 저장 실패', key, error);
+    }
+  }
 
   function isBedScreenWakeLockTarget() {
     const params = new URLSearchParams(window.location.search);
@@ -3224,9 +3404,12 @@
   // 진료 항목
   const TREATMENTS = [
     { id: 'consult',             name: '진찰',   icon: '📋' },
-    { id: 'chuna',               name: '추나',   icon: '🤲' },
+    { id: 'bed_consult',         name: '베드진찰', icon: '🩺' },
+    { id: 'chuna_simple',        name: '단추',   icon: '🤲' },
+    { id: 'chuna_complex',       name: '복추',   icon: '🤲' },
     { id: 'hotpack',             name: '핫팩',   icon: '🔥' },
     { id: 'physical_therapy',   name: '물리치료', icon: '＋' },
+    { id: 'spine',               name: '스파인', icon: '↕' },
     { id: 'acupuncture',         name: '침',     icon: '🪡' },
     { id: 'cupping_wet',         name: '습부항', icon: '🫙' },
     { id: 'cupping_dry',         name: '건부항', icon: '⭕' },
@@ -3242,7 +3425,12 @@
     { id: 'pharmacopuncture_ja', name: '약침자', icon: '자' },
   ];
 
-  const DEFAULT_TREATMENT_MINUTES = Object.fromEntries(TREATMENTS.map(t => [t.name, 5]));
+  function getTreatmentByName(name) {
+    const normalized = String(name || '').trim() === '추나' ? '단추' : String(name || '').trim();
+    return TREATMENTS.find(t => t.name === normalized) || null;
+  }
+
+  const DEFAULT_TREATMENT_MINUTES = { ...Object.fromEntries(TREATMENTS.map(t => [t.name, 5])), 스파인: 15 };
   let treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES };
   let procedureMinutes = 0;
   let treatmentPresets = [];
@@ -3380,9 +3568,97 @@
       ...Object.entries(doctorBedMap).map(([bedNo, bed]) => ({ bed, bedNo: Number(bedNo) })).filter(e => e.bed)
     ];
   }
+
+  function clonePlain(value) {
+    if (value === null || value === undefined) return value;
+    if (typeof structuredClone === 'function') return structuredClone(value);
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function getCurrentBedsObject() {
+    const beds = {};
+    getAllBedEntries().forEach(({ bed, bedNo }) => {
+      if (bed) beds[String(bedNo)] = clonePlain(bed);
+    });
+    return beds;
+  }
+
+  async function saveLocalBedsObject(beds, { markDirty = true } = {}) {
+    const nextBeds = beds || {};
+    await localStatePut('beds', nextBeds);
+    if (markDirty) {
+      localFallbackDirty = true;
+      await localStatePut('bedsDirty', true);
+    }
+    await applyBedsState(nextBeds, {
+      allowMigration: false,
+      allowAutoAssign: false,
+      fromLocalFallback: true
+    });
+  }
+
+  async function updateBedRecord(bedNo, patch) {
+    if (localFallbackActive && SERVER_MODE) {
+      const beds = getCurrentBedsObject();
+      const key = String(bedNo);
+      beds[key] = { ...(beds[key] || {}), ...(patch || {}) };
+      await saveLocalBedsObject(beds);
+      return;
+    }
+    return update(ref(db, `${BEDS_PATH}/${bedNo}`), patch);
+  }
+
+  async function updateBedChildRecord(bedNo, childKey, patch) {
+    if (localFallbackActive && SERVER_MODE) {
+      const beds = getCurrentBedsObject();
+      const key = String(bedNo);
+      if (!beds[key]) return;
+      beds[key][childKey] = { ...(beds[key][childKey] || {}), ...(patch || {}) };
+      await saveLocalBedsObject(beds);
+      return;
+    }
+    return update(ref(db, `${BEDS_PATH}/${bedNo}/${childKey}`), patch);
+  }
+
+  async function removeBedRecord(bedNo) {
+    if (localFallbackActive && SERVER_MODE) {
+      const beds = getCurrentBedsObject();
+      delete beds[String(bedNo)];
+      await saveLocalBedsObject(beds);
+      return;
+    }
+    return remove(ref(db, `${BEDS_PATH}/${bedNo}`));
+  }
+
+  async function runBedRecordTransaction(bedNo, mutator) {
+    if (localFallbackActive && SERVER_MODE) {
+      const beds = getCurrentBedsObject();
+      const key = String(bedNo);
+      const current = beds[key] || null;
+      const next = mutator(clonePlain(current));
+      if (next === undefined) return { committed: false, snapshot: { val: () => current } };
+      if (next === null) delete beds[key];
+      else beds[key] = next;
+      await saveLocalBedsObject(beds);
+      return { committed: true, snapshot: { val: () => next } };
+    }
+    return runTransaction(ref(db, `${BEDS_PATH}/${bedNo}`), mutator);
+  }
+
+  async function runBedsRecordTransaction(mutator) {
+    if (localFallbackActive && SERVER_MODE) {
+      const current = getCurrentBedsObject();
+      const next = mutator(clonePlain(current));
+      if (next === undefined) return { committed: false, snapshot: { val: () => current } };
+      await saveLocalBedsObject(next || {});
+      return { committed: true, snapshot: { val: () => next || {} } };
+    }
+    return runTransaction(ref(db, BEDS_PATH), mutator);
+  }
   let selectedBedNo = getUrlBedNo();
   let selectedReceiveBedNo = getUrlBedNo();
   let selectedMoveBedNo = null;
+  let bedMovePanelOpenFor = null;
   let draggedBedNo = null;
   let draggedTreatment = null; // { bedNo, fromIndex }
   let draggedWaitingPatientKey = null;
@@ -3612,7 +3888,7 @@
     const date = usageDate || toLocalDateInputValue();
 
     const normalizedTreatments = treatments.map(treatment => String(treatment || '').replace(/\s+/g, ''));
-    const hasChuna = normalizedTreatments.some(name => name.includes('추나'));
+    const hasChuna = normalizedTreatments.some(name => name.includes('추나') || name === '단추' || name === '복추');
     const unitMap = {
       '약침1': hasChuna ? 0.5 : 1,
       '약침2': hasChuna ? 1 : 2,
@@ -3714,7 +3990,10 @@
         packageStatesByGrid[gridId] = createEmptyPackageState(values);
       }
     }
-    return getPCreditPayload(gridId);
+    const payload = getPCreditPayload(gridId);
+    const chip = document.getElementById(`credit-chip-${gridId}`);
+    if (chip) chip.classList.toggle('has-balance', getPCreditTotal(payload) > 0);
+    return payload;
   };
 
   window.getCreditValue = function(gridId) {
@@ -4242,8 +4521,9 @@
   }
 
   function renderDoctorAlertSelect() {
-    const container = document.getElementById('doctorAlertBtns');
-    if (!container) return;
+    const containers = ['doctorAlertBtns', 'bedDoctorAlertBtns']
+      .map(id => document.getElementById(id))
+      .filter(Boolean);
     const doctors = getSortedStaff('doctors');
 
     // 존재하지 않는 원장이 선택돼 있으면 해제
@@ -4258,14 +4538,17 @@
     }
     if (doctors.length) doctorAlertSelectInitialized = true;
 
+    const setHtml = (html) => containers.forEach(container => { container.innerHTML = html; });
     if (!doctors.length) {
-      container.innerHTML = '<span class="doctor-alert-empty">원장 없음</span>';
+      setHtml('<span class="doctor-alert-empty">원장 없음</span>');
+      renderBedDoctorAlertPanel();
       return;
     }
     // 버튼 1개: 누를 때마다 등록된 원장만 순환
     const name = staffByType.doctors.get(selectedDoctorAlertId)?.name || doctors[0][1]?.name || '원장';
     const active = selectedDoctorAlertId ? ' active' : '';
-    container.innerHTML = '<button type="button" class="doctor-alert-btn doctor-alert-toggle' + active + '" onclick="cycleDoctorAlertFilter()">' + escapeHtml(name) + '</button>';
+    setHtml('<button type="button" class="doctor-alert-btn doctor-alert-toggle' + active + '" onclick="cycleDoctorAlertFilter()">' + escapeHtml(name) + '</button>');
+    renderBedDoctorAlertPanel();
   }
 
   window.setDoctorAlertFilter = (doctorId) => {
@@ -4289,6 +4572,53 @@
     const next = cycle[(idx + 1) % cycle.length];
     window.setDoctorAlertFilter(next);
   };
+
+  function getTreatmentBadgeClass(treatment) {
+    const name = String(treatment || '').trim().toLowerCase();
+    if (name === '핫팩') return 'treatment-hotpack';
+    if (name === '물리치료') return 'treatment-physical';
+    if (name === '적외선') return 'treatment-infrared';
+    if (name === '침' || name === '전침') return 'treatment-acu';
+    if (name === '건부항' || name === '습부항') return 'treatment-cupping';
+    if (name === '단추' || name === '복추' || name === '추나') return 'treatment-chuna';
+    if (name === '왕뜸' || name === '전자뜸') return 'treatment-moxa';
+    if (/^약침/.test(name)) return 'treatment-pharm';
+    if (name === '진찰' || name === '베드진찰') return 'treatment-exam';
+    return '';
+  }
+
+  function renderTreatmentBadge(treatment) {
+    const label = String(treatment || '치료').trim() || '치료';
+    const className = getTreatmentBadgeClass(label);
+    return `<div class="upcoming-time treatment-badge ${className}">${escapeHtml(label)}</div>`;
+  }
+
+  function renderBedDoctorAlertPanel() {
+    const panel = document.getElementById('bedDoctorAlertPanel');
+    const list = document.getElementById('bedDoctorAlertList');
+    if (!panel || !list) return;
+
+    const isDoctorBed = Number(selectedBedNo) >= 101;
+    panel.classList.toggle('show', isDoctorBed);
+    if (!isDoctorBed) {
+      list.innerHTML = '';
+      return;
+    }
+
+    const items = selectedDoctorAlertId ? getDoctorProcedureAlertItems(selectedDoctorAlertId) : [];
+    list.innerHTML = items.length
+      ? items
+        .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
+        .map(item => `
+        <div class="upcoming-item assignment no-dismiss">
+          ${renderTreatmentBadge(item.treatment)}
+          <div>
+            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name || '환자')}</div>
+          </div>
+        </div>`)
+        .join('')
+      : `<div class="empty-state"><div class="empty-icon">-</div><div class="empty-text">알림 없음</div></div>`;
+  }
 
   function getSelectedDoctorCallInfo() {
     const doctors = getSortedStaff('doctors');
@@ -4391,7 +4721,7 @@
     const presets = treatmentPresets.filter(p => Array.isArray(p.treatments) && p.treatments.length);
     if (!presets.length) return getRandomTreatments();
     const preset = presets[Math.floor(Math.random() * presets.length)];
-    return [...preset.treatments];
+    return preset.treatments.map(name => getTreatmentByName(name)?.name).filter(Boolean);
   }
 
   function getRandomBodyParts(count = 3) {
@@ -4628,7 +4958,7 @@
         key,
         name: value?.name || '',
         treatments: Array.isArray(value?.treatments)
-          ? value.treatments.filter(name => TREATMENTS.some(t => t.name === name))
+          ? value.treatments.map(name => getTreatmentByName(name)?.name).filter(Boolean)
           : [],
         timestamp: Number(value?.timestamp || 0)
       }))
@@ -4876,14 +5206,15 @@
 
   function setTreatmentSelection(gridId, treatments = []) {
     // treatments는 이름 배열 (예: ['침', '핫팩'])
-    const nameSet = new Set(treatments);
+    const normalizedTreatments = treatments.map(name => getTreatmentByName(name)?.name).filter(Boolean);
+    const nameSet = new Set(normalizedTreatments);
     treatmentSelections[gridId] = TREATMENTS
       .filter(t => nameSet.has(t.name))
       .map(t => ({ id: t.id, name: t.name }));
     // 순서는 원래 treatments 배열 순서대로 유지
     const ordered = [];
-    treatments.forEach(name => {
-      const t = TREATMENTS.find(t => t.name === name);
+    normalizedTreatments.forEach(name => {
+      const t = getTreatmentByName(name);
       if (t) ordered.push({ id: t.id, name: t.name });
     });
     treatmentSelections[gridId] = ordered;
@@ -5299,7 +5630,7 @@
     btn.disabled = true;
     btn.textContent = '저장 중...';
     try {
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), payload);
+      await updateBedRecord(bedNo, payload);
       if (bed.patientKey) {
         await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
       }
@@ -5414,7 +5745,7 @@
         credit: null
       };
       const { credit, packages, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPayload } = payload;
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), { ...bedPayload, ...timerUpdates });
+      await updateBedRecord(bedNo, { ...bedPayload, ...timerUpdates });
       if (bed.patientKey) {
         await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
       }
@@ -5777,8 +6108,7 @@
     return movedCount;
   }
 
-  onValue(ref(db, BEDS_PATH), async (snapshot) => {
-    const beds = snapshot.val() || {};
+  async function applyBedsState(beds = {}, { allowMigration = true, allowAutoAssign = true, fromLocalFallback = false } = {}) {
     if (isClearingPatientDatabase) {
       bedAssignments = Array(BED_COUNT).fill(null);
       doctorBedMap = {};
@@ -5792,11 +6122,13 @@
       syncFixedBedArrivalOverlay();
       return;
     }
-let migratedCount = 0;
-    try {
-      migratedCount = await migrateDisabledBedsToWaiting(beds);
-    } catch (e) {
-      console.error('비활성 베드 정리 실패', e);
+    let migratedCount = 0;
+    if (allowMigration) {
+      try {
+        migratedCount = await migrateDisabledBedsToWaiting(beds);
+      } catch (e) {
+        console.error('비활성 베드 정리 실패', e);
+      }
     }
     bedAssignments = Array.from({ length: BED_COUNT }, (_, i) => beds[String(i + 1)] || null);
     doctorBedMap = {};
@@ -5812,7 +6144,7 @@ let migratedCount = 0;
     handleRemoteTimerAlerts(!hasLoadedBedsOnce);
     syncDoctorProcedureAlerts();
     hasLoadedBedsOnce = true;
-    if (!migratedCount) await assignWaitingPatientsToBeds();
+    if (allowAutoAssign && !migratedCount) await assignWaitingPatientsToBeds();
     renderBedSelector();
     renderBedDetail();
     renderReceiveBedDetail();
@@ -5822,6 +6154,82 @@ let migratedCount = 0;
     updateCount();
     syncFixedBedArrivalOverlay();
     ensureBedTicker();
+  }
+
+  onValue(ref(db, BEDS_PATH), async (snapshot) => {
+    const beds = snapshot.val() || {};
+    if (localFallbackActive && localFallbackDirty) {
+      return;
+    }
+    firebaseConnected = true;
+    localFallbackActive = false;
+    updateConnectionStatusLabel();
+    await syncLocalSnapshot('beds', beds);
+    await applyBedsState(beds, { allowMigration: true, allowAutoAssign: true, fromLocalFallback: false });
+  });
+
+  async function syncPendingLocalBedsToFirebase() {
+    if (!SERVER_MODE) return;
+    let isDirty = localFallbackDirty;
+    try {
+      isDirty = Boolean(isDirty || await localStateGet('bedsDirty'));
+    } catch (error) {
+      console.warn('로컬 변경 여부 확인 실패', error);
+    }
+    if (!isDirty) return;
+
+    try {
+      const localBeds = await localStateGet('beds') || {};
+      await set(ref(db, BEDS_PATH), localBeds);
+      localFallbackDirty = false;
+      await localStatePut('bedsDirty', false);
+    } catch (error) {
+      console.error('로컬 임시 beds Firebase 복구 실패', error);
+      localFallbackDirty = true;
+      throw error;
+    }
+  }
+
+  async function loadLocalFallbackBeds() {
+    if (!SERVER_MODE) {
+      updateConnectionStatusLabel();
+      return;
+    }
+    try {
+      const beds = await localStateGet('beds') || {};
+      localFallbackDirty = Boolean(await localStateGet('bedsDirty'));
+      localFallbackActive = true;
+      updateConnectionStatusLabel();
+      await applyBedsState(beds, { allowMigration: false, allowAutoAssign: false, fromLocalFallback: true });
+    } catch (error) {
+      console.error('로컬 임시 beds 로드 실패', error);
+      updateConnectionStatusLabel();
+    }
+  }
+
+  onValue(ref(db, '.info/connected'), async (snapshot) => {
+    firebaseConnected = snapshot.val() === true;
+    if (firebaseConnected) {
+      if (localFallbackPollTimer) {
+        clearInterval(localFallbackPollTimer);
+        localFallbackPollTimer = null;
+      }
+      try {
+        await syncPendingLocalBedsToFirebase();
+        localFallbackActive = false;
+        updateConnectionStatusLabel();
+      } catch (error) {
+        localFallbackActive = true;
+        updateConnectionStatusLabel();
+      }
+      return;
+    }
+    loadLocalFallbackBeds();
+    if (SERVER_MODE && !localFallbackPollTimer) {
+      localFallbackPollTimer = setInterval(() => {
+        if (!firebaseConnected) loadLocalFallbackBeds();
+      }, 2500);
+    }
   });
 
   function renderNotif(key, data, isNew) {
@@ -5851,11 +6259,11 @@ let migratedCount = 0;
   function updateCount() {
     const todayCount = document.getElementById('todayCount');
     if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
-    const bedPatientCount = document.getElementById('bedPatientCount');
-    if (bedPatientCount) {
-      const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1])).length;
-      bedPatientCount.textContent = `${regularOccupiedCount}/${REGULAR_BED_COUNT}`;
-    }
+    const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1])).length;
+    ['bedPatientCount', 'deskBedPatientCount'].forEach(id => {
+      const chip = document.getElementById(id);
+      if (chip) chip.textContent = `${regularOccupiedCount}/${REGULAR_BED_COUNT}`;
+    });
   }
 
   function escapeHtml(value) {
@@ -6006,7 +6414,7 @@ let migratedCount = 0;
       const docBedNo = getDoctorBedNoForPatient(data.doctorId);
       if (!docBedNo) return false;
 
-      const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
+      const result = await runBedsRecordTransaction((beds) => {
         beds = beds || {};
         const existing = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
         if (existing || beds[String(docBedNo)]) return beds;
@@ -6032,7 +6440,7 @@ let migratedCount = 0;
     }
 
     // 재진: 기존 일반 베드 배정
-    const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
+    const result = await runBedsRecordTransaction((beds) => {
       beds = beds || {};
       const existingBedNo = Object.keys(beds).find(bedNo => beds[bedNo]?.patientKey === patientKey);
       if (existingBedNo) return beds;
@@ -6145,7 +6553,7 @@ let migratedCount = 0;
       return false;
     }
 
-    const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
+    const result = await runBedsRecordTransaction((beds) => {
       beds = beds || {};
       const existingBedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
       if (existingBedNo || beds[String(bedNo)]) return beds;
@@ -6405,14 +6813,39 @@ let migratedCount = 0;
       .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
       .map(item => item.html)
       .join('');
+    const getTreatmentBadgeClass = (treatment) => {
+    const name = String(treatment || '').trim().toLowerCase();
+    if (name === '핫팩') return 'treatment-hotpack';
+    if (name === '물리치료') return 'treatment-physical';
+    if (name === '적외선') return 'treatment-infrared';
+    if (name === '침' || name === '전침') return 'treatment-acu';
+      if (name === '건부항' || name === '습부항') return 'treatment-cupping';
+      if (name === '단추' || name === '복추' || name === '추나') return 'treatment-chuna';
+      if (name === '왕뜸' || name === '전자뜸') return 'treatment-moxa';
+      if (/^약침/.test(name)) return 'treatment-pharm';
+      if (name === '진찰' || name === '베드진찰') return 'treatment-exam';
+      return '';
+    };
+    const renderTreatmentBadge = (treatment) => {
+      const label = String(treatment || '치료').trim() || '치료';
+      const className = getTreatmentBadgeClass(label);
+      return `<div class="upcoming-time treatment-badge ${className}">${escapeHtml(label)}</div>`;
+    };
+    const renderTreatmentAlertHtml = (item, options = {}) => {
+      const main = options.main || `${item.bedLabel || ''} ${item.name || '환자'}`.trim();
+      return `
+        <div class="upcoming-item assignment no-dismiss">
+          ${renderTreatmentBadge(item.treatment)}
+          <div>
+            <div class="upcoming-main">${escapeHtml(main)}</div>
+            ${options.sub ? `<div class="upcoming-sub">${options.sub}</div>` : ''}
+            ${options.staffLine ? `<div class="upcoming-staff">${options.staffLine}</div>` : ''}
+          </div>
+        </div>`;
+    };
     const renderDoctorProcedureAlertHtml = (item) => `
-        <div class="upcoming-item assignment no-dismiss doctor-alert-simple-item">
-          <div class="upcoming-main">${escapeHtml(item.message)}</div>
-        </div>`;
-    const renderSimpleDoctorProcedureAlertHtml = (item) => `
-        <div class="upcoming-item assignment no-dismiss doctor-alert-simple-item">
-          <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name || '환자')} ${escapeHtml(item.treatment)}</div>
-        </div>`;
+      ${renderTreatmentAlertHtml(item)}`;
+    const renderSimpleDoctorProcedureAlertHtml = (item) => renderTreatmentAlertHtml(item);
     const renderDoctorAlertSplitHtml = () => {
       const doctors = getSortedStaff('doctors').slice(0, 2);
       return Array.from({ length: 2 }, (_, index) => {
@@ -6533,9 +6966,9 @@ let migratedCount = 0;
           timestamp: Number(item.timestamp || 0),
           html: `
         <div class="upcoming-item">
-          <div class="upcoming-time">${item.alertPending ? '완료' : formatUpcomingTime(item.remaining)}</div>
+          ${renderTreatmentBadge(item.treatment)}
           <div>
-            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)} ${escapeHtml(item.treatment)} 완료</div>
+            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}</div>
             ${item.alertPending ? '' : `<div class="upcoming-sub">${formatTimer(item.remaining)}</div>`}
             ${staffLine ? `<div class="upcoming-staff">${staffLine}</div>` : ''}
           </div>
@@ -6560,14 +6993,7 @@ let migratedCount = 0;
         ].filter(Boolean).join(' · ');
         return {
           timestamp: Number(item.timestamp || 0),
-          html: `
-        <div class="upcoming-item assignment no-dismiss">
-          <div class="upcoming-time">치료</div>
-          <div>
-            <div class="upcoming-main">${escapeHtml(item.message)}</div>
-            ${staffLine ? `<div class="upcoming-staff">${staffLine}</div>` : ''}
-          </div>
-        </div>`
+          html: renderTreatmentAlertHtml(item, { staffLine })
         };
       })
       : [];
@@ -6593,6 +7019,7 @@ let migratedCount = 0;
     if (inputDoctorSplit) inputDoctorSplit.innerHTML = doctorSplitHtml;
     const receiveDoctorSplit = document.getElementById('receiveDoctorAlertSplit');
     if (receiveDoctorSplit) receiveDoctorSplit.innerHTML = doctorSplitHtml;
+    renderBedDoctorAlertPanel();
     updateAlertListAudioState();
   }
 
@@ -6672,7 +7099,7 @@ let migratedCount = 0;
     renderBedDetail();
     renderReceiveBedDetail();
     try {
-      await update(ref(db, `${BEDS_PATH}/${bedNo}/doctorProcedureAlert`), patch);
+      await updateBedChildRecord(bedNo, 'doctorProcedureAlert', patch);
     } catch (e) {
       console.error(e);
       showToast('시술 알림 확인 저장 실패');
@@ -6775,6 +7202,7 @@ let migratedCount = 0;
   window.selectBed = (bedNo) => {
     const doctorBedNums = getDoctorBedNumbers();
     if (!ACTIVE_BED_NUMBERS.includes(bedNo) && !doctorBedNums.includes(bedNo)) bedNo = doctorBedNums[0] || 1;
+    if (selectedBedNo !== bedNo) bedMovePanelOpenFor = null;
     selectedBedNo = bedNo;
     renderBedSelector();
     renderBedDetail();
@@ -6789,6 +7217,7 @@ let migratedCount = 0;
     populateBedEditForm();
     renderBedDetailInto(detail, selectedBedNo, true);
     updateBedRemainingChip();
+    renderBedDoctorAlertPanel();
   }
 
   function renderReceiveBedDetail() {
@@ -7150,12 +7579,46 @@ let migratedCount = 0;
     return parts.map(part => `<span class="bed-patient-summary-chip">${escapeHtml(part)}</span>`).join('');
   }
 
+  function getBedMoveTargetNumbers() {
+    return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS];
+  }
+
+  function renderBedMovePanel(bedNo) {
+    const targets = getBedMoveTargetNumbers();
+    const buttons = targets.map(targetNo => {
+      const targetBed = getBedData(targetNo);
+      const isCurrent = Number(targetNo) === Number(bedNo);
+      const occupied = Boolean(targetBed);
+      const status = isCurrent ? '현재' : (occupied ? '교환' : '이동');
+      const detail = occupied ? (targetBed.name || '환자') : '비어 있음';
+      return `
+        <button class="bed-move-target ${occupied ? 'occupied' : 'empty'}" type="button"
+          ${isCurrent ? 'disabled' : `onclick="selectBedMoveTarget(${bedNo}, ${targetNo})"`}>
+          ${escapeHtml(getBedLabel(targetNo))}<br><span>${escapeHtml(status)} · ${escapeHtml(detail)}</span>
+        </button>`;
+    }).join('');
+    return `
+      <div class="bed-move-panel">
+        <div class="bed-move-panel-head">
+          <span>이동/교환할 베드 선택</span>
+          <span>${targets.length}개</span>
+        </div>
+        <div class="bed-move-grid">${buttons}</div>
+      </div>`;
+  }
+
   function renderBedDetailPatientInfo(bed, bedNo, showClearButton = false, options = {}) {
     const patientSummary = getBedDetailPatientSummaryChips(bed, options.includeIdentity !== false);
     const infoChips = [
       bed.doctorName || '-',
       bed.nurseName || '-'
     ].map(value => `<span class="bed-meta-chip">${escapeHtml(value)}</span>`).join('');
+    const showMovePanel = showClearButton && contextIsBedMoveTarget(bedNo);
+    const actionButtons = showClearButton ? `
+      <div class="bed-detail-actions">
+        <button class="bed-move-btn" type="button" onclick="toggleBedMovePanel(${bedNo})">베드 이동</button>
+        <button class="bed-clear-btn" type="button" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>
+      </div>` : '';
 
     return `
       <div class="bed-detail-info${showClearButton ? ' has-action' : ''}">
@@ -7164,8 +7627,13 @@ let migratedCount = 0;
           <div class="bed-detail-chip-row">${infoChips}</div>
           <div class="bed-detail-treatment-row">${renderBedDetailTreatmentChips(bed, bedNo)}</div>
         </div>
-        ${showClearButton ? `<button class="bed-clear-btn" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>` : ''}
+        ${actionButtons}
+        ${showMovePanel ? renderBedMovePanel(bedNo) : ''}
       </div>`;
+  }
+
+  function contextIsBedMoveTarget(bedNo) {
+    return Number(bedMovePanelOpenFor) === Number(bedNo);
   }
 
   function getPostTreatmentPackageBalanceMessage(bed, packages, balances) {
@@ -7173,7 +7641,7 @@ let migratedCount = 0;
     if (!treatments.length) return '';
 
     const normalizedTreatments = treatments.map(treatment => String(treatment || '').replace(/\s+/g, ''));
-    const hasChuna = normalizedTreatments.some(name => name.includes('추나'));
+    const hasChuna = normalizedTreatments.some(name => name.includes('추나') || name === '단추' || name === '복추');
     const unitMap = {
       '약침1': hasChuna ? 0.5 : 1,
       '약침2': hasChuna ? 1 : 2,
@@ -7319,7 +7787,7 @@ let migratedCount = 0;
   }
 
   // 타이머 불필요 치료 (시행완료 버튼만 표시)
-  const NO_TIMER_TREATMENTS = new Set(['진찰', '추나']);
+  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나']);
   function isNoTimerTreatment(name) {
     if (!name) return false;
     if (NO_TIMER_TREATMENTS.has(name)) return true;
@@ -7426,7 +7894,7 @@ let migratedCount = 0;
     const bed = getBedData(bedNo);
     if (!bed || bed.running || bed.complete || getRemaining(bed) <= 0) return;
 
-    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+    await updateBedRecord(bedNo, {
       running: true,
       startedAt: Date.now(),
       remaining: getRemaining(bed)
@@ -7453,7 +7921,7 @@ let migratedCount = 0;
     const patientName = bedBefore?.name || '';
     const alertId = `${bedBefore?.patientKey || bedNo}-${bedBefore?.currentIndex || 0}-${Date.now()}`;
 
-    const result = await runTransaction(ref(db, `${BEDS_PATH}/${bedNo}`), (bed) => {
+    const result = await runBedRecordTransaction(bedNo, (bed) => {
       if (!bed || bed.complete) return bed;
 
       const remaining = getRemaining(bed);
@@ -7505,7 +7973,7 @@ let migratedCount = 0;
     const bed = getBedData(bedNo);
     if (!bed) return;
 
-    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+    await updateBedRecord(bedNo, {
       running: false,
       startedAt: null,
       remaining: getRemaining(bed)
@@ -7530,7 +7998,7 @@ let migratedCount = 0;
     };
 
     const updates = [
-      update(ref(db, `${BEDS_PATH}/${selectedBedNo}`), { bodyParts: nextBodyParts })
+      updateBedRecord(selectedBedNo, { bodyParts: nextBodyParts })
     ];
 
     if (bed.patientKey) {
@@ -7615,7 +8083,7 @@ let migratedCount = 0;
     renderBedMonitors();
 
     try {
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), { ...payload, ...timerUpdates });
+      await updateBedRecord(bedNo, { ...payload, ...timerUpdates });
       if (bed.patientKey) {
         await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
       }
@@ -7634,7 +8102,7 @@ let migratedCount = 0;
     if (!bed) return;
 
     const total = getTreatmentSeconds(bed.treatments[bed.currentIndex]);
-    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+    await updateBedRecord(bedNo, {
       running: false,
       startedAt: null,
       total,
@@ -7651,7 +8119,7 @@ let migratedCount = 0;
     if (nextIndex === bed.currentIndex || !treatments[nextIndex]) return;
 
     const total = getTreatmentSeconds(treatments[nextIndex]);
-    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+    await updateBedRecord(bedNo, {
       currentIndex: nextIndex,
       running: false,
       startedAt: null,
@@ -7673,7 +8141,7 @@ let migratedCount = 0;
 
     if (nextIndex >= treatments.length) {
       // 마지막 치료 → 전체 완료
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+      await updateBedRecord(bedNo, {
         running: false,
         startedAt: null,
         remaining: 0,
@@ -7685,7 +8153,7 @@ let migratedCount = 0;
     } else {
       // 다음 치료로 이동
       const nextTotal = getTreatmentSeconds(treatments[nextIndex]);
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+      await updateBedRecord(bedNo, {
         currentIndex: nextIndex,
         running: false,
         startedAt: null,
@@ -7719,7 +8187,7 @@ let migratedCount = 0;
     const bed = getBedData(bedNo);
     if (!bed) return;
     const safeTotal = Math.max(1, Math.min(120 * 60, Math.round(Number(total) || 0)));
-    await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+    await updateBedRecord(bedNo, {
       running: false,
       startedAt: null,
       total: safeTotal,
@@ -7816,7 +8284,7 @@ let migratedCount = 0;
       loadedKeys.delete(bed.patientKey);
       await remove(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`));
     }
-    await remove(ref(db, `${BEDS_PATH}/${bedNo}`));
+    await removeBedRecord(bedNo);
   };
 
   window.confirmClearBed = async (event, bedNo) => {
@@ -7836,6 +8304,33 @@ let migratedCount = 0;
 
   window.confirmClearSelectedBed = async () => {
     await confirmClearBedNumber(selectedBedNo);
+  };
+
+  window.toggleBedMovePanel = (bedNo) => {
+    bedMovePanelOpenFor = Number(bedMovePanelOpenFor) === Number(bedNo) ? null : Number(bedNo);
+    renderBedDetail();
+  };
+
+  window.selectBedMoveTarget = async (fromBedNo, toBedNo) => {
+    fromBedNo = Number(fromBedNo);
+    toBedNo = Number(toBedNo);
+    if (fromBedNo === toBedNo) return;
+    const fromBed = getBedData(fromBedNo);
+    if (!fromBed) {
+      showToast('이동할 환자가 없습니다');
+      bedMovePanelOpenFor = null;
+      renderBedDetail();
+      return;
+    }
+    const ok = await moveOrSwapBed(fromBedNo, toBedNo);
+    if (ok) {
+      bedMovePanelOpenFor = null;
+      renderBedSelector();
+      renderBedDetail();
+      renderReceiveBedDetail();
+      renderBedMonitors();
+      syncFixedBedArrivalOverlay();
+    }
   };
 
   async function updatePatientBedNoForBed(bedNo, bed) {
@@ -7858,7 +8353,7 @@ let migratedCount = 0;
     if (!fromBed) return false;
     const hadTargetBed = Boolean(getBedData(toBedNo));
 
-    const result = await runTransaction(ref(db, BEDS_PATH), (beds) => {
+    const result = await runBedsRecordTransaction((beds) => {
       beds = beds || {};
       const fromKey = String(fromBedNo);
       const toKey = String(toBedNo);
@@ -7942,7 +8437,7 @@ let migratedCount = 0;
     try {
       await Promise.all([
         update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), patientPatch),
-        remove(ref(db, `${BEDS_PATH}/${bedNo}`))
+        removeBedRecord(bedNo)
       ]);
       patientsByKey.set(bed.patientKey, {
         ...(patientsByKey.get(bed.patientKey) || {}),
@@ -8126,7 +8621,7 @@ let migratedCount = 0;
     nextCurrentIndex = Math.max(0, Math.min(treatments.length - 1, nextCurrentIndex));
 
     try {
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), {
+      await updateBedRecord(bedNo, {
         treatments,
         currentIndex: nextCurrentIndex
       });
@@ -8167,7 +8662,7 @@ let migratedCount = 0;
     };
 
     try {
-      await update(ref(db, `${BEDS_PATH}/${bedNo}`), resetPayload);
+      await updateBedRecord(bedNo, resetPayload);
       if (bed.patientKey) {
         await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { treatments });
       }
@@ -8325,7 +8820,7 @@ let migratedCount = 0;
     if (status.empty) {
       const compactLabel = `${getCompactBedMarker(status.bedNo)} 비어 있음`;
       return `
-        <div class="bed-status${compact ? ' compact' : ''}${activeClass}" tabindex="0"${moveHandlers}>
+        <div class="bed-status empty${compact ? ' compact' : ''}${activeClass}" tabindex="0"${moveHandlers}>
           <div class="bed-status-top">
             <span class="bed-status-no">${compact ? escapeHtml(compactLabel) : `${escapeHtml(status.bedLabel)} 비어 있음`}</span>
             ${compact ? '' : '<span class="bed-status-time">-</span>'}
@@ -8397,6 +8892,9 @@ let migratedCount = 0;
       '전침',
       '진료',
       '진찰',
+      '베드진찰',
+      '단추',
+      '복추',
       '추나',
       '침',
       '건부항',
@@ -8784,7 +9282,7 @@ let migratedCount = 0;
   async function acknowledgeTimerAlert(alert) {
     if (!alert?.bedNo || !alert?.alertId) return;
 
-    await runTransaction(ref(db, `${BEDS_PATH}/${alert.bedNo}`), (bed) => {
+    await runBedRecordTransaction(alert.bedNo, (bed) => {
       if (!bed || bed.lastAlertId !== alert.alertId) return bed;
       return {
         ...bed,
@@ -8799,7 +9297,7 @@ let migratedCount = 0;
     if (!bed?.lastAlertId) return;
     const alertId = bed.lastAlertId;
 
-    await runTransaction(ref(db, `${BEDS_PATH}/${bedNo}`), (currentBed) => {
+    await runBedRecordTransaction(bedNo, (currentBed) => {
       if (!currentBed || currentBed.lastAlertId !== alertId) return currentBed;
       return {
         ...currentBed,
@@ -8884,6 +9382,17 @@ let migratedCount = 0;
 
   async function lookupChartPatient(chartNo) {
     if (!chartNo) return null;
+    if (SERVER_MODE) {
+      try {
+        const res = await fetch(`/api/patients/${encodeURIComponent(chartNo)}`, { cache: 'no-store' });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error('server patient lookup failed');
+        return await res.json();
+      } catch (error) {
+        console.error('서버 차트 조회 실패', error);
+        return null;
+      }
+    }
     try {
       const db = await openChartDb();
       return await new Promise((resolve, reject) => {
@@ -8915,6 +9424,27 @@ let migratedCount = 0;
   window.saveChartPatient = async function(data) {
     if (!data.chartNo) return;
     try {
+      if (SERVER_MODE) {
+        const existing = await lookupChartPatient(data.chartNo) || {};
+        const { visitEntry, visitEntries, ...plainData } = data;
+        const visitPatch = mergeChartVisitHistory(existing, { visitEntry, visitEntries });
+        const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
+        const next = { ...existing, ...plainData, ...visitFields };
+        if (latestVisit) {
+          next.treatments = latestVisit.treatments || [];
+          next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
+          next.doctorName = latestVisit.doctorName || '';
+        }
+        if (latestChiefComplaint) next.chiefComplaint = latestChiefComplaint;
+        if (data.appointmentDate === null) delete next.appointmentDate;
+        const res = await fetch(`/api/patients/${encodeURIComponent(next.chartNo)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify(next)
+        });
+        if (!res.ok) throw new Error('server patient save failed');
+        return;
+      }
       const db = await openChartDb();
       await new Promise((resolve, reject) => {
         const tx = db.transaction(CHART_STORE, 'readwrite');
@@ -8943,6 +9473,16 @@ let migratedCount = 0;
   };
 
   async function getAllChartPatients() {
+    if (SERVER_MODE) {
+      try {
+        const res = await fetch('/api/patients', { cache: 'no-store' });
+        if (!res.ok) throw new Error('server patient list failed');
+        return await res.json();
+      } catch (error) {
+        console.error('서버 차트 목록 조회 실패', error);
+        return [];
+      }
+    }
     try {
       const db = await openChartDb();
       return await new Promise((resolve, reject) => {
@@ -8989,7 +9529,7 @@ let migratedCount = 0;
     const gridId = ids.treatmentGrid;
     if (!gridId) return;
     treatmentSelections[gridId] = (treatmentNames || [])
-      .map(name => TREATMENTS.find(t => t.name === name))
+      .map(name => getTreatmentByName(name))
       .filter(Boolean);
     renderTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
@@ -9009,6 +9549,12 @@ let migratedCount = 0;
   // ── 차트 DB 건수 표시 ─────────────────────────────────────────────
   async function updateChartDbCount() {
     try {
+      if (SERVER_MODE) {
+        const records = await getAllChartPatients();
+        const el = document.getElementById('chartDbCountText');
+        if (el) el.textContent = `저장된 환자 ${records.length.toLocaleString()}명`;
+        return;
+      }
       const db = await openChartDb();
       const count = await new Promise((resolve, reject) => {
         const req = db.transaction(CHART_STORE, 'readonly').objectStore(CHART_STORE).count();
@@ -9023,6 +9569,24 @@ let migratedCount = 0;
 
   // ── 차트 DB 전체 삭제 ─────────────────────────────────────────────
   window.clearChartDb = async function() {
+    if (SERVER_MODE) {
+      if (!confirm('환자 차트 DB를 전체 삭제하시겠습니까?')) return;
+      if (!confirm('정말 전체 삭제합니다. 이 작업은 되돌리기 어렵습니다. 계속할까요?')) return;
+      try {
+        const res = await fetch('/api/import/patients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ mode: 'replace', patients: [] })
+        });
+        if (!res.ok) throw new Error('server patient clear failed');
+        updateChartDbCount();
+        refreshAppointmentAlerts();
+        document.getElementById('chartImportStatus').textContent = '전체 삭제 완료';
+      } catch(e) {
+        alert('삭제 실패: ' + e.message);
+      }
+      return;
+    }
     if (!confirm('로컬 환자 차트 DB를 전체 삭제하시겠습니까?')) return;
     try {
       const db = await openChartDb();
@@ -9290,6 +9854,7 @@ let migratedCount = 0;
       const colDiag   = detectColumn(headers, ['주상병명']);
       const colDate   = detectColumn(headers, ['진료일자','진료일','내원일']);
       const colDoctor = detectColumn(headers, ['진료의사','진료의','담당의','담당원장']);
+      const colPhone  = detectColumn(headers, ['연락처','전화번호','휴대폰','핸드폰','휴대전화','전화','Tel','TEL','Mobile','Phone']);
 
       if (!colChart) { statusEl.textContent = '❌ 차트번호 컬럼을 찾을 수 없습니다. 컬럼명을 확인해주세요.'; return; }
       if (!colName)  { statusEl.textContent = '❌ 환자명 컬럼을 찾을 수 없습니다.'; return; }
@@ -9322,22 +9887,71 @@ let migratedCount = 0;
         const chiefComplaint = colDiag   ? String(row[colDiag]   || '').trim() : '';
         const doctorName     = colDoctor ? String(row[colDoctor] || '').trim() : '';
         const visitDate      = colDate   ? parseImportDate(row[colDate]) : '';
+        const phone          = colPhone  ? String(row[colPhone]  || '').trim() : '';
 
-        const agg = byChart.get(chartNo) || { chartNo, name, age: '', gender: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
+        const agg = byChart.get(chartNo) || { chartNo, name, age: '', gender: '', phone: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
         // 마스터 정보는 최신(나중) 행 값으로 갱신, 빈 값은 기존 유지
         agg.name = name || agg.name;
         if (age) agg.age = Number(age);
         if (gender) agg.gender = gender;
+        if (phone) agg.phone = phone;
         if (chiefComplaint) agg.chiefComplaint = chiefComplaint;
         if (doctorName) agg.doctorName = doctorName;
         if (visitDate) agg.visitEntries.push({ date: visitDate, doctorName, chiefComplaint });
         byChart.set(chartNo, agg);
       }
 
-      const db = await openChartDb();
       let saved = 0;
       const patients = [...byChart.values()];
+      const buildImportRecord = (agg, existing = {}) => {
+        const visitPatch = mergeChartVisitHistory(existing, { visitEntries: agg.visitEntries });
+        const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
+        const record = {
+          visitType: '',
+          memo: '',
+          treatments: [],
+          bodyParts: normalizeBodyParts(),
+          doctorName: '',
+          appointmentDate: '',
+          ...existing,
+          chartNo: agg.chartNo,
+          name: agg.name,
+          age: agg.age !== '' ? agg.age : (existing.age ?? ''),
+          gender: agg.gender || existing.gender || '',
+          phone: agg.phone || existing.phone || existing.phoneNumber || existing.tel || existing.mobile || existing.contact || '',
+          doctorName: agg.doctorName || existing.doctorName || '',
+          chiefComplaint: latestChiefComplaint || agg.chiefComplaint || existing.chiefComplaint || '',
+          bodyParts: normalizeBodyParts(existing.bodyParts),
+          packages: createEmptyPackageState(existing),
+          ...visitFields
+        };
+        Object.assign(record, getPCreditsFromPatient(existing));
+        return record;
+      };
 
+      if (SERVER_MODE) {
+        const existingRecords = await getAllChartPatients();
+        const existingByChart = new Map(existingRecords.map(record => [String(record.chartNo || ''), record]));
+        const records = patients.map(agg => buildImportRecord(agg, existingByChart.get(agg.chartNo) || {}));
+        const BATCH = 1000;
+        for (let i = 0; i < records.length; i += BATCH) {
+          const batch = records.slice(i, i + BATCH);
+          const res = await fetch('/api/import/patients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            body: JSON.stringify({ mode: 'merge', patients: batch })
+          });
+          if (!res.ok) throw new Error('server patient import failed');
+          saved += batch.length;
+          statusEl.textContent = `저장 중... ${Math.min(i + BATCH, records.length)} / ${records.length}`;
+        }
+        updateChartDbCount();
+        refreshAppointmentAlerts();
+        statusEl.textContent = `총 ${saved.toLocaleString()}명 저장 완료 (원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped}행 건너뜀` : ''})`;
+        return;
+      }
+
+      const db = await openChartDb();
       const BATCH = 500;
       for (let i = 0; i < patients.length; i += BATCH) {
         const batch = patients.slice(i, i + BATCH);
@@ -9349,28 +9963,7 @@ let migratedCount = 0;
             const getReq = store.get(agg.chartNo);
             getReq.onsuccess = () => {
               const existing = getReq.result || {};
-              const visitPatch = mergeChartVisitHistory(existing, { visitEntries: agg.visitEntries });
-              const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
-              const record = {
-                visitType: '',
-                memo: '',
-                treatments: [],
-                bodyParts: normalizeBodyParts(),
-                doctorName: '',
-                appointmentDate: '',
-                ...existing,
-                chartNo: agg.chartNo,
-                name: agg.name,
-                age: agg.age !== '' ? agg.age : (existing.age ?? ''),
-                gender: agg.gender || existing.gender || '',
-                doctorName: agg.doctorName || existing.doctorName || '',
-                chiefComplaint: latestChiefComplaint || agg.chiefComplaint || existing.chiefComplaint || '',
-                bodyParts: normalizeBodyParts(existing.bodyParts),
-                packages: createEmptyPackageState(existing),
-                ...visitFields
-              };
-              Object.assign(record, getPCreditsFromPatient(existing));
-              store.put(record);
+              store.put(buildImportRecord(agg, existing));
             };
             saved++;
           }
@@ -9686,7 +10279,7 @@ let migratedCount = 0;
     ['input', 'doctor', 'notify', 'receive', 'bed', 'settings'].forEach(name => {
       document.body.classList.toggle(`app-mode-${name}`, mode === name);
     });
-    const modes = ['input', 'doctor', 'notify', 'receive', 'bed', 'settings'];
+    const modes = ['input', 'notify', 'receive', 'bed', 'settings'];
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', modes[i] === mode);
     });
