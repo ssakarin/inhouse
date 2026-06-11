@@ -708,6 +708,26 @@
   .upcoming-time.treatment-moxa { background: rgba(180,83,9,0.36); border-color: rgba(245,158,11,0.88); color: #ffb14a; }
   .upcoming-time.treatment-pharm { background: rgba(244,114,182,0.20); border-color: rgba(244,114,182,0.72); color: #ffc1df; }
   .upcoming-time.treatment-exam { background: rgba(148,163,184,0.20); border-color: rgba(148,163,184,0.62); color: #d7dee8; }
+  .treatment-complete-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.12);
+    font-size: 11px;
+    font-weight: 900;
+    vertical-align: 1px;
+  }
+  .treatment-complete-label.treatment-hotpack { background: rgba(250,204,21,0.30); border-color: rgba(250,204,21,0.92); color: #fde047; }
+  .treatment-complete-label.treatment-physical { background: rgba(57,169,245,0.22); border-color: rgba(57,169,245,0.72); color: #9edcff; }
+  .treatment-complete-label.treatment-infrared { background: rgba(239,68,68,0.24); border-color: rgba(239,68,68,0.84); color: #ffc0c0; }
+  .treatment-complete-label.treatment-acu { background: rgba(74,222,128,0.20); border-color: rgba(74,222,128,0.70); color: #9bf2b5; }
+  .treatment-complete-label.treatment-cupping { background: rgba(251,113,133,0.20); border-color: rgba(251,113,133,0.72); color: #ffb4c0; }
+  .treatment-complete-label.treatment-chuna { background: rgba(168,139,250,0.22); border-color: rgba(168,139,250,0.72); color: #d8ccff; }
+  .treatment-complete-label.treatment-moxa { background: rgba(180,83,9,0.36); border-color: rgba(245,158,11,0.88); color: #ffb14a; }
+  .treatment-complete-label.treatment-pharm { background: rgba(244,114,182,0.20); border-color: rgba(244,114,182,0.72); color: #ffc1df; }
+  .treatment-complete-label.treatment-exam { background: rgba(148,163,184,0.20); border-color: rgba(148,163,184,0.62); color: #d7dee8; }
   .upcoming-main {
     min-width: 0;
     color: var(--text);
@@ -3318,6 +3338,9 @@
   let localFallbackActive = false;
   let localFallbackDirty = false;
   let localFallbackPollTimer = null;
+  const LOCAL_BEDS_MIRROR_DELAY_MS = 1500;
+  let localBedsMirrorTimer = null;
+  let pendingLocalBedsMirror = null;
 
   function updateConnectionStatusLabel() {
     const el = document.getElementById('connectionStatusText');
@@ -3356,6 +3379,29 @@
     } catch (error) {
       console.warn('로컬 스냅샷 저장 실패', key, error);
     }
+  }
+
+  function scheduleLocalBedsMirror(beds) {
+    if (!SERVER_MODE) return;
+    pendingLocalBedsMirror = clonePlain(beds || {});
+    if (localBedsMirrorTimer) clearTimeout(localBedsMirrorTimer);
+    localBedsMirrorTimer = setTimeout(async () => {
+      const snapshot = pendingLocalBedsMirror || {};
+      pendingLocalBedsMirror = null;
+      localBedsMirrorTimer = null;
+      await syncLocalSnapshot('beds', snapshot);
+    }, LOCAL_BEDS_MIRROR_DELAY_MS);
+  }
+
+  async function flushLocalBedsMirror() {
+    if (!SERVER_MODE || !pendingLocalBedsMirror) return;
+    if (localBedsMirrorTimer) {
+      clearTimeout(localBedsMirrorTimer);
+      localBedsMirrorTimer = null;
+    }
+    const snapshot = pendingLocalBedsMirror;
+    pendingLocalBedsMirror = null;
+    await syncLocalSnapshot('beds', snapshot);
   }
 
   function isBedScreenWakeLockTarget() {
@@ -5278,6 +5324,7 @@
   function populateBedEditForm() {
     const bed = getBedData(selectedBedNo);
     const ids = PATIENT_FORM_IDS.bed;
+    formEditBedNoByScope.bed = selectedBedNo;
     if (!bed) {
       setIdentityFieldsLocked('bed', false);
       document.getElementById(ids.name).value = '';
@@ -6164,7 +6211,7 @@
     firebaseConnected = true;
     localFallbackActive = false;
     updateConnectionStatusLabel();
-    await syncLocalSnapshot('beds', beds);
+    scheduleLocalBedsMirror(beds);
     await applyBedsState(beds, { allowMigration: true, allowAutoAssign: true, fromLocalFallback: false });
   });
 
@@ -6224,6 +6271,7 @@
       }
       return;
     }
+    await flushLocalBedsMirror();
     loadLocalFallbackBeds();
     if (SERVER_MODE && !localFallbackPollTimer) {
       localFallbackPollTimer = setInterval(() => {
@@ -6831,6 +6879,10 @@
       const className = getTreatmentBadgeClass(label);
       return `<div class="upcoming-time treatment-badge ${className}">${escapeHtml(label)}</div>`;
     };
+    const renderTreatmentCompleteLabel = (treatment) => {
+      const className = getTreatmentBadgeClass(treatment);
+      return `<span class="treatment-complete-label ${className}">완료</span>`;
+    };
     const renderTreatmentAlertHtml = (item, options = {}) => {
       const main = options.main || `${item.bedLabel || ''} ${item.name || '환자'}`.trim();
       return `
@@ -6968,7 +7020,7 @@
         <div class="upcoming-item">
           ${renderTreatmentBadge(item.treatment)}
           <div>
-            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}</div>
+            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}${item.alertPending ? ` ${renderTreatmentCompleteLabel(item.treatment)}` : ''}</div>
             ${item.alertPending ? '' : `<div class="upcoming-sub">${formatTimer(item.remaining)}</div>`}
             ${staffLine ? `<div class="upcoming-staff">${staffLine}</div>` : ''}
           </div>
@@ -8042,7 +8094,7 @@
   }
 
   async function autoSaveSelectFields(scope) {
-    const bedNo = formEditBedNoByScope[scope];
+    const bedNo = scope === 'bed' ? selectedBedNo : formEditBedNoByScope[scope];
     if (!bedNo) return;
     const bed = getBedData(bedNo);
     if (!bed) return;
@@ -8080,6 +8132,12 @@
       });
     }
     renderBedDetailInto(document.getElementById('bedDetail'), bedNo, true);
+    if (scope === 'bed' && bedNo === selectedBedNo) {
+      renderBodyPartSelector();
+      renderTreatmentChips(PATIENT_FORM_IDS.bed.treatmentGrid);
+      syncTreatBtnStates(PATIENT_FORM_IDS.bed.treatmentGrid);
+      updateBedRemainingChip();
+    }
     renderBedMonitors();
 
     try {
@@ -8091,6 +8149,12 @@
     } catch(e) {
       Object.assign(bed, previousBedState);
       renderBedDetailInto(document.getElementById('bedDetail'), bedNo, true);
+      if (scope === 'bed' && bedNo === selectedBedNo) {
+        renderBodyPartSelector();
+        renderTreatmentChips(PATIENT_FORM_IDS.bed.treatmentGrid);
+        syncTreatBtnStates(PATIENT_FORM_IDS.bed.treatmentGrid);
+        updateBedRemainingChip();
+      }
       renderBedMonitors();
       console.error('선택 필드 자동저장 실패', e);
     }
@@ -9139,9 +9203,8 @@
   }
 
   function shouldPlayAlertListAudio() {
-    if (!['input', 'doctor', 'receive'].includes(window.currentMode)) return false;
-    const listId = window.currentMode === 'input' ? 'inputUpcomingAlerts' : 'receiveUpcomingAlerts';
-    return Boolean(document.getElementById(listId)?.querySelector('.upcoming-item'));
+    if (!['receive', 'notify'].includes(window.currentMode)) return false;
+    return getAllBedEntries().some(({ bed }) => Boolean(bed?.lastAlertId));
   }
 
   function startAlertListBeeps() {
