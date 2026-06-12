@@ -1838,7 +1838,7 @@
     white-space: nowrap;
   }
   .bed-treatment-chip.done { background: rgba(255,202,106,0.22); border: 1px solid rgba(255,202,106,0.68); color: var(--gold); }
-  .bed-treatment-chip.current { background: rgba(57,169,245,0.24); border: 1px solid rgba(57,169,245,0.78); color: var(--text); animation: treatmentBlink 1s ease-in-out infinite; }
+  .bed-treatment-chip.current { background: rgba(57,169,245,0.24); border: 1px solid rgba(57,169,245,0.78); color: var(--text); }
   .bed-treatment-chip.running { animation: treatmentBlink 1s ease-in-out infinite; }
   .bed-treatment-chip.waiting { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: var(--text2); }
   .bed-treatment-chip[draggable="true"] { cursor: grab; }
@@ -6877,7 +6877,12 @@
 
   function renderUpcomingAlerts() {
     const renderAlertItemsHtml = (items) => items
-      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
+      .sort((a, b) => {
+        const priorityDiff = Number(a.alertPriority ?? 1) - Number(b.alertPriority ?? 1);
+        if (priorityDiff) return priorityDiff;
+        if (a.alertPending && b.alertPending) return Number(b.timestamp || 0) - Number(a.timestamp || 0);
+        return Number(a.timestamp || 0) - Number(b.timestamp || 0);
+      })
       .map(item => item.html)
       .join('');
     const getTreatmentBadgeClass = (treatment) => {
@@ -7025,7 +7030,11 @@
         };
       })
       .filter(Boolean)
-      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+      .sort((a, b) => {
+        if (a.alertPending !== b.alertPending) return a.alertPending ? -1 : 1;
+        if (a.alertPending) return Number(b.timestamp || 0) - Number(a.timestamp || 0);
+        return Number(a.timestamp || 0) - Number(b.timestamp || 0);
+      });
 
     const timerAlertItems = upcoming.length
       ? upcoming.map(item => {
@@ -7034,6 +7043,8 @@
           item.nurseName ? `간호사 ${escapeHtml(item.nurseName)}` : ''
         ].filter(Boolean).join(' · ');
         return {
+          alertPending: item.alertPending,
+          alertPriority: item.alertPending ? 0 : 1,
           timestamp: Number(item.timestamp || 0),
           html: `
         <div class="upcoming-item">
@@ -7590,12 +7601,11 @@
     }
 
     const currentIndex = Number(bed.currentIndex || 0);
-    const procedureBlinking = isDoctorProcedureBlinking(bedNo, bed);
     return treatments.map((treatment, index) => {
       const chipClass = bed.complete
         ? 'done'
         : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'waiting'));
-      const runningClass = (bed.running || procedureBlinking) && index === currentIndex ? ' running' : '';
+      const runningClass = bed.running && index === currentIndex ? ' running' : '';
       return `<span class="bed-treatment-chip ${chipClass}${runningClass}" draggable="true"
         ondragstart="handleTreatChipDragStart(event,${bedNo},${index})"
         ondragover="handleTreatChipDragOver(event,${bedNo},${index})"
@@ -8776,7 +8786,7 @@
     const isWaitingToStart = !bed.complete && !bed.running && remainingSeconds >= totalSeconds;
     const stageState = bed.complete
       ? 'complete'
-      : ((bed.running || procedureBlinking) ? 'running' : (isWaitingToStart ? 'ready' : 'paused'));
+      : (bed.running ? 'running' : (isWaitingToStart ? 'ready' : 'paused'));
     const stageLabel = bed.complete
       ? '완료'
       : (bed.running ? '진행중' : (isWaitingToStart ? '시작 전' : '일시정지'));
