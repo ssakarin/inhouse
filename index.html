@@ -3227,18 +3227,21 @@
           <div class="staff-list" id="doctorList"></div>
         </div>
         <div class="card">
-          <div class="card-label">간호사 관리</div>
-          <div class="staff-add-row">
-            <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
-            <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
-          </div>
-          <label class="rr-setting">
-            <span class="rr-setting-text">베드 자동배정</span>
+          <div class="card-label">베드 자동배정</div>
+          <label class="rr-setting" style="margin-top:0">
+            <span class="rr-setting-text">대기환자 빈 베드 자동배정</span>
             <span class="rr-switch">
               <input id="autoBedAssignEnabled" type="checkbox" onchange="saveAutoBedAssignEnabled(this.checked)">
               <span class="rr-slider"></span>
             </span>
           </label>
+        </div>
+        <div class="card">
+          <div class="card-label">간호사 관리</div>
+          <div class="staff-add-row">
+            <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
+            <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
+          </div>
           <div class="staff-list" id="nurseList"></div>
         </div>
         <div class="card">
@@ -3253,22 +3256,6 @@
           <input id="chartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
             onchange="importChartFile(this.files?.[0]); this.value='';">
           <div id="chartImportStatus" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:18px;line-height:1.5"></div>
-        </div>
-        <div class="card">
-          <div class="card-label">오늘 진료내역 (로컬)</div>
-          <div class="rr-setting" style="margin-top:0">
-            <span class="rr-setting-text" id="dailyVisitCountText">오늘 누적 0건</span>
-            <button class="timer-set-btn" onclick="exportDailyVisits()" style="flex-shrink:0">파일로 저장</button>
-          </div>
-          <div class="rr-setting" style="margin-top:8px">
-            <span class="rr-setting-text" id="dailyBackupFolderLabel">백업 폴더: 미지정</span>
-            <span style="display:flex;gap:6px;flex-shrink:0">
-              <button class="timer-set-btn" onclick="chooseBackupFolder()">폴더 지정</button>
-              <button class="timer-set-btn" onclick="backupNow()">지금 백업</button>
-            </span>
-          </div>
-          <div id="dailyBackupStatus" style="font-size:12px;color:var(--gold);margin-top:6px;min-height:16px;line-height:1.4"></div>
-          <div style="font-size:12px;color:var(--text3);margin-top:6px;line-height:1.5">베드 비우기 할 때마다 1건씩 누적됩니다. 백업 폴더(OneDrive/드라이브 동기화 폴더 권장)를 한 번 지정하면, 매일 첫 실행 시 전날치를 그 폴더에 자동 저장하고 로컬을 비웁니다. 권한 재허용이 필요하면 "지금 백업"을 한 번 누르세요.</div>
         </div>
       </div>
     </div>
@@ -3310,10 +3297,11 @@
 <div class="toast" id="toast"></div>
 
 <!-- Firebase -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getDatabase, ref, push, onChildAdded, onChildChanged, onChildRemoved, onValue, query, orderByChild, get, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+  import * as XLSX from "./vendor/xlsx/0.18.5/xlsx.mjs";
+  import { initializeApp } from "./vendor/firebase/10.12.2/firebase-app.js";
+  import { getDatabase, ref, push, onChildAdded, onChildChanged, onChildRemoved, onValue, query, orderByChild, get, set, update, remove, runTransaction } from "./vendor/firebase/10.12.2/firebase-database.js";
+  window.XLSX = XLSX;
 
   const firebaseConfig = {
     apiKey: "AIzaSyC0bPN-bEaEe7dLnfHPrQY10pnNdlkE1RA",
@@ -3766,6 +3754,35 @@
 
   // 각 그리드별 선택된 치료 순서 목록
   const treatmentSelections = {};
+  const REPEATABLE_TREATMENT_IDS = new Set([
+    'pharmacopuncture_1',
+    'pharmacopuncture_2',
+    'pharmacopuncture_3',
+    'pharmacopuncture_4',
+    'pharmacopuncture_L',
+    'pharmacopuncture_ja'
+  ]);
+  let treatmentSelectionUid = 0;
+
+  function isRepeatableTreatment(treatment) {
+    return REPEATABLE_TREATMENT_IDS.has(treatment?.id);
+  }
+
+  function createTreatmentSelectionItem(treatment) {
+    return {
+      id: treatment.id,
+      name: treatment.name,
+      uid: `${treatment.id}-${Date.now()}-${treatmentSelectionUid++}`
+    };
+  }
+
+  function getTreatmentIdsFromNames(treatments = []) {
+    return treatments.map(name => getTreatmentByName(name)?.id || '');
+  }
+
+  function countTreatmentId(treatmentIds, treatmentId) {
+    return treatmentIds.filter(id => id === treatmentId).length;
+  }
   const PCREDIT_FIELDS = [
     { key: 'p6', label: 'p6', defaultPurchaseQty: 6 },
     { key: 'p13', label: 'p13', defaultPurchaseQty: 13 },
@@ -3934,17 +3951,15 @@
     const date = usageDate || toLocalDateInputValue();
 
     const normalizedTreatments = treatments.map(treatment => String(treatment || '').replace(/\s+/g, ''));
+    const treatmentIds = getTreatmentIdsFromNames(treatments);
     const hasChuna = normalizedTreatments.some(name => name.includes('추나') || name === '단추' || name === '복추');
-    const unitMap = {
-      '약침1': hasChuna ? 0.5 : 1,
-      '약침2': hasChuna ? 1 : 2,
-      '약침3': hasChuna ? 1 : 2,
-      '약침4': hasChuna ? 2 : 4
+    const unitMapById = {
+      pharmacopuncture_1: hasChuna ? 0.5 : 1,
+      pharmacopuncture_2: hasChuna ? 1 : 2,
+      pharmacopuncture_3: hasChuna ? 1 : 2,
+      pharmacopuncture_4: hasChuna ? 2 : 4
     };
-    const deduction = normalizedTreatments.reduce((sum, name) => {
-      const match = Object.keys(unitMap).find(key => name.includes(key));
-      return match ? sum + unitMap[match] : sum;
-    }, 0);
+    const deduction = treatmentIds.reduce((sum, id) => sum + (unitMapById[id] || 0), 0);
     const hasPackageRecord = (key) => {
       const pkg = next?.[key] || {};
       return Number(pkg.openingQty || 0) > 0
@@ -3974,8 +3989,9 @@
       { key: 'p자하거', treatment: '약침자' },
       { key: 'p라인', treatment: '약침l' }
     ].forEach(({ key, treatment }) => {
-      const hasTreatment = normalizedTreatments.some(name => name.toLowerCase().includes(treatment));
-      if (hasTreatment && hasPackageRecord(key)) addUsage(key, 1);
+      const treatmentId = treatment.toLowerCase().includes('l') ? 'pharmacopuncture_L' : 'pharmacopuncture_ja';
+      const treatmentCount = countTreatmentId(treatmentIds, treatmentId);
+      if (treatmentCount && hasPackageRecord(key)) addUsage(key, treatmentCount);
     });
 
     return normalizePackageState(next);
@@ -4287,10 +4303,12 @@
     if (!treatmentSelections[gridId]) treatmentSelections[gridId] = [];
     const sel = treatmentSelections[gridId];
     const idx = sel.findIndex(s => s.id === treatment.id);
-    if (idx >= 0) {
+    if (isRepeatableTreatment(treatment)) {
+      sel.push(createTreatmentSelectionItem(treatment));
+    } else if (idx >= 0) {
       sel.splice(idx, 1);
     } else {
-      sel.push({ id: treatment.id, name: treatment.name });
+      sel.push(createTreatmentSelectionItem(treatment));
     }
     renderTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
@@ -4298,9 +4316,14 @@
     if (scope) scheduleSelectFieldSave(scope, 0);
   }
 
-  function removeChip(gridId, treatmentId) {
+  function removeChip(gridId, chipIndex) {
     if (!treatmentSelections[gridId]) return;
-    treatmentSelections[gridId] = treatmentSelections[gridId].filter(s => s.id !== treatmentId);
+    const index = Number(chipIndex);
+    if (Number.isInteger(index)) {
+      treatmentSelections[gridId].splice(index, 1);
+    } else {
+      treatmentSelections[gridId] = treatmentSelections[gridId].filter(s => s.id !== chipIndex);
+    }
     renderTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
     const scope = getScopeFromGridId?.(gridId);
@@ -4556,7 +4579,7 @@
               <div class="staff-name">${escapeHtml(data.name || '')}</div>
               ${type === 'nurses' ? `<label class="staff-vacation-toggle">
                 <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="toggleNurseVacation('${key}', this.checked)">
-                휴가
+                자리비움
               </label>` : ''}
               <button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>
             </div>`).join('')
@@ -4925,12 +4948,12 @@
     renderStaffControls();
     try {
       await update(ref(db, `staff/nurses/${key}`), { vacation: Boolean(checked) });
-      showToast(checked ? '간호사 휴가 처리 완료' : '간호사 휴가 해제 완료');
+      showToast(checked ? '간호사 자리비움 처리 완료' : '간호사 자리비움 해제 완료');
     } catch (e) {
       console.error(e);
       staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacation: prev });
       renderStaffControls();
-      showToast('휴가 상태 저장 실패');
+      showToast('자리비움 상태 저장 실패');
     }
   };
 
@@ -5253,15 +5276,11 @@
   function setTreatmentSelection(gridId, treatments = []) {
     // treatments는 이름 배열 (예: ['침', '핫팩'])
     const normalizedTreatments = treatments.map(name => getTreatmentByName(name)?.name).filter(Boolean);
-    const nameSet = new Set(normalizedTreatments);
-    treatmentSelections[gridId] = TREATMENTS
-      .filter(t => nameSet.has(t.name))
-      .map(t => ({ id: t.id, name: t.name }));
     // 순서는 원래 treatments 배열 순서대로 유지
     const ordered = [];
     normalizedTreatments.forEach(name => {
       const t = getTreatmentByName(name);
-      if (t) ordered.push({ id: t.id, name: t.name });
+      if (t) ordered.push(createTreatmentSelectionItem(t));
     });
     treatmentSelections[gridId] = ordered;
     renderTreatmentChips(gridId);
@@ -6364,7 +6383,7 @@
     const group = nurseGroups.find(item => item.beds.includes(Number(bedNo)));
     if (!group) return null;
 
-    const nurses = getSortedStaff('nurses');
+    const nurses = getSortedStaff('nurses').filter(([, nurse]) => !nurse?.vacation);
     const [id, nurse] = nurses[group.index] || [];
     return id ? { id, name: nurse?.name || '' } : null;
   }
@@ -7693,17 +7712,15 @@
     if (!treatments.length) return '';
 
     const normalizedTreatments = treatments.map(treatment => String(treatment || '').replace(/\s+/g, ''));
+    const treatmentIds = getTreatmentIdsFromNames(treatments);
     const hasChuna = normalizedTreatments.some(name => name.includes('추나') || name === '단추' || name === '복추');
-    const unitMap = {
-      '약침1': hasChuna ? 0.5 : 1,
-      '약침2': hasChuna ? 1 : 2,
-      '약침3': hasChuna ? 1 : 2,
-      '약침4': hasChuna ? 2 : 4
+    const unitMapById = {
+      pharmacopuncture_1: hasChuna ? 0.5 : 1,
+      pharmacopuncture_2: hasChuna ? 1 : 2,
+      pharmacopuncture_3: hasChuna ? 1 : 2,
+      pharmacopuncture_4: hasChuna ? 2 : 4
     };
-    const deduction = normalizedTreatments.reduce((sum, name) => {
-      const match = Object.keys(unitMap).find(key => name.includes(key));
-      return match ? sum + unitMap[match] : sum;
-    }, 0);
+    const deduction = treatmentIds.reduce((sum, id) => sum + (unitMapById[id] || 0), 0);
 
     const hasPackageRecord = (key) => {
       const pkg = packages?.[key] || {};
@@ -7725,9 +7742,10 @@
       { key: 'p라인', treatment: '약침l' }
     ];
     specialDeductions.forEach(({ key, treatment }) => {
-      const hasTreatment = normalizedTreatments.some(name => name.toLowerCase().includes(treatment));
-      if (!hasTreatment || !hasPackageRecord(key)) return;
-      const afterBalance = Number(balances[key] || 0) - 1;
+      const treatmentId = treatment.toLowerCase().includes('l') ? 'pharmacopuncture_L' : 'pharmacopuncture_ja';
+      const treatmentCount = countTreatmentId(treatmentIds, treatmentId);
+      if (!treatmentCount || !hasPackageRecord(key)) return;
+      const afterBalance = Number(balances[key] || 0) - treatmentCount;
       messages.push(`오늘 치료 후 ${key} 잔여량은 ${afterBalance} 입니다`);
     });
 
@@ -8319,27 +8337,6 @@
         appointmentDate: patient?.appointmentDate || '',
         packages: indexDbPackages,
         ...getPCreditsFromPackages(indexDbPackages)
-      });
-    }
-
-    // 오늘 진료내역(로컬)에 1건 추가 (베드 비울 때마다)
-    if (bed?.chartNo || bed?.name) {
-      const dailyPatient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
-      await addDailyVisit({
-        visitDate: visitDate || getVisitDateFromTimestamp(bed.timestamp),
-        clearedAt: Date.now(),
-        bedNo,
-        chartNo: normalizeChartNo(bed.chartNo || ''),
-        name: bed.name || '',
-        age: bed.age || '',
-        gender: bed.gender || '',
-        visitType: bed.visitType || '',
-        chiefComplaint: bed.chiefComplaint || '',
-        treatments: bed.treatments || [],
-        bodyParts: normalizeBodyParts(bed.bodyParts),
-        doctorName: bed.doctorName || '',
-        memo: dailyPatient?.memo || bed.memo || '',
-        packages: getPackageStateFromPatient(dailyPatient || {})
       });
     }
 
@@ -9593,7 +9590,8 @@
     if (!gridId) return;
     treatmentSelections[gridId] = (treatmentNames || [])
       .map(name => getTreatmentByName(name))
-      .filter(Boolean);
+      .filter(Boolean)
+      .map(createTreatmentSelectionItem);
     renderTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
   };
@@ -9664,203 +9662,6 @@
       document.getElementById('chartImportStatus').textContent = '전체 삭제 완료';
     } catch(e) { alert('삭제 실패: ' + e.message); }
   };
-
-  // ── 오늘 진료내역 (로컬 임시 DB) ──────────────────────────────────
-  // 베드 비우기 할 때마다 1건씩 누적 → "저장 후 비움"으로 진료내역YYYYMMDD.json 다운로드 후 비움
-  const DAILY_DB_NAME = 'dailyVisitDB';
-  const DAILY_STORE = 'visits';
-  let _dailyDb = null;
-  function openDailyDb() {
-    return new Promise((resolve, reject) => {
-      if (_dailyDb) { resolve(_dailyDb); return; }
-      const req = indexedDB.open(DAILY_DB_NAME, 1);
-      req.onupgradeneeded = e => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains(DAILY_STORE)) db.createObjectStore(DAILY_STORE, { keyPath: 'id', autoIncrement: true });
-      };
-      req.onsuccess = e => { _dailyDb = e.target.result; resolve(_dailyDb); };
-      req.onerror = () => reject(req.error);
-    });
-  }
-  async function addDailyVisit(record) {
-    try {
-      const db = await openDailyDb();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(DAILY_STORE, 'readwrite');
-        tx.objectStore(DAILY_STORE).add(record);
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-      updateDailyVisitCount();
-    } catch(e) { console.error('오늘 진료내역 저장 실패', e); }
-  }
-  async function getAllDailyVisits() {
-    try {
-      const db = await openDailyDb();
-      return await new Promise((resolve, reject) => {
-        const req = db.transaction(DAILY_STORE, 'readonly').objectStore(DAILY_STORE).getAll();
-        req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
-        req.onerror = () => reject(req.error);
-      });
-    } catch { return []; }
-  }
-  async function clearDailyVisits() {
-    const db = await openDailyDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(DAILY_STORE, 'readwrite');
-      tx.objectStore(DAILY_STORE).clear();
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    updateDailyVisitCount();
-  }
-  async function updateDailyVisitCount() {
-    try {
-      const db = await openDailyDb();
-      const count = await new Promise((resolve, reject) => {
-        const req = db.transaction(DAILY_STORE, 'readonly').objectStore(DAILY_STORE).count();
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-      const el = document.getElementById('dailyVisitCountText');
-      if (el) el.textContent = `오늘 누적 ${count.toLocaleString()}건`;
-    } catch {}
-  }
-  window.updateDailyVisitCount = updateDailyVisitCount;
-
-  window.exportDailyVisits = async function() {
-    const visits = await getAllDailyVisits();
-    if (!visits.length) { showToast('저장할 진료내역이 없습니다'); return; }
-    const dateKey = toLocalDateInputValue().replace(/-/g, '');
-    const blob = new Blob([JSON.stringify(visits, null, 2)], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `진료내역${dateKey}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    if (confirm(`진료내역${dateKey}.json 저장 완료.\n오늘 진료내역 ${visits.length}건을 비울까요?`)) {
-      await clearDailyVisits();
-      showToast('진료내역 저장 후 비웠습니다');
-    } else {
-      showToast('저장만 완료 (비우지 않음)');
-    }
-  };
-
-  // ── 일일 진료내역 → 로컬 폴더 자동 백업 (File System Access) ────────
-  // 백업 폴더를 한 번 지정해두면, 매일 첫 실행 시 전날치를 그 폴더에 .json으로 저장하고 로컬 로그를 비움.
-  // OneDrive/구글드라이브 동기화 폴더로 지정하면 자동으로 클라우드 백업됨.
-  const LAST_BACKUP_KEY = 'lastDailyBackupDate';
-  let _dailyBackupRunning = false;
-
-  // 폴더 핸들 저장용 작은 IndexedDB
-  function openHandleDb() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open('backupHandleDB', 1);
-      req.onupgradeneeded = e => { const d = e.target.result; if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv'); };
-      req.onsuccess = e => resolve(e.target.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
-  async function saveBackupDirHandle(handle) {
-    const db2 = await openHandleDb();
-    await new Promise((res, rej) => { const tx = db2.transaction('kv', 'readwrite'); tx.objectStore('kv').put(handle, 'dir'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
-    db2.close();
-  }
-  async function getBackupDirHandle() {
-    const db2 = await openHandleDb();
-    const h = await new Promise((res, rej) => { const r = db2.transaction('kv', 'readonly').objectStore('kv').get('dir'); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); });
-    db2.close();
-    return h;
-  }
-  async function ensureDirPermission(handle, interactive) {
-    if (!handle) return false;
-    const opts = { mode: 'readwrite' };
-    if ((await handle.queryPermission(opts)) === 'granted') return true;
-    if (interactive) return (await handle.requestPermission(opts)) === 'granted';
-    return false;
-  }
-
-  // 폴더에 백업 기록. 반환: 'ok'(파일 씀) / 'empty'(쓸 것 없음) / 'noperm' / 'nofolder'
-  async function runFolderBackup({ interactive = false } = {}) {
-    const handle = await getBackupDirHandle();
-    if (!handle) return 'nofolder';
-    if (!(await ensureDirPermission(handle, interactive))) return 'noperm';
-    const visits = await getAllDailyVisits();
-    if (!visits.length) return 'empty';
-    const today = toLocalDateInputValue();
-    const groups = {};
-    visits.forEach(v => { const d = String(v.visitDate || '').trim() || today; (groups[d] = groups[d] || []).push(v); });
-    for (const [d, list] of Object.entries(groups)) {
-      const fname = `진료내역${d.replace(/-/g, '')}.json`;
-      const fh = await handle.getFileHandle(fname, { create: true });
-      const w = await fh.createWritable();
-      await w.write(new Blob([JSON.stringify({ date: d, count: list.length, backedUpAt: Date.now(), visits: list }, null, 2)], { type: 'application/json' }));
-      await w.close();
-    }
-    await clearDailyVisits();
-    updateDailyVisitCount();
-    console.log('[일일백업] 폴더 저장 완료:', Object.keys(groups).join(', '));
-    return 'ok';
-  }
-
-  function setBackupStatus(msg) { const el = document.getElementById('dailyBackupStatus'); if (el) el.textContent = msg || ''; }
-
-  async function updateBackupFolderLabel() {
-    const el = document.getElementById('dailyBackupFolderLabel');
-    if (!el) return;
-    const h = await getBackupDirHandle();
-    el.textContent = h ? `백업 폴더: ${h.name}` : '백업 폴더: 미지정';
-  }
-  window.updateBackupFolderLabel = updateBackupFolderLabel;
-
-  window.chooseBackupFolder = async function() {
-    if (!window.showDirectoryPicker) { alert('이 브라우저는 폴더 자동저장을 지원하지 않습니다. Chrome/Edge에서 사용하세요.'); return; }
-    try {
-      const handle = await window.showDirectoryPicker({ id: 'inhouseDailyBackup', mode: 'readwrite' });
-      if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') { showToast('폴더 쓰기 권한이 필요합니다'); return; }
-      await saveBackupDirHandle(handle);
-      await updateBackupFolderLabel();
-      showToast(`백업 폴더 지정됨: ${handle.name}`);
-      const r = await runFolderBackup({ interactive: true });
-      if (r === 'ok') { try { localStorage.setItem(LAST_BACKUP_KEY, toLocalDateInputValue()); } catch {} showToast('현재 진료내역 백업 완료'); }
-      setBackupStatus('');
-    } catch (e) { if (e?.name !== 'AbortError') { console.error(e); showToast('폴더 지정 실패'); } }
-  };
-
-  window.backupNow = async function() {
-    const r = await runFolderBackup({ interactive: true });
-    if (r === 'ok') { try { localStorage.setItem(LAST_BACKUP_KEY, toLocalDateInputValue()); } catch {} showToast('백업 완료'); setBackupStatus(''); }
-    else if (r === 'empty') showToast('백업할 진료내역이 없습니다');
-    else if (r === 'nofolder') showToast('먼저 백업 폴더를 지정하세요');
-    else if (r === 'noperm') showToast('폴더 쓰기 권한이 거부되었습니다');
-  };
-
-  async function autoBackupDailyVisits() {
-    if (_dailyBackupRunning) return;
-    _dailyBackupRunning = true;
-    try {
-      const todayKey = toLocalDateInputValue();
-      let last = ''; try { last = localStorage.getItem(LAST_BACKUP_KEY) || ''; } catch {}
-      if (last === todayKey) return;                 // 오늘은 이미 처리(오늘분은 다음날 백업)
-      const visits = await getAllDailyVisits();
-      if (!visits.length) { try { localStorage.setItem(LAST_BACKUP_KEY, todayKey); } catch {} return; }
-      const r = await runFolderBackup({ interactive: false });  // 무인: 권한이 이미 허용된 경우만 기록
-      if (r === 'ok' || r === 'empty') { try { localStorage.setItem(LAST_BACKUP_KEY, todayKey); } catch {} }
-      else if (r === 'noperm') setBackupStatus('자동 백업 대기 — 설정에서 "지금 백업"을 한 번 눌러 폴더 권한을 허용하세요');
-      else if (r === 'nofolder') setBackupStatus('백업 폴더가 미지정 상태입니다 — 설정에서 폴더를 지정하세요');
-    } catch (e) {
-      console.error('[일일백업] 실패(다음에 재시도):', e);
-    } finally { _dailyBackupRunning = false; }
-  }
-  window.autoBackupDailyVisits = autoBackupDailyVisits;
-
-  // 앱 시작 시 1회 + 켜둔 채 자정 경과 대비 1시간마다 점검(날짜로 자체 가드)
-  autoBackupDailyVisits();
-  setInterval(autoBackupDailyVisits, 60 * 60 * 1000);
-
   refreshAppointmentAlerts();
 
   // ── XLS / XLSX / CSV import ────────────────────────────────────────
@@ -10353,7 +10154,7 @@
     window.updateBedRemainingChip?.();
     if (mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
     window.updateReceiveAlertAudioState?.();
-    if (mode === 'settings') { window.updateChartDbCount?.(); window.updateDailyVisitCount?.(); window.updateBackupFolderLabel?.(); }
+    if (mode === 'settings') { window.updateChartDbCount?.(); }
     if (mode === 'notify') setReceiveFormOpen(false);
     window.syncDoctorProcedureAlerts?.();
     window.renderUpcomingAlerts?.();
