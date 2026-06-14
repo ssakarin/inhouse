@@ -3307,7 +3307,6 @@
           <div class="card-label">환자 차트 DB</div>
           <div class="rr-setting" style="margin-top:0">
             <span class="rr-setting-text" id="chartDbCountText">로딩 중...</span>
-            <button class="timer-set-btn" onclick="clearChartDb()" style="flex-shrink:0">전체 삭제</button>
           </div>
           <button class="export-btn" onclick="document.getElementById('chartImportInput').click()" style="margin-top:10px">
             XLS / XLSX / CSV 가져오기
@@ -4638,10 +4637,6 @@
           ? staff.map(([key, data]) => `
             <div class="staff-item${type === 'nurses' && data.vacation ? ' vacation' : ''}">
               <div class="staff-name">${escapeHtml(data.name || '')}</div>
-              ${type === 'nurses' ? `<label class="staff-vacation-toggle">
-                <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="toggleNurseVacation('${key}', this.checked)">
-                자리비움
-              </label>` : ''}
               <button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>
             </div>`).join('')
           : `<div class="empty-state"><div class="empty-icon">+</div><div class="empty-text">등록된 ${label}이 없습니다</div></div>`;
@@ -5557,14 +5552,27 @@
     return `${date.getMonth() + 1}/${date.getDate()}(${weekdays[date.getDay()]})`;
   }
 
-  let pendingBedScheduleDate = '';
+  let pendingBedScheduleDates = [];
 
-  function renderBedScheduleCalendar(selectedDate = '') {
+  function normalizeAppointmentDates(dataOrDates) {
+    const rawDates = Array.isArray(dataOrDates)
+      ? dataOrDates
+      : [
+          ...(Array.isArray(dataOrDates?.appointmentDates) ? dataOrDates.appointmentDates : []),
+          dataOrDates?.appointmentDate || ''
+        ];
+    return [...new Set(rawDates
+      .map(date => String(date || '').trim())
+      .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    )].sort();
+  }
+
+  function renderBedScheduleCalendar(selectedDates = []) {
     const calendar = document.getElementById('bedScheduleCalendar');
     const customInput = document.getElementById('bedScheduleCustomInput');
     const confirmBtn = document.getElementById('bedScheduleConfirmBtn');
     if (!calendar) return;
-    pendingBedScheduleDate = selectedDate || '';
+    pendingBedScheduleDates = normalizeAppointmentDates(selectedDates);
     const today = addLocalDays(new Date(), 0);
     const presetDateItems = [];
     for (let offset = 1; presetDateItems.length < 7; offset += 1) {
@@ -5577,23 +5585,23 @@
       const className = [
         'bed-schedule-day',
         offset === 0 ? 'today' : '',
-        dateValue === pendingBedScheduleDate ? 'selected' : ''
+        pendingBedScheduleDates.includes(dateValue) ? 'selected' : ''
       ].filter(Boolean).join(' ');
       const label = offset === 0 ? `오늘 ${formatScheduleDayLabel(date)}` : formatScheduleDayLabel(date);
       return `<button type="button" class="${className}" onclick="selectBedScheduleDate('${dateValue}')">${escapeHtml(label)}</button>`;
-    }).join('') + `<button type="button" class="bed-schedule-day${pendingBedScheduleDate && !presetDates.includes(pendingBedScheduleDate) ? ' selected' : ''}" onclick="openBedScheduleCustomDate()">기타</button>`;
+    }).join('') + `<button type="button" class="bed-schedule-day${pendingBedScheduleDates.some(date => !presetDates.includes(date)) ? ' selected' : ''}" onclick="openBedScheduleCustomDate()">기타</button>`;
     if (customInput) {
       customInput.min = toLocalDateInputValue(today);
-      customInput.value = pendingBedScheduleDate && !presetDates.includes(pendingBedScheduleDate) ? pendingBedScheduleDate : '';
+      customInput.value = pendingBedScheduleDates.find(date => !presetDates.includes(date)) || '';
       customInput.classList.toggle('show', Boolean(customInput.value));
     }
-    if (confirmBtn) confirmBtn.disabled = !pendingBedScheduleDate;
+    if (confirmBtn) confirmBtn.disabled = pendingBedScheduleDates.length === 0;
   }
 
   async function populateBedSchedulePanel() {
     const bed = getBedData(selectedBedNo);
     const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
-    renderBedScheduleCalendar(patient?.appointmentDate || '');
+    renderBedScheduleCalendar(normalizeAppointmentDates(patient || {}));
   }
   window.populateBedSchedulePanel = populateBedSchedulePanel;
 
@@ -5608,7 +5616,7 @@
       button.title = open ? '예약 날짜 닫기' : '예약 날짜 열기';
     }
     if (open) populateBedSchedulePanel();
-    else pendingBedScheduleDate = '';
+    else pendingBedScheduleDates = [];
   }
 
   window.toggleBedSchedule = () => {
@@ -5617,7 +5625,11 @@
   };
 
   window.selectBedScheduleDate = (dateValue) => {
-    renderBedScheduleCalendar(dateValue || '');
+    const date = String(dateValue || '').trim();
+    const nextDates = pendingBedScheduleDates.includes(date)
+      ? pendingBedScheduleDates.filter(item => item !== date)
+      : [...pendingBedScheduleDates, date];
+    renderBedScheduleCalendar(nextDates);
   };
 
   window.openBedScheduleCustomDate = () => {
@@ -5629,8 +5641,8 @@
   };
 
   window.confirmBedScheduleDate = async () => {
-    const appointmentDate = pendingBedScheduleDate;
-    if (!appointmentDate) {
+    const appointmentDates = normalizeAppointmentDates(pendingBedScheduleDates);
+    if (!appointmentDates.length) {
       showToast('예약 날짜를 선택해주세요');
       return;
     }
@@ -5654,9 +5666,12 @@
       memo: bed.memo || '',
       treatments: Array.isArray(bed.treatments) ? bed.treatments : [],
       bodyParts: normalizeBodyParts(bed.bodyParts)
-    }, appointmentDate);
+    }, appointmentDates);
     if (ok) {
-      showToast(`${bed.name || '환자'}님 ${formatAppointmentDate(appointmentDate)} 예약`);
+      const appointmentLabel = appointmentDates.length === 1
+        ? formatAppointmentDate(appointmentDates[0])
+        : `${formatAppointmentDate(appointmentDates[0])} 외 ${appointmentDates.length - 1}개`;
+      showToast(`${bed.name || '환자'}님 ${appointmentLabel} 예약`);
       populateBedSchedulePanel();
     }
   };
@@ -6797,7 +6812,8 @@
           doctorName: assignedBed?.doctorName || patient.doctorName || '',
           chiefComplaint: assignedBed?.chiefComplaint || patient.chiefComplaint || ''
         }),
-        appointmentDate: patient.appointmentDate || '',
+        appointmentDates: normalizeAppointmentDates(patient || {}),
+        appointmentDate: normalizeAppointmentDates(patient || {})[0] || '',
         packages: getPackageStateFromPatient(patient),
         ...getPCreditsFromPatient(patient)
       });
@@ -6902,12 +6918,13 @@
     return '';
   }
 
-  function shouldShowAppointmentAlertForMode(data, mode = window.currentMode) {
+  function shouldShowAppointmentAlertForMode(data, mode = window.currentMode, appointmentDate = '') {
     const field = getAppointmentAlertDismissField(mode);
     if (!field) return false;
-    if (!data?.appointmentDate) return false;
-    const alert = data.appointmentAlert || {};
-    if (alert.date && alert.date !== data.appointmentDate) return true;
+    const date = appointmentDate || normalizeAppointmentDates(data || {})[0] || '';
+    if (!date) return false;
+    const alert = data?.appointmentAlerts?.[date] || (data?.appointmentAlert?.date === date ? data.appointmentAlert : {});
+    if (alert.date && alert.date !== date) return true;
     if (field === 'clinicDismissed' && (alert.clinicDismissed === true || alert.receiveDismissed === true || alert.notifyDismissed === true)) return false;
     return alert[field] !== true;
   }
@@ -7034,20 +7051,20 @@
     }));
 
     const appointmentItems = [...patientsByKey.entries()]
-      .map(([key, data]) => ({
-        id: `${key}:${data?.appointmentDate || ''}`,
+      .flatMap(([key, data]) => normalizeAppointmentDates(data || {}).map(appointmentDate => ({
+        id: `${key}:${appointmentDate}`,
         key,
         name: data?.name || '',
-        appointmentDate: data?.appointmentDate || '',
+        appointmentDate,
         data
-      }))
-      .filter(item => item.name && shouldShowAppointmentAlertForMode(item.data))
+      })))
+      .filter(item => item.name && shouldShowAppointmentAlertForMode(item.data, window.currentMode, item.appointmentDate))
       .sort((a, b) => String(a.appointmentDate).localeCompare(String(b.appointmentDate)) || String(a.name).localeCompare(String(b.name)));
 
     const appointmentAlertItems = appointmentItems.map(item => ({
       timestamp: Number(item.data?.appointmentAlert?.timestamp || item.data?.timestamp || 0),
       html: `
-      <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.key)}')">
+      <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.key)}', '${escapeHtml(item.appointmentDate)}')">
         <div class="upcoming-time">예약</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.name)}님 ${escapeHtml(formatAppointmentDate(item.appointmentDate))} 예약</div>
@@ -7198,24 +7215,35 @@
     }
   };
 
-  window.dismissAppointmentAlert = async (patientKey) => {
+  window.dismissAppointmentAlert = async (patientKey, appointmentDate = '') => {
     const field = getAppointmentAlertDismissField();
     if (!patientKey || !field) return;
     const patient = patientsByKey.get(patientKey) || {};
-    const appointmentDate = patient.appointmentDate || '';
-    await update(ref(db, `${PATIENTS_PATH}/${patientKey}/appointmentAlert`), {
-      date: appointmentDate,
-      [field]: true,
-      ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
-    });
-    patientsByKey.set(patientKey, {
-      ...patient,
-      appointmentAlert: {
-        ...(patient.appointmentAlert || {}),
-        date: appointmentDate,
+    const date = appointmentDate || normalizeAppointmentDates(patient)[0] || '';
+    if (!date) return;
+    const appointmentAlerts = {
+      ...(patient.appointmentAlerts || {}),
+      [date]: {
+        ...(patient.appointmentAlerts?.[date] || {}),
+        date,
         [field]: true,
         ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
       }
+    };
+    const patch = { appointmentAlerts };
+    if ((patient.appointmentDate || '') === date) {
+      patch.appointmentAlert = {
+        ...(patient.appointmentAlert || {}),
+        date,
+        [field]: true,
+        ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
+      };
+    }
+    await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), patch);
+    patientsByKey.set(patientKey, {
+      ...patient,
+      appointmentAlerts,
+      ...(patch.appointmentAlert ? { appointmentAlert: patch.appointmentAlert } : {})
     });
     renderUpcomingAlerts();
   };
@@ -8406,7 +8434,8 @@
         bodyParts: normalizeBodyParts(bed.bodyParts),
         doctorName: bed.doctorName || '',
         visitEntry: createChartVisitEntry({ ...bed, visitDate: visitDate || '' }),
-        appointmentDate: patient?.appointmentDate || '',
+        appointmentDates: normalizeAppointmentDates(patient || {}),
+        appointmentDate: normalizeAppointmentDates(patient || {})[0] || '',
         packages: indexDbPackages,
         ...getPCreditsFromPackages(indexDbPackages)
       });
@@ -9632,24 +9661,41 @@
     renderUpcomingAlerts();
   }
 
-  async function setPatientAppointment(patientKey, data, appointmentDate) {
-    if (!patientKey || !appointmentDate) return false;
-    const appointmentAlert = {
-      date: appointmentDate,
-      deskDismissed: false,
-      clinicDismissed: false,
-      receiveDismissed: false,
-      notifyDismissed: false
+  function createAppointmentAlert(date, existing = {}) {
+    return {
+      date,
+      deskDismissed: Boolean(existing.deskDismissed),
+      clinicDismissed: Boolean(existing.clinicDismissed),
+      receiveDismissed: Boolean(existing.receiveDismissed),
+      notifyDismissed: Boolean(existing.notifyDismissed)
     };
+  }
+
+  async function setPatientAppointment(patientKey, data, appointmentDates) {
+    if (!patientKey) return false;
+    const dates = normalizeAppointmentDates(appointmentDates);
+    if (!dates.length) return false;
+    const existingPatient = patientsByKey.get(patientKey) || {};
+    const existingAlerts = existingPatient.appointmentAlerts || {};
+    const appointmentAlerts = Object.fromEntries(dates.map(date => [
+      date,
+      createAppointmentAlert(date, existingAlerts[date] || (existingPatient.appointmentAlert?.date === date ? existingPatient.appointmentAlert : {}))
+    ]));
+    const appointmentDate = dates[0] || '';
+    const appointmentAlert = appointmentAlerts[appointmentDate] || createAppointmentAlert(appointmentDate);
     await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
       ...data,
+      appointmentDates: dates,
       appointmentDate,
+      appointmentAlerts,
       appointmentAlert
     });
     patientsByKey.set(patientKey, {
-      ...(patientsByKey.get(patientKey) || {}),
+      ...existingPatient,
       ...data,
+      appointmentDates: dates,
       appointmentDate,
+      appointmentAlerts,
       appointmentAlert
     });
     renderUpcomingAlerts();

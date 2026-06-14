@@ -646,7 +646,7 @@
                 <div class="visit-stat"><span class="visit-stat-label">초진일</span><span class="visit-stat-value" id="statFirstVisit">-</span></div>
                 <div class="visit-stat"><span class="visit-stat-label">최근진료일</span><span class="visit-stat-value" id="statLastVisit">-</span></div>
                 <div class="visit-stat"><span class="visit-stat-label">총 진료 횟수</span><span class="visit-stat-value" id="statVisitCount">0회</span></div>
-                <div class="visit-stat"><span class="visit-stat-label">예약일</span><input class="visit-stat-input" id="editAppointmentDate" type="date" readonly></div>
+                <div class="visit-stat"><span class="visit-stat-label">예약일</span><input class="visit-stat-input" id="editAppointmentDate" type="text" readonly></div>
               </div>
               <div class="package-viewer" id="packageViewer"></div>
               <div class="visit-calendar-head">
@@ -718,6 +718,17 @@
 
   function getPatientPhone(patient = {}) {
     return String(patient.phone || patient.phoneNumber || patient.tel || patient.mobile || patient.contact || "").trim();
+  }
+
+  function normalizeAppointmentDates(patient = {}) {
+    return [...new Set([
+      ...(Array.isArray(patient.appointmentDates) ? patient.appointmentDates : []),
+      patient.appointmentDate || ""
+    ].map(date => String(date || "").trim()).filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort();
+  }
+
+  function formatAppointmentDates(patient = {}) {
+    return normalizeAppointmentDates(patient).join(", ");
   }
 
   function setStatus(id, text, isError = false) {
@@ -1337,7 +1348,7 @@
     $("editAge").value = patient.age ?? "";
     $("editGender").value = patient.gender || "";
     $("editPhone").value = getPatientPhone(patient);
-    $("editAppointmentDate").value = patient.appointmentDate || "";
+    $("editAppointmentDate").value = formatAppointmentDates(patient);
     $("editMemo").value = patient.memo || "";
     activeVisitDates = visitDatesFromRecord(patient);
     activeVisitHistory = patient.visitHistory && typeof patient.visitHistory === "object" ? { ...patient.visitHistory } : {};
