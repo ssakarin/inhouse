@@ -679,6 +679,15 @@
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  function disableAutocomplete(root = document) {
+    root.querySelectorAll?.("input, textarea, select").forEach(el => {
+      el.setAttribute("autocomplete", "off");
+      el.setAttribute("autocorrect", "off");
+      el.setAttribute("autocapitalize", "off");
+      el.setAttribute("spellcheck", "false");
+    });
+  }
+
   // ── 동작 ────────────────────────────────────────────────────────
   function setPresetActive(preset) {
     document.querySelectorAll(".preset-btn").forEach(b => b.classList.toggle("active", b.dataset.preset === preset));
@@ -803,6 +812,7 @@
   $("chartUnit").addEventListener("change", () => { chartUnitTouched = true; run(); });
   $("csvBtn").addEventListener("click", downloadCsv);
   renderChartMetricToggles();
+  disableAutocomplete();
   $("chartMetricToggles").addEventListener("change", event => {
     if (!event.target?.classList?.contains("chart-metric-toggle")) return;
     if (lastResult) renderWeeklyChart(lastResult.stats.trendStats, lastResult.chartUnit);

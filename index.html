@@ -3066,13 +3066,13 @@
             <div class="patient-info-grid desk-chart-grid">
               <div class="chart-lookup-row">
                 <span class="chart-lookup-badge" id="chartLookupBadge"></span>
-                <input class="name-input" id="chartNo" type="text" placeholder="차트번호" maxlength="20"
+                <input class="name-input" id="chartNo" type="text" placeholder="차트번호" maxlength="20" autocomplete="off"
                   onkeydown="if(event.key==='Enter'){event.preventDefault(); window.runDeskChartNoLookup?.();}"
                   onchange="window.runDeskChartNoLookup?.()"
                   oninput="window.clearChartLookupBadge?.()">
               </div>
-              <input class="name-input" id="patientName" type="text" placeholder="성함" maxlength="10">
-              <input class="name-input" id="ageInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="나이" maxlength="3">
+              <input class="name-input" id="patientName" type="text" placeholder="성함" maxlength="10" autocomplete="off">
+              <input class="name-input" id="ageInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="나이" maxlength="3" autocomplete="off">
               <div class="form-segment-row">
                 <div class="segmented desk-visit-segment">
                   <label class="segment-item"><input type="radio" name="visitType" value="초진" checked><span>초</span></label>
@@ -3083,8 +3083,8 @@
                   <label class="segment-item"><input type="radio" name="gender" value="여"><span>여</span></label>
                 </div>
               </div>
-              <input class="name-input wide" id="chiefComplaint" type="text" placeholder="주상병명" maxlength="60">
-              <textarea class="name-input wide" id="memoInput" placeholder="메모" maxlength="120" rows="3"></textarea>
+              <input class="name-input wide" id="chiefComplaint" type="text" placeholder="주상병명" maxlength="60" autocomplete="off">
+              <textarea class="name-input wide" id="memoInput" placeholder="메모" maxlength="120" rows="3" autocomplete="off"></textarea>
               <button class="submit-btn desk-submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
             </div>
           </div>
@@ -3143,9 +3143,9 @@
           <div class="card">
             <div class="form-section">
               <div class="patient-info-grid receive-chart-grid">
-                <input class="name-input" id="receiveChartNo" type="text" placeholder="차트번호" maxlength="20">
-                <input class="name-input" id="receivePatientName" type="text" placeholder="성함" maxlength="10">
-                <input class="name-input" id="receiveAgeInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="나이" maxlength="3">
+                <input class="name-input" id="receiveChartNo" type="text" placeholder="차트번호" maxlength="20" autocomplete="off">
+                <input class="name-input" id="receivePatientName" type="text" placeholder="성함" maxlength="10" autocomplete="off">
+                <input class="name-input" id="receiveAgeInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="나이" maxlength="3" autocomplete="off">
                 <div class="form-segment-row">
                   <div class="segmented receive-visit-segment">
                     <label class="segment-item"><input type="radio" name="receiveVisitType" value="초진" checked><span>초</span></label>
@@ -3156,8 +3156,8 @@
                     <label class="segment-item"><input type="radio" name="receiveGender" value="여"><span>여</span></label>
                   </div>
                 </div>
-                <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="주상병명" maxlength="60">
-                <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모" maxlength="120" rows="3"></textarea>
+                <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="주상병명" maxlength="60" autocomplete="off">
+                <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모" maxlength="120" rows="3" autocomplete="off"></textarea>
                 <button class="submit-btn receive-submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
               </div>
             </div>
@@ -3209,9 +3209,9 @@
               <div class="form-section">
                 <div class="patient-info-grid monitor-patient-grid">
                   <div class="bed-edit-hidden-fields">
-                    <input class="name-input" id="bedPatientName" type="text" placeholder="성함을 입력하세요" maxlength="10">
-                    <input class="name-input" id="bedChartNo" type="text" placeholder="차트번호" maxlength="20">
-                    <input class="name-input" id="bedAgeInput" type="number" placeholder="나이" min="0" max="130">
+                    <input class="name-input" id="bedPatientName" type="text" placeholder="성함을 입력하세요" maxlength="10" autocomplete="off">
+                    <input class="name-input" id="bedChartNo" type="text" placeholder="차트번호" maxlength="20" autocomplete="off">
+                    <input class="name-input" id="bedAgeInput" type="number" placeholder="나이" min="0" max="130" autocomplete="off">
                     <div class="form-segment-row">
                       <div class="segmented">
                         <label class="segment-item"><input type="radio" name="bedVisitType" value="초진" checked><span>초진</span></label>
@@ -3224,10 +3224,10 @@
                     </div>
                   </div>
                   <div class="bed-edit-visible-grid">
-                    <input class="name-input bed-chief-field" id="bedChiefComplaint" type="text" placeholder="주상병명" maxlength="60">
+                    <input class="name-input bed-chief-field" id="bedChiefComplaint" type="text" placeholder="주상병명" maxlength="60" autocomplete="off">
                     <div class="bed-memo-wrap" id="bedMemoWrap">
                       <button class="bed-memo-toggle" id="bedMemoToggle" type="button" onclick="toggleBedMemoInput()">메모</button>
-                      <textarea class="name-input bed-memo-field" id="bedMemoInput" placeholder="메모" maxlength="300" rows="3"></textarea>
+                      <textarea class="name-input bed-memo-field" id="bedMemoInput" placeholder="메모" maxlength="300" rows="3" autocomplete="off"></textarea>
                     </div>
                     <button class="submit-btn bed-submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">확인</button>
                   </div>
@@ -4227,6 +4227,7 @@
           <div class="package-history">${detailRows}</div>
         </div>
       </div>`;
+    disableAutocomplete(form);
   }
 
   function getPackageQtyInputValue(id) {
@@ -5596,6 +5597,7 @@
       customInput.classList.toggle('show', Boolean(customInput.value));
     }
     if (confirmBtn) confirmBtn.disabled = pendingBedScheduleDates.length === 0;
+    disableAutocomplete(calendar.closest('.bed-schedule-panel') || calendar);
   }
 
   async function populateBedSchedulePanel() {
@@ -10411,9 +10413,19 @@
   }
 
   // 엔터키로 전송
+  function disableAutocomplete(root = document) {
+    root.querySelectorAll?.('input, textarea, select').forEach(el => {
+      el.setAttribute('autocomplete', 'off');
+      el.setAttribute('autocorrect', 'off');
+      el.setAttribute('autocapitalize', 'off');
+      el.setAttribute('spellcheck', 'false');
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     window.registerPwaServiceWorker?.();
     window.setupBedScreenWakeLock?.();
+    disableAutocomplete();
     syncAppViewClass();
     setMode(getInitialMode(), false);
     setInputFormOpen(false);

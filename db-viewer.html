@@ -731,6 +731,15 @@
     return normalizeAppointmentDates(patient).join(", ");
   }
 
+  function disableAutocomplete(root = document) {
+    root.querySelectorAll?.("input, textarea, select").forEach(el => {
+      el.setAttribute("autocomplete", "off");
+      el.setAttribute("autocorrect", "off");
+      el.setAttribute("autocapitalize", "off");
+      el.setAttribute("spellcheck", "false");
+    });
+  }
+
   function setStatus(id, text, isError = false) {
     const el = $(id);
     el.textContent = text;
@@ -1563,6 +1572,7 @@
     $("firebaseToggleBtn").textContent = open ? "‹" : "›";
     $("firebaseToggleBtn").setAttribute("aria-label", open ? "Firebase 패널 닫기" : "Firebase 패널 열기");
   });
+  disableAutocomplete();
 
   refreshAll();
 </script>
