@@ -837,6 +837,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .upcoming-staff-inline {
+    color: var(--text2);
+    font-size: 0.92em;
+    font-weight: 900;
+    margin-left: 8px;
+    white-space: nowrap;
+  }
   body.app-tv-notify .upcoming-main {
     font-size: clamp(30px, 1.05vw, 44px);
     line-height: 1.18;
@@ -1570,6 +1577,9 @@
   .receive-detail-column { min-width: 0; }
   .receive-detail-column { order: 1; }
   .receive-main-column { order: 2; }
+  body.app-mode-notify .receive-waiting-card {
+    display: none;
+  }
   #inputBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #receiveBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   body.app-tv-notify .receive-panel.active {
@@ -3365,7 +3375,7 @@
         <div class="card">
           <div class="bed-monitor" id="receiveBedMonitor"></div>
         </div>
-        <div class="card">
+        <div class="card receive-waiting-card">
           <div class="card-label">대기</div>
           <div class="waiting-list waiting-list--compact" id="receiveWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
@@ -3409,8 +3419,7 @@
             </div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-label">알림</div>
+        <div class="card receive-alert-card">
           <div class="upcoming-list" id="receiveUpcomingAlerts"></div>
           <div class="doctor-alert-split" id="receiveDoctorAlertSplit"></div>
         </div>
@@ -7222,18 +7231,17 @@
     const renderTreatmentAlertHtml = (item, options = {}) => {
       const main = options.main || `${item.bedLabel || ''} ${item.name || '환자'}`.trim();
       return `
-        <div class="upcoming-item assignment no-dismiss">
-          ${renderTreatmentBadge(item.treatment)}
+        <div class="upcoming-item assignment no-dismiss${options.hideBadge ? ' no-label' : ''}">
+          ${options.hideBadge ? '' : renderTreatmentBadge(item.treatment)}
           <div>
-            <div class="upcoming-main">${escapeHtml(main)}</div>
+            <div class="upcoming-main">${escapeHtml(main)}${options.staffLine ? `<span class="upcoming-staff-inline">${options.staffLine}</span>` : ''}</div>
             ${options.sub ? `<div class="upcoming-sub">${options.sub}</div>` : ''}
-            ${options.staffLine ? `<div class="upcoming-staff">${options.staffLine}</div>` : ''}
           </div>
         </div>`;
     };
     const renderDoctorProcedureAlertHtml = (item) => `
       ${renderTreatmentAlertHtml(item)}`;
-    const renderSimpleDoctorProcedureAlertHtml = (item) => renderTreatmentAlertHtml(item);
+    const renderSimpleDoctorProcedureAlertHtml = (item) => renderTreatmentAlertHtml(item, { main: item.bedLabel || '' });
     const renderDoctorAlertSplitHtml = () => {
       const doctors = getSortedStaff('doctors').slice(0, 2);
       return Array.from({ length: 2 }, (_, index) => {
@@ -7351,9 +7359,9 @@
     const timerAlertItems = upcoming.length
       ? upcoming.map(item => {
         const staffLine = [
-          item.doctorName ? `원장 ${escapeHtml(item.doctorName)}` : '',
-          item.nurseName ? `간호사 ${escapeHtml(item.nurseName)}` : ''
-        ].filter(Boolean).join(' · ');
+          item.doctorName ? escapeHtml(item.doctorName) : '',
+          item.nurseName ? escapeHtml(item.nurseName) : ''
+        ].filter(Boolean).join('/');
         return {
           alertPending: item.alertPending,
           alertPriority: item.alertPending ? 0 : 1,
@@ -7362,9 +7370,8 @@
         <div class="upcoming-item">
           ${renderTreatmentBadge(item.treatment)}
           <div>
-            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}${item.alertPending ? ` ${renderTreatmentCompleteLabel(item.treatment)}` : ''}</div>
+            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}${staffLine ? `<span class="upcoming-staff-inline">${staffLine}</span>` : ''}${item.alertPending ? ` ${renderTreatmentCompleteLabel(item.treatment)}` : ''}</div>
             ${item.alertPending ? '' : `<div class="upcoming-sub">${formatTimer(item.remaining)}</div>`}
-            ${staffLine ? `<div class="upcoming-staff">${staffLine}</div>` : ''}
           </div>
         </div>`
         };
@@ -7382,9 +7389,9 @@
     const receiveTreatmentItems = shouldShowReceiveTreatmentAlerts()
       ? getReceiveTreatmentAlertItems().map(item => {
         const staffLine = [
-          item.doctorName ? `원장 ${escapeHtml(item.doctorName)}` : '',
-          item.nurseName ? `간호사 ${escapeHtml(item.nurseName)}` : ''
-        ].filter(Boolean).join(' · ');
+          item.doctorName ? escapeHtml(item.doctorName) : '',
+          item.nurseName ? escapeHtml(item.nurseName) : ''
+        ].filter(Boolean).join('/');
         return {
           timestamp: Number(item.timestamp || 0),
           html: renderTreatmentAlertHtml(item, { staffLine })
@@ -9233,7 +9240,7 @@
       : '';
     const infoChips = [
       status.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.gender)}</span>` : '',
-      status.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(status.age))}세</span>` : '',
+      !isReceive && status.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(status.age))}세</span>` : '',
       status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
       status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : '',
     ].filter(Boolean).join('');
