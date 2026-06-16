@@ -1398,8 +1398,10 @@
     filter: brightness(1.14);
   }
   .treat-chip--drag.treat-drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
-  .treat-chip--drag { cursor: grab; }
-  .treat-chip--drag:active { cursor: grabbing; }
+  .treat-chip--drag,
+  .treat-chip[draggable="true"] { cursor: grab; }
+  .treat-chip--drag:active,
+  .treat-chip[draggable="true"]:active { cursor: grabbing; }
   .chip-x {
     font-size: 13px;
     font-weight: 900;
@@ -3334,7 +3336,7 @@
       </div>
       <div class="mode-toggle">
         <button class="mode-btn active" onclick="setMode('input')">데스크</button>
-        <button class="mode-btn" onclick="setMode('notify')">치료실알림</button>
+        <button class="mode-btn" onclick="setMode('notify')" style="display:none">치료실알림</button>
         <button class="mode-btn" onclick="setMode('receive')">치료실</button>
         <button class="mode-btn" onclick="setMode('bed')">베드</button>
         <button class="mode-btn" onclick="setMode('settings')">설정</button>
@@ -4684,6 +4686,20 @@
 
   let selectedTreatmentChip = null;
 
+  function useClickTreatmentReorder() {
+    return Boolean(window.matchMedia?.('(pointer: coarse)')?.matches || (navigator.maxTouchPoints > 0 && !window.matchMedia?.('(hover: hover)')?.matches));
+  }
+
+  function treatmentSelectionChipAttrs(gridId, index) {
+    if (useClickTreatmentReorder()) return `onclick="handleTreatmentChipClick(event,'${gridId}',${index})"`;
+    return `draggable="true"
+        ondragstart="chipDragStart(event,'${gridId}',${index})"
+        ondragover="chipDragOver(event,'${gridId}',${index})"
+        ondragleave="chipDragLeave(event)"
+        ondrop="chipDrop(event,'${gridId}',${index})"
+        ondragend="chipDragEndSel(event)"`;
+  }
+
   function saveTreatmentSelectionChange(gridId) {
     renderTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
@@ -4724,10 +4740,10 @@
     const sel = treatmentSelections[gridId] || [];
     if (selectedTreatmentChip?.gridId === gridId && !sel[selectedTreatmentChip.index]) selectedTreatmentChip = null;
     chipsWrap.innerHTML = sel.map((s, i) => {
-      const selectedClass = selectedTreatmentChip?.gridId === gridId && selectedTreatmentChip.index === i ? 'selected' : '';
+      const selectedClass = useClickTreatmentReorder() && selectedTreatmentChip?.gridId === gridId && selectedTreatmentChip.index === i ? 'selected' : '';
       const className = ['treat-chip', getTreatmentBadgeClass(s.name), selectedClass].filter(Boolean).join(' ');
       return `
-      <span class="${className}" data-grid="${gridId}" data-index="${i}" onclick="handleTreatmentChipClick(event,'${gridId}',${i})">${escapeHtml(s.name)}</span>`;
+      <span class="${className}" data-grid="${gridId}" data-index="${i}" ${treatmentSelectionChipAttrs(gridId, i)}>${escapeHtml(s.name)}</span>`;
     }).join('');
   }
 
@@ -7874,8 +7890,8 @@
         : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'waiting'));
       const treatmentClass = getTreatmentBadgeClass(treatment);
       const runningClass = bed.running && index === currentIndex ? ' running' : '';
-      const selectedClass = selectedBedTreatmentChip?.bedNo === bedNo && selectedBedTreatmentChip.index === index ? ' selected' : '';
-      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${selectedClass}" onclick="handleBedTreatmentChipClick(event,${bedNo},${index})">${escapeHtml(treatment)}</span>`;
+      const selectedClass = useClickTreatmentReorder() && selectedBedTreatmentChip?.bedNo === bedNo && selectedBedTreatmentChip.index === index ? ' selected' : '';
+      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${selectedClass}" ${bedTreatmentChipAttrs(bedNo, index)}>${escapeHtml(treatment)}</span>`;
     }).join('');
   }
 
@@ -8896,6 +8912,16 @@
   // ── 치료 칩 클릭 교환 / 삭제 ────────────────────────────────────────
   let selectedBedTreatmentChip = null;
 
+  function bedTreatmentChipAttrs(bedNo, index) {
+    if (useClickTreatmentReorder()) return `onclick="handleBedTreatmentChipClick(event,${bedNo},${index})"`;
+    return `draggable="true"
+        ondragstart="handleTreatChipDragStart(event,${bedNo},${index})"
+        ondragover="handleTreatChipDragOver(event,${bedNo},${index})"
+        ondrop="handleTreatChipDrop(event,${bedNo},${index})"
+        ondragend="handleTreatChipDragEnd(event)"
+        ondragleave="handleTreatChipDragLeave(event)"`;
+  }
+
   async function swapTreatmentInBed(bedNo, fromIndex, toIndex) {
     const bed = getBedData(bedNo);
     if (!bed) return;
@@ -9162,8 +9188,7 @@
         : (index < status.currentIndex ? 'done' : (index === status.currentIndex ? 'current' : 'waiting'));
       const treatmentClass = getTreatmentBadgeClass(treatment);
       const runningClass = status.stageState === 'running' && index === status.currentIndex ? ' running' : '';
-      const selectedClass = selectedBedTreatmentChip?.bedNo === status.bedNo && selectedBedTreatmentChip.index === index ? ' selected' : '';
-      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${selectedClass}" onclick="handleBedTreatmentChipClick(event,${status.bedNo},${index})">${escapeHtml(treatment)}</span>`;
+      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}">${escapeHtml(treatment)}</span>`;
     }).join('');
 
     return `
