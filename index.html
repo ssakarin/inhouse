@@ -80,10 +80,10 @@
     width: 100vw;
     max-width: none;
     height: 100vh;
-    padding: clamp(24px, 1.25vw, 48px);
+    padding: clamp(10px, 0.55vw, 22px);
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    gap: clamp(20px, 1vw, 36px);
+    gap: clamp(8px, 0.45vw, 18px);
     overflow: hidden;
   }
 
@@ -864,10 +864,12 @@
   }
   body.app-tv-notify .doctor-alert-split {
     grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
     gap: clamp(14px, 0.75vw, 26px);
     margin-top: 0;
     min-height: 0;
-    max-height: 42vh;
+    height: 100%;
+    max-height: none;
     overflow: hidden;
   }
   .doctor-alert-box {
@@ -882,6 +884,8 @@
     border-radius: 14px;
     overflow: hidden;
     min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
   }
   .doctor-alert-box-title {
     color: var(--gold);
@@ -903,7 +907,10 @@
   }
   body.app-tv-notify .doctor-alert-box-list {
     gap: clamp(10px, 0.55vw, 18px);
-    overflow: hidden;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
   }
   .doctor-alert-box-list .upcoming-item {
     grid-template-columns: 72px minmax(0, 1fr);
@@ -1638,7 +1645,7 @@
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(420px, 0.72fr);
-    gap: clamp(16px, 0.9vw, 32px);
+    gap: clamp(12px, 0.65vw, 24px);
     align-items: stretch;
     overflow: hidden;
   }
@@ -1656,19 +1663,32 @@
   body.app-tv-notify .receive-detail-column > .card {
     height: 100%;
     min-height: 0;
-    padding: clamp(16px, 0.85vw, 32px);
+    padding: clamp(10px, 0.55vw, 22px);
     border-radius: 14px;
     overflow: hidden;
   }
   body.app-tv-notify .receive-alert-card {
-    overflow: auto;
-    scrollbar-gutter: stable;
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    overflow: hidden;
+    scrollbar-gutter: auto;
   }
   body.app-tv-notify .receive-alert-card .upcoming-list,
   body.app-tv-notify .receive-alert-card .doctor-alert-split,
   body.app-tv-notify .receive-alert-card .doctor-alert-box-list {
     max-height: none;
-    overflow: visible;
+  }
+  body.app-tv-notify .receive-alert-card > .upcoming-list {
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+  }
+  body.app-tv-notify .receive-alert-card > .doctor-alert-split {
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
   }
   body.app-tv-notify .receive-main-column > .card:not(:first-child),
   body.app-tv-notify .receive-form-column {
@@ -1680,7 +1700,7 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-auto-rows: minmax(0, 1fr);
-    gap: clamp(10px, 0.55vw, 20px);
+    gap: clamp(8px, 0.42vw, 16px);
     margin-bottom: 0;
     overflow: hidden;
   }
@@ -1698,7 +1718,7 @@
   body.app-tv-notify .bed-status {
     min-height: 0;
     height: 100%;
-    padding: clamp(14px, 0.72vw, 26px);
+    padding: clamp(10px, 0.55vw, 20px);
     border-radius: 14px;
     border-width: 2px;
     display: grid;
@@ -9626,7 +9646,7 @@
   }
 
   function shouldPlayAlertListAudio() {
-    if (!['receive', 'notify'].includes(window.currentMode)) return false;
+    if (window.currentMode !== 'receive') return false;
     return getAllBedEntries().some(({ bed }) => Boolean(bed?.lastAlertId));
   }
 
