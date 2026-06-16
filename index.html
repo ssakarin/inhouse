@@ -1372,6 +1372,11 @@
   }
   .treat-chip:hover,
   .treat-chip--drag:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .treat-chip.selected {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    filter: brightness(1.18);
+  }
   .treat-chip.treatment-hotpack { background: rgba(250,204,21,0.30); border-color: rgba(250,204,21,0.92); color: #fde047; }
   .treat-chip.treatment-physical { background: rgba(57,169,245,0.22); border-color: rgba(57,169,245,0.72); color: #9edcff; }
   .treat-chip.treatment-infrared { background: rgba(239,68,68,0.24); border-color: rgba(239,68,68,0.84); color: #ffc0c0; }
@@ -2181,6 +2186,11 @@
   .bed-treatment-chip[draggable="true"]:active { cursor: grabbing; }
   .bed-treatment-chip.treat-drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
   .bed-treatment-chip.treat-dragging { opacity: 0.35; }
+  .bed-treatment-chip.selected {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    filter: brightness(1.2);
+  }
   @keyframes treatmentBlink {
     0%, 100% { box-shadow: 0 0 0 1px var(--treatment-glow-soft); filter: brightness(1.08); }
     50% { box-shadow: 0 0 0 4px var(--treatment-glow-strong); filter: brightness(1.35); }
@@ -3795,6 +3805,8 @@
     { id: 'pharmacopuncture_4',  name: '약침4',  icon: '④' },
     { id: 'pharmacopuncture_L',  name: '약침L',  icon: '🅛' },
     { id: 'pharmacopuncture_ja', name: '약침자', icon: '자' },
+    { id: 'sw',                  name: 'SW',     icon: 'SW' },
+    { id: 'bench',               name: '벤치',   icon: '벤' },
   ];
 
   function getTreatmentByName(name) {
@@ -4187,15 +4199,14 @@
       btn.innerHTML = `<span class="treat-name">${escapeHtml(t.name)}</span>`;
       btn.onclick = () => treatBtnClick(gridId, t);
       grid.appendChild(btn);
-      if (t.id === 'pharmacopuncture_ja') {
-        const chip = document.createElement('span');
-        chip.id = `credit-chip-${gridId}`;
-        chip.className = 'credit-chip';
-        chip.onclick = () => openCreditPopup(gridId);
-        chip.innerHTML = `<span class="credit-chip-label">패키지</span>`;
-        grid.appendChild(chip);
-      }
     });
+
+    const chip = document.createElement('span');
+    chip.id = `credit-chip-${gridId}`;
+    chip.className = 'credit-chip';
+    chip.onclick = () => openCreditPopup(gridId);
+    chip.innerHTML = `<span class="credit-chip-label">패키지</span>`;
+    grid.appendChild(chip);
 
     // 칩 영역 삽입 (그리드 다음에)
     placeTreatmentChips(gridId);
@@ -4639,6 +4650,7 @@
   };
 
   function treatBtnClick(gridId, treatment) {
+    selectedTreatmentChip = null;
     if (!treatmentSelections[gridId]) treatmentSelections[gridId] = [];
     const sel = treatmentSelections[gridId];
     const idx = sel.findIndex(s => s.id === treatment.id);
@@ -4656,6 +4668,7 @@
   }
 
   function removeChip(gridId, chipIndex) {
+    selectedTreatmentChip = null;
     if (!treatmentSelections[gridId]) return;
     const index = Number(chipIndex);
     if (Number.isInteger(index)) {
@@ -4669,21 +4682,52 @@
     if (scope) scheduleSelectFieldSave(scope, 0);
   }
 
+  let selectedTreatmentChip = null;
+
+  function saveTreatmentSelectionChange(gridId) {
+    renderTreatmentChips(gridId);
+    syncTreatBtnStates(gridId);
+    const scope = getScopeFromGridId?.(gridId);
+    if (scope) scheduleSelectFieldSave(scope, 0);
+  }
+
+  window.handleTreatmentChipClick = (event, gridId, index) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const sel = treatmentSelections[gridId] || [];
+    if (!sel[index]) {
+      selectedTreatmentChip = null;
+      renderTreatmentChips(gridId);
+      return;
+    }
+
+    if (!selectedTreatmentChip || selectedTreatmentChip.gridId !== gridId) {
+      selectedTreatmentChip = { gridId, index };
+      renderTreatmentChips(gridId);
+      return;
+    }
+
+    const fromIndex = selectedTreatmentChip.index;
+    selectedTreatmentChip = null;
+    if (fromIndex === index) {
+      sel.splice(index, 1);
+    } else if (sel[fromIndex] && sel[index]) {
+      [sel[fromIndex], sel[index]] = [sel[index], sel[fromIndex]];
+    }
+    treatmentSelections[gridId] = sel;
+    saveTreatmentSelectionChange(gridId);
+  };
+
   function renderTreatmentChips(gridId) {
     const chipsWrap = document.getElementById(getTreatmentChipsId(gridId));
     if (!chipsWrap) return;
     const sel = treatmentSelections[gridId] || [];
+    if (selectedTreatmentChip?.gridId === gridId && !sel[selectedTreatmentChip.index]) selectedTreatmentChip = null;
     chipsWrap.innerHTML = sel.map((s, i) => {
-      const className = ['treat-chip', 'treat-chip--drag', getTreatmentBadgeClass(s.name)].filter(Boolean).join(' ');
+      const selectedClass = selectedTreatmentChip?.gridId === gridId && selectedTreatmentChip.index === i ? 'selected' : '';
+      const className = ['treat-chip', getTreatmentBadgeClass(s.name), selectedClass].filter(Boolean).join(' ');
       return `
-      <span class="${className}" draggable="true"
-        data-grid="${gridId}" data-index="${i}"
-        ondragstart="chipDragStart(event,'${gridId}',${i})"
-        ondragover="chipDragOver(event,'${gridId}',${i})"
-        ondragleave="chipDragLeave(event)"
-        ondrop="chipDrop(event,'${gridId}',${i})"
-        ondragend="chipDragEndSel(event)"
-      >${escapeHtml(s.name)}</span>`;
+      <span class="${className}" data-grid="${gridId}" data-index="${i}" onclick="handleTreatmentChipClick(event,'${gridId}',${i})">${escapeHtml(s.name)}</span>`;
     }).join('');
   }
 
@@ -4987,11 +5031,11 @@
   function getTreatmentBadgeClass(treatment) {
     const name = String(treatment || '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
-    if (name === '물리치료') return 'treatment-physical';
+    if (name === '물리치료' || name === 'sw') return 'treatment-physical';
     if (name === '적외선') return 'treatment-infrared';
     if (name === '침' || name === '전침') return 'treatment-acu';
     if (name === '건부항' || name === '습부항') return 'treatment-cupping';
-    if (name === '단추' || name === '복추' || name === '추나') return 'treatment-chuna';
+    if (name === '단추' || name === '복추' || name === '추나' || name === '벤치') return 'treatment-chuna';
     if (name === '왕뜸' || name === '전자뜸') return 'treatment-moxa';
     if (/^약침/.test(name)) return 'treatment-pharm';
     if (name === '진찰' || name === '베드진찰') return 'treatment-exam';
@@ -7102,11 +7146,11 @@
     const getTreatmentBadgeClass = (treatment) => {
     const name = String(treatment || '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
-    if (name === '물리치료') return 'treatment-physical';
+    if (name === '물리치료' || name === 'sw') return 'treatment-physical';
     if (name === '적외선') return 'treatment-infrared';
     if (name === '침' || name === '전침') return 'treatment-acu';
       if (name === '건부항' || name === '습부항') return 'treatment-cupping';
-      if (name === '단추' || name === '복추' || name === '추나') return 'treatment-chuna';
+      if (name === '단추' || name === '복추' || name === '추나' || name === '벤치') return 'treatment-chuna';
       if (name === '왕뜸' || name === '전자뜸') return 'treatment-moxa';
       if (/^약침/.test(name)) return 'treatment-pharm';
       if (name === '진찰' || name === '베드진찰') return 'treatment-exam';
@@ -7830,13 +7874,8 @@
         : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'waiting'));
       const treatmentClass = getTreatmentBadgeClass(treatment);
       const runningClass = bed.running && index === currentIndex ? ' running' : '';
-      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}" draggable="true"
-        ondragstart="handleTreatChipDragStart(event,${bedNo},${index})"
-        ondragover="handleTreatChipDragOver(event,${bedNo},${index})"
-        ondrop="handleTreatChipDrop(event,${bedNo},${index})"
-        ondragend="handleTreatChipDragEnd(event)"
-        ondragleave="handleTreatChipDragLeave(event)"
-      >${escapeHtml(treatment)}</span>`;
+      const selectedClass = selectedBedTreatmentChip?.bedNo === bedNo && selectedBedTreatmentChip.index === index ? ' selected' : '';
+      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${selectedClass}" onclick="handleBedTreatmentChipClick(event,${bedNo},${index})">${escapeHtml(treatment)}</span>`;
     }).join('');
   }
 
@@ -8854,6 +8893,69 @@
     renderBedMonitors();
   };
 
+  // ── 치료 칩 클릭 교환 / 삭제 ────────────────────────────────────────
+  let selectedBedTreatmentChip = null;
+
+  async function swapTreatmentInBed(bedNo, fromIndex, toIndex) {
+    const bed = getBedData(bedNo);
+    if (!bed) return;
+
+    const treatments = [...(bed.treatments || [])];
+    if (!treatments[fromIndex] || !treatments[toIndex] || fromIndex === toIndex) return;
+    [treatments[fromIndex], treatments[toIndex]] = [treatments[toIndex], treatments[fromIndex]];
+
+    const currentIndex = Number(bed.currentIndex || 0);
+    let nextCurrentIndex = currentIndex;
+    if (currentIndex === fromIndex) nextCurrentIndex = toIndex;
+    else if (currentIndex === toIndex) nextCurrentIndex = fromIndex;
+    nextCurrentIndex = Math.max(0, Math.min(treatments.length - 1, nextCurrentIndex));
+
+    try {
+      await updateBedRecord(bedNo, {
+        treatments,
+        currentIndex: nextCurrentIndex
+      });
+      if (bed.patientKey) {
+        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { treatments });
+      }
+    } catch(e) {
+      console.error(e);
+      showToast('치료 순서 변경 실패 - 연결을 확인해주세요');
+    }
+  }
+
+  window.handleBedTreatmentChipClick = async (event, bedNo, index) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const bed = getBedData(bedNo);
+    if (!bed?.treatments?.[index]) {
+      selectedBedTreatmentChip = null;
+      renderBedMonitors();
+      renderBedDetail();
+      renderReceiveBedDetail();
+      return;
+    }
+
+    if (!selectedBedTreatmentChip || selectedBedTreatmentChip.bedNo !== bedNo) {
+      selectedBedTreatmentChip = { bedNo, index };
+      renderBedMonitors();
+      renderBedDetail();
+      renderReceiveBedDetail();
+      return;
+    }
+
+    const fromIndex = selectedBedTreatmentChip.index;
+    selectedBedTreatmentChip = null;
+    if (fromIndex === index) {
+      await removeTreatmentFromBed(bedNo, index);
+    } else {
+      await swapTreatmentInBed(bedNo, fromIndex, index);
+    }
+    renderBedMonitors();
+    renderBedDetail();
+    renderReceiveBedDetail();
+  };
+
   // ── 치료 칩 드래그 앤 드롭 ──────────────────────────────────────────
   window.handleTreatChipDragStart = (event, bedNo, fromIndex) => {
     // 베드 드래그가 시작되지 않도록 버블링 차단
@@ -9060,13 +9162,8 @@
         : (index < status.currentIndex ? 'done' : (index === status.currentIndex ? 'current' : 'waiting'));
       const treatmentClass = getTreatmentBadgeClass(treatment);
       const runningClass = status.stageState === 'running' && index === status.currentIndex ? ' running' : '';
-      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}" draggable="true"
-        ondragstart="handleTreatChipDragStart(event,${status.bedNo},${index})"
-        ondragover="handleTreatChipDragOver(event,${status.bedNo},${index})"
-        ondrop="handleTreatChipDrop(event,${status.bedNo},${index})"
-        ondragend="handleTreatChipDragEnd(event)"
-        ondragleave="handleTreatChipDragLeave(event)"
-      >${escapeHtml(treatment)}</span>`;
+      const selectedClass = selectedBedTreatmentChip?.bedNo === status.bedNo && selectedBedTreatmentChip.index === index ? ' selected' : '';
+      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${selectedClass}" onclick="handleBedTreatmentChipClick(event,${status.bedNo},${index})">${escapeHtml(treatment)}</span>`;
     }).join('');
 
     return `
