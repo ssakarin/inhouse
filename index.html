@@ -72,6 +72,20 @@
     max-width: min(1500px, calc(100vw - 16px));
     padding: 10px 8px 24px;
   }
+  body.app-tv-notify {
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  body.app-tv-notify .app {
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    padding: clamp(24px, 1.25vw, 48px);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: clamp(20px, 1vw, 36px);
+    overflow: hidden;
+  }
 
   /* 헤더 */
   .header {
@@ -277,6 +291,61 @@
   body.app-mode-bed .header-bed-controls,
   body.app-role-bed .header-bed-controls {
     display: flex;
+  }
+  body.app-tv-notify .header {
+    min-height: clamp(112px, 6.2vh, 150px);
+    margin-bottom: 0;
+    padding: clamp(22px, 1.3vw, 34px) clamp(28px, 1.6vw, 52px);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  body.app-tv-notify .brand-icon {
+    width: clamp(66px, 3.2vw, 96px);
+    height: clamp(66px, 3.2vw, 96px);
+  }
+  body.app-tv-notify .header-left {
+    gap: clamp(18px, 1vw, 28px);
+  }
+  body.app-tv-notify .header-left h1 {
+    font-size: clamp(42px, 1.55vw, 62px);
+    line-height: 1.05;
+  }
+  body.app-tv-notify .header-left p {
+    display: none;
+  }
+  body.app-tv-notify .header-actions {
+    min-width: 0;
+    gap: clamp(16px, 0.9vw, 28px);
+  }
+  body.app-tv-notify .header-notify-controls {
+    gap: clamp(16px, 0.9vw, 28px);
+    min-width: 0;
+  }
+  body.app-tv-notify .header-wait-chip {
+    min-height: clamp(54px, 3vh, 78px);
+    padding: 0 clamp(18px, 1vw, 30px);
+    display: inline-flex;
+    align-items: center;
+    font-size: clamp(28px, 1vw, 40px);
+  }
+  body.app-tv-notify .header-current-time {
+    min-height: clamp(72px, 4vh, 96px);
+    padding: 0 clamp(22px, 1.1vw, 36px);
+    display: inline-flex;
+    align-items: center;
+    font-size: clamp(50px, 1.75vw, 72px);
+    border-radius: 14px;
+  }
+  body.app-tv-notify .doctor-alert-btns {
+    display: flex;
+    max-width: min(38vw, 1120px);
+    overflow: hidden;
+  }
+  body.app-tv-notify .doctor-alert-btn {
+    height: clamp(54px, 3vh, 74px);
+    padding: 0 clamp(18px, 1vw, 32px);
+    font-size: clamp(26px, 0.95vw, 36px);
+    border-radius: 12px;
   }
   .header-wait-chip {
     background: rgba(255,202,106,0.16);
@@ -653,6 +722,16 @@
     flex-direction: column;
     gap: 8px;
   }
+  body.app-tv-notify .receive-detail-column > .card {
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: clamp(18px, 1vw, 34px);
+  }
+  body.app-tv-notify .upcoming-list {
+    min-height: 0;
+    overflow: hidden;
+    gap: clamp(12px, 0.65vw, 22px);
+  }
   .upcoming-item {
     display: grid;
     grid-template-columns: 72px minmax(0, 1fr);
@@ -662,6 +741,14 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
+  }
+  body.app-tv-notify .upcoming-item {
+    grid-template-columns: clamp(128px, 4.5vw, 180px) minmax(0, 1fr);
+    gap: clamp(14px, 0.8vw, 26px);
+    min-height: clamp(102px, 5.4vh, 148px);
+    padding: clamp(16px, 0.85vw, 28px) clamp(18px, 0.95vw, 32px);
+    border-radius: 14px;
+    border-width: 2px;
   }
   .upcoming-item.assignment {
     cursor: pointer;
@@ -684,6 +771,9 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  body.app-tv-notify .upcoming-time {
+    font-size: clamp(28px, 1vw, 40px);
+  }
   .upcoming-time.treatment-badge {
     display: inline-flex;
     align-items: center;
@@ -698,6 +788,13 @@
     line-height: 1.1;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  body.app-tv-notify .upcoming-time.treatment-badge {
+    min-width: clamp(112px, 4vw, 160px);
+    max-width: clamp(128px, 4.5vw, 180px);
+    padding: clamp(10px, 0.55vw, 18px);
+    font-size: clamp(24px, 0.85vw, 34px);
+    border-radius: 12px;
   }
   .upcoming-time.treatment-hotpack { background: rgba(250,204,21,0.30); border-color: rgba(250,204,21,0.92); color: #fde047; }
   .upcoming-time.treatment-physical { background: rgba(57,169,245,0.22); border-color: rgba(57,169,245,0.72); color: #9edcff; }
@@ -737,17 +834,32 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  body.app-tv-notify .upcoming-main {
+    font-size: clamp(30px, 1.05vw, 44px);
+    line-height: 1.18;
+  }
   .upcoming-sub {
     color: var(--text3);
     font-size: 11px;
     font-weight: 700;
     margin-top: 2px;
   }
+  body.app-tv-notify .upcoming-sub {
+    font-size: clamp(20px, 0.72vw, 28px);
+    margin-top: clamp(4px, 0.25vw, 8px);
+  }
   .upcoming-staff {
     color: var(--text2);
     font-size: 13px;
     font-weight: 900;
     margin-top: 4px;
+  }
+  body.app-tv-notify .upcoming-staff {
+    font-size: clamp(22px, 0.78vw, 30px);
+    margin-top: clamp(5px, 0.3vw, 10px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .upcoming-item.doctor-alert-simple-item {
     grid-template-columns: minmax(0, 1fr);
@@ -765,12 +877,26 @@
     gap: 8px;
     margin-top: 10px;
   }
+  body.app-tv-notify .doctor-alert-split {
+    grid-template-columns: 1fr;
+    gap: clamp(14px, 0.75vw, 26px);
+    margin-top: 0;
+    min-height: 0;
+    max-height: 42vh;
+    overflow: hidden;
+  }
   .doctor-alert-box {
     min-width: 0;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px;
+  }
+  body.app-tv-notify .doctor-alert-box {
+    padding: clamp(16px, 0.85vw, 28px);
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: 0;
   }
   .doctor-alert-box-title {
     color: var(--gold);
@@ -781,10 +907,18 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  body.app-tv-notify .doctor-alert-box-title {
+    font-size: clamp(26px, 0.9vw, 36px);
+    margin-bottom: clamp(12px, 0.65vw, 22px);
+  }
   .doctor-alert-box-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  body.app-tv-notify .doctor-alert-box-list {
+    gap: clamp(10px, 0.55vw, 18px);
+    overflow: hidden;
   }
   .doctor-alert-box-list .upcoming-item {
     grid-template-columns: 72px minmax(0, 1fr);
@@ -1435,6 +1569,52 @@
   .receive-main-column { order: 2; }
   #inputBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #receiveBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  body.app-tv-notify .receive-panel.active {
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  body.app-tv-notify .receive-layout {
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(420px, 0.72fr);
+    gap: clamp(22px, 1.15vw, 42px);
+    align-items: stretch;
+    overflow: hidden;
+  }
+  body.app-tv-notify .receive-main-column,
+  body.app-tv-notify .receive-detail-column {
+    order: initial;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  body.app-tv-notify .receive-main-column {
+    display: block;
+  }
+  body.app-tv-notify .receive-main-column > .card,
+  body.app-tv-notify .receive-detail-column > .card {
+    height: 100%;
+    min-height: 0;
+    padding: clamp(22px, 1.15vw, 42px);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  body.app-tv-notify .receive-main-column > .card:not(:first-child),
+  body.app-tv-notify .receive-form-column {
+    display: none !important;
+  }
+  body.app-tv-notify #receiveBedMonitor {
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    gap: clamp(14px, 0.75vw, 28px);
+    margin-bottom: 0;
+    overflow: hidden;
+  }
   .bed-status {
     background: linear-gradient(180deg, var(--surface2), var(--surface));
     border: 1px solid rgba(125, 177, 224, 0.45);
@@ -1445,6 +1625,22 @@
     cursor: pointer;
     box-shadow: 0 3px 0 rgba(0,0,0,0.28), 0 8px 18px rgba(0,0,0,0.16);
     transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+  body.app-tv-notify .bed-status {
+    min-height: 0;
+    height: 100%;
+    padding: clamp(18px, 0.95vw, 34px);
+    border-radius: 14px;
+    border-width: 2px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-content: stretch;
+    cursor: default;
+    overflow: hidden;
+  }
+  body.app-tv-notify .bed-status:hover,
+  body.app-tv-notify .bed-status:focus {
+    transform: none;
   }
   .bed-status:hover,
   .bed-status:focus {
@@ -1516,6 +1712,10 @@
     gap: 8px;
     margin-bottom: 6px;
   }
+  body.app-tv-notify .bed-status-top {
+    gap: clamp(12px, 0.65vw, 22px);
+    margin-bottom: clamp(12px, 0.7vw, 24px);
+  }
   .bed-status-no {
     min-width: 0;
     font-size: 13px;
@@ -1524,6 +1724,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  body.app-tv-notify .bed-status-no {
+    font-size: clamp(30px, 1.05vw, 44px);
+    line-height: 1.08;
   }
   .bed-status-time {
     font-size: clamp(18px, 4.8vw, 28px);
@@ -1536,6 +1740,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  body.app-tv-notify .bed-status-time {
+    font-size: clamp(48px, 1.75vw, 74px);
+    max-width: 52%;
+  }
   .bed-status-info {
     display: flex;
     flex-wrap: nowrap;
@@ -1543,6 +1751,13 @@
     margin-top: 4px;
     overflow: hidden;
     min-width: 0;
+  }
+  body.app-tv-notify .bed-status-info {
+    gap: clamp(8px, 0.45vw, 14px);
+    margin-top: 0;
+    align-content: start;
+    flex-wrap: wrap;
+    max-height: 100%;
   }
   .bed-meta-chip--fixed {
     flex-shrink: 0;
@@ -1564,6 +1779,14 @@
     font-weight: 900;
     color: var(--accent);
   }
+  body.app-tv-notify .bed-status-treatment {
+    gap: clamp(8px, 0.45vw, 14px);
+    margin-top: clamp(10px, 0.55vw, 18px);
+    font-size: clamp(26px, 0.9vw, 36px);
+    line-height: 1.15;
+    max-height: 2.6em;
+    overflow: hidden;
+  }
   .bed-status-meta {
     display: flex;
     flex-wrap: wrap;
@@ -1582,6 +1805,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  body.app-tv-notify .bed-meta-chip {
+    border-radius: 10px;
+    padding: clamp(7px, 0.4vw, 13px) clamp(10px, 0.55vw, 18px);
+    font-size: clamp(22px, 0.75vw, 30px);
+    line-height: 1.15;
   }
   .credit-chip {
     display: flex;
@@ -10251,6 +10480,10 @@
       'app-fixed-bed',
       view === 'bed' && Boolean(getFixedBedNoFromUrl())
     );
+    document.body.classList.toggle(
+      'app-tv-notify',
+      view === 'notify' || getModeFromView() === 'notify'
+    );
   }
 
   function setMode(mode, updateHash = true) {
@@ -10264,6 +10497,7 @@
     ['input', 'doctor', 'notify', 'receive', 'bed', 'settings'].forEach(name => {
       document.body.classList.toggle(`app-mode-${name}`, mode === name);
     });
+    document.body.classList.toggle('app-tv-notify', mode === 'notify');
     const modes = ['input', 'notify', 'receive', 'bed', 'settings'];
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', modes[i] === mode);
