@@ -625,6 +625,7 @@
               <label>연락처<input id="editPhone" type="text"></label>
               <label>최근 담당원장<input id="editDoctorName" type="text" readonly></label>
             </div>
+            <label>최근 초진/재진<select id="editVisitType"><option value="">-</option><option value="초진">초진</option><option value="재진">재진</option></select></label>
             <label>주상병명<input id="editChiefComplaint" type="text"></label>
             <label>과거 주상병명<input class="text-input" id="editPastChiefComplaints" type="text" placeholder="과거 진료 기록의 다른 주상병명" readonly></label>
             <label>최근 치료목록<input class="text-input" id="editTreatmentsText" type="text" readonly></label>
@@ -1052,7 +1053,7 @@
   function visitSummary(record = {}) {
     const treatments = formatTreatmentsText(record.treatments);
     const bodyParts = formatBodyPartsText(record.bodyParts);
-    return [record.doctorName, treatments, bodyParts].filter(Boolean).join(" / ");
+    return [record.visitType, record.doctorName, treatments, bodyParts].filter(Boolean).join(" / ");
   }
 
   function packageDaySummary(pkg = {}, date = "") {
@@ -1095,6 +1096,7 @@
       </div>
       <div class="visit-detail-section">
         <div class="visit-detail-grid">
+          <div class="visit-detail-label">초진/재진</div><div>${escapeHtml(record.visitType || "-")}</div>
           <div class="visit-detail-label">담당원장</div><div>${escapeHtml(record.doctorName || "-")}</div>
           <div class="visit-detail-label">치료목록</div><div>${escapeHtml(formatTreatmentsText(record.treatments) || "-")}</div>
           <div class="visit-detail-label">치료부위</div><div>${escapeHtml(formatBodyPartsText(record.bodyParts) || "-")}</div>
@@ -1125,6 +1127,7 @@
       ? $("editChiefComplaint").value.trim()
       : String(latestRecord.chiefComplaint || "").trim();
     $("editChiefComplaint").value = chiefComplaint;
+    $("editVisitType").value = latestRecord.visitType || "";
     $("editDoctorName").value = latestRecord.doctorName || "";
     $("editTreatmentsText").value = formatTreatmentsText(Array.isArray(latestRecord.treatments) ? latestRecord.treatments : []);
     $("editBodyPartsText").value = formatBodyPartsText(latestRecord.bodyParts || { front: [], back: [] });
@@ -1378,7 +1381,7 @@
 
   function clearEditor() {
     selectedChartNo = "";
-    ["editChartNo", "editName", "editAge", "editGender", "editPhone", "editDoctorName", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText", "selectedPatientJson"].forEach(id => { $(id).value = ""; });
+    ["editChartNo", "editName", "editAge", "editGender", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText", "selectedPatientJson"].forEach(id => { $(id).value = ""; });
     activeVisitDates = [];
     activeVisitHistory = {};
     activeVisitMonth = new Date().toISOString().slice(0, 7);
@@ -1403,11 +1406,12 @@
 
     // 주상병명 수정 → 최신 진료일 기록의 주상병명을 갱신하고, 상단 주상병명도 그 값으로 맞춤
     const chiefComplaint = $("editChiefComplaint").value.trim();
+    const visitType = $("editVisitType").value.trim();
     const visitHistory = activeVisitHistory && typeof activeVisitHistory === "object" ? { ...activeVisitHistory } : {};
     const visitDates = [...new Set((Array.isArray(activeVisitDates) ? activeVisitDates : Object.keys(visitHistory || {})).map(String).filter(Boolean))].sort();
     const latestDate = visitDates[visitDates.length - 1] || "";
     if (latestDate) {
-      visitHistory[latestDate] = { ...(visitHistory[latestDate] || {}), chiefComplaint };
+      visitHistory[latestDate] = { ...(visitHistory[latestDate] || {}), visitType, chiefComplaint };
     }
     const latestRecord = latestDate ? (visitHistory[latestDate] || {}) : {};
 
@@ -1418,6 +1422,7 @@
       age: $("editAge").value ? Number($("editAge").value) : "",
       phone: $("editPhone").value.trim(),
       memo: $("editMemo").value.trim(),
+      visitType: latestRecord.visitType || visitType || existing.visitType || "",
       visitDates,
       visitHistory,
       packages: activePackages,

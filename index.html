@@ -5735,6 +5735,7 @@
     const date = source.visitDate || getVisitDateFromTimestamp(source.timestamp);
     return {
       date,
+      visitType: source.visitType || '',
       treatments: Array.isArray(source.treatments) ? source.treatments : [],
       bodyParts: normalizeBodyParts(source.bodyParts),
       doctorName: source.doctorName || '',
@@ -5751,6 +5752,7 @@
         treatments: Array.isArray(entry.treatments) ? entry.treatments : [],
         bodyParts: normalizeBodyParts(entry.bodyParts),
         doctorName: entry.doctorName || '',
+        visitType: entry.visitType || '',
         chiefComplaint: entry.chiefComplaint || ''
       });
     };
@@ -5772,6 +5774,7 @@
         treatments: entry.treatments,
         bodyParts: entry.bodyParts,
         doctorName: entry.doctorName,
+        visitType: entry.visitType,
         chiefComplaint: entry.chiefComplaint
       };
     });
@@ -7077,6 +7080,7 @@
         doctorName: assignedBed?.doctorName || patient.doctorName || '',
         visitEntry: createChartVisitEntry({
           timestamp: assignedBed?.timestamp || patient.timestamp,
+          visitType: assignedBed?.visitType || patient.visitType || '',
           treatments: assignedBed?.treatments || patient.treatments || [],
           bodyParts: assignedBed?.bodyParts || patient.bodyParts,
           doctorName: assignedBed?.doctorName || patient.doctorName || '',
@@ -9864,6 +9868,7 @@
           next.treatments = latestVisit.treatments || [];
           next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
           next.doctorName = latestVisit.doctorName || '';
+          next.visitType = latestVisit.visitType || next.visitType || '';
         }
         if (latestChiefComplaint) next.chiefComplaint = latestChiefComplaint;
         if (data.appointmentDate === null) delete next.appointmentDate;
@@ -9890,6 +9895,7 @@
             next.treatments = latestVisit.treatments || [];
             next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
             next.doctorName = latestVisit.doctorName || '';
+            next.visitType = latestVisit.visitType || next.visitType || '';
           }
           if (latestChiefComplaint) next.chiefComplaint = latestChiefComplaint;
           if (data.appointmentDate === null) delete next.appointmentDate;
@@ -10104,6 +10110,7 @@
       const colSex    = colAgeSex ?? detectColumn(headers, ['성별','Sex','Gender']);
       const colDiag   = detectColumn(headers, ['주상병명']);
       const colDate   = detectColumn(headers, ['진료일자','진료일','내원일']);
+      const colVisit  = detectColumn(headers, ['초재진','초진재진','초진/재진','초진','재진','진료구분','구분','초재진구분']);
       const colDoctor = detectColumn(headers, ['진료의사','진료의','담당의','담당원장']);
       const colPhone  = detectColumn(headers, ['연락처','전화번호','휴대폰','핸드폰','휴대전화','전화','Tel','TEL','Mobile','Phone']);
 
@@ -10138,6 +10145,8 @@
         const chiefComplaint = colDiag   ? String(row[colDiag]   || '').trim() : '';
         const doctorName     = colDoctor ? String(row[colDoctor] || '').trim() : '';
         const visitDate      = colDate   ? parseImportDate(row[colDate]) : '';
+        const visitText      = colVisit  ? String(row[colVisit]  || '').trim() : '';
+        const visitType      = visitText.includes('초') ? '초진' : (visitText.includes('재') ? '재진' : '');
         const phone          = colPhone  ? String(row[colPhone]  || '').trim() : '';
 
         const agg = byChart.get(chartNo) || { chartNo, name, age: '', gender: '', phone: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
@@ -10148,7 +10157,8 @@
         if (phone) agg.phone = phone;
         if (chiefComplaint) agg.chiefComplaint = chiefComplaint;
         if (doctorName) agg.doctorName = doctorName;
-        if (visitDate) agg.visitEntries.push({ date: visitDate, doctorName, chiefComplaint });
+        if (visitType) agg.visitType = visitType;
+        if (visitDate) agg.visitEntries.push({ date: visitDate, visitType, doctorName, chiefComplaint });
         byChart.set(chartNo, agg);
       }
 
@@ -10170,6 +10180,7 @@
           age: agg.age !== '' ? agg.age : (existing.age ?? ''),
           gender: agg.gender || existing.gender || '',
           phone: agg.phone || existing.phone || existing.phoneNumber || existing.tel || existing.mobile || existing.contact || '',
+          visitType: agg.visitType || existing.visitType || '',
           doctorName: agg.doctorName || existing.doctorName || '',
           chiefComplaint: latestChiefComplaint || agg.chiefComplaint || existing.chiefComplaint || '',
           bodyParts: normalizeBodyParts(existing.bodyParts),
