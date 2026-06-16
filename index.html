@@ -1454,6 +1454,20 @@
     color: #ffd0d0;
     background: rgba(251,113,133,0.16);
   }
+  .settings-link-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .settings-link-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    margin-top: 0;
+    text-decoration: none;
+  }
 
   /* ─── 수신 / 베드 패널 ─── */
   .receive-panel,
@@ -3606,6 +3620,13 @@
           <input id="chartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
             onchange="importChartFile(this.files?.[0]); this.value='';">
           <div id="chartImportStatus" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:18px;line-height:1.5"></div>
+        </div>
+        <div class="card settings-link-card">
+          <div class="card-label">관리 페이지</div>
+          <div class="settings-link-row">
+            <a class="export-btn settings-link-btn" href="db-viewer.html" target="_blank" rel="noopener">DB 열기</a>
+            <a class="export-btn settings-link-btn" href="stats.html" target="_blank" rel="noopener">통계 열기</a>
+          </div>
         </div>
       </div>
     </div>
