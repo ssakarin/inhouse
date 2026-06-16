@@ -10059,7 +10059,11 @@
 
   // ── XLS / XLSX / CSV import ────────────────────────────────────────
   function detectColumn(headers, candidates) {
-    return headers.find(h => candidates.some(c => String(h).replace(/\s/g, '').includes(c))) ?? null;
+    const normalize = (value) => String(value || '').replace(/\s+/g, '').replace(/[()·\[\]_/.-]/g, '').toLowerCase();
+    const normalizedCandidates = candidates.map(normalize);
+    return headers.find(h => normalizedCandidates.includes(normalize(h)))
+      ?? headers.find(h => normalizedCandidates.some(c => normalize(h).includes(c)))
+      ?? null;
   }
 
   // 엑셀 진료일 → 'YYYY-MM-DD' (엑셀 날짜 시리얼 / 텍스트 날짜 모두 지원)
