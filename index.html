@@ -1638,7 +1638,7 @@
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(420px, 0.72fr);
-    gap: clamp(22px, 1.15vw, 42px);
+    gap: clamp(16px, 0.9vw, 32px);
     align-items: stretch;
     overflow: hidden;
   }
@@ -1656,7 +1656,7 @@
   body.app-tv-notify .receive-detail-column > .card {
     height: 100%;
     min-height: 0;
-    padding: clamp(22px, 1.15vw, 42px);
+    padding: clamp(16px, 0.85vw, 32px);
     border-radius: 14px;
     overflow: hidden;
   }
@@ -1680,7 +1680,7 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-auto-rows: minmax(0, 1fr);
-    gap: clamp(14px, 0.75vw, 28px);
+    gap: clamp(10px, 0.55vw, 20px);
     margin-bottom: 0;
     overflow: hidden;
   }
@@ -1698,11 +1698,11 @@
   body.app-tv-notify .bed-status {
     min-height: 0;
     height: 100%;
-    padding: clamp(18px, 0.95vw, 34px);
+    padding: clamp(14px, 0.72vw, 26px);
     border-radius: 14px;
     border-width: 2px;
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr);
     align-content: stretch;
     cursor: default;
     overflow: hidden;
@@ -1782,8 +1782,8 @@
     margin-bottom: 6px;
   }
   body.app-tv-notify .bed-status-top {
-    gap: clamp(12px, 0.65vw, 22px);
-    margin-bottom: clamp(12px, 0.7vw, 24px);
+    gap: clamp(8px, 0.48vw, 16px);
+    margin-bottom: clamp(8px, 0.45vw, 16px);
   }
   .bed-status-no {
     min-width: 0;
@@ -1822,7 +1822,7 @@
     min-width: 0;
   }
   body.app-tv-notify .bed-status-info {
-    gap: clamp(8px, 0.45vw, 14px);
+    gap: clamp(5px, 0.3vw, 10px);
     margin-top: 0;
     align-content: start;
     flex-wrap: wrap;
@@ -1877,8 +1877,8 @@
   }
   body.app-tv-notify .bed-meta-chip {
     border-radius: 10px;
-    padding: clamp(7px, 0.4vw, 13px) clamp(10px, 0.55vw, 18px);
-    font-size: clamp(22px, 0.75vw, 30px);
+    padding: clamp(5px, 0.3vw, 10px) clamp(8px, 0.42vw, 14px);
+    font-size: clamp(20px, 0.68vw, 28px);
     line-height: 1.15;
   }
   .credit-chip {
@@ -2181,6 +2181,36 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  body.app-tv-notify .bed-popover {
+    padding: clamp(5px, 0.28vw, 10px);
+    margin-top: clamp(4px, 0.22vw, 8px);
+    border-radius: 10px;
+  }
+  body.app-tv-notify .bed-treatment-strip {
+    gap: clamp(4px, 0.25vw, 8px);
+    margin-top: 0;
+    align-content: flex-start;
+  }
+  body.app-tv-notify .bed-treatment-chip {
+    border-radius: 9px;
+    padding: clamp(4px, 0.22vw, 8px) clamp(6px, 0.34vw, 12px);
+    font-size: clamp(18px, 0.62vw, 25px);
+    line-height: 1.05;
+  }
+  body.app-tv-notify .bed-treatment-strip.dense {
+    gap: clamp(3px, 0.18vw, 6px);
+  }
+  body.app-tv-notify .bed-treatment-strip.dense .bed-treatment-chip {
+    padding: clamp(3px, 0.18vw, 6px) clamp(5px, 0.26vw, 9px);
+    font-size: clamp(16px, 0.54vw, 22px);
+  }
+  body.app-tv-notify .bed-treatment-strip.ultra-dense {
+    gap: clamp(2px, 0.14vw, 5px);
+  }
+  body.app-tv-notify .bed-treatment-strip.ultra-dense .bed-treatment-chip {
+    padding: clamp(2px, 0.14vw, 5px) clamp(4px, 0.22vw, 8px);
+    font-size: clamp(14px, 0.48vw, 19px);
   }
   .bed-treatment-chip.treatment-hotpack { --treatment-glow-soft: rgba(250,204,21,0.35); --treatment-glow-strong: rgba(250,204,21,0.90); --treatment-text: #fde047; background: rgba(250,204,21,0.30); border: 1px solid rgba(250,204,21,0.92); color: #fde047; }
   .bed-treatment-chip.treatment-physical { --treatment-glow-soft: rgba(57,169,245,0.35); --treatment-glow-strong: rgba(57,169,245,0.88); --treatment-text: #9edcff; background: rgba(57,169,245,0.22); border: 1px solid rgba(57,169,245,0.72); color: #9edcff; }
@@ -7295,7 +7325,6 @@
         <div class="upcoming-time">예약</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.name)}님 ${escapeHtml(formatAppointmentDate(item.appointmentDate))} 예약</div>
-          <div class="upcoming-sub">클릭하면 사라집니다</div>
         </div>
       </div>`
     }));
@@ -7307,7 +7336,6 @@
         <div class="upcoming-time">호출</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.message)}</div>
-          <div class="upcoming-sub">클릭하면 사라집니다</div>
         </div>
       </div>`
     }));
@@ -7347,6 +7375,10 @@
           item.doctorName ? escapeHtml(item.doctorName) : '',
           item.nurseName ? escapeHtml(item.nurseName) : ''
         ].filter(Boolean).join('/');
+        const inlineInfo = [
+          staffLine,
+          item.alertPending ? '' : formatTimer(item.remaining)
+        ].filter(Boolean).join(' · ');
         return {
           alertPending: item.alertPending,
           alertPriority: item.alertPending ? 0 : 1,
@@ -7355,8 +7387,7 @@
         <div class="upcoming-item">
           ${renderTreatmentBadge(item.treatment)}
           <div>
-            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}${staffLine ? `<span class="upcoming-staff-inline">${staffLine}</span>` : ''}${item.alertPending ? ` ${renderTreatmentCompleteLabel(item.treatment)}` : ''}</div>
-            ${item.alertPending ? '' : `<div class="upcoming-sub">${formatTimer(item.remaining)}</div>`}
+            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}${inlineInfo ? `<span class="upcoming-staff-inline">${inlineInfo}</span>` : ''}${item.alertPending ? ` ${renderTreatmentCompleteLabel(item.treatment)}` : ''}</div>
           </div>
         </div>`
         };
@@ -9222,10 +9253,15 @@
       const runningClass = status.stageState === 'running' && index === status.currentIndex ? ' running' : '';
       return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}">${escapeHtml(treatment)}</span>`;
     }).join('');
+    const densityClass = status.treatments.length >= 9
+      ? ' ultra-dense'
+      : status.treatments.length >= 6
+        ? ' dense'
+        : '';
 
     return `
       <div class="bed-popover">
-        <div class="bed-treatment-strip">${chips}</div>
+        <div class="bed-treatment-strip${densityClass}">${chips}</div>
       </div>`;
   }
 
