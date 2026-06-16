@@ -10470,6 +10470,11 @@
     return getModeFromView() || 'input';
   }
 
+  function isTvNotifyRequested() {
+    const params = new URLSearchParams(window.location.search);
+    return ['1', 'true', 'yes', 'tv'].includes(String(params.get('tv') || '').toLowerCase());
+  }
+
   function syncAppViewClass() {
     const view = getAppView();
     document.body.classList.toggle('app-role-locked', Boolean(view));
@@ -10482,7 +10487,7 @@
     );
     document.body.classList.toggle(
       'app-tv-notify',
-      view === 'notify' || getModeFromView() === 'notify'
+      isTvNotifyRequested() && (view === 'notify' || getModeFromView() === 'notify')
     );
   }
 
@@ -10497,7 +10502,7 @@
     ['input', 'doctor', 'notify', 'receive', 'bed', 'settings'].forEach(name => {
       document.body.classList.toggle(`app-mode-${name}`, mode === name);
     });
-    document.body.classList.toggle('app-tv-notify', mode === 'notify');
+    document.body.classList.toggle('app-tv-notify', isTvNotifyRequested() && mode === 'notify');
     const modes = ['input', 'notify', 'receive', 'bed', 'settings'];
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', modes[i] === mode);
