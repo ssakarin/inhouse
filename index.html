@@ -3605,7 +3605,12 @@
           <div class="rr-setting" style="margin-top:0">
             <span class="rr-setting-text">DB 저장 없이 현재 beds / patients만 비우기</span>
           </div>
-          <button class="export-btn danger" id="clearPatientDbBtn" onclick="clearPatientDatabase()" style="margin-top:10px">
+          <div class="staff-add-row" style="margin-top:12px">
+            <input class="name-input" id="randomTestCountInput" type="number" min="1" max="50" step="1" value="10" autocomplete="off">
+            <button class="timer-set-btn" id="randomTestCreateBtn" onclick="createRandomTestPatients()">랜덤 테스트 생성</button>
+          </div>
+          <div id="randomTestStatus" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:18px;line-height:1.5"></div>
+          <button class="export-btn" id="clearPatientDbBtn" onclick="clearPatientDatabase()" style="margin-top:10px">
             Firebase 비우기
           </button>
         </div>
@@ -6227,6 +6232,12 @@
     const btn = document.getElementById('clearPatientDbBtn');
     const ok = confirm('Firebase 현재 데이터를 비울까요?\n\n삭제 대상: Firebase patients, beds, 베드 배정 알림\n유지 대상: 환자 차트 DB, 설정, 원장/간호사, 치료시간');
     if (!ok) return;
+
+    const password = prompt('Firebase 현재 데이터 삭제 비밀번호를 입력하세요.');
+    if (password !== '7677') {
+      showToast('비밀번호가 맞지 않습니다');
+      return;
+    }
 
     const okAgain = confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');
     if (!okAgain) return;
@@ -9935,6 +9946,109 @@
       return [];
     }
   }
+
+  function getLatestChartVisit(patient = {}) {
+    const byDate = patient.visitHistory || {};
+    const dates = [
+      ...(Array.isArray(patient.visitDates) ? patient.visitDates : []),
+      ...Object.keys(byDate)
+    ]
+      .map(date => String(date || '').trim())
+      .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date));
+    const latestDate = [...new Set(dates)].sort().pop() || '';
+    return latestDate ? (byDate[latestDate] || {}) : {};
+  }
+
+  function shuffleRows(rows) {
+    const next = [...rows];
+    for (let i = next.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [next[i], next[j]] = [next[j], next[i]];
+    }
+    return next;
+  }
+
+  function getDefaultDoctorForRandomTest(latestVisit = {}) {
+    const doctorName = latestVisit.doctorName || '';
+    const matched = getSortedStaff('doctors').find(([, doctor]) => doctor?.name === doctorName);
+    if (matched) return { id: matched[0], name: matched[1]?.name || '' };
+    const first = getSortedStaff('doctors')[0];
+    return first ? { id: first[0], name: first[1]?.name || '' } : { id: '', name: doctorName };
+  }
+
+  function buildRandomTestPatientPayload(patient = {}) {
+    const latestVisit = getLatestChartVisit(patient);
+    const treatments = Array.isArray(latestVisit.treatments) && latestVisit.treatments.length
+      ? latestVisit.treatments
+      : Array.isArray(patient.treatments) && patient.treatments.length
+        ? patient.treatments
+        : ['침'];
+    const doctor = getDefaultDoctorForRandomTest(latestVisit);
+    const now = new Date();
+    return {
+      name: patient.name || '',
+      treatments,
+      timestamp: now.getTime(),
+      timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+      date: now.toLocaleDateString('ko-KR'),
+      bedStatus: 'waiting',
+      chartNo: normalizeChartNo(patient.chartNo),
+      visitType: latestVisit.visitType || patient.visitType || '재진',
+      chiefComplaint: latestVisit.chiefComplaint || patient.chiefComplaint || '',
+      memo: '',
+      age: patient.age || '',
+      gender: patient.gender || '',
+      bodyParts: normalizeBodyParts(latestVisit.bodyParts || patient.bodyParts),
+      doctorId: doctor.id,
+      doctorName: doctor.name,
+      nurseId: '',
+      nurseName: ''
+    };
+  }
+
+  window.createRandomTestPatients = async function() {
+    const input = document.getElementById('randomTestCountInput');
+    const btn = document.getElementById('randomTestCreateBtn');
+    const status = document.getElementById('randomTestStatus');
+    const count = Math.max(1, Math.min(50, Number(input?.value || 10)));
+    if (input) input.value = String(count);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '생성 중...';
+    }
+    if (status) status.textContent = 'DB 환자 목록 불러오는 중...';
+    try {
+      const records = (await getAllChartPatients())
+        .filter(patient => patient?.name && normalizeChartNo(patient.chartNo));
+      const currentChartNos = new Set(
+        [...patientsByKey.values()]
+          .map(patient => normalizeChartNo(patient?.chartNo))
+          .filter(Boolean)
+      );
+      const candidates = records.filter(patient => !currentChartNos.has(normalizeChartNo(patient.chartNo)));
+      const source = candidates.length ? candidates : records;
+      if (!source.length) {
+        if (status) status.textContent = 'DB에 불러올 환자가 없습니다.';
+        showToast('DB에 불러올 환자가 없습니다');
+        return;
+      }
+      const selected = shuffleRows(source).slice(0, Math.min(count, source.length));
+      await Promise.all(selected.map(patient => push(ref(db, PATIENTS_PATH), buildRandomTestPatientPayload(patient))));
+      if (autoBedAssignEnabled) setTimeout(() => assignWaitingPatientsToBeds(true), 300);
+      const suffix = selected.length < count ? ` (요청 ${count}명 중 ${selected.length}명)` : '';
+      if (status) status.textContent = `DB 환자 ${selected.length}명 생성 완료${suffix}`;
+      showToast(`랜덤 테스트 ${selected.length}명 생성 완료`);
+    } catch (error) {
+      console.error(error);
+      if (status) status.textContent = '랜덤 테스트 생성 실패';
+      showToast('랜덤 테스트 생성 실패');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '랜덤 테스트 생성';
+      }
+    }
+  };
 
   async function refreshAppointmentAlerts() {
     renderUpcomingAlerts();
