@@ -9968,22 +9968,40 @@
     return next;
   }
 
-  function getDefaultDoctorForRandomTest(latestVisit = {}) {
-    const doctorName = latestVisit.doctorName || '';
-    const matched = getSortedStaff('doctors').find(([, doctor]) => doctor?.name === doctorName);
-    if (matched) return { id: matched[0], name: matched[1]?.name || '' };
-    const first = getSortedStaff('doctors')[0];
-    return first ? { id: first[0], name: first[1]?.name || '' } : { id: '', name: doctorName };
+  function randomItem(rows) {
+    return rows.length ? rows[Math.floor(Math.random() * rows.length)] : null;
+  }
+
+  function getRandomDoctorForRandomTest() {
+    const picked = randomItem(getSortedStaff('doctors'));
+    return picked ? { id: picked[0], name: picked[1]?.name || '' } : { id: '', name: '' };
+  }
+
+  function getRandomPresetTreatmentsForRandomTest(patient = {}, latestVisit = {}) {
+    const presets = treatmentPresets.filter(preset => Array.isArray(preset.treatments) && preset.treatments.length);
+    const picked = randomItem(presets);
+    if (picked) return [...picked.treatments];
+    if (Array.isArray(latestVisit.treatments) && latestVisit.treatments.length) return [...latestVisit.treatments];
+    if (Array.isArray(patient.treatments) && patient.treatments.length) return [...patient.treatments];
+    return ['침'];
+  }
+
+  function getRandomBodyPartsForRandomTest() {
+    const allParts = [
+      ...BODY_PARTS.front.map(part => ({ side: 'front', id: part.id })),
+      ...BODY_PARTS.back.map(part => ({ side: 'back', id: part.id }))
+    ];
+    const picked = shuffleRows(allParts).slice(0, Math.min(3, allParts.length));
+    return normalizeBodyParts({
+      front: picked.filter(part => part.side === 'front').map(part => part.id),
+      back: picked.filter(part => part.side === 'back').map(part => part.id)
+    });
   }
 
   function buildRandomTestPatientPayload(patient = {}) {
     const latestVisit = getLatestChartVisit(patient);
-    const treatments = Array.isArray(latestVisit.treatments) && latestVisit.treatments.length
-      ? latestVisit.treatments
-      : Array.isArray(patient.treatments) && patient.treatments.length
-        ? patient.treatments
-        : ['침'];
-    const doctor = getDefaultDoctorForRandomTest(latestVisit);
+    const treatments = getRandomPresetTreatmentsForRandomTest(patient, latestVisit);
+    const doctor = getRandomDoctorForRandomTest();
     const now = new Date();
     return {
       name: patient.name || '',
@@ -9998,7 +10016,7 @@
       memo: '',
       age: patient.age || '',
       gender: patient.gender || '',
-      bodyParts: normalizeBodyParts(latestVisit.bodyParts || patient.bodyParts),
+      bodyParts: getRandomBodyPartsForRandomTest(),
       doctorId: doctor.id,
       doctorName: doctor.name,
       nurseId: '',
