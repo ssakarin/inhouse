@@ -294,6 +294,32 @@
     return isPrescriptionChiefComplaint(rec.chiefComplaint);
   }
 
+  function normalizeVisitType(value) {
+    const text = String(value || "").trim().replace(/\s+/g, "");
+    if (text.includes("초")) return "초진";
+    if (text.includes("재")) return "재진";
+    return "";
+  }
+
+  function getVisitRecord(rec, date) {
+    return (rec.visitHistory || {})[date] || {};
+  }
+
+  function explicitNewVisitDatesOf(rec) {
+    return visitDatesOf(rec).filter(date => normalizeVisitType(getVisitRecord(rec, date).visitType) === "초진");
+  }
+
+  function newVisitDatesOf(rec) {
+    const explicitDates = explicitNewVisitDatesOf(rec);
+    if (explicitDates.length) return explicitDates;
+    const dates = visitDatesOf(rec);
+    return dates.length ? [dates[0]] : [];
+  }
+
+  function nonPrescriptionVisitDatesOf(rec) {
+    return visitDatesOf(rec).filter(date => !isPrescriptionVisit(rec, date));
+  }
+
   function isoWeekKey(dateStr) {
     const d = new Date(dateStr + "T00:00:00");
     d.setHours(0, 0, 0, 0);
@@ -352,23 +378,24 @@
     for (const rec of allRecords) {
       const dates = visitDatesOf(rec).filter(d => d <= todayStr);
       if (!dates.length) continue;
-      const firstDate = dates[0];
-      if (!targetDates.has(firstDate)) continue;
-      const firstEntry = (rec.visitHistory || {})[firstDate] || {};
-      if (isPrescriptionVisit(rec, firstDate)) continue;
-      const doctorName = String(firstEntry.doctorName || rec.doctorName || "").trim();
-      if (docFilter && doctorName !== docFilter) continue;
-      if (dates.some(d => d > firstDate && d <= todayStr)) continue;
-      rows.push({
-        chartNo: rec.chartNo || "",
-        name: rec.name || "",
-        firstDate,
-        daysAgo: targetDates.get(firstDate),
-        doctorName,
-        age: rec.age || "",
-        gender: rec.gender || "",
-        phone: rec.phone || rec.phoneNumber || rec.tel || ""
-      });
+      for (const firstDate of newVisitDatesOf(rec).filter(d => d <= todayStr)) {
+        if (!targetDates.has(firstDate)) continue;
+        const firstEntry = getVisitRecord(rec, firstDate);
+        if (isPrescriptionVisit(rec, firstDate)) continue;
+        const doctorName = String(firstEntry.doctorName || rec.doctorName || "").trim();
+        if (docFilter && doctorName !== docFilter) continue;
+        if (dates.some(d => d > firstDate && d <= todayStr)) continue;
+        rows.push({
+          chartNo: rec.chartNo || "",
+          name: rec.name || "",
+          firstDate,
+          daysAgo: targetDates.get(firstDate),
+          doctorName,
+          age: rec.age || "",
+          gender: rec.gender || "",
+          phone: rec.phone || rec.phoneNumber || rec.tel || ""
+        });
+      }
     }
     return rows.sort((a, b) => b.daysAgo - a.daysAgo || String(a.chartNo).localeCompare(String(b.chartNo), "ko", { numeric: true }));
   }
@@ -386,6 +413,7 @@
     const inRange = d => d >= start && d <= end;
     const patientSet = new Set();
     const prescriptionPatientSet = new Set();
+    const newPatientSet = new Set();
     let visits = 0;
     let coreVisits = 0;
     let newPatients = 0;
@@ -402,7 +430,6 @@
       const dates = visitDatesOf(rec);
       if (!dates.length) continue;
       const pid = String(rec.chartNo || rec.name || Math.random());
-      const firstDate = dates[0];
       let matchedCore = false;
 
       for (const date of dates.filter(inRange)) {
@@ -445,23 +472,24 @@
 
       if (matchedCore) patientSet.add(pid);
 
-      // 신환: 전체 초진일이 기간 내 + (필터 시) 그 초진 진료의 원장이 선택 원장
-      if (inRange(firstDate) && !isPrescriptionVisit(rec, firstDate)) {
-        const firstDoc = String(((rec.visitHistory || {})[firstDate] || {}).doctorName || "").trim();
-        if (!docFilter || firstDoc === docFilter) {
-          newPatients += 1;
-          const nonPrescriptionDates = dates.filter(date => !isPrescriptionVisit(rec, date));
-          const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21);
-          const isReturning = followupVisitCount >= 2;
-          const isThirdVisit = followupVisitCount >= 3;
-          if (isReturning) returningPatients += 1;
-          if (isThirdVisit) thirdVisitPatients += 1;
-          const key = periodKey(firstDate, chartUnit);
-          if (trendBuckets[key]) {
-            trendBuckets[key].newPatients += 1;
-            if (isReturning) trendBuckets[key].returningPatients += 1;
-            if (isThirdVisit) trendBuckets[key].thirdVisitPatients += 1;
-          }
+      // visitType이 있으면 해당 날짜의 초진 표시를 우선하고, 없던 과거 데이터만 첫 방문일을 초진으로 본다.
+      for (const firstDate of newVisitDatesOf(rec)) {
+        if (!inRange(firstDate) || isPrescriptionVisit(rec, firstDate)) continue;
+        const firstDoc = String(getVisitRecord(rec, firstDate).doctorName || rec.doctorName || "").trim();
+        if (docFilter && firstDoc !== docFilter) continue;
+        newPatients += 1;
+        newPatientSet.add(pid);
+        const nonPrescriptionDates = nonPrescriptionVisitDatesOf(rec);
+        const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21);
+        const isReturning = followupVisitCount >= 2;
+        const isThirdVisit = followupVisitCount >= 3;
+        if (isReturning) returningPatients += 1;
+        if (isThirdVisit) thirdVisitPatients += 1;
+        const key = periodKey(firstDate, chartUnit);
+        if (trendBuckets[key]) {
+          trendBuckets[key].newPatients += 1;
+          if (isReturning) trendBuckets[key].returningPatients += 1;
+          if (isThirdVisit) trendBuckets[key].thirdVisitPatients += 1;
         }
       }
     }
@@ -493,7 +521,7 @@
       coreVisits,
       prescriptionPatients: prescriptionPatientSet.size,
       newPatients,
-      revisitPatients: Math.max(0, patientSet.size - newPatients),
+      revisitPatients: Math.max(0, patientSet.size - newPatientSet.size),
       returnRate: newPatients ? returningPatients / newPatients : 0,
       thirdVisitRate: newPatients ? thirdVisitPatients / newPatients : 0,
       avgVisitsPerPatient: patientSet.size ? coreVisits / patientSet.size : 0,
@@ -533,8 +561,8 @@
       <div class="metric"><div class="metric-label">총 환자 수</div><div class="metric-value">${s.totalPatients.toLocaleString()}</div><div class="metric-sub">진료 환자 수 + 약환</div></div>
       <div class="metric"><div class="metric-label">약환</div><div class="metric-value accent">${s.prescriptionPatients.toLocaleString()}</div><div class="metric-sub">주상병명 처방 실인원</div></div>
       <div class="metric"><div class="metric-label">진료 환자 수</div><div class="metric-value">${s.uniquePatients.toLocaleString()}</div><div class="metric-sub">약환 제외 실인원</div></div>
-      <div class="metric"><div class="metric-label">초진(신환)</div><div class="metric-value gold">${s.newPatients.toLocaleString()}</div><div class="metric-sub">기간 내 첫 진료</div></div>
-      <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value">${s.revisitPatients.toLocaleString()}</div><div class="metric-sub">진료환자 - 신환</div></div>
+      <div class="metric"><div class="metric-label">초진(신환)</div><div class="metric-value gold">${s.newPatients.toLocaleString()}</div><div class="metric-sub">기간 내 초진 표시</div></div>
+      <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value">${s.revisitPatients.toLocaleString()}</div><div class="metric-sub">초진 표시 제외 실환자</div></div>
       <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(s.returnRate * 100).toFixed(1)}%</div><div class="metric-sub">초진 후 3주 내 2회 이상</div></div>
       <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(s.thirdVisitRate * 100).toFixed(1)}%</div><div class="metric-sub">초진 후 3주 내 3회 이상</div></div>
       <div class="metric"><div class="metric-label">평균 방문 횟수</div><div class="metric-value accent">${s.avgVisitsPerPatient.toFixed(2)}</div><div class="metric-sub">약환 제외 진료 ÷ 진료 환자 수</div></div>
