@@ -80,10 +80,11 @@
     width: 100vw;
     max-width: none;
     height: 100vh;
-    padding: clamp(10px, 0.55vw, 22px);
+    height: 100dvh;
+    padding: clamp(4px, 0.32vw, 12px);
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: clamp(8px, 0.45vw, 18px);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
     overflow: hidden;
   }
 
@@ -1699,6 +1700,7 @@
     min-height: 0;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
     grid-auto-rows: minmax(0, 1fr);
     gap: clamp(8px, 0.42vw, 16px);
     margin-bottom: 0;
