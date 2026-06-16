@@ -1479,8 +1479,36 @@
       min-height: 0;
       overflow: hidden;
     }
+    /* 치료실알림: 치료알림 / 원장1 / 원장2 영역을 고정 크기로, 각자 스크롤 */
     body.app-mode-notify .receive-detail-column > .receive-alert-card {
-      overflow: auto;
+      display: grid;
+      grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr);
+      gap: 10px;
+      overflow: hidden;
+    }
+    body.app-mode-notify .receive-alert-card > .upcoming-list {
+      min-height: 0;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-gutter: stable;
+    }
+    body.app-mode-notify .receive-alert-card > .doctor-alert-split {
+      min-height: 0;
+      height: 100%;
+      margin-top: 0;
+      overflow: hidden;
+    }
+    body.app-mode-notify .doctor-alert-box {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+    body.app-mode-notify .doctor-alert-box-list {
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
       scrollbar-gutter: stable;
     }
     body.app-mode-notify #receiveBedMonitor {
@@ -1594,9 +1622,21 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  body.app-mode-notify .bed-status-time {
-    font-size: 13px;
-    line-height: 1.08;
+  /* 치료실알림: 베드 박스 안에 치료칩이 박스 밖으로 삐져나오지 않도록 */
+  body.app-mode-notify .bed-status {
+    overflow: hidden;
+  }
+  body.app-mode-notify .bed-status-info {
+    margin-top: 3px;
+  }
+  body.app-mode-notify .bed-treatment-strip {
+    gap: 3px;
+    margin-top: 4px;
+  }
+  body.app-mode-notify .bed-treatment-chip {
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 6px;
   }
   .bed-status-info {
     display: flex;
