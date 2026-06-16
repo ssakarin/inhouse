@@ -4879,6 +4879,11 @@
           ? staff.map(([key, data]) => `
             <div class="staff-item${type === 'nurses' && data.vacation ? ' vacation' : ''}">
               <div class="staff-name">${escapeHtml(data.name || '')}</div>
+              ${type === 'nurses' ? `
+                <label class="staff-vacation-toggle">
+                  <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="toggleNurseVacation('${key}', this.checked)">
+                  <span>자리비움</span>
+                </label>` : ''}
               <button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>
             </div>`).join('')
           : `<div class="empty-state"><div class="empty-icon">+</div><div class="empty-text">등록된 ${label}이 없습니다</div></div>`;
@@ -5334,11 +5339,6 @@
     renderTreatmentPresetSettings();
     renderAllTreatmentPresetSelects();
   });
-
-  Promise.all([
-    remove(ref(db, 'settings/nurseRoundRobinEnabled')),
-    remove(ref(db, 'settings/nurseRoundRobinState'))
-  ]).catch((e) => console.error('간호사 RR 자동배정 DB 삭제 실패', e));
 
   onValue(ref(db, 'settings/autoBedAssignEnabled'), (snapshot) => {
     autoBedAssignEnabled = Boolean(snapshot.val());
@@ -6693,51 +6693,78 @@
       );
   }
 
-  function getBedAssignedNurse(bedNo) {
-    const nurseGroups = [
-      { beds: [1, 2, 8, 13, 14], index: 0 },
-      { beds: [3, 4, 9, 10], index: 1 },
-      { beds: [5, 6, 11, 12], index: 2 }
-    ];
-    const group = nurseGroups.find(item => item.beds.includes(Number(bedNo)));
-    if (!group) return null;
+  function getActiveRoundRobinNurses() {
+    return getSortedStaff('nurses').filter(([, nurse]) => !nurse?.vacation);
+  }
 
-    const nurses = getSortedStaff('nurses').filter(([, nurse]) => !nurse?.vacation);
-    const [id, nurse] = nurses[group.index] || [];
+  async function getNextRoundRobinNurse() {
+    const nurses = getActiveRoundRobinNurses();
+    if (!nurses.length) return null;
+
+    const dateKey = getTodayKey();
+    const stateRef = ref(db, 'settings/nurseRoundRobinState');
+    let result;
+    try {
+      result = await runTransaction(stateRef, value => {
+        const state = value && typeof value === 'object' ? value : {};
+        const previousDate = String(state.lastDate || '');
+        const sameDate = previousDate === dateKey;
+        const previousStartOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
+        const startOffset = sameDate ? previousStartOffset : (previousDate ? (previousStartOffset + 1) % nurses.length : 0);
+        const count = sameDate ? Number(state.count || 0) + 1 : 1;
+        return {
+          ...state,
+          lastDate: dateKey,
+          startOffset,
+          count,
+          updatedAt: Date.now()
+        };
+      });
+    } catch (e) {
+      console.error('간호사 round robin 순번 저장 실패', e);
+      return null;
+    }
+    const state = result.snapshot.val() || {};
+    const count = Number(state.count || 1);
+    const serial = Math.max(0, count - 1);
+    const startOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
+    const index = (startOffset + serial) % nurses.length;
+    const [id, nurse] = nurses[index] || [];
     return id ? { id, name: nurse?.name || '' } : null;
   }
 
-  function applyBedAssignedNurse(data, bedNo) {
-    const nurse = getBedAssignedNurse(bedNo);
-    if (!nurse) return data;
-    return {
-      ...data,
-      nurseId: nurse.id,
-      nurseName: nurse.name
-    };
+  async function applyRoundRobinNurse(patientKey, data, bedNo) {
+    const nurse = await getNextRoundRobinNurse();
+    const assignedData = nurse
+      ? { ...data, nurseId: nurse.id, nurseName: nurse.name }
+      : { ...data, nurseId: '', nurseName: '' };
+    await updateBedRecord(bedNo, {
+      nurseId: assignedData.nurseId || '',
+      nurseName: assignedData.nurseName || ''
+    });
+    return assignedData;
   }
 
   function createBedAssignment(patientKey, data, bedNo = null) {
-    const assignmentData = bedNo ? applyBedAssignedNurse(data, bedNo) : data;
-    const firstTreatment = assignmentData.treatments?.[0];
+    const firstTreatment = data.treatments?.[0];
     const total = getTreatmentSeconds(firstTreatment);
     return {
       patientKey,
-      name: assignmentData.name,
-      treatments: assignmentData.treatments || [],
-      timeStr: assignmentData.timeStr || '',
-      timestamp: assignmentData.timestamp || Date.now(),
-      chartNo: normalizeChartNo(assignmentData.chartNo),
-      visitType: assignmentData.visitType || '',
-      chiefComplaint: assignmentData.chiefComplaint || '',
-      memo: assignmentData.memo || '',
-      age: assignmentData.age || '',
-      gender: assignmentData.gender || '',
-      doctorId: assignmentData.doctorId || '',
-      doctorName: assignmentData.doctorName || '',
-      nurseId: assignmentData.nurseId || '',
-      nurseName: assignmentData.nurseName || '',
-      bodyParts: assignmentData.bodyParts || { front: [], back: [] },
+      name: data.name,
+      treatments: data.treatments || [],
+      timeStr: data.timeStr || '',
+      timestamp: data.timestamp || Date.now(),
+      chartNo: normalizeChartNo(data.chartNo),
+      visitType: data.visitType || '',
+      chiefComplaint: data.chiefComplaint || '',
+      memo: data.memo || '',
+      age: data.age || '',
+      gender: data.gender || '',
+      doctorId: data.doctorId || '',
+      doctorName: data.doctorName || '',
+      nurseId: '',
+      nurseName: '',
+      bodyParts: data.bodyParts || { front: [], back: [] },
       currentIndex: 0,
       total,
       remaining: total,
@@ -6811,7 +6838,7 @@
       const beds = result.snapshot.val() || {};
       const bedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
       if (result.committed && bedNo) {
-        const assignedData = applyBedAssignedNurse(data, Number(bedNo));
+        const assignedData = await applyRoundRobinNurse(patientKey, data, Number(bedNo));
         patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo: Number(bedNo) });
         await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
           bedStatus: 'assigned',
@@ -6843,7 +6870,7 @@
     const beds = result.snapshot.val() || {};
     const bedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
     if (result.committed && bedNo) {
-      const assignedData = applyBedAssignedNurse(data, Number(bedNo));
+      const assignedData = await applyRoundRobinNurse(patientKey, data, Number(bedNo));
       patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo: Number(bedNo) });
       await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
         bedStatus: 'assigned',
@@ -6949,7 +6976,7 @@
 
     const beds = result.snapshot.val() || {};
     if (result.committed && beds[String(bedNo)]?.patientKey === patientKey) {
-      const assignedData = applyBedAssignedNurse(data, bedNo);
+      const assignedData = await applyRoundRobinNurse(patientKey, data, bedNo);
       patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo });
       await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
         bedStatus: 'assigned',

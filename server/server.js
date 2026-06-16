@@ -158,6 +158,19 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (pathname === "/api/patients" && req.method === "DELETE") {
+    const payload = await readJson(req);
+    if (String(payload?.password || "") !== "7677") {
+      jsonResponse(res, 403, { error: "Invalid password" });
+      return true;
+    }
+    const before = listPatients();
+    if (before.length) backupPatients(before, "delete-all");
+    statements.deleteAllPatients.run();
+    jsonResponse(res, 200, { ok: true, deleted: before.length });
+    return true;
+  }
+
   const patientMatch = pathname.match(/^\/api\/patients\/([^/]+)$/);
   if (patientMatch) {
     const chartNo = normalizeChartNo(decodeURIComponent(patientMatch[1]));
