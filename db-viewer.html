@@ -595,8 +595,8 @@
             <div class="search-box">
               <input id="patientSearchInput" type="text" placeholder="이름 또는 차트번호 검색">
               <select class="patient-sort-select" id="patientSortSelect" aria-label="환자 정렬">
-                <option value="chart">차트번호</option>
                 <option value="recent">최근방문날짜</option>
+                <option value="chart">차트번호</option>
                 <option value="name">가나다</option>
               </select>
             </div>
@@ -701,7 +701,7 @@
   let activePackageKey = "p6";
   let activePackageMonth = new Date().toISOString().slice(0, 7);
   let activePackageDate = new Date().toISOString().slice(0, 10);
-  let patientSortMode = "chart";
+  let patientSortMode = "recent";
   let globalVisitMonth = new Date().toISOString().slice(0, 7);
   let selectedGlobalVisitDate = "";
 
@@ -1596,7 +1596,7 @@
   $("loadIndexedBtn").addEventListener("click", loadIndexed);
   $("patientSearchInput").addEventListener("input", renderPatientList);
   $("patientSortSelect").addEventListener("change", event => {
-    patientSortMode = event.target.value || "chart";
+    patientSortMode = event.target.value || "recent";
     renderPatientList();
   });
   $("patientList").addEventListener("click", event => {

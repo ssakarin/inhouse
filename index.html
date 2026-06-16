@@ -373,31 +373,6 @@
     padding: 9px 14px 10px;
     white-space: nowrap;
   }
-  .random-test-btn {
-    background: rgba(57,169,245,0.16);
-    border: 1px solid rgba(57,169,245,0.5);
-    border-radius: 999px;
-    color: var(--accent);
-    font-family: 'Noto Sans KR', sans-serif;
-    font-size: 12px;
-    font-weight: 900;
-    padding: 7px 10px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .random-test-btn.danger {
-    background: rgba(251,113,133,0.14);
-    border-color: rgba(251,113,133,0.5);
-    color: var(--danger);
-  }
-  .random-test-btn.danger:hover {
-    background: rgba(251,113,133,0.26);
-    border-color: var(--danger);
-  }
-  .random-test-btn:hover {
-    background: rgba(57,169,245,0.26);
-    border-color: var(--accent);
-  }
   .mode-btn {
     padding: 6px 12px;
     border: none;
@@ -1580,6 +1555,56 @@
   body.app-mode-notify .receive-waiting-card {
     display: none;
   }
+  @media (min-width: 860px) {
+    body.app-mode-notify:not(.app-tv-notify) {
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    body.app-mode-notify:not(.app-tv-notify) .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
+      overflow: hidden;
+    }
+    body.app-mode-notify:not(.app-tv-notify) .receive-panel.active {
+      min-height: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    body.app-mode-notify:not(.app-tv-notify) .receive-layout {
+      height: 100%;
+      min-height: 0;
+      align-items: stretch;
+      overflow: hidden;
+    }
+    body.app-mode-notify:not(.app-tv-notify) .receive-detail-column,
+    body.app-mode-notify:not(.app-tv-notify) .receive-main-column {
+      min-height: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    body.app-mode-notify:not(.app-tv-notify) .receive-main-column {
+      align-content: stretch;
+      grid-template-rows: minmax(0, 1fr);
+    }
+    body.app-mode-notify:not(.app-tv-notify) .receive-detail-column > .card,
+    body.app-mode-notify:not(.app-tv-notify) .receive-main-column > .card {
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+    body.app-mode-notify:not(.app-tv-notify) .receive-detail-column > .receive-alert-card {
+      overflow: auto;
+      scrollbar-gutter: stable;
+    }
+    body.app-mode-notify:not(.app-tv-notify) #receiveBedMonitor {
+      height: 100%;
+      min-height: 0;
+      grid-auto-rows: minmax(0, 1fr);
+      margin-bottom: 0;
+      overflow: hidden;
+    }
+  }
   #inputBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #receiveBedMonitor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   body.app-tv-notify .receive-panel.active {
@@ -1613,6 +1638,16 @@
     padding: clamp(22px, 1.15vw, 42px);
     border-radius: 14px;
     overflow: hidden;
+  }
+  body.app-tv-notify .receive-alert-card {
+    overflow: auto;
+    scrollbar-gutter: stable;
+  }
+  body.app-tv-notify .receive-alert-card .upcoming-list,
+  body.app-tv-notify .receive-alert-card .doctor-alert-split,
+  body.app-tv-notify .receive-alert-card .doctor-alert-box-list {
+    max-height: none;
+    overflow: visible;
   }
   body.app-tv-notify .receive-main-column > .card:not(:first-child),
   body.app-tv-notify .receive-form-column {
@@ -3296,7 +3331,6 @@
       </div>
     </div>
   </div>
-  <input id="randomTestExcelInput" type="file" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleRandomTestExcel(this.files?.[0]); this.value = '';">
 
   <!-- 입력 패널 -->
   <div class="input-panel active" id="inputPanel">
@@ -3515,10 +3549,6 @@
       </div>
       <div class="settings-column">
         <div class="card">
-          <div class="card-label">테스트 데이터</div>
-          <button class="submit-btn" onclick="openRandomTestGenerator()">랜덤 테스트생성</button>
-        </div>
-        <div class="card">
           <div class="card-label">원장 관리</div>
           <div class="staff-add-row">
             <input class="name-input" id="doctorNameInput" type="text" placeholder="원장 이름 입력" maxlength="20">
@@ -3543,6 +3573,15 @@
             <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
           </div>
           <div class="staff-list" id="nurseList"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Firebase 현재 데이터</div>
+          <div class="rr-setting" style="margin-top:0">
+            <span class="rr-setting-text">DB 저장 없이 현재 beds / patients만 비우기</span>
+          </div>
+          <button class="export-btn danger" id="clearPatientDbBtn" onclick="clearPatientDatabase()" style="margin-top:10px">
+            Firebase 비우기
+          </button>
         </div>
         <div class="card">
           <div class="card-label">환자 차트 DB</div>
@@ -5067,183 +5106,6 @@
     return dayOfYear % count;
   }
 
-  async function getRoundRobinStaffForTest(type) {
-    const staff = getSortedStaff(type).filter(([, data]) => type !== 'nurses' || !data.vacation);
-    if (!staff.length) return { id: '', name: '' };
-
-    const dateKey = getTodayKey();
-    const counterRef = ref(db, `settings/testRoundRobinState/${type}/${dateKey}/count`);
-    const result = await runTransaction(counterRef, value => (Number(value || 0) + 1));
-    const count = Number(result.snapshot.val() || 1);
-    const serial = Math.max(0, count - 1);
-    const index = (getDailyStartOffset(staff.length) + serial) % staff.length;
-    const [id, data] = staff[index];
-    return { id, name: data.name || '' };
-  }
-
-  function getRandomTreatments() {
-    const count = 3 + Math.floor(Math.random() * 3);
-    return [...TREATMENTS]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, count)
-      .map(t => t.name);
-  }
-
-  function getRandomPresetTreatments() {
-    const presets = treatmentPresets.filter(p => Array.isArray(p.treatments) && p.treatments.length);
-    if (!presets.length) return getRandomTreatments();
-    const preset = presets[Math.floor(Math.random() * presets.length)];
-    return preset.treatments.map(name => getTreatmentByName(name)?.name).filter(Boolean);
-  }
-
-  function getRandomBodyParts(count = 3) {
-    const allParts = ['front', 'back'].flatMap(side =>
-      (BODY_PARTS[side] || []).map(part => ({ side, label: part.label }))
-    );
-    const picked = allParts
-      .sort(() => Math.random() - 0.5)
-      .slice(0, Math.max(0, count));
-    return picked.reduce((result, part) => {
-      if (!result[part.side].includes(part.label)) result[part.side].push(part.label);
-      return result;
-    }, { front: [], back: [] });
-  }
-
-  function getActiveChartNoSet() {
-    const chartNos = new Set();
-    patientsByKey.forEach(patient => {
-      const chartNo = normalizeChartNo(patient?.chartNo);
-      if (chartNo && patient?.bedStatus !== 'discharged') chartNos.add(chartNo);
-    });
-    getAllBedEntries().forEach(({ bed }) => {
-      const chartNo = normalizeChartNo(bed?.chartNo);
-      if (chartNo) chartNos.add(chartNo);
-    });
-    return chartNos;
-  }
-
-  function normalizeExcelHeader(value) {
-    return String(value || '').replace(/\s+/g, '').replace(/[()［］\[\]_/.-]/g, '').toLowerCase();
-  }
-
-  function findExcelColumn(headers, candidates) {
-    const normalizedCandidates = candidates.map(normalizeExcelHeader);
-    const exactIndex = headers.findIndex(header => {
-      const normalized = normalizeExcelHeader(header);
-      return normalizedCandidates.includes(normalized);
-    });
-    if (exactIndex >= 0) return exactIndex;
-
-    return headers.findIndex(header => {
-      const normalized = normalizeExcelHeader(header);
-      return normalizedCandidates.some(candidate => normalized.includes(candidate));
-    });
-  }
-
-  function parseExcelPatients(arrayBuffer) {
-    if (!window.XLSX) throw new Error('엑셀 파서가 로드되지 않았습니다.');
-    const workbook = window.XLSX.read(arrayBuffer, { type: 'array', cellDates: false });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    const headerRowIndex = rows.findIndex(row => {
-      const joined = row.map(normalizeExcelHeader).join('|');
-      return /(성명|이름|환자|차트|등록|나이|연령|성별|상병|병명)/.test(joined);
-    });
-    const headers = rows[Math.max(0, headerRowIndex)] || [];
-    const startIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
-    const nameIndex = findExcelColumn(headers, ['환자명', '환자성명', '성명', '이름', '수진자명']);
-    const chartIndex = findExcelColumn(headers, ['차트번호', '챠트번호']);
-    const ageIndex = findExcelColumn(headers, ['나이', '연령']);
-    const genderIndex = findExcelColumn(headers, ['성별', '남녀']);
-    const visitIndex = findExcelColumn(headers, ['초재진', '초진재진', '초진', '진료구분', '구분','초재진구  분']);
-    const complaintIndex = findExcelColumn(headers, ['주상병명']);
-
-    return rows.slice(startIndex).map(row => {
-      const fallbackNameIndex = nameIndex >= 0 ? nameIndex : row.findIndex(cell => /[가-힣]{2,}/.test(String(cell || '').trim()));
-      const name = String(row[fallbackNameIndex] || '').trim();
-      const genderText = String(genderIndex >= 0 ? row[genderIndex] : '').trim();
-      const visitText = String(visitIndex >= 0 ? row[visitIndex] : '').trim();
-      return {
-        name,
-        chartNo: chartIndex >= 0 ? String(row[chartIndex] || '').trim() : '',
-        age: ageIndex >= 0 ? Number(String(row[ageIndex] || '').replace(/[^0-9]/g, '')) || '' : '',
-        gender: genderText.includes('여') ? '여' : '남',
-        visitType: visitText.includes('초') ? '초진' : '재진',
-        chiefComplaint: complaintIndex >= 0 ? String(row[complaintIndex] || '').trim() : ''
-      };
-    }).filter(patient => patient.name && !/성명|이름|환자명/.test(patient.name));
-  }
-
-  let pendingRandomTestCount = 0;
-
-  window.openRandomTestGenerator = () => {
-    const count = Number(prompt('생성할 테스트 수를 입력하세요.', '10'));
-    if (!Number.isFinite(count) || count < 1) return;
-    pendingRandomTestCount = Math.min(200, Math.floor(count));
-    document.getElementById('randomTestExcelInput')?.click();
-  };
-
-  window.handleRandomTestExcel = async (file) => {
-    if (!file || !pendingRandomTestCount) return;
-    try {
-      const patients = parseExcelPatients(await file.arrayBuffer());
-      if (!patients.length) {
-        alert('엑셀에서 이름을 찾지 못했습니다. 성명/이름 열이 있는 파일인지 확인해주세요.');
-        return;
-      }
-
-      const activeChartNos = getActiveChartNoSet();
-      const candidates = patients.filter(patient => {
-        const chartNo = normalizeChartNo(patient.chartNo);
-        return !chartNo || !activeChartNos.has(chartNo);
-      });
-      if (!candidates.length) {
-        alert('기존 베드/대기 환자와 차트번호가 겹치지 않는 테스트 후보가 없습니다.');
-        return;
-      }
-
-      const count = Math.min(pendingRandomTestCount, candidates.length);
-      pendingRandomTestCount = 0;
-      showToast(`테스트 ${count}명 생성 중...`);
-
-      for (let i = 0; i < count; i++) {
-        const sourceIndex = Math.floor(Math.random() * candidates.length);
-        const [source] = candidates.splice(sourceIndex, 1);
-        const chartNo = normalizeChartNo(source.chartNo);
-        if (chartNo) activeChartNos.add(chartNo);
-        const doctor = await getRoundRobinStaffForTest('doctors');
-        const nurse = await getRoundRobinStaffForTest('nurses');
-        const now = new Date(Date.now() + i);
-        await push(ref(db, PATIENTS_PATH), {
-          name: source.name,
-          treatments: getRandomPresetTreatments(),
-          timestamp: now.getTime(),
-          timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-          date: now.toLocaleDateString('ko-KR'),
-          bedStatus: 'waiting',
-          chartNo,
-          visitType: source.visitType || '재진',
-          chiefComplaint: source.chiefComplaint || '',
-          memo: '',
-          age: source.age || '',
-          gender: source.gender || '남',
-          bodyParts: getRandomBodyParts(3),
-          doctorId: doctor.id,
-          doctorName: doctor.name,
-          nurseId: nurse.id,
-          nurseName: nurse.name,
-          testGenerated: true,
-          ...normalizePCredits()
-        });
-      }
-
-      showToast(`테스트 ${count}명 생성 완료`);
-    } catch (e) {
-      console.error(e);
-      alert('엑셀 파일을 읽거나 테스트를 생성하지 못했습니다.');
-    }
-  };
-
   window.toggleNurseVacation = async (key, checked) => {
     if (!staffByType.nurses.has(key)) return;
     const prev = Boolean(staffByType.nurses.get(key)?.vacation);
@@ -6282,7 +6144,7 @@
   // ─── 수신 ───────────────────────────────
   window.clearPatientDatabase = async () => {
     const btn = document.getElementById('clearPatientDbBtn');
-    const ok = confirm('환자 DB를 모두 비울까요?\n\n삭제 대상: 환자 목록, 베드 배정/타이머\n유지 대상: 설정, 원장/간호사, 치료시간');
+    const ok = confirm('Firebase 현재 데이터를 비울까요?\n\n삭제 대상: Firebase patients, beds, 베드 배정 알림\n유지 대상: 환자 차트 DB, 설정, 원장/간호사, 치료시간');
     if (!ok) return;
 
     const okAgain = confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');
@@ -6319,15 +6181,15 @@
       renderWaitingLists();
       renderUpcomingAlerts();
       updateCount();
-      showToast('환자 DB 삭제 완료');
+      showToast('Firebase 비우기 완료');
     } catch (e) {
       console.error(e);
-      showToast('환자 DB 삭제 실패');
+      showToast('Firebase 비우기 실패');
     } finally {
       isClearingPatientDatabase = false;
       if (btn) {
         btn.disabled = false;
-        btn.textContent = '환자 DB 비우기';
+        btn.textContent = 'Firebase 비우기';
       }
     }
   };
