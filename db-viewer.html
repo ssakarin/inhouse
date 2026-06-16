@@ -1447,6 +1447,12 @@
     const label = `${patient.name || "이름 없음"} / ${patient.chartNo || "차트번호 없음"}`;
     if (!confirm(`[1차 확인]\n${label}\n\n이 환자 전체 기록을 삭제하시겠습니까?`)) return;
     if (!confirm(`[2차 최종 확인]\n${label}\n\n삭제하면 기본정보, 진료기록, 패키지 기록이 모두 사라지며 복구할 수 없습니다.\n정말 삭제하시겠습니까?`)) return;
+    const password = prompt("DB 삭제 비밀번호를 입력하세요.");
+    if (password === null) return;
+    if (password !== "7677") {
+      alert("비밀번호가 맞지 않아 삭제하지 않았습니다.");
+      return;
+    }
     await deleteIndexedRecord(patient.chartNo);
     clearEditor();
     await loadIndexed();
