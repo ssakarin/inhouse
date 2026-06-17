@@ -341,6 +341,7 @@
   .input-detail-column,
   .receive-form-column { min-width: 0; }
   .input-monitor-column,
+  .input-detail-column,
   .receive-main-column {
     display: grid;
     gap: 12px;
@@ -1638,6 +1639,21 @@
     font-size: 11px;
     padding: 3px 6px;
     border-radius: 6px;
+  }
+  /* 치료칩이 많아 줄바꿈되면(2줄/3줄) 단계적으로 축소해 베드 박스 안에 들어오게 */
+  body.app-mode-notify .bed-treatment-strip.dense {
+    gap: 3px;
+  }
+  body.app-mode-notify .bed-treatment-strip.dense .bed-treatment-chip {
+    font-size: 10px;
+    padding: 2px 5px;
+  }
+  body.app-mode-notify .bed-treatment-strip.ultra-dense {
+    gap: 3px;
+  }
+  body.app-mode-notify .bed-treatment-strip.ultra-dense .bed-treatment-chip {
+    font-size: 9px;
+    padding: 2px 4px;
   }
   .bed-status-info {
     display: flex;
@@ -3214,6 +3230,10 @@
 
       <div class="input-detail-column">
         <div class="card">
+          <div class="card-label">대기</div>
+          <div class="waiting-list waiting-list--compact" id="inputWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
+        </div>
+        <div class="card">
           <div class="card-label">알림</div>
           <div class="upcoming-list" id="inputUpcomingAlerts"></div>
           <div class="doctor-alert-split" id="inputDoctorAlertSplit"></div>
@@ -3223,10 +3243,6 @@
       <div class="input-monitor-column">
         <div class="card">
           <div class="bed-monitor" id="inputBedMonitor"></div>
-        </div>
-        <div class="card">
-          <div class="card-label">대기</div>
-          <div class="waiting-list waiting-list--compact" id="inputWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
       </div>
     </div>
