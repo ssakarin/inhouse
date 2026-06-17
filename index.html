@@ -347,6 +347,17 @@
     gap: 12px;
     align-content: start;
   }
+  /* desk(입력) 좌측: 대기는 크게, 예약/호출 알림은 2줄만 보이고 스크롤 */
+  #inputWaitingList {
+    min-height: 220px;
+    align-content: flex-start;
+  }
+  #inputUpcomingAlerts {
+    max-height: 96px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+  }
   .input-panel.input-form-open .input-form-column > .card,
   .receive-panel.receive-form-open .receive-form-column > .card {
     display: grid;
@@ -2536,6 +2547,27 @@
   body.app-role-bed .timer-top { margin-bottom: 8px; }
   .timer-treatment { font-size: 28px; font-weight: 900; color: var(--accent); letter-spacing: 0; }
   .timer-step { font-size: 11px; color: var(--text3); margin-top: 3px; }
+  .timer-head { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .timer-next {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: rgba(255,202,106,0.12);
+    border: 1px solid rgba(255,202,106,0.45);
+  }
+  .timer-next-label { font-size: 11px; font-weight: 700; color: var(--text3); white-space: nowrap; }
+  .timer-next-value {
+    font-size: 16px;
+    font-weight: 900;
+    color: var(--gold);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.app-role-bed .timer-next-value { font-size: 19px; }
   .timer-clock {
     font-size: clamp(44px, 10vw, 72px);
     font-weight: 900;
@@ -8008,8 +8040,50 @@
     return false;
   }
 
+  // 현재 치료를 맡은 직원(원장/간호사)의 다음 치료(다른 베드)를 찾아 안내.
+  // 원장 시술(침·추나 등)이면 같은 원장의 다음 시술 베드, 간호사 치료(핫팩·물리·적외선)면 같은 간호사의 다음 베드.
+  function getNextStaffTaskInfo(currentBedNo, bed) {
+    if (!bed) return null;
+    const treatment = bed.treatments?.[bed.currentIndex || 0] || '';
+    const byDoctor = isDoctorProcedureTreatment(treatment);
+    const byNurse = isReceiveTreatmentAlertTreatment(treatment);
+    if (!byDoctor && !byNurse) return null;
+    const staffId = byDoctor ? (bed.doctorId || '') : (bed.nurseId || '');
+    const staffName = byDoctor ? (bed.doctorName || '') : (bed.nurseName || '');
+    if (!staffId) return null;
+    const matchRole = byDoctor ? isDoctorProcedureTreatment : isReceiveTreatmentAlertTreatment;
+    const bedNos = [...new Set([...ACTIVE_BED_NUMBERS, ...getDoctorBedNumbers()])];
+    const candidates = bedNos
+      .filter(n => n !== currentBedNo)
+      .map(n => ({ n, b: getBedData(n) }))
+      .filter(({ b }) => {
+        if (!b || b.complete || b.running) return false;
+        if (!matchRole(b.treatments?.[b.currentIndex || 0])) return false;
+        const sid = byDoctor ? (b.doctorId || '') : (b.nurseId || '');
+        return sid && sid === staffId;
+      });
+    if (!candidates.length) return null;
+    const pick = candidates.find(c => c.n > currentBedNo) || candidates[0];
+    const nextTreatment = pick.b.treatments?.[pick.b.currentIndex || 0] || '';
+    return {
+      staffName: staffName || (byDoctor ? '원장' : '간호사'),
+      label: `${getBedLabel(pick.n)} ${nextTreatment}`
+    };
+  }
+
+  function renderNextStaffTaskHtml(bedNo, bed) {
+    const next = getNextStaffTaskInfo(bedNo, bed);
+    if (!next) return '';
+    return `
+      <div class="timer-next">
+        <span class="timer-next-label">다음 · ${escapeHtml(next.staffName)}</span>
+        <span class="timer-next-value">${escapeHtml(next.label)}</span>
+      </div>`;
+  }
+
   function renderTimerCard(bedNo, bed, treatment, allowControls = true, context = 'bed') {
     const noTimer = isNoTimerTreatment(treatment);
+    const nextTaskHtml = renderNextStaffTaskHtml(bedNo, bed);
     const remaining = getRemaining(bed);
     const percent = bed.total ? Math.max(0, Math.min(100, (remaining / bed.total) * 100)) : 0;
     const timerId = `${context}-timer-bed-${bedNo}`;
@@ -8027,9 +8101,12 @@
       return `
         <div class="timer-card" id="${timerId}">
           <div class="timer-top">
-            <div>
-              <div class="timer-treatment">${escapeHtml(treatment)}</div>
-              <div class="timer-step">${bed.currentIndex + 1}/${bed.treatments.length}번째 치료</div>
+            <div class="timer-head">
+              <div>
+                <div class="timer-treatment">${escapeHtml(treatment)}</div>
+                <div class="timer-step">${bed.currentIndex + 1}/${bed.treatments.length}번째 치료</div>
+              </div>
+              ${nextTaskHtml}
             </div>
           </div>
           ${allowControls ? `<div class="timer-actions${isBedContext ? ' bed-timer-actions' : ''}">
@@ -8042,9 +8119,12 @@
     return `
       <div class="timer-card" id="${timerId}">
         <div class="timer-top">
-          <div>
-            <div class="timer-treatment">${escapeHtml(treatment)}</div>
-            <div class="timer-step">${bed.currentIndex + 1}/${bed.treatments.length}번째 치료</div>
+          <div class="timer-head">
+            <div>
+              <div class="timer-treatment">${escapeHtml(treatment)}</div>
+              <div class="timer-step">${bed.currentIndex + 1}/${bed.treatments.length}번째 치료</div>
+            </div>
+            ${nextTaskHtml}
           </div>
           <div class="timer-clock${editableClockAttrs} id="${clockId}">${formatTimer(remaining)}</div>
         </div>
