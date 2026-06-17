@@ -8040,30 +8040,25 @@
     return false;
   }
 
-  // 현재 치료를 맡은 직원(원장/간호사)의 다음 할 일을 안내.
-  // 판단 기준은 치료실알림 보드에 떠 있는 알림: 같은 원장/간호사의 남은 알림 중
+  // 현재 치료를 맡은 원장의 다음 시술을 안내(간호사는 안내하지 않음).
+  // 판단 기준은 치료실알림 보드에 떠 있는 원장 시술 알림: 같은 원장의 남은 알림 중
   // 가장 먼저 뜬 알림(타임스탬프가 빠른 것)부터 표시한다.
   function getNextStaffTaskInfo(currentBedNo, bed) {
     if (!bed) return null;
     const treatment = bed.treatments?.[bed.currentIndex || 0] || '';
-    const byDoctor = isDoctorProcedureTreatment(treatment);
-    const byNurse = isReceiveTreatmentAlertTreatment(treatment);
-    if (!byDoctor && !byNurse) return null;
-    const staffId = byDoctor ? (bed.doctorId || '') : (bed.nurseId || '');
-    const staffName = byDoctor ? (bed.doctorName || '') : (bed.nurseName || '');
-    if (!staffId) return null;
+    if (!isDoctorProcedureTreatment(treatment)) return null;
+    const doctorId = bed.doctorId || '';
+    if (!doctorId) return null;
 
-    // 보드에 떠 있는 동일 직원의 남은 알림 목록
-    const items = (byDoctor
-      ? getDoctorProcedureAlertItems(staffId)
-      : getReceiveTreatmentAlertItems().filter(it => (getBedData(it.bedNo)?.nurseId || '') === staffId))
+    // 보드에 떠 있는 동일 원장의 남은 시술 알림 목록
+    const items = getDoctorProcedureAlertItems(doctorId)
       .filter(it => it.bedNo !== currentBedNo)
       .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
 
     if (!items.length) return null;
     const next = items[0];
     return {
-      staffName: staffName || (byDoctor ? '원장' : '간호사'),
+      staffName: bed.doctorName || '원장',
       label: `${getBedLabel(next.bedNo)} ${next.treatment}`
     };
   }
