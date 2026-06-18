@@ -755,9 +755,18 @@
   }
   .upcoming-staff-inline {
     flex: 0 0 auto;
-    color: var(--text2);
-    font-size: 0.92em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(57,169,245,0.82);
+    background: rgba(57,169,245,0.24);
+    color: #bfe8ff;
+    font-size: 0.96em;
     font-weight: 900;
+    line-height: 1.2;
     white-space: nowrap;
   }
   .upcoming-countdown-chip {
@@ -7157,12 +7166,13 @@
       return `<span class="treatment-complete-label ${className}">완료</span>`;
     };
     const renderTreatmentAlertHtml = (item, options = {}) => {
-      const main = options.main || `${item.bedLabel || ''} ${item.name || '환자'}`.trim();
+      const main = options.main || `${item.bedLabel || ''}`.trim();
+      const nurseHtml = options.nurseName ? `<span class="upcoming-staff-inline">${escapeHtml(options.nurseName)}</span>` : '';
       return `
         <div class="upcoming-item assignment no-dismiss${options.hideBadge ? ' no-label' : ''}">
           ${options.hideBadge ? '' : renderTreatmentBadge(item.treatment)}
           <div>
-            <div class="upcoming-main">${escapeHtml(main)}${options.staffLine ? `<span class="upcoming-staff-inline">${options.staffLine}</span>` : ''}</div>
+            <div class="upcoming-main alert-line-compact"><span class="upcoming-main-text">${escapeHtml(main)}</span>${nurseHtml}</div>
             ${options.sub ? `<div class="upcoming-sub">${options.sub}</div>` : ''}
           </div>
         </div>`;
@@ -7288,15 +7298,11 @@
 
     const timerAlertItems = upcoming.length
       ? upcoming.filter(item => item.alertPending || item.remaining <= 30).map(item => {
-        const staffLine = [
-          item.doctorName ? escapeHtml(item.doctorName) : '',
-          item.nurseName ? escapeHtml(item.nurseName) : ''
-        ].filter(Boolean).join('/');
-        const staffHtml = staffLine ? `<span class="upcoming-staff-inline">${staffLine}</span>` : '';
+        const staffHtml = item.nurseName ? `<span class="upcoming-staff-inline">${escapeHtml(item.nurseName)}</span>` : '';
         const countdownHtml = item.alertPending ? '' : `<span class="upcoming-countdown-chip">${Math.max(0, Math.ceil(Number(item.remaining) || 0))}</span>`;
         const nextTreatmentHtml = item.nextTreatment ? renderTreatmentBadge(item.nextTreatment) : '';
         const completeHtml = item.alertPending ? renderTreatmentCompleteLabel(item.treatment) : '';
-        const patientLineHtml = `<span class="upcoming-main-text">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}</span>`;
+        const patientLineHtml = `<span class="upcoming-main-text">${escapeHtml(item.bedLabel)}</span>`;
         return {
           alertPending: item.alertPending,
           alertPriority: item.alertPending ? 0 : 1,
@@ -7322,13 +7328,9 @@
 
     const receiveTreatmentItems = shouldShowReceiveTreatmentAlerts()
       ? getReceiveTreatmentAlertItems().map(item => {
-        const staffLine = [
-          item.doctorName ? escapeHtml(item.doctorName) : '',
-          item.nurseName ? escapeHtml(item.nurseName) : ''
-        ].filter(Boolean).join('/');
         return {
           timestamp: Number(item.timestamp || 0),
-          html: renderTreatmentAlertHtml(item, { staffLine })
+          html: renderTreatmentAlertHtml(item, { nurseName: item.nurseName || '' })
         };
       })
       : [];
@@ -9293,7 +9295,7 @@
       : '';
     const infoChips = [
       status.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.gender)}</span>` : '',
-      !isReceive && status.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(status.age))}세</span>` : '',
+      status.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(status.age))}세</span>` : '',
       status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
       status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : '',
     ].filter(Boolean).join('');
