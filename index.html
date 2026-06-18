@@ -697,16 +697,31 @@
   .upcoming-time.treatment-moxa { background: rgba(180,83,9,0.36); border-color: rgba(245,158,11,0.88); color: #ffb14a; }
   .upcoming-time.treatment-pharm { background: rgba(20,184,166,0.22); border-color: rgba(45,212,191,0.78); color: #99f6e4; }
   .upcoming-time.treatment-exam { background: rgba(148,163,184,0.20); border-color: rgba(148,163,184,0.62); color: #d7dee8; }
-  .treatment-complete-label {
+  .upcoming-main .upcoming-time.treatment-badge {
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: auto;
+    min-width: 0;
+    min-height: 22px;
+    margin-left: 0;
+    padding: 2px 8px;
+    font-size: 12px;
+    vertical-align: -1px;
+  }
+  .treatment-complete-label {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
     padding: 2px 7px;
     border-radius: 999px;
     border: 1px solid rgba(255,255,255,0.12);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 900;
-    vertical-align: 1px;
+    vertical-align: 0;
   }
   .treatment-complete-label.treatment-hotpack { background: rgba(250,204,21,0.30); border-color: rgba(250,204,21,0.92); color: #fde047; }
   .treatment-complete-label.treatment-physical { background: rgba(57,169,245,0.22); border-color: rgba(57,169,245,0.72); color: #9edcff; }
@@ -726,11 +741,40 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .upcoming-main.alert-line-compact {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-overflow: clip;
+  }
+  .upcoming-main-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .upcoming-staff-inline {
+    flex: 0 0 auto;
     color: var(--text2);
     font-size: 0.92em;
     font-weight: 900;
-    margin-left: 8px;
+    white-space: nowrap;
+  }
+  .upcoming-countdown-chip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    margin-left: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(245,158,11,0.78);
+    background: rgba(245,158,11,0.18);
+    color: #ffd27a;
+    font-size: 0.88em;
+    font-weight: 900;
+    line-height: 1.25;
     white-space: nowrap;
   }
   .upcoming-sub {
@@ -2732,6 +2776,33 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .treatment-time-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 26px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.08);
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .treatment-time-badge.treatment-hotpack { background: rgba(250,204,21,0.30); border-color: rgba(250,204,21,0.92); color: #fde047; }
+  .treatment-time-badge.treatment-physical { background: rgba(57,169,245,0.22); border-color: rgba(57,169,245,0.72); color: #9edcff; }
+  .treatment-time-badge.treatment-infrared { background: rgba(239,68,68,0.24); border-color: rgba(239,68,68,0.84); color: #ffc0c0; }
+  .treatment-time-badge.treatment-acu { background: rgba(74,222,128,0.20); border-color: rgba(74,222,128,0.70); color: #9bf2b5; }
+  .treatment-time-badge.treatment-cupping { background: rgba(251,113,133,0.20); border-color: rgba(251,113,133,0.72); color: #ffb4c0; }
+  .treatment-time-badge.treatment-chuna { background: rgba(168,139,250,0.22); border-color: rgba(168,139,250,0.72); color: #d8ccff; }
+  .treatment-time-badge.treatment-moxa { background: rgba(180,83,9,0.36); border-color: rgba(245,158,11,0.88); color: #ffb14a; }
+  .treatment-time-badge.treatment-pharm { background: rgba(20,184,166,0.22); border-color: rgba(45,212,191,0.78); color: #99f6e4; }
+  .treatment-time-badge.treatment-exam { background: rgba(148,163,184,0.20); border-color: rgba(148,163,184,0.62); color: #d7dee8; }
   .treatment-time-input {
     width: 62px;
     background: var(--surface);
@@ -4782,7 +4853,7 @@
     const procValue = Math.max(0, Math.min(120, Number(procedureMinutes) || 0));
     const procRow = `
       <label class="treatment-time-row treatment-time-row--procedure">
-        <span class="treatment-time-name">🩺 처치</span>
+        <span class="treatment-time-name">처치</span>
         <div class="treatment-time-row-inner">
           <input class="treatment-time-input" id="procedureMinutesInput" type="number" min="0" max="120" step="1" value="${procValue}" aria-label="처치시간">
           <span class="treatment-time-unit">분</span>
@@ -4791,9 +4862,10 @@
 
     list.innerHTML = procRow + TREATMENTS.map(t => {
       const value = Math.max(1, Math.min(120, Number(treatmentMinutes[t.name] || DEFAULT_TREATMENT_MINUTES[t.name] || 5)));
+      const badgeClass = getTreatmentBadgeClass(t.name);
       return `
         <label class="treatment-time-row">
-          <span class="treatment-time-name">${t.icon} ${escapeHtml(t.name)}</span>
+          <span class="treatment-time-name"><span class="treatment-time-badge ${badgeClass}">${escapeHtml(t.name)}</span></span>
           <div class="treatment-time-row-inner">
             <input class="treatment-time-input" data-treatment-name="${escapeHtml(t.name)}" type="number" min="1" max="120" step="1" value="${value}" aria-label="${escapeHtml(t.name)} 치료시간">
             <span class="treatment-time-unit">분</span>
@@ -6993,6 +7065,12 @@
     return match?.[1] || bed.treatments?.[Math.max(0, Number(bed.currentIndex || 0) - 1)] || bed.treatments?.[bed.currentIndex] || '치료';
   }
 
+  function getNextTreatmentFromCompletionAlert(bed) {
+    if (!bed || bed.complete) return '';
+    const currentIndex = Number(bed.currentIndex || 0);
+    return bed.treatments?.[currentIndex] || '';
+  }
+
   function getAppointmentAlertDismissField(mode = window.currentMode) {
     if (mode === 'input') return 'deskDismissed';
     if (mode === 'receive' || mode === 'notify') return 'clinicDismissed';
@@ -7173,6 +7251,7 @@
         const treatment = isAlertPending
           ? getCompletedTreatmentFromAlert(bed)
           : (bed.treatments?.[bed.currentIndex] || '치료');
+        const nextTreatment = isAlertPending ? getNextTreatmentFromCompletionAlert(bed) : '';
         return {
           bedNo,
           bedLabel: getBedLabel(bedNo),
@@ -7180,6 +7259,7 @@
           doctorName: bed.doctorName || '',
           nurseName: bed.nurseName || '',
           treatment,
+          nextTreatment,
           remaining,
           alertPending: isAlertPending,
           timestamp: Number(String(bed.lastAlertId || '').split('-').pop()) || Number(bed.startedAt || bed.timestamp || 0)
@@ -7193,15 +7273,15 @@
       });
 
     const timerAlertItems = upcoming.length
-      ? upcoming.map(item => {
+      ? upcoming.filter(item => item.alertPending || item.remaining <= 30).map(item => {
         const staffLine = [
           item.doctorName ? escapeHtml(item.doctorName) : '',
           item.nurseName ? escapeHtml(item.nurseName) : ''
         ].filter(Boolean).join('/');
-        const inlineInfo = [
-          staffLine,
-          item.alertPending ? '' : formatTimer(item.remaining)
-        ].filter(Boolean).join(' · ');
+        const staffHtml = staffLine ? `<span class="upcoming-staff-inline">${staffLine}</span>` : '';
+        const countdownHtml = item.alertPending ? '' : `<span class="upcoming-countdown-chip">${Math.max(0, Math.ceil(Number(item.remaining) || 0))}</span>`;
+        const nextTreatmentHtml = item.alertPending && item.nextTreatment ? renderTreatmentBadge(item.nextTreatment) : '';
+        const patientLineHtml = `<span class="upcoming-main-text">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}</span>`;
         return {
           alertPending: item.alertPending,
           alertPriority: item.alertPending ? 0 : 1,
@@ -7210,7 +7290,7 @@
         <div class="upcoming-item">
           ${renderTreatmentBadge(item.treatment)}
           <div>
-            <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}${inlineInfo ? `<span class="upcoming-staff-inline">${inlineInfo}</span>` : ''}${item.alertPending ? ` ${renderTreatmentCompleteLabel(item.treatment)}` : ''}</div>
+            <div class="upcoming-main alert-line-compact">${patientLineHtml}${staffHtml}${countdownHtml}${item.alertPending ? `${renderTreatmentCompleteLabel(item.treatment)}${nextTreatmentHtml}` : ''}</div>
           </div>
         </div>`
         };
@@ -7245,10 +7325,10 @@
     const receiveHasAlerts = receiveItems.length > 0;
     const html = baseHasAlerts
       ? renderAlertItemsHtml(inputItems)
-      : `<div class="empty-state"><div class="empty-icon">⏱</div><div class="empty-text">진행 중인 타이머가 없습니다</div></div>`;
+      : '';
     const receiveHtml = receiveHasAlerts
       ? renderAlertItemsHtml(receiveItems)
-      : html;
+      : '';
 
     const inputList = document.getElementById('inputUpcomingAlerts');
     if (inputList) inputList.innerHTML = html;
@@ -9320,7 +9400,7 @@
     return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS]
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
       .filter(({ bed }) => {
-        if (!bed || bed.complete || bed.running) return false;
+        if (!bed || bed.complete || bed.running || bed.lastAlertId) return false;
         const treatment = bed.treatments?.[bed.currentIndex || 0];
         return isReceiveTreatmentAlertTreatment(treatment);
       })
@@ -10161,8 +10241,11 @@
 
       // 같은 차트번호가 여러 진료일로 들어오므로 환자별로 먼저 합침
       const byChart = new Map();
+      const chartNameConflicts = [];
+      const chartNameConflictKeys = new Set();
       let skipped = 0;
-      for (const row of rows) {
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex];
         const chartNo = normalizeChartNo(String(row[colChart] || '').trim().replace(/\.0$/, ''));
         const name    = String(row[colName]  || '').trim();
         if (!chartNo || !name) { skipped++; continue; }
@@ -10189,7 +10272,21 @@
         const visitType      = visitText.includes('초') ? '초진' : (visitText.includes('재') ? '재진' : '');
         const phone          = colPhone  ? String(row[colPhone]  || '').trim() : '';
 
-        const agg = byChart.get(chartNo) || { chartNo, name, age: '', gender: '', phone: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
+        const existingAgg = byChart.get(chartNo);
+        if (existingAgg?.name && existingAgg.name !== name) {
+          const conflictKey = `${chartNo}|${existingAgg.name}|${name}`;
+          if (!chartNameConflictKeys.has(conflictKey)) {
+            chartNameConflictKeys.add(conflictKey);
+            chartNameConflicts.push({
+              rowNumber: rowIndex + 2,
+              chartNo,
+              firstName: existingAgg.name,
+              nextName: name
+            });
+          }
+        }
+
+        const agg = existingAgg || { chartNo, name, age: '', gender: '', phone: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
         // 마스터 정보는 최신(나중) 행 값으로 갱신, 빈 값은 기존 유지
         agg.name = name || agg.name;
         if (age) agg.age = Number(age);
@@ -10202,8 +10299,52 @@
         byChart.set(chartNo, agg);
       }
 
+      if (chartNameConflicts.length) {
+        const preview = chartNameConflicts
+          .slice(0, 20)
+          .map(item => `${item.chartNo}: ${item.firstName} / ${item.nextName} (${item.rowNumber}행)`)
+          .join('\n');
+        const more = chartNameConflicts.length > 20 ? `\n외 ${chartNameConflicts.length - 20}건` : '';
+        statusEl.textContent = `차트번호-이름 충돌 ${chartNameConflicts.length}건 확인, 저장 계속 진행`;
+        alert(`같은 차트번호에 다른 이름이 있습니다.\n\n${preview}${more}\n\n확인 후 import를 계속 진행합니다.`);
+      }
+
       let saved = 0;
       const patients = [...byChart.values()];
+      let existingRecordsForImport = null;
+      if (SERVER_MODE) {
+        existingRecordsForImport = await getAllChartPatients();
+      } else {
+        const conflictDb = await openChartDb();
+        existingRecordsForImport = await new Promise((resolve, reject) => {
+          const tx = conflictDb.transaction(CHART_STORE, 'readonly');
+          const req = tx.objectStore(CHART_STORE).getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      const existingByChartForConflict = new Map((existingRecordsForImport || []).map(record => [String(record.chartNo || ''), record]));
+      const existingNameConflicts = patients
+        .map(patient => {
+          const existing = existingByChartForConflict.get(patient.chartNo);
+          const existingName = String(existing?.name || '').trim();
+          return existingName && existingName !== patient.name
+            ? { chartNo: patient.chartNo, firstName: existingName, nextName: patient.name }
+            : null;
+        })
+        .filter(Boolean);
+
+      if (existingNameConflicts.length) {
+        const preview = existingNameConflicts
+          .slice(0, 20)
+          .map(item => `${item.chartNo}: DB ${item.firstName} / 엑셀 ${item.nextName}`)
+          .join('\n');
+        const more = existingNameConflicts.length > 20 ? `\n외 ${existingNameConflicts.length - 20}건` : '';
+        statusEl.textContent = `기존 DB와 차트번호-이름 충돌 ${existingNameConflicts.length}건 확인, 저장 계속 진행`;
+        alert(`기존 DB와 엑셀 사이에 같은 차트번호의 다른 이름이 있습니다.\n\n${preview}${more}\n\n확인 후 import를 계속 진행합니다.`);
+      }
+
       const buildImportRecord = (agg, existing = {}) => {
         const visitPatch = mergeChartVisitHistory(existing, { visitEntries: agg.visitEntries });
         const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
@@ -10232,7 +10373,7 @@
       };
 
       if (SERVER_MODE) {
-        const existingRecords = await getAllChartPatients();
+        const existingRecords = existingRecordsForImport || [];
         const existingByChart = new Map(existingRecords.map(record => [String(record.chartNo || ''), record]));
         const records = patients.map(agg => buildImportRecord(agg, existingByChart.get(agg.chartNo) || {}));
         const BATCH = 1000;
