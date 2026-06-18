@@ -596,6 +596,7 @@
               <input id="patientSearchInput" type="text" placeholder="이름 또는 차트번호 검색">
               <select class="patient-sort-select" id="patientSortSelect" aria-label="환자 정렬">
                 <option value="recent">최근방문날짜</option>
+                <option value="visits">방문 횟수</option>
                 <option value="chart">차트번호</option>
                 <option value="name">가나다</option>
               </select>
@@ -1045,6 +1046,11 @@
     }
     if (patientSortMode === "name") {
       return String(a.name || "").localeCompare(String(b.name || ""), "ko")
+        || compareChartNo(a, b);
+    }
+    if (patientSortMode === "visits") {
+      return visitDatesFromRecord(b).length - visitDatesFromRecord(a).length
+        || String(getLatestVisitDate(b)).localeCompare(String(getLatestVisitDate(a)))
         || compareChartNo(a, b);
     }
     return compareChartNo(a, b);

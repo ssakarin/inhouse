@@ -7602,9 +7602,20 @@
 
   function normalizeBodyParts(bodyParts) {
     const bp = bodyParts || {};
+    const normalizeSide = (side, values = []) => {
+      const parts = BODY_PARTS[side] || [];
+      const byId = new Map(parts.map(part => [part.id, part.label]));
+      const labels = new Set(parts.map(part => part.label));
+      return [...new Set((Array.isArray(values) ? values : [])
+        .map(value => {
+          const text = String(value || '').trim();
+          return byId.get(text) || (labels.has(text) ? text : '');
+        })
+        .filter(Boolean))];
+    };
     return {
-      front: Array.isArray(bp.front) ? bp.front : [],
-      back: Array.isArray(bp.back) ? bp.back : []
+      front: normalizeSide('front', bp.front),
+      back: normalizeSide('back', bp.back)
     };
   }
 
@@ -9974,13 +9985,13 @@
 
   function getRandomBodyPartsForRandomTest() {
     const allParts = [
-      ...BODY_PARTS.front.map(part => ({ side: 'front', id: part.id })),
-      ...BODY_PARTS.back.map(part => ({ side: 'back', id: part.id }))
+      ...BODY_PARTS.front.map(part => ({ side: 'front', label: part.label })),
+      ...BODY_PARTS.back.map(part => ({ side: 'back', label: part.label }))
     ];
     const picked = shuffleRows(allParts).slice(0, Math.min(3, allParts.length));
     return normalizeBodyParts({
-      front: picked.filter(part => part.side === 'front').map(part => part.id),
-      back: picked.filter(part => part.side === 'back').map(part => part.id)
+      front: picked.filter(part => part.side === 'front').map(part => part.label),
+      back: picked.filter(part => part.side === 'back').map(part => part.label)
     });
   }
 
