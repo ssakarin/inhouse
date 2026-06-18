@@ -7077,6 +7077,12 @@
     return bed.treatments?.[currentIndex] || '';
   }
 
+  function getNextTreatmentFromRunningAlert(bed) {
+    if (!bed || bed.complete) return '';
+    const currentIndex = Number(bed.currentIndex || 0);
+    return bed.treatments?.[currentIndex + 1] || '';
+  }
+
   function getAppointmentAlertDismissField(mode = window.currentMode) {
     if (mode === 'input') return 'deskDismissed';
     if (mode === 'receive' || mode === 'notify') return 'clinicDismissed';
@@ -7257,7 +7263,9 @@
         const treatment = isAlertPending
           ? getCompletedTreatmentFromAlert(bed)
           : (bed.treatments?.[bed.currentIndex] || '치료');
-        const nextTreatment = isAlertPending ? getNextTreatmentFromCompletionAlert(bed) : '';
+        const nextTreatment = isAlertPending
+          ? getNextTreatmentFromCompletionAlert(bed)
+          : getNextTreatmentFromRunningAlert(bed);
         return {
           bedNo,
           bedLabel: getBedLabel(bedNo),
@@ -7286,7 +7294,8 @@
         ].filter(Boolean).join('/');
         const staffHtml = staffLine ? `<span class="upcoming-staff-inline">${staffLine}</span>` : '';
         const countdownHtml = item.alertPending ? '' : `<span class="upcoming-countdown-chip">${Math.max(0, Math.ceil(Number(item.remaining) || 0))}</span>`;
-        const nextTreatmentHtml = item.alertPending && item.nextTreatment ? renderTreatmentBadge(item.nextTreatment) : '';
+        const nextTreatmentHtml = item.nextTreatment ? renderTreatmentBadge(item.nextTreatment) : '';
+        const completeHtml = item.alertPending ? renderTreatmentCompleteLabel(item.treatment) : '';
         const patientLineHtml = `<span class="upcoming-main-text">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name)}</span>`;
         return {
           alertPending: item.alertPending,
@@ -7296,7 +7305,7 @@
         <div class="upcoming-item">
           ${renderTreatmentBadge(item.treatment)}
           <div>
-            <div class="upcoming-main alert-line-compact">${patientLineHtml}${staffHtml}${countdownHtml}${item.alertPending ? `${renderTreatmentCompleteLabel(item.treatment)}${nextTreatmentHtml}` : ''}</div>
+            <div class="upcoming-main alert-line-compact">${patientLineHtml}${staffHtml}${countdownHtml}${completeHtml}${nextTreatmentHtml}</div>
           </div>
         </div>`
         };
