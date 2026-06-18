@@ -3263,6 +3263,7 @@
         <span class="header-current-time" id="deskCurrentTime"></span>
       </div>
       <div class="header-notify-controls">
+        <span class="header-wait-chip bed-count-chip" id="receiveBedPatientCount">0/13</span>
         <span class="header-wait-chip" id="notifyWaitChip">예상대기시간 0분</span>
         <div class="doctor-alert-btns" id="doctorAlertBtns"></div>
         <span class="header-current-time" id="notifyCurrentTime"></span>
@@ -3414,6 +3415,7 @@
   <!-- 베드 패널 -->
   <div class="bed-panel" id="bedPanel">
     <div class="bed-layout">
+      <select class="bed-selector" id="bedSelector" onchange="selectBed(Number(this.value))"></select>
       <div class="bed-doctor-alert-panel" id="bedDoctorAlertPanel">
         <div class="bed-doctor-alert-head">
           <div class="bed-doctor-alert-title">원장실 알림</div>
@@ -3421,7 +3423,6 @@
         </div>
         <div class="bed-doctor-alert-list" id="bedDoctorAlertList"></div>
       </div>
-      <select class="bed-selector" id="bedSelector" onchange="selectBed(Number(this.value))"></select>
       <div class="bed-workspace">
         <div class="bed-left-column">
           <details class="bed-input-section" id="bedEditSection" open>
@@ -3877,6 +3878,11 @@
     if (SPECIAL_BED_LABELS[bedNo] === '스파인') return '스';
     const circledNumbers = ['', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
     return circledNumbers[bedNo] || `${bedNo}번`;
+  }
+
+  function getBedMonitorLabel(bedNo) {
+    if (Number(bedNo) >= 101) return `원${Number(bedNo) - 100}`;
+    return getBedLabel(bedNo);
   }
 
   function getUrlBedNo() {
@@ -6528,7 +6534,7 @@
     const todayCount = document.getElementById('todayCount');
     if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
     const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1])).length;
-    ['bedPatientCount', 'deskBedPatientCount'].forEach(id => {
+    ['bedPatientCount', 'deskBedPatientCount', 'receiveBedPatientCount'].forEach(id => {
       const chip = document.getElementById(id);
       if (chip) chip.textContent = `${regularOccupiedCount}/${REGULAR_BED_COUNT}`;
     });
@@ -9234,6 +9240,7 @@
     const isReceive = context === 'receive';
     const isInput = context === 'input';
     const canMoveBed = isInput || isReceive;
+    const monitorLabel = getBedMonitorLabel(status.bedNo);
     const compact = (isInput && document.getElementById('inputPanel')?.classList.contains('input-form-open'))
       || (isReceive && document.getElementById('receivePanel')?.classList.contains('receive-form-open'));
     const editingBedNo = isInput ? formEditBedNoByScope['desk'] : (isReceive ? formEditBedNoByScope['receive'] : null);
@@ -9252,7 +9259,7 @@
       return `
         <div class="bed-status empty${compact ? ' compact' : ''}${activeClass}" tabindex="0"${moveHandlers}>
           <div class="bed-status-top">
-            <span class="bed-status-no">${compact ? escapeHtml(compactLabel) : `${escapeHtml(status.bedLabel)} 비어 있음`}</span>
+            <span class="bed-status-no">${compact ? escapeHtml(compactLabel) : `${escapeHtml(monitorLabel)} 비어 있음`}</span>
             ${compact ? '' : '<span class="bed-status-time">-</span>'}
           </div>
           ${compact ? '' : '<div class="bed-status-treatment"><span class="bed-stage-badge empty">비어 있음</span></div>'}
@@ -9277,7 +9284,7 @@
     return `
       <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}>
         <div class="bed-status-top">
-          <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(status.bedLabel)} ${escapeHtml(status.name)}`}</span>
+          <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(monitorLabel)} ${escapeHtml(status.name)}`}</span>
           ${compact ? '' : `<span class="bed-status-time">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
         ${compact ? '' : (infoChips ? `<div class="bed-status-info">${infoChips}</div>` : '')}
