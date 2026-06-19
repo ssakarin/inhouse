@@ -607,12 +607,6 @@
           <div class="patient-find-panel" id="patientSearchPanel">
             <div class="search-box">
               <input id="patientSearchInput" type="text" placeholder="이름 또는 차트번호 검색">
-              <select class="patient-sort-select" id="patientSortSelect" aria-label="환자 정렬">
-                <option value="recent">최근방문날짜</option>
-                <option value="visits">방문 횟수</option>
-                <option value="chart">차트번호</option>
-                <option value="name">가나다</option>
-              </select>
             </div>
             <div class="patient-list" id="patientList"></div>
           </div>
@@ -715,7 +709,6 @@
   let activePackageKey = "p6";
   let activePackageMonth = new Date().toISOString().slice(0, 7);
   let activePackageDate = new Date().toISOString().slice(0, 10);
-  let patientSortMode = "recent";
   let globalVisitMonth = new Date().toISOString().slice(0, 7);
   let selectedGlobalVisitDate = "";
 
@@ -1052,23 +1045,6 @@
       || String(a.name || "").localeCompare(String(b.name || ""), "ko");
   }
 
-  function comparePatientRows(a = {}, b = {}) {
-    if (patientSortMode === "recent") {
-      return String(getLatestVisitDate(b)).localeCompare(String(getLatestVisitDate(a)))
-        || compareChartNo(a, b);
-    }
-    if (patientSortMode === "name") {
-      return String(a.name || "").localeCompare(String(b.name || ""), "ko")
-        || compareChartNo(a, b);
-    }
-    if (patientSortMode === "visits") {
-      return visitDatesFromRecord(b).length - visitDatesFromRecord(a).length
-        || String(getLatestVisitDate(b)).localeCompare(String(getLatestVisitDate(a)))
-        || compareChartNo(a, b);
-    }
-    return compareChartNo(a, b);
-  }
-
   function visitSummary(record = {}) {
     const treatments = formatTreatmentsText(record.treatments);
     const bodyParts = formatBodyPartsText(record.bodyParts);
@@ -1350,10 +1326,14 @@
 
   function renderPatientList() {
     const query = $("patientSearchInput").value.trim().toLowerCase();
+    if (!query) {
+      $("patientList").innerHTML = `<div class="meta" style="padding:12px;">이름 또는 차트번호로 검색하세요.</div>`;
+      return;
+    }
     const rows = latestIndexedValue.filter(patient => {
       const haystack = `${patient.chartNo || ""} ${patient.name || ""} ${getPatientPhone(patient)}`.toLowerCase();
-      return !query || haystack.includes(query);
-    }).sort(comparePatientRows);
+      return haystack.includes(query);
+    }).sort(compareChartNo);
     $("patientList").innerHTML = rows.length
       ? rows.map(patient => `
         <button class="patient-item${String(patient.chartNo || "") === selectedChartNo ? " active" : ""}" type="button" data-chart-no="${escapeHtml(patient.chartNo || "")}">
@@ -1614,10 +1594,6 @@
   $("firebasePathInput").addEventListener("keydown", event => { if (event.key === "Enter") loadFirebase(); });
   $("loadIndexedBtn").addEventListener("click", loadIndexed);
   $("patientSearchInput").addEventListener("input", renderPatientList);
-  $("patientSortSelect").addEventListener("change", event => {
-    patientSortMode = event.target.value || "recent";
-    renderPatientList();
-  });
   $("patientList").addEventListener("click", event => {
     const item = event.target.closest(".patient-item");
     if (item) selectPatient(item.dataset.chartNo);
