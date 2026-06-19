@@ -30,6 +30,11 @@ if (-not $nodeExe) {
   exit 1
 }
 
+# --- Secrets: change for production. Inherited by the server child process. ---
+$env:CLINIC_PASSWORD = "khhongik1"
+$env:CLINIC_DELETE_PASSWORD = "832332"
+# $env:CLINIC_KEY_PATH = "C:\clinic-secret\key.bin"
+
 Start-Process `
   -FilePath $nodeExe `
   -ArgumentList "server\server.js" `

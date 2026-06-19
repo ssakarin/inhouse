@@ -42,6 +42,56 @@ server/backups/
 
 These files are intentionally ignored by git.
 
+## Encryption at rest
+
+Patient records (`data_json`), `app_state`, and every backup file are encrypted
+with AES-256-GCM before being written to disk. Backups are saved as
+`*.json.enc`, so the JSON pushed to Google Drive is ciphertext, not plaintext.
+
+The 32-byte key is read from (in order):
+
+1. `CLINIC_KEY_HEX` env var (64 hex chars), if set
+2. `CLINIC_KEY_PATH` env var, if set
+3. `C:\clinic-secret\key.bin` (default; auto-generated on first run)
+
+IMPORTANT:
+
+- The key must NOT live in the backup folder or any cloud-synced directory
+  (OneDrive / Google Drive). Keep it on the local machine only.
+- Back the key up separately (offline USB / password manager). If it is lost,
+  all encrypted backups and DB rows become permanently unrecoverable.
+- Existing plaintext rows are encrypted automatically on server startup.
+
+### Restoring / reading a backup
+
+```powershell
+node server/decrypt-backup.js server/backups/patients-<...>.json.enc out.json
+```
+
+`out.json` is plaintext PII — delete it once you are done.
+
+## Authentication
+
+Every page and API requires login with a shared password.
+
+- First visit on a device redirects to `/login`. After entering the password the
+  server sets an HttpOnly session cookie, so each device only logs in once
+  (cookie lasts 1 year; sessions survive server restarts).
+- `GET /api/*` without a valid session returns `401`; page requests redirect to
+  `/login`. Static assets (js/css/img/manifest) load without auth so the login
+  page and PWA shell work.
+- `POST /api/logout` clears the session.
+
+Passwords come from env vars (defaults are used if unset — change them in
+production):
+
+- `CLINIC_PASSWORD` — login password (default `7677`)
+- `CLINIC_DELETE_PASSWORD` — delete-all confirmation password (default `7677`)
+
+> Note: traffic is plain HTTP, so a determined sniffer on the same Wi-Fi can
+> still capture the session cookie. For full protection, terminate HTTPS (a
+> self-signed cert or a reverse proxy) in front of the server.
+
 ## Hybrid mode
 
 When `index.html` is opened through this local server:
