@@ -480,6 +480,81 @@
     outline: none;
   }
   .bed-schedule-custom-input.show { display: block; }
+  .bed-schedule-custom-calendar {
+    display: none;
+    margin-top: 10px;
+    background: rgba(16, 27, 45, 0.72);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px;
+  }
+  .bed-schedule-custom-calendar.show { display: block; }
+  .bed-schedule-calendar-head {
+    display: grid;
+    grid-template-columns: 34px 1fr 34px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .bed-schedule-calendar-title {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 900;
+    text-align: center;
+  }
+  .bed-schedule-calendar-nav {
+    min-height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 900;
+  }
+  .bed-schedule-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .bed-schedule-month-dow {
+    color: var(--text3);
+    font-size: 11px;
+    font-weight: 900;
+    text-align: center;
+    padding: 4px 0;
+  }
+  .bed-schedule-month-day {
+    min-height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .bed-schedule-month-day.empty {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .bed-schedule-month-day:disabled {
+    cursor: not-allowed;
+    opacity: 0.32;
+  }
+  .bed-schedule-month-day:not(:disabled):hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .bed-schedule-month-day.today {
+    border-color: rgba(57,169,245,0.55);
+  }
+  .bed-schedule-month-day.selected {
+    border-color: rgba(255,202,106,0.75);
+    background: rgba(255,202,106,0.14);
+    color: var(--gold);
+  }
   .bed-schedule-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1705,6 +1780,10 @@
   }
   .bed-status.done { border-color: var(--gold); }
   .bed-status.done.alerting { border-color: var(--danger); }
+  .bed-status.assignment-alerting {
+    border-color: var(--gold);
+    animation-name: bedAssignmentPulse;
+  }
   .bed-status.empty {
     background: linear-gradient(180deg, rgba(148,163,184,0.10), rgba(30,41,59,0.22));
     border-color: rgba(148,163,184,0.24);
@@ -1743,6 +1822,10 @@
   @keyframes bedAlertPulse {
     0%, 100% { box-shadow: 0 0 0 1px rgba(251,113,133,0.55); background: rgba(251,113,133,0.10); }
     50% { box-shadow: 0 0 0 4px rgba(251,113,133,0.9); background: rgba(251,113,133,0.22); }
+  }
+  @keyframes bedAssignmentPulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,202,106,0.55); background: rgba(255,202,106,0.10); }
+    50% { box-shadow: 0 0 0 4px rgba(255,202,106,0.9); background: rgba(255,202,106,0.24); }
   }
   .bed-status-top {
     display: flex;
@@ -3417,6 +3500,13 @@
       <div class="nurse-quick-title">간호사 관리</div>
       <button class="nurse-quick-close" type="button" onclick="closeNurseQuickPopover()" aria-label="닫기">×</button>
     </div>
+    <label class="rr-setting" style="margin-top:0;margin-bottom:10px">
+      <span class="rr-setting-text">간호사 자동배정</span>
+      <span class="rr-switch">
+        <input id="nurseQuickAutoAssignEnabled" type="checkbox" onchange="saveNurseAutoAssignEnabled(this.checked)">
+        <span class="rr-slider"></span>
+      </span>
+    </label>
     <div class="staff-add-row">
       <input class="name-input" id="nurseQuickNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
       <button class="timer-set-btn" type="button" onclick="addStaff('nurses', 'nurseQuickNameInput')">추가</button>
@@ -3451,7 +3541,7 @@
                   <label class="segment-item"><input type="radio" name="gender" value="여"><span>여</span></label>
                 </div>
               </div>
-              <input class="name-input wide" id="chiefComplaint" type="text" placeholder="주상병명" maxlength="60" autocomplete="off">
+              <input class="name-input wide" id="chiefComplaint" type="text" placeholder="메모" maxlength="60" autocomplete="off">
               <textarea class="name-input wide" id="memoInput" placeholder="메모" maxlength="120" rows="3" autocomplete="off"></textarea>
               <button class="submit-btn desk-submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
             </div>
@@ -3524,7 +3614,7 @@
                     <label class="segment-item"><input type="radio" name="receiveGender" value="여"><span>여</span></label>
                   </div>
                 </div>
-                <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="주상병명" maxlength="60" autocomplete="off">
+                <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="메모" maxlength="60" autocomplete="off">
                 <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모" maxlength="120" rows="3" autocomplete="off"></textarea>
                 <button class="submit-btn receive-submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
               </div>
@@ -3591,7 +3681,7 @@
                     </div>
                   </div>
                   <div class="bed-edit-visible-grid">
-                    <input class="name-input bed-chief-field" id="bedChiefComplaint" type="text" placeholder="주상병명" maxlength="60" autocomplete="off">
+                    <input class="name-input bed-chief-field" id="bedChiefComplaint" type="text" placeholder="메모" maxlength="60" autocomplete="off">
                     <div class="bed-memo-wrap" id="bedMemoWrap">
                       <button class="bed-memo-toggle" id="bedMemoToggle" type="button" onclick="toggleBedMemoInput()">메모</button>
                       <textarea class="name-input bed-memo-field" id="bedMemoInput" placeholder="메모" maxlength="300" rows="3" autocomplete="off"></textarea>
@@ -3660,6 +3750,13 @@
         </div>
         <div class="card">
           <div class="card-label">간호사 관리</div>
+          <label class="rr-setting" style="margin-top:0;margin-bottom:10px">
+            <span class="rr-setting-text">간호사 자동배정</span>
+            <span class="rr-switch">
+              <input id="nurseAutoAssignEnabled" type="checkbox" onchange="saveNurseAutoAssignEnabled(this.checked)">
+              <span class="rr-slider"></span>
+            </span>
+          </label>
           <div class="staff-add-row">
             <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
             <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
@@ -3913,6 +4010,7 @@
   let procedureMinutes = 0;
   let treatmentPresets = [];
   let autoBedAssignEnabled = false;
+  let nurseAutoAssignEnabled = true;
 
   const patientsByKey = new Map();
   const staffByType = {
@@ -5074,6 +5172,13 @@
     return type === 'doctors' ? ['doctorList'] : ['nurseList', 'nurseQuickList'];
   }
 
+  function syncNurseAutoAssignInputs() {
+    ['nurseAutoAssignEnabled', 'nurseQuickAutoAssignEnabled'].forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.checked = nurseAutoAssignEnabled;
+    });
+  }
+
   function getSortedStaff(type) {
     return [...staffByType[type].entries()]
       .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
@@ -5419,6 +5524,11 @@
     if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
   });
 
+  onValue(ref(db, 'settings/nurseAutoAssignEnabled'), (snapshot) => {
+    nurseAutoAssignEnabled = snapshot.val() !== false;
+    syncNurseAutoAssignInputs();
+  });
+
   onValue(ref(db, CALL_ALERTS_PATH), (snapshot) => {
     callAlertItems.clear();
     const rows = snapshot.val() || {};
@@ -5483,6 +5593,13 @@
   };
 
   // ─── 전송 ───────────────────────────────
+  window.saveNurseAutoAssignEnabled = async (enabled) => {
+    nurseAutoAssignEnabled = Boolean(enabled);
+    syncNurseAutoAssignInputs();
+    await set(ref(db, 'settings/nurseAutoAssignEnabled'), nurseAutoAssignEnabled);
+    showToast(enabled ? '간호사 자동배정 켜짐' : '간호사 자동배정 꺼짐');
+  };
+
   const PATIENT_FORM_IDS = {
     desk: {
       name: 'patientName',
@@ -5871,6 +5988,7 @@
   }
 
   let pendingBedScheduleDates = [];
+  let bedScheduleCustomMonthDate = null;
 
   function normalizeAppointmentDates(dataOrDates) {
     const rawDates = Array.isArray(dataOrDates)
@@ -5892,12 +6010,7 @@
     if (!calendar) return;
     pendingBedScheduleDates = normalizeAppointmentDates(selectedDates);
     const today = addLocalDays(new Date(), 0);
-    const presetDateItems = [];
-    for (let offset = 1; presetDateItems.length < 7; offset += 1) {
-      const date = addLocalDays(today, offset);
-      if (date.getDay() === 0) continue;
-      presetDateItems.push({ date, dateValue: toLocalDateInputValue(date), offset });
-    }
+    const presetDateItems = getBedSchedulePresetDateItems(today);
     const presetDates = presetDateItems.map(item => item.dateValue);
     calendar.innerHTML = presetDateItems.map(({ date, dateValue, offset }) => {
       const className = [
@@ -5907,14 +6020,79 @@
       ].filter(Boolean).join(' ');
       const label = offset === 0 ? `오늘 ${formatScheduleDayLabel(date)}` : formatScheduleDayLabel(date);
       return `<button type="button" class="${className}" onclick="selectBedScheduleDate('${dateValue}')">${escapeHtml(label)}</button>`;
-    }).join('') + `<button type="button" class="bed-schedule-day${pendingBedScheduleDates.some(date => !presetDates.includes(date)) ? ' selected' : ''}" onclick="openBedScheduleCustomDate()">기타</button>`;
+    }).join('') + `<button type="button" class="bed-schedule-day${pendingBedScheduleDates.some(date => !presetDates.includes(date)) ? ' selected' : ''}" onclick="toggleBedScheduleCustomDate()">기타</button>`;
     if (customInput) {
       customInput.min = toLocalDateInputValue(today);
       customInput.value = pendingBedScheduleDates.find(date => !presetDates.includes(date)) || '';
-      customInput.classList.toggle('show', Boolean(customInput.value));
+      customInput.classList.remove('show');
     }
-    if (confirmBtn) confirmBtn.disabled = pendingBedScheduleDates.length === 0;
+    renderBedScheduleCustomCalendar();
+    if (confirmBtn) confirmBtn.disabled = false;
     disableAutocomplete(calendar.closest('.bed-schedule-panel') || calendar);
+  }
+
+  function getLocalMonthStart(date = new Date()) {
+    const source = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+    return new Date(source.getFullYear(), source.getMonth(), 1);
+  }
+
+  function parseLocalDateValue(dateValue) {
+    const [year, month, day] = String(dateValue || '').split('-').map(Number);
+    if (![year, month, day].every(Number.isFinite)) return null;
+    return new Date(year, month - 1, day);
+  }
+
+  function addLocalMonths(date, months) {
+    const source = getLocalMonthStart(date);
+    return new Date(source.getFullYear(), source.getMonth() + Number(months || 0), 1);
+  }
+
+  function renderBedScheduleCustomCalendar() {
+    const panel = document.getElementById('bedScheduleCustomCalendar');
+    if (!panel || !panel.classList.contains('show')) return;
+    const monthDate = getLocalMonthStart(bedScheduleCustomMonthDate || new Date());
+    bedScheduleCustomMonthDate = monthDate;
+    const todayValue = toLocalDateInputValue(new Date());
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const leading = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < leading; i += 1) {
+      cells.push('<button class="bed-schedule-month-day empty" type="button" tabindex="-1"></button>');
+    }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = new Date(year, month, day);
+      const dateValue = toLocalDateInputValue(date);
+      const isPast = dateValue < todayValue;
+      const className = [
+        'bed-schedule-month-day',
+        dateValue === todayValue ? 'today' : '',
+        pendingBedScheduleDates.includes(dateValue) ? 'selected' : ''
+      ].filter(Boolean).join(' ');
+      cells.push(`<button class="${className}" type="button" ${isPast ? 'disabled' : `onclick="selectBedScheduleDate('${dateValue}')"`}>${day}</button>`);
+    }
+    panel.innerHTML = `
+      <div class="bed-schedule-calendar-head">
+        <button class="bed-schedule-calendar-nav" type="button" onclick="changeBedScheduleCustomMonth(-1)">‹</button>
+        <div class="bed-schedule-calendar-title">${year}년 ${month + 1}월</div>
+        <button class="bed-schedule-calendar-nav" type="button" onclick="changeBedScheduleCustomMonth(1)">›</button>
+      </div>
+      <div class="bed-schedule-month-grid">
+        ${['일','월','화','수','목','금','토'].map(day => `<div class="bed-schedule-month-dow">${day}</div>`).join('')}
+        ${cells.join('')}
+      </div>`;
+  }
+
+  function getBedSchedulePresetDateItems(startDate = new Date()) {
+    const today = addLocalDays(startDate, 0);
+    const presetDateItems = [];
+    for (let offset = 1; presetDateItems.length < 7; offset += 1) {
+      const date = addLocalDays(today, offset);
+      if (date.getDay() === 0) continue;
+      presetDateItems.push({ date, dateValue: toLocalDateInputValue(date), offset });
+    }
+    return presetDateItems;
   }
 
   async function populateBedSchedulePanel() {
@@ -5935,7 +6113,11 @@
       button.title = open ? '예약 날짜 닫기' : '예약 날짜 열기';
     }
     if (open) populateBedSchedulePanel();
-    else pendingBedScheduleDates = [];
+    else {
+      pendingBedScheduleDates = [];
+      bedScheduleCustomMonthDate = null;
+      document.getElementById('bedScheduleCustomCalendar')?.classList.remove('show');
+    }
   }
 
   window.toggleBedSchedule = () => {
@@ -5952,19 +6134,26 @@
   };
 
   window.openBedScheduleCustomDate = () => {
-    const input = document.getElementById('bedScheduleCustomInput');
-    if (!input) return;
-    input.classList.add('show');
-    input.focus();
-    if (typeof input.showPicker === 'function') input.showPicker();
+    const panel = document.getElementById('bedScheduleCustomCalendar');
+    if (!panel) return;
+    const presetDates = getBedSchedulePresetDateItems().map(item => item.dateValue);
+    const firstCustomDate = pendingBedScheduleDates.find(date => !presetDates.includes(date));
+    bedScheduleCustomMonthDate = getLocalMonthStart(parseLocalDateValue(firstCustomDate) || bedScheduleCustomMonthDate || new Date());
+    panel.classList.add('show');
+    renderBedScheduleCustomCalendar();
+  };
+
+  window.toggleBedScheduleCustomDate = () => {
+    openBedScheduleCustomDate();
+  };
+
+  window.changeBedScheduleCustomMonth = (delta) => {
+    bedScheduleCustomMonthDate = addLocalMonths(bedScheduleCustomMonthDate || new Date(), delta);
+    renderBedScheduleCustomCalendar();
   };
 
   window.confirmBedScheduleDate = async () => {
     const appointmentDates = normalizeAppointmentDates(pendingBedScheduleDates);
-    if (!appointmentDates.length) {
-      showToast('예약 날짜를 선택해주세요');
-      return;
-    }
     const bed = getBedData(selectedBedNo);
     if (!bed) {
       showToast('현재 베드가 비어 있습니다');
@@ -5987,10 +6176,14 @@
       bodyParts: normalizeBodyParts(bed.bodyParts)
     }, appointmentDates);
     if (ok) {
-      const appointmentLabel = appointmentDates.length === 1
-        ? formatAppointmentDate(appointmentDates[0])
-        : `${formatAppointmentDate(appointmentDates[0])} 외 ${appointmentDates.length - 1}개`;
-      showToast(`${bed.name || '환자'}님 ${appointmentLabel} 예약`);
+      if (appointmentDates.length) {
+        const appointmentLabel = appointmentDates.length === 1
+          ? formatAppointmentDate(appointmentDates[0])
+          : `${formatAppointmentDate(appointmentDates[0])} 외 ${appointmentDates.length - 1}개`;
+        showToast(`${bed.name || '환자'}님 ${appointmentLabel} 예약`);
+      } else {
+        showToast(`${bed.name || '환자'}님 예약 삭제`);
+      }
       populateBedSchedulePanel();
     }
   };
@@ -6817,6 +7010,14 @@
   }
 
   async function applyRoundRobinNurse(patientKey, data, bedNo) {
+    if (!nurseAutoAssignEnabled) {
+      const assignedData = { ...data, nurseId: '', nurseName: '' };
+      await updateBedRecord(bedNo, {
+        nurseId: '',
+        nurseName: ''
+      });
+      return assignedData;
+    }
     const nurse = await getNextRoundRobinNurse();
     const assignedData = nurse
       ? { ...data, nurseId: nurse.id, nurseName: nurse.name }
@@ -7259,6 +7460,12 @@
     return `${parts[1]}월 ${parts[2]}일`;
   }
 
+  function formatAppointmentChipDate(dateStr, count = 1) {
+    const parts = String(dateStr || '').split('-');
+    if (parts.length !== 3) return '';
+    return `${parts[1]}/${parts[2]}${Number(count) > 1 ? '외' : ''}`;
+  }
+
   function getCompletedTreatmentFromAlert(bed) {
     const message = bed.lastAlertMessage || '';
     const match = message.match(/·\s*(.+?)\s*완료/);
@@ -7294,6 +7501,29 @@
     return alert[field] !== true;
   }
 
+  function getVisibleAppointmentAlertItems(mode = window.currentMode) {
+    if (mode !== 'input') return [];
+    return [...patientsByKey.entries()]
+      .map(([patientKey, patient]) => {
+        const dates = normalizeAppointmentDates(patient || {})
+          .filter(date => shouldShowAppointmentAlertForMode(patient, mode, date));
+        if (!dates.length) return null;
+        return {
+          patientKey,
+          name: patient?.name || '환자',
+          chartNo: patient?.chartNo || '',
+          dates,
+          timestamp: Number(patient?.timestamp || 0)
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const dateCompare = String(a.dates[0] || '').localeCompare(String(b.dates[0] || ''));
+        if (dateCompare) return dateCompare;
+        return Number(a.timestamp || 0) - Number(b.timestamp || 0);
+      });
+  }
+
   function getVisibleCallAlertItems(mode = window.currentMode) {
     return [...callAlertItems.entries()]
       .map(([key, data]) => ({ key, ...(data || {}) }))
@@ -7311,11 +7541,7 @@
   }
 
   function getVisibleBedAssignmentAlertItems(mode = window.currentMode) {
-    if (mode !== 'notify' && mode !== 'receive') return [];
-    return [...bedAssignmentAlertItems.entries()]
-      .map(([key, data]) => ({ key, ...(data || {}) }))
-      .filter(item => item.message)
-      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+    return [];
   }
 
   function renderUpcomingAlerts() {
@@ -7420,24 +7646,14 @@
       </div>`
     }));
 
-    const appointmentItems = [...patientsByKey.entries()]
-      .flatMap(([key, data]) => normalizeAppointmentDates(data || {}).map(appointmentDate => ({
-        id: `${key}:${appointmentDate}`,
-        key,
-        name: data?.name || '',
-        appointmentDate,
-        data
-      })))
-      .filter(item => item.name && shouldShowAppointmentAlertForMode(item.data, window.currentMode, item.appointmentDate))
-      .sort((a, b) => String(a.appointmentDate).localeCompare(String(b.appointmentDate)) || String(a.name).localeCompare(String(b.name)));
-
-    const appointmentAlertItems = appointmentItems.map(item => ({
-      timestamp: Number(item.data?.appointmentAlert?.timestamp || item.data?.timestamp || 0),
+    const appointmentAlertItems = getVisibleAppointmentAlertItems('input').map(item => ({
+      timestamp: Number(item.timestamp || 0),
       html: `
-      <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.key)}', '${escapeHtml(item.appointmentDate)}')">
+      <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.patientKey)}')">
         <div class="upcoming-time">예약</div>
         <div>
-          <div class="upcoming-main">${escapeHtml(item.name)}님 ${escapeHtml(formatAppointmentDate(item.appointmentDate))} 예약</div>
+          <div class="upcoming-main">${escapeHtml(item.name)} ${escapeHtml(item.dates.map(formatAppointmentDate).filter(Boolean).join(', '))}</div>
+          ${item.chartNo ? `<div class="upcoming-sub">${escapeHtml(item.chartNo)}</div>` : ''}
         </div>
       </div>`
     }));
@@ -7528,7 +7744,7 @@
 
     const receiveTimerItems = (receiveModeForAlerts === 'notify' || receiveModeForAlerts === 'receive') ? timerAlertItems : [];
     const inputItems = [...inputCallItems, ...inputAssignmentItems, ...appointmentAlertItems];
-    const receiveItems = [...doctorProcedureItems, ...receiveTreatmentItems, ...doctorAssignmentItems, ...receiveCallItems, ...receiveAssignmentItems, ...appointmentAlertItems, ...receiveTimerItems];
+    const receiveItems = [...doctorProcedureItems, ...receiveTreatmentItems, ...doctorAssignmentItems, ...receiveCallItems, ...receiveAssignmentItems, ...receiveTimerItems];
     const baseHasAlerts = inputItems.length > 0;
     const receiveHasAlerts = receiveItems.length > 0;
     const html = baseHasAlerts
@@ -7587,22 +7803,24 @@
     const field = getAppointmentAlertDismissField();
     if (!patientKey || !field) return;
     const patient = patientsByKey.get(patientKey) || {};
-    const date = appointmentDate || normalizeAppointmentDates(patient)[0] || '';
-    if (!date) return;
-    const appointmentAlerts = {
-      ...(patient.appointmentAlerts || {}),
-      [date]: {
-        ...(patient.appointmentAlerts?.[date] || {}),
+    const dates = appointmentDate
+      ? [appointmentDate]
+      : normalizeAppointmentDates(patient).filter(date => shouldShowAppointmentAlertForMode(patient, window.currentMode, date));
+    if (!dates.length) return;
+    const appointmentAlerts = { ...(patient.appointmentAlerts || {}) };
+    dates.forEach(date => {
+      appointmentAlerts[date] = {
+        ...(appointmentAlerts[date] || {}),
         date,
         [field]: true,
         ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
-      }
-    };
+      };
+    });
     const patch = { appointmentAlerts };
-    if ((patient.appointmentDate || '') === date) {
+    if (dates.includes(patient.appointmentDate || '')) {
       patch.appointmentAlert = {
         ...(patient.appointmentAlert || {}),
-        date,
+        date: patient.appointmentDate || dates[0],
         [field]: true,
         ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
       };
@@ -8250,6 +8468,7 @@
       <div class="bed-schedule-panel" id="bedSchedulePanel">
         <div class="bed-schedule-calendar" id="bedScheduleCalendar"></div>
         <input class="bed-schedule-custom-input" id="bedScheduleCustomInput" type="date" onchange="selectBedScheduleDate(this.value)">
+        <div class="bed-schedule-custom-calendar" id="bedScheduleCustomCalendar"></div>
         <div class="bed-schedule-actions">
           <button class="bed-schedule-cancel" type="button" onclick="populateBedSchedulePanel()">취소</button>
           <button class="bed-schedule-confirm" id="bedScheduleConfirmBtn" type="button" onclick="confirmBedScheduleDate()" disabled>확인</button>
@@ -9385,6 +9604,10 @@
     }
 
     const treatments = bed.treatments || [];
+    const assignmentAlert = getBedAssignmentAlertForBed(bedNo);
+    const patient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    const appointmentDates = normalizeAppointmentDates(patient || {});
+    const appointmentDate = appointmentDates[0] || '';
     const hasTreatment = treatments.length > 0;
     const currentIndex = Number(bed.currentIndex || 0);
     const treatment = bed.complete ? '완료' : (treatments[currentIndex] || '');
@@ -9408,7 +9631,8 @@
       bedLabel,
       empty: false,
       complete: bed.complete,
-      alerting: Boolean(bed.lastAlertId),
+      alerting: Boolean(bed.lastAlertId || assignmentAlert),
+      assignmentAlerting: Boolean(assignmentAlert),
       name: bed.name,
       doctorName: bed.doctorName || '',
       nurseName: bed.nurseName || '',
@@ -9426,6 +9650,8 @@
       visitType: bed.visitType || '',
       gender: bed.gender || '',
       age: bed.age || '',
+      appointmentDate,
+      appointmentDateCount: appointmentDates.length,
       chiefComplaint: bed.chiefComplaint || '',
       memo: bed.memo || '',
       bodyParts: normalizeBodyParts(bed.bodyParts),
@@ -9521,16 +9747,16 @@
       : '';
     const infoChips = [
       status.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.gender)}</span>` : '',
-      status.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(status.age))}세</span>` : '',
       status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
       status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : '',
+      status.appointmentDate ? `<span class="bed-meta-chip">${escapeHtml(formatAppointmentChipDate(status.appointmentDate, status.appointmentDateCount))}</span>` : '',
     ].filter(Boolean).join('');
     const staffHtml = [
       status.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">메모있음</span>` : ''
     ].filter(Boolean).join('');
     const compactName = `${getCompactBedMarker(status.bedNo)} ${status.name}`;
     return `
-      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}>
+      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}>
         <div class="bed-status-top">
           <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(monitorLabel)} ${escapeHtml(status.name)}`}</span>
           ${compact ? '' : `<span class="bed-status-time">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
@@ -10319,7 +10545,6 @@
   async function setPatientAppointment(patientKey, data, appointmentDates) {
     if (!patientKey) return false;
     const dates = normalizeAppointmentDates(appointmentDates);
-    if (!dates.length) return false;
     const existingPatient = patientsByKey.get(patientKey) || {};
     const existingAlerts = existingPatient.appointmentAlerts || {};
     const appointmentAlerts = Object.fromEntries(dates.map(date => [
@@ -10327,23 +10552,31 @@
       createAppointmentAlert(date, existingAlerts[date] || (existingPatient.appointmentAlert?.date === date ? existingPatient.appointmentAlert : {}))
     ]));
     const appointmentDate = dates[0] || '';
-    const appointmentAlert = appointmentAlerts[appointmentDate] || createAppointmentAlert(appointmentDate);
-    await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
+    const appointmentAlert = appointmentDate ? (appointmentAlerts[appointmentDate] || createAppointmentAlert(appointmentDate)) : null;
+    const patch = dates.length ? {
       ...data,
       appointmentDates: dates,
       appointmentDate,
       appointmentAlerts,
       appointmentAlert
-    });
+    } : {
+      ...data,
+      appointmentDates: [],
+      appointmentDate: '',
+      appointmentAlerts: null,
+      appointmentAlert: null
+    };
+    await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), patch);
     patientsByKey.set(patientKey, {
       ...existingPatient,
       ...data,
       appointmentDates: dates,
       appointmentDate,
-      appointmentAlerts,
+      appointmentAlerts: dates.length ? appointmentAlerts : {},
       appointmentAlert
     });
     renderUpcomingAlerts();
+    renderBedMonitors();
     return true;
   }
 
@@ -10757,6 +10990,8 @@
     if (!alert?.key) return;
     bedAssignmentAlertItems.delete(alert.key);
     renderUpcomingAlerts();
+    renderBedMonitors();
+    syncFixedBedArrivalOverlay();
     try {
       await remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${alert.key}`));
     } catch (e) {
@@ -11150,6 +11385,7 @@
     setReceiveFormOpen(false);
     const autoBedAssignInput = document.getElementById('autoBedAssignEnabled');
     if (autoBedAssignInput) autoBedAssignInput.checked = autoBedAssignEnabled;
+    syncNurseAutoAssignInputs();
     document.querySelectorAll('input[name="visitType"]').forEach(input => {
       input.addEventListener('change', () => syncInitialVisitTreatment('desk'));
     });
