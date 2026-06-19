@@ -5,7 +5,7 @@ set NODE_NO_WARNINGS=1
 
 rem --- Secrets: change these for production. Leave unset to use defaults. ---
 set "CLINIC_PASSWORD=khhongik1"
-set "CLINIC_DELETE_PASSWORD=832332"
+set "CLINIC_DELETE_PASSWORD=337758"
 rem set "CLINIC_KEY_PATH=C:\clinic-secret\key.bin"
 
 set "NODE_EXE=%ProgramFiles%\nodejs\node.exe"

@@ -32,7 +32,7 @@ if (-not $nodeExe) {
 
 # --- Secrets: change for production. Inherited by the server child process. ---
 $env:CLINIC_PASSWORD = "khhongik1"
-$env:CLINIC_DELETE_PASSWORD = "832332"
+$env:CLINIC_DELETE_PASSWORD = "337758"
 # $env:CLINIC_KEY_PATH = "C:\clinic-secret\key.bin"
 
 Start-Process `

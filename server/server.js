@@ -17,7 +17,7 @@ const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
 // password. Both are read from env so they are not hardcoded; defaults keep the
 // app working on first run but should be overridden in production.
 const LOGIN_PASSWORD = process.env.CLINIC_PASSWORD || "7677";
-const DELETE_PASSWORD = process.env.CLINIC_DELETE_PASSWORD || "832332";
+const DELETE_PASSWORD = process.env.CLINIC_DELETE_PASSWORD || "337758";
 const SESSION_COOKIE = "sid";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 365; // 1 year — enter once per device
 
