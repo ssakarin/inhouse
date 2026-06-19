@@ -273,7 +273,7 @@ function loginPageHtml() {
 <body>
 <form id="f">
   <h1>비밀번호 입력</h1>
-  <input id="pw" type="password" inputmode="numeric" autocomplete="current-password" autofocus />
+  <input id="pw" type="password" autocomplete="current-password" autofocus />
   <button type="submit">로그인</button>
   <div class="err" id="err"></div>
 </form>
