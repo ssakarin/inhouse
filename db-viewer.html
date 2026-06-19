@@ -3,6 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+(function () {
+  var PASSWORD = "1234";          // ← 원하는 비밀번호로 변경하세요
+  var KEY = "khh_authed";          // 두 파일에서 동일하게 사용 (한 번 입력하면 공유)
+  if (sessionStorage.getItem(KEY) === "1") return;
+  while (true) {
+    var input = prompt("비밀번호를 입력하세요");
+    if (input === null) { document.documentElement.innerHTML = ""; window.stop(); return; }
+    if (input === PASSWORD) { sessionStorage.setItem(KEY, "1"); return; }
+    alert("비밀번호가 틀렸습니다.");
+  }
+})();
+</script>
 <title>경희홍익한의원 DB</title>
 <style>
   :root {
@@ -623,7 +636,7 @@
               <label>이름<input id="editName" type="text"></label>
               <label>나이<input id="editAge" type="number" min="0" max="130"></label>
               <label>성별<input id="editGender" type="text" readonly></label>
-              <label>연락처<input id="editPhone" type="text"></label>
+              <input id="editPhone" type="hidden">
               <label>최근 담당원장<input id="editDoctorName" type="text" readonly></label>
             </div>
             <label>최근 초진/재진<select id="editVisitType"><option value="">-</option><option value="초진">초진</option><option value="재진">재진</option></select></label>
@@ -762,7 +775,7 @@
 
   function renderSummary(targetId, value, extra = {}) {
     const rows = [
-      ["항목 수", countChildren(value)],
+      ["환자 수", countChildren(value)],
       ["크기", `${new Blob([stringify(value)]).size.toLocaleString()} B`],
       ["조회", new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })]
     ];
@@ -1223,7 +1236,7 @@
             <button class="day-patient-item" type="button" data-global-chart-no="${escapeHtml(patient.chartNo || "")}">
               <span>
                 <span class="day-patient-main">${escapeHtml(patient.name || "(이름 없음)")}</span>
-                <span class="day-patient-sub">${escapeHtml([patient.chartNo || "-", patient.gender || "-", patient.age || "-", getPatientPhone(patient)].filter(Boolean).join(" · "))}</span>
+                <span class="day-patient-sub">${escapeHtml([patient.chartNo || "-", patient.gender || "-", patient.age || "-"].filter(Boolean).join(" · "))}</span>
               </span>
               <span class="day-patient-sub">${escapeHtml(record.doctorName || patient.doctorName || "-")}</span>
             </button>
@@ -1345,7 +1358,7 @@
       ? rows.map(patient => `
         <button class="patient-item${String(patient.chartNo || "") === selectedChartNo ? " active" : ""}" type="button" data-chart-no="${escapeHtml(patient.chartNo || "")}">
           <div class="patient-name">${escapeHtml(patient.name || "(이름 없음)")}</div>
-          <div class="patient-sub">${escapeHtml([patient.chartNo || "-", patient.gender || "-", patient.age || "-", getPatientPhone(patient), `진료 ${(patient.visitDates || []).length || 0}회`].filter(Boolean).join(" · "))}</div>
+          <div class="patient-sub">${escapeHtml([patient.chartNo || "-", patient.gender || "-", patient.age || "-", `진료 ${(patient.visitDates || []).length || 0}회`].filter(Boolean).join(" · "))}</div>
         </button>
       `).join("")
       : `<div class="meta" style="padding:12px;">표시할 환자가 없습니다.</div>`;

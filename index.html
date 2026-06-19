@@ -290,6 +290,23 @@
     padding: 7px 10px;
     white-space: nowrap;
   }
+  .desk-excel-add-btn {
+    background: rgba(74,222,128,0.14);
+    border: 1px solid rgba(74,222,128,0.55);
+    border-radius: 999px;
+    color: var(--green, #4ade80);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    min-height: 32px;
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+  .desk-excel-add-btn:hover {
+    background: rgba(74,222,128,0.24);
+    border-color: var(--green, #4ade80);
+  }
   .header-current-time {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -3469,6 +3486,9 @@
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
+        <button type="button" class="desk-excel-add-btn" onclick="document.getElementById('deskChartImportInput').click()">엑셀추가</button>
+        <input id="deskChartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
+          onchange="importChartFileFromDesk(this.files?.[0]); this.value='';">
         <span class="header-wait-chip bed-count-chip" id="deskBedPatientCount">0/13</span>
         <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
         <span class="header-current-time" id="deskCurrentTime"></span>
@@ -7662,9 +7682,10 @@
       timestamp: Number(item.timestamp || 0),
       html: `
       <div class="upcoming-item assignment" onclick="dismissDoctorCallAlert('${escapeHtml(item.key)}')">
-        <div class="upcoming-time">호출</div>
+        <div class="upcoming-time">${item.kind === 'appointmentCancel' ? '예약취소' : '호출'}</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.message)}</div>
+          ${item.chartNo ? `<div class="upcoming-sub">${escapeHtml(item.chartNo)}</div>` : ''}
         </div>
       </div>`
     }));
@@ -10542,10 +10563,33 @@
     };
   }
 
+  async function sendAppointmentCancelDeskAlert(patientKey, patient, dates) {
+    const canceledDates = normalizeAppointmentDates(dates);
+    if (!patientKey || !canceledDates.length) return;
+    const dateText = canceledDates.map(formatAppointmentDate).filter(Boolean).join(', ');
+    try {
+      await push(ref(db, CALL_ALERTS_PATH), {
+        target: 'desk',
+        kind: 'appointmentCancel',
+        patientKey,
+        chartNo: patient?.chartNo || '',
+        patientName: patient?.name || '',
+        message: `${patient?.name || '환자'} ${dateText} 예약 취소`,
+        timestamp: Date.now()
+      });
+    } catch (e) {
+      console.error('예약 취소 알림 전송 실패', e);
+    }
+  }
+
   async function setPatientAppointment(patientKey, data, appointmentDates) {
     if (!patientKey) return false;
     const dates = normalizeAppointmentDates(appointmentDates);
     const existingPatient = patientsByKey.get(patientKey) || {};
+    const previousDates = normalizeAppointmentDates(existingPatient || {});
+    if (!dates.length && previousDates.length) {
+      await sendAppointmentCancelDeskAlert(patientKey, { ...existingPatient, ...data }, previousDates);
+    }
     const existingAlerts = existingPatient.appointmentAlerts || {};
     const appointmentAlerts = Object.fromEntries(dates.map(date => [
       date,
@@ -10605,20 +10649,22 @@
   };
 
   // ── 차트 DB 건수 표시 ─────────────────────────────────────────────
+  async function getChartDbCount() {
+    if (SERVER_MODE) {
+      const records = await getAllChartPatients();
+      return records.length;
+    }
+    const db = await openChartDb();
+    return await new Promise((resolve, reject) => {
+      const req = db.transaction(CHART_STORE, 'readonly').objectStore(CHART_STORE).count();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
   async function updateChartDbCount() {
     try {
-      if (SERVER_MODE) {
-        const records = await getAllChartPatients();
-        const el = document.getElementById('chartDbCountText');
-        if (el) el.textContent = `저장된 환자 ${records.length.toLocaleString()}명`;
-        return;
-      }
-      const db = await openChartDb();
-      const count = await new Promise((resolve, reject) => {
-        const req = db.transaction(CHART_STORE, 'readonly').objectStore(CHART_STORE).count();
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
+      const count = await getChartDbCount();
       const el = document.getElementById('chartDbCountText');
       if (el) el.textContent = `저장된 환자 ${count.toLocaleString()}명`;
     } catch {}
@@ -10911,6 +10957,21 @@
       console.error(e);
       statusEl.textContent = '❌ 오류: ' + e.message;
     }
+  };
+
+  // 데스크 탭 "엑셀추가" 버튼 → import 후 추가전/추가후 인원 표시
+  window.importChartFileFromDesk = async function(file) {
+    if (!file) return;
+    let before = null;
+    try { before = await getChartDbCount(); } catch {}
+    await importChartFile(file);
+    let after = null;
+    try { after = await getChartDbCount(); } catch {}
+    const fmt = (n) => (n == null ? '?' : n.toLocaleString());
+    const added = (before != null && after != null) ? Math.max(0, after - before) : null;
+    const msg = `추가전 인원: ${fmt(before)}명\n추가후 인원: ${fmt(after)}명`
+      + (added != null ? `\n(신규 ${added.toLocaleString()}명)` : '');
+    alert(msg);
   };
 
   window.handleChartNoLookup = async function(scope = 'desk') {
