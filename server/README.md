@@ -92,15 +92,13 @@ production):
 > still capture the session cookie. For full protection, terminate HTTPS (a
 > self-signed cert or a reverse proxy) in front of the server.
 
-## Hybrid mode
+## Local mode
 
 When `index.html` is opened through this local server:
 
 - Patient DB screens (`db-viewer.html`, `stats.html`) read/write the local SQLite DB.
-- Real-time bed state normally uses Firebase.
-- If Firebase disconnects, the latest bed snapshot is loaded from `app_state`.
-- Timer and bed-state changes made during local fallback are saved to `app_state`.
-- When Firebase reconnects, pending local bed-state changes are pushed back to Firebase.
+- Real-time bed state is stored in encrypted `app_state`.
+- Timer and bed-state changes are pushed to connected clients through SSE.
 
 ## API
 

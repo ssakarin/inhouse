@@ -3463,7 +3463,7 @@
     animation: pulse 2s infinite;
   }
   body.local-fallback-mode .status-dot { background: var(--gold); }
-  body.firebase-offline-mode .status-dot { background: var(--danger); }
+  body.remote-offline-mode .status-dot { background: var(--danger); }
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
@@ -3802,7 +3802,7 @@
             <span class="rr-setting-text" id="chartDbCountText">로딩 중...</span>
           </div>
           <button class="export-btn" onclick="document.getElementById('chartImportInput').click()" style="margin-top:10px">
-            XLS / XLSX / CSV 가져오기
+            엑셀 추가
           </button>
           <input id="chartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
             onchange="importChartFile(this.files?.[0]); this.value='';">
@@ -4236,7 +4236,7 @@
   }
 
 
-  // Best-effort mirror of a bed write to Firebase so it stays a warm fallback.
+  // Bed writes go through the local server so SSE subscribers receive updates.
   async function updateBedRecord(bedNo, patch) {
     await localBedsRequest('/api/beds/update', { bedNo, patch });
   }
@@ -6451,7 +6451,7 @@
     return values.map(csvCell).join(',');
   }
 
-  window.exportFirebaseCsv = async () => {
+  window.exportLocalDbCsv = async () => {
     const btn = document.getElementById('exportCsvBtn');
     if (btn) {
       btn.disabled = true;
@@ -6554,7 +6554,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `inhouse-firebase-${dateKey}.csv`;
+      link.download = `inhouse-localdb-${dateKey}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -6593,7 +6593,7 @@
 
     try {
       isClearingPatientDatabase = true;
-      await runBedsRecordTransaction(() => ({})); // clears local beds (+ Firebase mirror)
+      await runBedsRecordTransaction(() => ({})); // clears local beds
       await clearPatients();
       await clearBedAssignmentAlerts();
 
@@ -6723,8 +6723,7 @@
 
   // Local-primary patients: the local server holds the whole 'patients' map and
   // pushes it over SSE; we diff against the last snapshot to derive
-  // added/changed/removed. Firebase child events are the fallback, applied only
-  // when the local stream is down.
+  // added/changed/removed.
   let prevPatientsSnapshot = {};
   function applyPatientsSnapshot(map) {
     if (isClearingPatientDatabase) { prevPatientsSnapshot = clonePlain(map || {}); return; }
@@ -10384,6 +10383,28 @@
     }
   }
 
+  async function getChartPatientsByChartNos(chartNos) {
+    const uniqueChartNos = [...new Set((chartNos || []).map(normalizeChartNo).filter(Boolean))];
+    if (!uniqueChartNos.length) return [];
+    if (SERVER_MODE) {
+      try {
+        const res = await fetch('/api/patients/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ chartNos: uniqueChartNos })
+        });
+        if (!res.ok) throw new Error('server patient batch lookup failed');
+        return await res.json();
+      } catch (error) {
+        console.error('서버 차트 배치 조회 실패', error);
+        return [];
+      }
+    }
+    const allRecords = await getAllChartPatients();
+    const wanted = new Set(uniqueChartNos);
+    return allRecords.filter(record => wanted.has(normalizeChartNo(record?.chartNo)));
+  }
+
   function getLatestChartVisit(patient = {}) {
     const byDate = patient.visitHistory || {};
     const dates = [
@@ -10595,8 +10616,10 @@
   // ── 차트 DB 건수 표시 ─────────────────────────────────────────────
   async function getChartDbCount() {
     if (SERVER_MODE) {
-      const records = await getAllChartPatients();
-      return records.length;
+      const res = await fetch('/api/patients/count', { cache: 'no-store' });
+      if (!res.ok) throw new Error('server patient count failed');
+      const data = await res.json();
+      return Number(data.count || 0);
     }
     const db = await openChartDb();
     return await new Promise((resolve, reject) => {
@@ -10607,11 +10630,13 @@
   }
 
   async function updateChartDbCount() {
+    const el = document.getElementById('chartDbCountText');
     try {
       const count = await getChartDbCount();
-      const el = document.getElementById('chartDbCountText');
       if (el) el.textContent = `저장된 환자 ${count.toLocaleString()}명`;
-    } catch {}
+    } catch {
+      if (el) el.textContent = '환자 수 조회 실패';
+    }
   }
   window.updateChartDbCount = updateChartDbCount;
 
@@ -10791,7 +10816,8 @@
       const patients = [...byChart.values()];
       let existingRecordsForImport = null;
       if (SERVER_MODE) {
-        existingRecordsForImport = await getAllChartPatients();
+        statusEl.textContent = `기존 환자 확인 중...`;
+        existingRecordsForImport = await getChartPatientsByChartNos(patients.map(patient => patient.chartNo));
       } else {
         const conflictDb = await openChartDb();
         existingRecordsForImport = await new Promise((resolve, reject) => {
@@ -10860,7 +10886,7 @@
           const res = await fetch('/api/import/patients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            body: JSON.stringify({ mode: 'merge', patients: batch })
+            body: JSON.stringify({ mode: 'merge', patients: batch, backup: i === 0 })
           });
           if (!res.ok) throw new Error('server patient import failed');
           saved += batch.length;
@@ -11391,6 +11417,7 @@
     const autoBedAssignInput = document.getElementById('autoBedAssignEnabled');
     if (autoBedAssignInput) autoBedAssignInput.checked = autoBedAssignEnabled;
     syncNurseAutoAssignInputs();
+    updateChartDbCount();
     document.querySelectorAll('input[name="visitType"]').forEach(input => {
       input.addEventListener('change', () => syncInitialVisitTreatment('desk'));
     });

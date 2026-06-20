@@ -30,6 +30,8 @@ db.exec(`
   PRAGMA synchronous = NORMAL;
   CREATE TABLE IF NOT EXISTS patients (
     chart_no TEXT PRIMARY KEY,
+    name TEXT,
+    phone TEXT,
     data_json TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -38,18 +40,72 @@ db.exec(`
     data_json TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS patient_visits (
+    chart_no TEXT NOT NULL,
+    visit_date TEXT NOT NULL,
+    doctor_name TEXT,
+    visit_type TEXT,
+    chief_complaint TEXT,
+    PRIMARY KEY (chart_no, visit_date)
+  );
+  CREATE INDEX IF NOT EXISTS idx_patient_visits_date ON patient_visits (visit_date);
 `);
+
+function ensurePatientSearchColumns() {
+  const columns = new Set(db.prepare("PRAGMA table_info(patients)").all().map(column => column.name));
+  if (!columns.has("name")) db.exec("ALTER TABLE patients ADD COLUMN name TEXT");
+  if (!columns.has("phone")) db.exec("ALTER TABLE patients ADD COLUMN phone TEXT");
+}
+
+ensurePatientSearchColumns();
 
 const statements = {
   listPatients: db.prepare("SELECT data_json FROM patients ORDER BY chart_no COLLATE NOCASE"),
+  countPatients: db.prepare("SELECT COUNT(*) AS count FROM patients"),
+  searchPatients: db.prepare(`
+    SELECT data_json FROM patients
+    WHERE chart_no LIKE ? ESCAPE '\\'
+       OR name LIKE ? ESCAPE '\\'
+       OR phone LIKE ? ESCAPE '\\'
+    ORDER BY chart_no COLLATE NOCASE
+    LIMIT ?
+  `),
   getPatient: db.prepare("SELECT data_json FROM patients WHERE chart_no = ?"),
   upsertPatient: db.prepare(`
-    INSERT INTO patients (chart_no, data_json, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(chart_no) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
+    INSERT INTO patients (chart_no, name, phone, data_json, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(chart_no) DO UPDATE SET
+      name = excluded.name,
+      phone = excluded.phone,
+      data_json = excluded.data_json,
+      updated_at = excluded.updated_at
   `),
   deletePatient: db.prepare("DELETE FROM patients WHERE chart_no = ?"),
   deleteAllPatients: db.prepare("DELETE FROM patients"),
+  deletePatientVisits: db.prepare("DELETE FROM patient_visits WHERE chart_no = ?"),
+  deleteAllPatientVisits: db.prepare("DELETE FROM patient_visits"),
+  upsertPatientVisit: db.prepare(`
+    INSERT INTO patient_visits (chart_no, visit_date, doctor_name, visit_type, chief_complaint)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(chart_no, visit_date) DO UPDATE SET
+      doctor_name = excluded.doctor_name,
+      visit_type = excluded.visit_type,
+      chief_complaint = excluded.chief_complaint
+  `),
+  listVisitChartNosByMonth: db.prepare(`
+    SELECT
+      pv.chart_no,
+      pv.visit_date,
+      pv.doctor_name,
+      pv.visit_type,
+      pv.chief_complaint,
+      p.name,
+      p.phone
+    FROM patient_visits pv
+    LEFT JOIN patients p ON p.chart_no = pv.chart_no
+    WHERE pv.visit_date >= ? AND pv.visit_date <= ?
+    ORDER BY pv.visit_date, pv.chart_no COLLATE NOCASE
+  `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
   upsertState: db.prepare(`
     INSERT INTO app_state (state_key, data_json, updated_at)
@@ -92,8 +148,43 @@ function migrateEncryptAtRest() {
 
 migrateEncryptAtRest();
 
+function backfillPatientSearchColumns() {
+  const rows = db.prepare("SELECT chart_no, name, phone, data_json FROM patients WHERE name IS NULL OR phone IS NULL").all();
+  if (!rows.length) return;
+  const update = db.prepare("UPDATE patients SET name = ?, phone = ? WHERE chart_no = ?");
+  let updated = 0;
+  db.exec("BEGIN");
+  try {
+    for (const row of rows) {
+      const record = JSON.parse(decrypt(row.data_json));
+      update.run(normalizeSearchText(record.name), getPatientPhone(record), row.chart_no);
+      updated += 1;
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  if (updated) console.log(`[db] Backfilled search columns for ${updated} patient row(s)`);
+}
+
+backfillPatientSearchColumns();
+ensurePatientVisitIndex();
+
 function normalizeChartNo(value) {
   return String(value || "").trim().replace(/\.0$/, "");
+}
+
+function normalizeSearchText(value) {
+  return String(value || "").trim();
+}
+
+function getPatientPhone(record = {}) {
+  return normalizeSearchText(record.phone || record.phoneNumber || record.tel || record.mobile || record.contact);
+}
+
+function escapeLike(value) {
+  return String(value || "").replace(/[\\%_]/g, match => `\\${match}`);
 }
 
 function jsonResponse(res, status, value) {
@@ -142,9 +233,104 @@ function listPatients() {
   return statements.listPatients.all().map(parsePatientRow);
 }
 
+function countPatients() {
+  return Number(statements.countPatients.get()?.count || 0);
+}
+
+function searchPatients(query, limit = 50) {
+  const q = normalizeSearchText(query);
+  if (!q) return [];
+  const safeLimit = Math.max(1, Math.min(100, Number(limit || 50)));
+  const pattern = `%${escapeLike(q)}%`;
+  return statements.searchPatients.all(pattern, pattern, pattern, safeLimit).map(parsePatientRow);
+}
+
+function visitEntriesFromRecord(record = {}) {
+  const dates = Array.isArray(record.visitDates) ? record.visitDates.map(String) : [];
+  Object.keys(record.visitHistory || {}).forEach(date => dates.push(String(date)));
+  return [...new Set(dates.filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date)))]
+    .sort()
+    .map(date => {
+      const entry = record.visitHistory?.[date] || {};
+      return {
+        date,
+        doctorName: normalizeSearchText(entry.doctorName || record.doctorName),
+        visitType: normalizeSearchText(entry.visitType || record.visitType),
+        chiefComplaint: normalizeSearchText(entry.chiefComplaint || record.chiefComplaint)
+      };
+    });
+}
+
+function syncPatientVisitIndex(record = {}) {
+  const chartNo = normalizeChartNo(record?.chartNo);
+  if (!chartNo) return;
+  statements.deletePatientVisits.run(chartNo);
+  for (const entry of visitEntriesFromRecord(record)) {
+    statements.upsertPatientVisit.run(chartNo, entry.date, entry.doctorName, entry.visitType, entry.chiefComplaint);
+  }
+}
+
+function rebuildPatientVisitIndex() {
+  const rows = statements.listPatients.all();
+  statements.deleteAllPatientVisits.run();
+  for (const row of rows) {
+    syncPatientVisitIndex(parsePatientRow(row));
+  }
+  if (rows.length) console.log(`[db] Rebuilt visit index for ${rows.length} patient row(s)`);
+}
+
+function ensurePatientVisitIndex() {
+  const patientCount = countPatients();
+  const visitCount = Number(db.prepare("SELECT COUNT(*) AS count FROM patient_visits").get()?.count || 0);
+  if (patientCount && !visitCount) rebuildPatientVisitIndex();
+}
+
+function patientsByVisitMonth(month) {
+  const normalizedMonth = String(month || "").trim();
+  if (!/^\d{4}-\d{2}$/.test(normalizedMonth)) throw new Error("month must be YYYY-MM");
+  const [year, rawMonth] = normalizedMonth.split("-").map(Number);
+  const start = `${normalizedMonth}-01`;
+  const end = `${normalizedMonth}-${String(new Date(year, rawMonth, 0).getDate()).padStart(2, "0")}`;
+  const counts = {};
+  const patientsByChart = new Map();
+  for (const row of statements.listVisitChartNosByMonth.all(start, end)) {
+    counts[row.visit_date] = (counts[row.visit_date] || 0) + 1;
+    const chartNo = normalizeChartNo(row.chart_no);
+    if (!chartNo) continue;
+    const patient = patientsByChart.get(chartNo) || {
+      chartNo,
+      name: row.name || "",
+      phone: row.phone || "",
+      visitDates: [],
+      visitHistory: {}
+    };
+    if (!patient.visitDates.includes(row.visit_date)) patient.visitDates.push(row.visit_date);
+    patient.visitHistory[row.visit_date] = {
+      doctorName: row.doctor_name || "",
+      visitType: row.visit_type || "",
+      chiefComplaint: row.chief_complaint || ""
+    };
+    patientsByChart.set(chartNo, patient);
+  }
+  const records = [...patientsByChart.values()];
+  records.sort((a, b) => normalizeChartNo(a.chartNo).localeCompare(normalizeChartNo(b.chartNo), "ko", { numeric: true }));
+  return { month: normalizedMonth, counts, patients: records };
+}
+
 function getPatient(chartNo) {
   const row = statements.getPatient.get(chartNo);
   return row ? parsePatientRow(row) : null;
+}
+
+function getPatients(chartNos) {
+  const records = [];
+  for (const chartNo of chartNos) {
+    const normalized = normalizeChartNo(chartNo);
+    if (!normalized) continue;
+    const record = getPatient(normalized);
+    if (record) records.push(record);
+  }
+  return records;
 }
 
 function savePatient(record) {
@@ -152,17 +338,65 @@ function savePatient(record) {
   if (!chartNo) throw new Error("chartNo is required");
   const now = new Date().toISOString();
   const normalized = { ...record, chartNo };
-  statements.upsertPatient.run(chartNo, encrypt(JSON.stringify(normalized)), now);
+  statements.upsertPatient.run(
+    chartNo,
+    normalizeSearchText(normalized.name),
+    getPatientPhone(normalized),
+    encrypt(JSON.stringify(normalized)),
+    now
+  );
+  syncPatientVisitIndex(normalized);
   return normalized;
 }
 
-function backupPatients(records, reason) {
+function encryptedPatientBackup(records, reason) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   // .json.enc signals the file is AES-256-GCM encrypted, not plain JSON.
   // Decrypt with: node server/decrypt-backup.js <file.json.enc> [out.json]
   const file = path.join(BACKUP_DIR, `patients-${reason}-${stamp}.json.enc`);
-  fs.writeFileSync(file, encrypt(JSON.stringify(records, null, 2)), "utf8");
+  const body = encrypt(JSON.stringify(records, null, 2));
+  fs.writeFileSync(file, body, "utf8");
+  return { file, body };
+}
+
+function backupPatients(records, reason) {
+  const { file } = encryptedPatientBackup(records, reason);
   return file;
+}
+
+function parsePatientImportPayload(payload) {
+  const records = Array.isArray(payload) ? payload : payload?.patients;
+  const mode = Array.isArray(payload) ? "merge" : (payload?.mode || "merge");
+  const shouldBackup = Array.isArray(payload) ? true : payload?.backup !== false;
+  if (!Array.isArray(records)) throw new Error("JSON array or { patients: [] } is required");
+  return { records, mode, shouldBackup };
+}
+
+function importPatients(records, mode = "merge", shouldBackup = true) {
+  if (shouldBackup) {
+    const before = mode === "replace"
+      ? listPatients()
+      : getPatients([...new Set(records.map(record => normalizeChartNo(record?.chartNo)).filter(Boolean))]);
+    if (before.length) backupPatients(before, mode === "replace" ? "before-replace-import" : "before-import");
+  }
+  if (mode === "replace") {
+    statements.deleteAllPatients.run();
+    statements.deleteAllPatientVisits.run();
+  }
+  let saved = 0;
+  db.exec("BEGIN");
+  try {
+    for (const record of records) {
+      if (!normalizeChartNo(record?.chartNo)) continue;
+      savePatient(record);
+      saved += 1;
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  return { ok: true, mode, saved, skipped: records.length - saved };
 }
 
 function normalizeStateKey(value) {
@@ -295,7 +529,7 @@ function loginPageHtml() {
 // `beds` lives in app_state (encrypted). Node runs one request handler at a
 // time, so each read-merge-write below is atomic without locking. Cross-device
 // updates are pushed live over Server-Sent Events. Transactions use an optimistic
-// version check (compare-and-set) to mirror Firebase runTransaction semantics.
+// version check (compare-and-set) so conflicting writes can be retried.
 
 const sseClients = new Set();
 
@@ -304,7 +538,7 @@ function sseSend(res, event, payload) {
 }
 
 // Push a generic app_state key change to all connected clients (staff, settings,
-// etc.). Lets the client mirror Firebase onValue() over the local server.
+// etc.). This is the local server equivalent of realtime state subscriptions.
 function sseBroadcastState(key, value) {
   const frame = { key, value };
   for (const client of sseClients) {
@@ -451,7 +685,32 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname === "/api/health" && req.method === "GET") {
-    jsonResponse(res, 200, { ok: true, dbPath: DB_PATH, count: listPatients().length });
+    jsonResponse(res, 200, { ok: true, dbPath: DB_PATH, count: countPatients() });
+    return true;
+  }
+
+  if (pathname === "/api/patients/count" && req.method === "GET") {
+    jsonResponse(res, 200, { count: countPatients() });
+    return true;
+  }
+
+  if (pathname === "/api/patients/search" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, searchPatients(requestUrl.searchParams.get("q") || "", requestUrl.searchParams.get("limit") || 50));
+    return true;
+  }
+
+  if (pathname === "/api/patients/batch" && req.method === "POST") {
+    const payload = await readJson(req);
+    const chartNos = Array.isArray(payload) ? payload : payload?.chartNos;
+    if (!Array.isArray(chartNos)) throw new Error("JSON array or { chartNos: [] } is required");
+    jsonResponse(res, 200, getPatients([...new Set(chartNos.map(normalizeChartNo).filter(Boolean))]));
+    return true;
+  }
+
+  if (pathname === "/api/patients/visits/month" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, patientsByVisitMonth(requestUrl.searchParams.get("month") || ""));
     return true;
   }
 
@@ -475,6 +734,7 @@ async function handleApi(req, res, pathname) {
     const before = listPatients();
     if (before.length) backupPatients(before, "delete-all");
     statements.deleteAllPatients.run();
+    statements.deleteAllPatientVisits.run();
     jsonResponse(res, 200, { ok: true, deleted: before.length });
     return true;
   }
@@ -497,6 +757,7 @@ async function handleApi(req, res, pathname) {
       const before = getPatient(chartNo);
       if (before) backupPatients([before], `delete-${chartNo}`);
       statements.deletePatient.run(chartNo);
+      statements.deletePatientVisits.run(chartNo);
       jsonResponse(res, 200, { ok: true, deleted: Boolean(before), chartNo });
       return true;
     }
@@ -504,35 +765,26 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/import/patients" && req.method === "POST") {
     const payload = await readJson(req);
-    const records = Array.isArray(payload) ? payload : payload?.patients;
-    const mode = Array.isArray(payload) ? "merge" : (payload?.mode || "merge");
-    if (!Array.isArray(records)) throw new Error("JSON array or { patients: [] } is required");
-    const before = listPatients();
-    backupPatients(before, "before-import");
-    if (mode === "replace") statements.deleteAllPatients.run();
-    let saved = 0;
-    db.exec("BEGIN");
-    try {
-      for (const record of records) {
-        if (!normalizeChartNo(record?.chartNo)) continue;
-        savePatient(record);
-        saved += 1;
-      }
-      db.exec("COMMIT");
-    } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
-    }
-    jsonResponse(res, 200, { ok: true, mode, saved, skipped: records.length - saved });
+    const { records, mode, shouldBackup } = parsePatientImportPayload(payload);
+    jsonResponse(res, 200, importPatients(records, mode, shouldBackup));
+    return true;
+  }
+
+  if (pathname === "/api/import/patients-encrypted" && req.method === "POST") {
+    const raw = await readBody(req);
+    const payload = JSON.parse(decrypt(raw));
+    const { records, mode, shouldBackup } = parsePatientImportPayload(payload);
+    jsonResponse(res, 200, importPatients(records, mode, shouldBackup));
     return true;
   }
 
   if (pathname === "/api/export/patients" && req.method === "GET") {
     const records = listPatients();
-    const body = JSON.stringify(records, null, 2);
+    const { file, body } = encryptedPatientBackup(records, "manual-export");
     res.writeHead(200, {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="patientChartDB-patients-${new Date().toISOString().slice(0, 10)}.json"`
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="patientChartDB-patients-${new Date().toISOString().slice(0, 10)}.json.enc"`,
+      "X-Backup-File": path.basename(file)
     });
     res.end(body);
     return true;

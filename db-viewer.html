@@ -92,40 +92,6 @@
     border-radius: 8px;
     overflow: hidden;
   }
-  .firebase-card {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 20;
-    width: min(560px, calc(100vw - 48px));
-    height: 100vh;
-    border-radius: 0;
-    transform: translateX(-100%);
-    transition: transform 0.22s ease;
-    box-shadow: 18px 0 30px rgba(0,0,0,0.30);
-  }
-  body.firebase-open .firebase-card { transform: translateX(0); }
-  .firebase-toggle {
-    position: fixed;
-    top: 50%;
-    left: 0;
-    z-index: 30;
-    width: 31px;
-    height: 64px;
-    transform: translateY(-50%);
-    border-radius: 0 8px 8px 0;
-    border-left: 0;
-    background: var(--panel2);
-    color: var(--gold);
-    font-size: 22px;
-    line-height: 1;
-    padding: 0;
-    transition: left 0.22s ease;
-  }
-  body.firebase-open .firebase-toggle {
-    left: min(560px, calc(100vw - 48px));
-    color: var(--accent);
-  }
   .card-head {
     display: flex;
     align-items: center;
@@ -556,31 +522,6 @@
 <body>
 <div class="app">
   <div class="grid">
-    <button class="firebase-toggle" type="button" id="firebaseToggleBtn" aria-label="Firebase 패널 열기">›</button>
-    <section class="card firebase-card" id="firebaseCard">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Firebase DB 읽기 전용</div>
-          <div class="meta" id="firebaseMeta">대기 중</div>
-        </div>
-        <div class="status" id="firebaseStatus"></div>
-      </div>
-      <div class="toolbar">
-        <button type="button" data-fb-path="/">전체</button>
-        <button type="button" data-fb-path="patients">patients</button>
-        <button type="button" data-fb-path="beds">beds</button>
-        <button type="button" data-fb-path="settings">settings</button>
-        <button type="button" data-fb-path="callAlerts">callAlerts</button>
-        <button type="button" data-fb-path="bedAssignmentAlerts">bedAssignmentAlerts</button>
-      </div>
-      <div class="path-row">
-        <input id="firebasePathInput" type="text" value="/" aria-label="Firebase path">
-        <button type="button" id="loadFirebasePathBtn">읽기</button>
-      </div>
-      <div class="summary" id="firebaseSummary"></div>
-      <pre id="firebaseOutput">Firebase 읽기 버튼을 누르면 현재 경로만 불러옵니다.</pre>
-    </section>
-
     <section class="card">
       <div class="status" id="indexedStatus" hidden></div>
       <div class="toolbar">
@@ -589,7 +530,7 @@
           <h1 class="brand-title"><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span></h1>
         </div>
         <a class="nav-link" href="stats.html">통계</a>
-        <input class="file-input" id="importFileInput" type="file" accept="application/json,.json">
+        <input class="file-input" id="importFileInput" type="file" accept="application/json,.json,.json.enc,.enc">
         <div class="summary indexed-summary" id="indexedSummary"></div>
         <div class="toolbar-actions">
           <button type="button" id="loadIndexedBtn">새로고침</button>
@@ -679,27 +620,14 @@
 </div>
 
 <script type="module">
-  import { initializeApp } from "./vendor/firebase/10.12.2/firebase-app.js";
-  import { getDatabase, ref, get } from "./vendor/firebase/10.12.2/firebase-database.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyC0bPN-bEaEe7dLnfHPrQY10pnNdlkE1RA",
-    authDomain: "khhongik-inhouse.firebaseapp.com",
-    databaseURL: "https://khhongik-inhouse-default-rtdb.firebaseio.com",
-    projectId: "khhongik-inhouse",
-    storageBucket: "khhongik-inhouse.firebasestorage.app",
-    messagingSenderId: "399934659057",
-    appId: "1:399934659057:web:299e94b388f853442dcc50",
-    measurementId: "G-MPN5V3CYY8"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const firebaseDb = getDatabase(app);
   const DEFAULT_INDEXED_DB = "patientChartDB";
   const DEFAULT_INDEXED_STORE = "patients";
   const PACKAGE_KEYS = ["p6", "p13", "p자하거", "p라인"];
-  let latestFirebaseValue = null;
   let latestIndexedValue = [];
+  let latestIndexedTotal = 0;
+  let hasLoadedFullIndexed = false;
+  let patientSearchSeq = 0;
+  const monthlyVisitCache = new Map();
   let selectedChartNo = "";
   let activeVisitDates = [];
   let activeVisitHistory = {};
@@ -767,44 +695,19 @@
   }
 
   function renderSummary(targetId, value, extra = {}) {
+    const { countOverride, sizeLabel, ...extraRows } = extra;
     const rows = [
-      ["환자 수", countChildren(value)],
-      ["크기", `${new Blob([stringify(value)]).size.toLocaleString()} B`],
+      ["환자 수", countOverride ?? countChildren(value)],
+      ["크기", sizeLabel ?? `${new Blob([stringify(value)]).size.toLocaleString()} B`],
       ["조회", new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })]
     ];
-    Object.entries(extra).forEach(([label, val]) => rows.push([label, val]));
+    Object.entries(extraRows).forEach(([label, val]) => rows.push([label, val]));
     $(targetId).innerHTML = rows.map(([label, val]) => `
       <div class="metric">
         <div class="metric-label">${escapeHtml(label)}</div>
         <div class="metric-value">${escapeHtml(String(val))}</div>
       </div>
     `).join("");
-  }
-
-  function normalizeFirebasePath(path) {
-    const trimmed = String(path || "/").trim();
-    if (!trimmed || trimmed === "/") return "/";
-    return trimmed.replace(/^\/+|\/+$/g, "");
-  }
-
-  async function loadFirebase(path = $("firebasePathInput").value) {
-    const normalized = normalizeFirebasePath(path);
-    $("firebasePathInput").value = normalized;
-    setStatus("firebaseStatus", "조회 중");
-    $("firebaseOutput").textContent = "Loading...";
-    try {
-      const snapshot = await get(ref(firebaseDb, normalized));
-      latestFirebaseValue = snapshot.exists() ? snapshot.val() : null;
-      $("firebaseOutput").textContent = stringify(latestFirebaseValue);
-      $("firebaseMeta").textContent = `path: ${normalized}`;
-      renderSummary("firebaseSummary", latestFirebaseValue);
-      setStatus("firebaseStatus", "완료");
-    } catch (error) {
-      latestFirebaseValue = null;
-      $("firebaseOutput").textContent = error?.message || String(error);
-      renderSummary("firebaseSummary", null);
-      setStatus("firebaseStatus", "오류", true);
-    }
   }
 
   function openIndexedDb(name) {
@@ -845,6 +748,67 @@
     } finally {
       db.close();
     }
+  }
+
+  async function getIndexedRecordCount() {
+    if (SERVER_MODE) {
+      const res = await fetch("/api/patients/count", { cache: "no-store" });
+      if (!res.ok) throw new Error(`서버 환자 수 조회 실패 (${res.status})`);
+      const data = await res.json();
+      return Number(data.count || 0);
+    }
+    const { db, store } = await transactionStore("readonly");
+    try {
+      return await new Promise((resolve, reject) => {
+        const req = store.count();
+        req.onsuccess = () => resolve(Number(req.result || 0));
+        req.onerror = () => reject(req.error);
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  async function searchIndexedRecords(query, limit = 50) {
+    const q = String(query || "").trim();
+    if (!q) return [];
+    if (SERVER_MODE) {
+      const url = `/api/patients/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(limit)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`서버 환자 검색 실패 (${res.status})`);
+      return await res.json();
+    }
+    return latestIndexedValue.filter(patient => {
+      const haystack = `${patient.chartNo || ""} ${patient.name || ""} ${getPatientPhone(patient)}`.toLowerCase();
+      return haystack.includes(q.toLowerCase());
+    }).sort(compareChartNo).slice(0, limit);
+  }
+
+  async function getIndexedRecord(chartNo) {
+    const normalized = String(chartNo || "");
+    if (!normalized) return null;
+    if (SERVER_MODE) {
+      const res = await fetch(`/api/patients/${encodeURIComponent(normalized)}`, { cache: "no-store" });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`서버 환자 조회 실패 (${res.status})`);
+      return await res.json();
+    }
+    return latestIndexedValue.find(patient => String(patient.chartNo || "") === normalized) || null;
+  }
+
+  async function loadVisitMonth(month = globalVisitMonth) {
+    if (!SERVER_MODE) return null;
+    if (monthlyVisitCache.has(month)) return monthlyVisitCache.get(month);
+    const res = await fetch(`/api/patients/visits/month?month=${encodeURIComponent(month)}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`월별 진료 조회 실패 (${res.status})`);
+    const data = await res.json();
+    const normalized = {
+      month: data.month || month,
+      counts: data.counts || {},
+      patients: Array.isArray(data.patients) ? data.patients : []
+    };
+    monthlyVisitCache.set(month, normalized);
+    return normalized;
   }
 
   async function putIndexedRecord(record, oldChartNo = "") {
@@ -988,6 +952,14 @@
     return latestDate ? (visitHistory?.[latestDate] || null) : null;
   }
 
+  function upsertLatestIndexedRecord(record) {
+    if (!record?.chartNo) return;
+    const chartNo = String(record.chartNo || "");
+    const index = latestIndexedValue.findIndex(patient => String(patient.chartNo || "") === chartNo);
+    if (index >= 0) latestIndexedValue[index] = record;
+    else latestIndexedValue.push(record);
+  }
+
   function formatTreatmentsText(treatments) {
     return (Array.isArray(treatments) ? treatments : [])
       .map(item => String(item || "").trim())
@@ -1043,6 +1015,10 @@
   function compareChartNo(a = {}, b = {}) {
     return String(a.chartNo || "").localeCompare(String(b.chartNo || ""), "ko", { numeric: true })
       || String(a.name || "").localeCompare(String(b.name || ""), "ko");
+  }
+
+  function patientSubText(patient = {}) {
+    return [patient.chartNo, patient.gender, patient.age].filter(value => value !== undefined && value !== null && String(value).trim()).join(" · ");
   }
 
   function visitSummary(record = {}) {
@@ -1186,7 +1162,9 @@
   }
 
   function patientsByVisitDate(date) {
-    return latestIndexedValue
+    const monthData = monthlyVisitCache.get(String(date || "").slice(0, 7));
+    const source = monthData?.patients || latestIndexedValue;
+    return source
       .filter(patient => visitDatesFromRecord(patient).includes(date))
       .sort(compareChartNo);
   }
@@ -1212,7 +1190,7 @@
             <button class="day-patient-item" type="button" data-global-chart-no="${escapeHtml(patient.chartNo || "")}">
               <span>
                 <span class="day-patient-main">${escapeHtml(patient.name || "(이름 없음)")}</span>
-                <span class="day-patient-sub">${escapeHtml([patient.chartNo || "-", patient.gender || "-", patient.age || "-"].filter(Boolean).join(" · "))}</span>
+                <span class="day-patient-sub">${escapeHtml(patientSubText(patient) || "-")}</span>
               </span>
               <span class="day-patient-sub">${escapeHtml(record.doctorName || patient.doctorName || "-")}</span>
             </button>
@@ -1222,13 +1200,16 @@
     `;
   }
 
-  function setPatientFindTab(tabName = "search") {
+  async function setPatientFindTab(tabName = "search") {
     const normalized = tabName === "date" ? "date" : "search";
     document.querySelectorAll("[data-find-tab]").forEach(button => {
       button.classList.toggle("active", button.dataset.findTab === normalized);
     });
     $("patientSearchPanel").hidden = normalized !== "search";
     $("patientDatePanel").hidden = normalized !== "date";
+    if (normalized === "date" && SERVER_MODE) {
+      await loadVisitMonth(globalVisitMonth);
+    }
     if (normalized === "date") renderGlobalVisitCalendar();
   }
 
@@ -1245,11 +1226,16 @@
       .map(day => `<div class="visit-weekday">${day}</div>`)
       .join("");
     const visitCounts = new Map();
-    latestIndexedValue.forEach(patient => {
-      visitDatesFromRecord(patient).forEach(date => {
-        if (date.slice(0, 7) === globalVisitMonth) visitCounts.set(date, (visitCounts.get(date) || 0) + 1);
+    const monthData = monthlyVisitCache.get(globalVisitMonth);
+    if (monthData?.counts) {
+      Object.entries(monthData.counts).forEach(([date, count]) => visitCounts.set(date, Number(count || 0)));
+    } else {
+      latestIndexedValue.forEach(patient => {
+        visitDatesFromRecord(patient).forEach(date => {
+          if (date.slice(0, 7) === globalVisitMonth) visitCounts.set(date, (visitCounts.get(date) || 0) + 1);
+        });
       });
-    });
+    }
     const blanks = Array.from({ length: startOffset }, () => `<button class="visit-day" type="button" disabled></button>`).join("");
     const days = Array.from({ length: lastDate }, (_, index) => {
       const day = index + 1;
@@ -1263,10 +1249,20 @@
     renderGlobalVisitPatientList();
   }
 
-  function changeGlobalVisitMonth(offset) {
+  async function changeGlobalVisitMonth(offset) {
     const [year, month] = globalVisitMonth.split("-").map(Number);
     const next = new Date(year, month - 1 + offset, 1);
     globalVisitMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    if (SERVER_MODE) {
+      try {
+        setStatus("indexedStatus", "월별 조회 중");
+        await loadVisitMonth(globalVisitMonth);
+        setStatus("indexedStatus", "완료");
+      } catch (error) {
+        setStatus("indexedStatus", "오류", true);
+        $("globalVisitPatientList").innerHTML = `<div class="meta">월별 조회 실패: ${escapeHtml(error?.message || String(error))}</div>`;
+      }
+    }
     renderGlobalVisitCalendar();
   }
 
@@ -1311,6 +1307,8 @@
     setStatus("indexedStatus", "조회 중");
     try {
       latestIndexedValue = await getAllIndexedRecords();
+      latestIndexedTotal = latestIndexedValue.length;
+      hasLoadedFullIndexed = true;
       renderSummary("indexedSummary", latestIndexedValue);
       renderPatientList();
       renderGlobalVisitCalendar();
@@ -1318,22 +1316,58 @@
       setStatus("indexedStatus", "완료");
     } catch (error) {
       latestIndexedValue = [];
+      hasLoadedFullIndexed = false;
       renderSummary("indexedSummary", null);
       setStatus("indexedStatus", "오류", true);
       $("selectedPatientStatus").textContent = error?.message || String(error);
     }
   }
 
-  function renderPatientList() {
+  async function loadIndexedSummary() {
+    if (!SERVER_MODE) {
+      await loadIndexed();
+      return;
+    }
+    setStatus("indexedStatus", "조회 중");
+    try {
+      latestIndexedTotal = await getIndexedRecordCount();
+      renderSummary("indexedSummary", null, { countOverride: latestIndexedTotal, sizeLabel: "전체 로드 전", 모드: SERVER_MODE ? "검색 우선" : "로컬" });
+      $("patientList").innerHTML = `<div class="meta" style="padding:12px;">이름 또는 차트번호로 검색하세요.</div>`;
+      renderGlobalVisitCalendar();
+      setStatus("indexedStatus", "완료");
+    } catch (error) {
+      latestIndexedTotal = 0;
+      renderSummary("indexedSummary", null);
+      setStatus("indexedStatus", "오류", true);
+      $("selectedPatientStatus").textContent = error?.message || String(error);
+    }
+  }
+
+  async function renderPatientList() {
     const query = $("patientSearchInput").value.trim().toLowerCase();
     if (!query) {
       $("patientList").innerHTML = `<div class="meta" style="padding:12px;">이름 또는 차트번호로 검색하세요.</div>`;
       return;
     }
-    const rows = latestIndexedValue.filter(patient => {
-      const haystack = `${patient.chartNo || ""} ${patient.name || ""} ${getPatientPhone(patient)}`.toLowerCase();
-      return haystack.includes(query);
-    }).sort(compareChartNo);
+    const seq = ++patientSearchSeq;
+    if (SERVER_MODE && !hasLoadedFullIndexed) {
+      $("patientList").innerHTML = `<div class="meta" style="padding:12px;">검색 중...</div>`;
+    }
+    let rows = [];
+    try {
+      rows = hasLoadedFullIndexed
+        ? latestIndexedValue.filter(patient => {
+            const haystack = `${patient.chartNo || ""} ${patient.name || ""} ${getPatientPhone(patient)}`.toLowerCase();
+            return haystack.includes(query);
+          }).sort(compareChartNo)
+        : await searchIndexedRecords(query, 50);
+    } catch (error) {
+      if (seq !== patientSearchSeq) return;
+      $("patientList").innerHTML = `<div class="meta" style="padding:12px;">검색 실패: ${escapeHtml(error?.message || String(error))}</div>`;
+      return;
+    }
+    if (seq !== patientSearchSeq) return;
+    if (!hasLoadedFullIndexed) latestIndexedValue = rows;
     $("patientList").innerHTML = rows.length
       ? rows.map(patient => `
         <button class="patient-item${String(patient.chartNo || "") === selectedChartNo ? " active" : ""}" type="button" data-chart-no="${escapeHtml(patient.chartNo || "")}">
@@ -1376,6 +1410,25 @@
     $("selectedPatientJson").value = stringify(patient);
     $("selectedPatientStatus").textContent = "";
     if (renderList) renderPatientList();
+  }
+
+  async function selectPatientFull(chartNo, renderList = true) {
+    const normalized = String(chartNo || "");
+    if (!normalized) return;
+    selectedChartNo = normalized;
+    try {
+      const patient = await getIndexedRecord(normalized);
+      if (!patient) {
+        clearEditor();
+        setStatus("indexedStatus", "환자 없음", true);
+        return;
+      }
+      upsertLatestIndexedRecord(patient);
+      selectPatient(normalized, renderList);
+    } catch (error) {
+      setStatus("indexedStatus", "오류", true);
+      $("selectedPatientStatus").textContent = error?.message || String(error);
+    }
   }
 
   function clearEditor() {
@@ -1437,7 +1490,11 @@
       const record = readFormRecord();
       await putIndexedRecord(record, selectedChartNo);
       selectedChartNo = record.chartNo;
-      await loadIndexed();
+      const index = latestIndexedValue.findIndex(patient => String(patient.chartNo || "") === String(record.chartNo));
+      if (index >= 0) latestIndexedValue[index] = record;
+      else latestIndexedValue.push(record);
+      if (!latestIndexedTotal) latestIndexedTotal = await getIndexedRecordCount();
+      renderSummary("indexedSummary", hasLoadedFullIndexed ? latestIndexedValue : null, hasLoadedFullIndexed ? {} : { countOverride: latestIndexedTotal, sizeLabel: "전체 로드 전", 모드: SERVER_MODE ? "검색 우선" : "로컬" });
       selectPatient(record.chartNo);
       setStatus("indexedStatus", "저장됨");
     } catch (error) {
@@ -1460,12 +1517,14 @@
     }
     await deleteIndexedRecord(patient.chartNo);
     clearEditor();
-    await loadIndexed();
+    latestIndexedValue = latestIndexedValue.filter(row => String(row.chartNo || "") !== String(patient.chartNo || ""));
+    latestIndexedTotal = Math.max(0, latestIndexedTotal - 1);
+    renderSummary("indexedSummary", hasLoadedFullIndexed ? latestIndexedValue : null, hasLoadedFullIndexed ? {} : { countOverride: latestIndexedTotal, sizeLabel: "전체 로드 전", 모드: SERVER_MODE ? "검색 우선" : "로컬" });
     setStatus("indexedStatus", "삭제됨");
   }
 
   async function deleteAllIndexedPatients() {
-    const count = Array.isArray(latestIndexedValue) ? latestIndexedValue.length : 0;
+    const count = latestIndexedTotal || (Array.isArray(latestIndexedValue) ? latestIndexedValue.length : 0);
     if (!confirm(`[전체 삭제 확인]\n저장된 환자 DB ${count.toLocaleString()}건을 모두 삭제하시겠습니까?`)) return;
     if (!confirm(`[최종 확인]\n전체 환자 DB가 삭제됩니다.\n복구가 필요하면 먼저 백업을 받아두세요.\n정말 모두 삭제하시겠습니까?`)) return;
     const password = prompt("DB 삭제 비밀번호를 입력하세요.");
@@ -1493,7 +1552,9 @@
     }
 
     clearEditor();
-    await loadIndexed();
+    latestIndexedValue = [];
+    hasLoadedFullIndexed = false;
+    await loadIndexedSummary();
     setStatus("indexedStatus", "전체 삭제됨");
   }
 
@@ -1514,20 +1575,36 @@
   async function importIndexedBackup(file) {
     if (!file) return;
     const text = await file.text();
-    const records = JSON.parse(text);
-    if (!Array.isArray(records)) throw new Error("JSON 배열 파일만 복원할 수 있습니다.");
-    if (!confirm(`${records.length}개 레코드를 현재 ${SERVER_MODE ? "서버 DB" : "IndexedDB"}에 덮어쓰기/추가할까요?`)) return;
+    const isEncryptedBackup = /\.enc$/i.test(file.name || "") || text.startsWith("enc:v1:");
     if (SERVER_MODE) {
-      const res = await fetch("/api/import/patients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ mode: "merge", patients: records.map(withPackageBalances) })
-      });
+      let res;
+      if (isEncryptedBackup) {
+        if (!confirm("암호화 백업 파일을 서버 DB에 복원/추가할까요?")) return;
+        res = await fetch("/api/import/patients-encrypted", {
+          method: "POST",
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+          body: text
+        });
+      } else {
+        const records = JSON.parse(text);
+        if (!Array.isArray(records)) throw new Error("JSON 배열 파일만 복원할 수 있습니다.");
+        if (!confirm(`${records.length}개 레코드를 서버 DB에 덮어쓰기/추가할까요?`)) return;
+        res = await fetch("/api/import/patients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({ mode: "merge", patients: records.map(withPackageBalances) })
+        });
+      }
       if (!res.ok) throw new Error(`서버 복원 실패 (${res.status})`);
-      await loadIndexed();
+      hasLoadedFullIndexed = false;
+      await loadIndexedSummary();
       setStatus("indexedStatus", "복원됨");
       return;
     }
+    if (isEncryptedBackup) throw new Error("암호화 백업은 서버 모드에서만 복원할 수 있습니다.");
+    const records = JSON.parse(text);
+    if (!Array.isArray(records)) throw new Error("JSON 배열 파일만 복원할 수 있습니다.");
+    if (!confirm(`${records.length}개 레코드를 현재 IndexedDB에 덮어쓰기/추가할까요?`)) return;
     const { db, tx, store } = await transactionStore("readwrite");
     try {
       await new Promise((resolve, reject) => {
@@ -1540,12 +1617,13 @@
     } finally {
       db.close();
     }
-    await loadIndexed();
+    hasLoadedFullIndexed = false;
+    await loadIndexedSummary();
     setStatus("indexedStatus", "복원됨");
   }
 
   async function refreshAll() {
-    await loadIndexed();
+    await loadIndexedSummary();
   }
 
   $("visitPrevMonthBtn").addEventListener("click", () => changeVisitMonth(-1));
@@ -1577,7 +1655,7 @@
   $("globalVisitPatientList").addEventListener("click", event => {
     const item = event.target.closest("[data-global-chart-no]");
     if (item) {
-      selectPatient(item.dataset.globalChartNo);
+      selectPatientFull(item.dataset.globalChartNo);
       setPatientFindTab("search");
     }
   });
@@ -1587,16 +1665,11 @@
   renderGlobalVisitCalendar();
   setPatientFindTab("search");
 
-  document.querySelectorAll("[data-fb-path]").forEach(button => {
-    button.addEventListener("click", () => loadFirebase(button.dataset.fbPath));
-  });
-  $("loadFirebasePathBtn").addEventListener("click", () => loadFirebase());
-  $("firebasePathInput").addEventListener("keydown", event => { if (event.key === "Enter") loadFirebase(); });
   $("loadIndexedBtn").addEventListener("click", loadIndexed);
   $("patientSearchInput").addEventListener("input", renderPatientList);
   $("patientList").addEventListener("click", event => {
     const item = event.target.closest(".patient-item");
-    if (item) selectPatient(item.dataset.chartNo);
+    if (item) selectPatientFull(item.dataset.chartNo);
   });
   $("savePatientBtn").addEventListener("click", savePatientForm);
   $("deletePatientBtn")?.addEventListener("click", deleteSelectedPatient);
@@ -1614,12 +1687,6 @@
     setStatus("indexedStatus", "오류", true);
     $("selectedPatientStatus").textContent = error?.message || String(error);
   }));
-  $("firebaseToggleBtn").addEventListener("click", () => {
-    const open = !document.body.classList.contains("firebase-open");
-    document.body.classList.toggle("firebase-open", open);
-    $("firebaseToggleBtn").textContent = open ? "‹" : "›";
-    $("firebaseToggleBtn").setAttribute("aria-label", open ? "Firebase 패널 닫기" : "Firebase 패널 열기");
-  });
   disableAutocomplete();
 
   refreshAll();
