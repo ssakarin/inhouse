@@ -397,6 +397,32 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  // Atomic child operations on a collection-style app_state key (staff, settings,
+  // alerts, patients). Node runs one handler at a time, so read-merge-write here
+  // is atomic — multiple devices editing different children won't lose updates,
+  // unlike a client-side whole-map read-modify-write. Broadcasts the new map.
+  const childMatch = pathname.match(/^\/api\/state-child\/(merge|push|delete)$/);
+  if (childMatch && req.method === "POST") {
+    const op = childMatch[1];
+    const body = (await readJson(req)) || {};
+    const key = normalizeStateKey(body.key);
+    if (!key || key.startsWith("__")) { jsonResponse(res, 400, { error: "bad key" }); return true; }
+    const map = getStateValue(key) || {};
+    let childKey = body.childKey;
+    if (op === "merge") {
+      map[childKey] = { ...(map[childKey] || {}), ...(body.patch || {}) };
+    } else if (op === "push") {
+      childKey = `loc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      map[childKey] = body.value ?? null;
+    } else if (op === "delete") {
+      delete map[childKey];
+    }
+    setStateValue(key, map);
+    sseBroadcastState(key, map);
+    jsonResponse(res, 200, { ok: true, key, childKey, value: map });
+    return true;
+  }
+
   if (pathname === "/api/login" && req.method === "POST") {
     const payload = await readJson(req);
     if (!safeEqual(payload?.password || "", LOGIN_PASSWORD)) {

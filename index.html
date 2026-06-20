@@ -1795,7 +1795,7 @@
     border-color: var(--danger);
     animation: bedAlertPulse 0.9s ease-in-out infinite;
   }
-  .bed-status.done { border-color: var(--gold); }
+  .bed-status.done { border-color: var(--green); }
   .bed-status.done.alerting { border-color: var(--danger); }
   .bed-status.assignment-alerting {
     border-color: var(--gold);
@@ -3980,12 +3980,21 @@
     if (firebaseMirror) await firebaseMirror();
   }
 
+  async function localStateChild(op, body) {
+    const res = await fetch(`/api/state-child/${op}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(body || {})
+    });
+    if (!res.ok) throw new Error(`로컬 child ${op} 실패 (${res.status})`);
+    return res.json();
+  }
+
+  // Atomic child ops via the server (no client whole-map read-modify-write), so
+  // concurrent edits to different children from different devices don't clobber.
   async function pushLocalNode(collectionKey, value, firebaseMirror) {
     if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
-      const map = (await localStateGet(collectionKey)) || {};
-      const childKey = `loc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      map[childKey] = value;
-      await localStatePut(collectionKey, map);
+      const { childKey } = await localStateChild('push', { key: collectionKey, value });
       if (firebaseMirror) mirrorToFirebase(() => firebaseMirror(childKey));
       return childKey;
     }
@@ -3994,9 +4003,7 @@
 
   async function updateLocalNodeChild(collectionKey, childKey, patch, firebaseMirror) {
     if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
-      const map = (await localStateGet(collectionKey)) || {};
-      map[childKey] = { ...(map[childKey] || {}), ...(patch || {}) };
-      await localStatePut(collectionKey, map);
+      await localStateChild('merge', { key: collectionKey, childKey, patch });
       if (firebaseMirror) mirrorToFirebase(firebaseMirror);
       return;
     }
@@ -4005,9 +4012,7 @@
 
   async function removeLocalNodeChild(collectionKey, childKey, firebaseMirror) {
     if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
-      const map = (await localStateGet(collectionKey)) || {};
-      delete map[childKey];
-      await localStatePut(collectionKey, map);
+      await localStateChild('delete', { key: collectionKey, childKey });
       if (firebaseMirror) mirrorToFirebase(firebaseMirror);
       return;
     }
@@ -4056,6 +4061,17 @@
     () => remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${key}`)));
   const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {},
     () => remove(ref(db, BED_ASSIGNMENT_ALERTS_PATH)));
+
+  // Patients (the live board working set, separate from the SQLite chart DB) —
+  // local primary via SSE with Firebase mirror/fallback. Atomic child ops keep
+  // concurrent edits from different devices safe.
+  const updatePatient = (key, patch) => updateLocalNodeChild(PATIENTS_PATH, key, patch,
+    () => update(ref(db, `${PATIENTS_PATH}/${key}`), patch));
+  const pushPatient = (data) => pushLocalNode(PATIENTS_PATH, data,
+    (childKey) => childKey ? set(ref(db, `${PATIENTS_PATH}/${childKey}`), data) : push(ref(db, PATIENTS_PATH), data));
+  const removePatient = (key) => removeLocalNodeChild(PATIENTS_PATH, key,
+    () => remove(ref(db, `${PATIENTS_PATH}/${key}`)));
+  const clearPatients = () => setLocalNode(PATIENTS_PATH, {}, () => remove(ref(db, PATIENTS_PATH)));
 
   async function localBedsRequest(path, body) {
     const res = await fetch(path, {
@@ -5007,7 +5023,7 @@
     const payload = { packages, ...getPCreditsFromPackages(packages), credit: null };
     const patientKey = getPatientKeyForCreditGrid(gridId);
     if (patientKey) {
-      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), payload);
+      await updatePatient(patientKey,payload);
       const nextPatient = {
         ...(patientsByKey.get(patientKey) || {}),
         ...payload
@@ -5898,7 +5914,7 @@
 
     try {
       const now = new Date();
-      await push(ref(db, PATIENTS_PATH), {
+      await pushPatient({
         name,
         treatments,
         timestamp: now.getTime(),
@@ -6458,13 +6474,13 @@
       };
       const { credit, packages, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPatch } = patientPatch;
 
-      await update(ref(db, `${BEDS_PATH}/${selectedBedNo}`), {
+      await updateBedRecord(selectedBedNo, {
         ...bedPatch,
         ...timerPatch
       });
 
       if (bed.patientKey) {
-        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), patientPatch);
+        await updatePatient(bed.patientKey,patientPatch);
       }
 
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(selectedBedNo);
@@ -6505,7 +6521,7 @@
     try {
       await updateBedRecord(bedNo, payload);
       if (bed.patientKey) {
-        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
+        await updatePatient(bed.patientKey,payload);
       }
       showToast(`${getBedLabel(bedNo)} 저장 완료`);
     } catch(e) {
@@ -6549,7 +6565,7 @@
     btn.disabled = true;
     btn.textContent = '저장 중...';
     try {
-      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), payload);
+      await updatePatient(patientKey,payload);
       patientsByKey.set(patientKey, { ...patient, ...payload });
       renderWaitingLists();
       showToast(`${form.name} 확인 완료`);
@@ -6619,7 +6635,7 @@
       const { credit, packages, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPayload } = payload;
       await updateBedRecord(bedNo, { ...bedPayload, ...timerUpdates });
       if (bed.patientKey) {
-        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
+        await updatePatient(bed.patientKey,payload);
       }
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(bedNo);
       showToast(`${getBedLabel(bedNo)} 정보 저장 완료`);
@@ -6786,7 +6802,7 @@
     try {
       isClearingPatientDatabase = true;
       await runBedsRecordTransaction(() => ({})); // clears local beds (+ Firebase mirror)
-      await remove(ref(db, PATIENTS_PATH)); // patients still on Firebase
+      await clearPatients();
       await clearBedAssignmentAlerts();
 
       patientsByKey.clear();
@@ -6856,23 +6872,21 @@
       delete data.credit;
     }
     if (!Object.keys(patch).length) return;
-    update(ref(db, `${PATIENTS_PATH}/${patientKey}`), patch).catch(e => {
+    updatePatient(patientKey, patch).catch(e => {
       console.error('크레딧 필드 동기화 실패', e);
     });
   }
 
-  onChildAdded(patientsRef, (snapshot) => {
-    if (isClearingPatientDatabase) return;
-    const key = snapshot.key;
-    if (loadedKeys.has(key)) return;
+  function applyPatientAdded(key, data) {
+    if (isClearingPatientDatabase || !data) return;
+    if (loadedKeys.has(key)) { applyPatientChanged(key, data); return; }
     loadedKeys.add(key);
 
-    const data = snapshot.val();
     syncPatientPCreditSchema(key, data);
     const normalizedChartNo = normalizeChartNo(data.chartNo);
     if ((data.chartNo || '') !== normalizedChartNo) {
       data.chartNo = normalizedChartNo;
-      update(ref(db, `${PATIENTS_PATH}/${key}`), { chartNo: normalizedChartNo });
+      updatePatient(key, { chartNo: normalizedChartNo });
     }
     const isNew = Number(data.timestamp || 0) > pageLoadedAt;
     patientsByKey.set(key, data);
@@ -6884,17 +6898,15 @@
     if (isFirstLoad) setTimeout(() => { isFirstLoad = false; }, 500);
     renderWaitingLists();
     renderUpcomingAlerts();
-  });
+  }
 
-  onChildChanged(patientsRef, (snapshot) => {
-    if (isClearingPatientDatabase) return;
-    const key = snapshot.key;
-    const data = snapshot.val();
+  function applyPatientChanged(key, data) {
+    if (isClearingPatientDatabase || !data) return;
     syncPatientPCreditSchema(key, data);
     const normalizedChartNo = normalizeChartNo(data.chartNo);
     if ((data.chartNo || '') !== normalizedChartNo) {
       data.chartNo = normalizedChartNo;
-      update(ref(db, `${PATIENTS_PATH}/${key}`), { chartNo: normalizedChartNo });
+      updatePatient(key, { chartNo: normalizedChartNo });
     }
     loadedKeys.add(key);
     patientsByKey.set(key, data);
@@ -6905,10 +6917,9 @@
     renderWaitingLists();
     renderUpcomingAlerts();
     updateCount();
-  });
+  }
 
-  onChildRemoved(patientsRef, (snapshot) => {
-    const key = snapshot.key;
+  function applyPatientRemoved(key) {
     const assignedBedNo = bedAssignments.findIndex(bed => bed?.patientKey === key) + 1;
     if (assignedBedNo > 0) clearLocalTimerAlertsForBed(assignedBedNo);
     patientsByKey.delete(key);
@@ -6921,6 +6932,53 @@
     renderWaitingLists();
     renderUpcomingAlerts();
     updateCount();
+  }
+
+  // Local-primary patients: the local server holds the whole 'patients' map and
+  // pushes it over SSE; we diff against the last snapshot to derive
+  // added/changed/removed. Firebase child events are the fallback, applied only
+  // when the local stream is down.
+  let prevPatientsSnapshot = {};
+  function applyPatientsSnapshot(map) {
+    if (isClearingPatientDatabase) { prevPatientsSnapshot = clonePlain(map || {}); return; }
+    const next = map || {};
+    for (const key of Object.keys(prevPatientsSnapshot)) {
+      if (!(key in next)) applyPatientRemoved(key);
+    }
+    for (const key of Object.keys(next)) {
+      const data = next[key];
+      if (!(key in prevPatientsSnapshot)) applyPatientAdded(key, data);
+      else if (JSON.stringify(prevPatientsSnapshot[key]) !== JSON.stringify(data)) applyPatientChanged(key, data);
+    }
+    prevPatientsSnapshot = clonePlain(next);
+  }
+
+  async function seedPatientsFromFirebaseIfEmpty() {
+    if (!BEDS_LOCAL_PRIMARY) return;
+    try {
+      const cur = await localStateGet(PATIENTS_PATH);
+      const empty = !cur || (typeof cur === 'object' && Object.keys(cur).length === 0);
+      if (!empty) return;
+      const snap = await get(ref(db, PATIENTS_PATH));
+      const fb = snap.val();
+      if (fb && Object.keys(fb).length) await localStatePut(PATIENTS_PATH, fb);
+    } catch (error) {
+      console.warn('환자 시드 실패', error);
+    }
+  }
+
+  if (BEDS_LOCAL_PRIMARY) {
+    seedPatientsFromFirebaseIfEmpty();
+    subscribeLocalNode(PATIENTS_PATH, applyPatientsSnapshot);
+  }
+  onChildAdded(patientsRef, (snapshot) => {
+    if (!BEDS_LOCAL_PRIMARY || !bedsLocalLive) applyPatientAdded(snapshot.key, snapshot.val());
+  });
+  onChildChanged(patientsRef, (snapshot) => {
+    if (!BEDS_LOCAL_PRIMARY || !bedsLocalLive) applyPatientChanged(snapshot.key, snapshot.val());
+  });
+  onChildRemoved(patientsRef, (snapshot) => {
+    if (!BEDS_LOCAL_PRIMARY || !bedsLocalLive) applyPatientRemoved(snapshot.key);
   });
 
   function scheduleDisabledBedCleanup(bedNo, bed) {
@@ -6930,18 +6988,17 @@
 
     setTimeout(async () => {
       try {
-        const currentSnap = await get(ref(db, `${BEDS_PATH}/${key}`));
-        const currentBed = currentSnap.val();
+        const currentBed = getBedData(Number(key));
         if (!currentBed) return;
 
         if (currentBed.patientKey) {
-          await update(ref(db, `${PATIENTS_PATH}/${currentBed.patientKey}`), {
+          await updatePatient(currentBed.patientKey,{
             bedStatus: 'waiting',
             bedNo: null,
             timestamp: todayStart.getTime()
           });
         }
-        await remove(ref(db, `${BEDS_PATH}/${key}`));
+        await removeBedRecord(key);
       } catch (e) {
         console.error('비활성 베드 DB 정리 실패', e);
       } finally {
@@ -7359,7 +7416,7 @@
       if (result.committed && bedNo) {
         const assignedData = await applyRoundRobinNurse(patientKey, data, Number(bedNo));
         patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo: Number(bedNo) });
-        await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
+        await updatePatient(patientKey,{
           bedStatus: 'assigned',
           bedNo: Number(bedNo),
           nurseId: assignedData.nurseId || '',
@@ -7391,7 +7448,7 @@
     if (result.committed && bedNo) {
       const assignedData = await applyRoundRobinNurse(patientKey, data, Number(bedNo));
       patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo: Number(bedNo) });
-      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
+      await updatePatient(patientKey,{
         bedStatus: 'assigned',
         bedNo: Number(bedNo),
         nurseId: assignedData.nurseId || '',
@@ -7496,7 +7553,7 @@
     if (result.committed && beds[String(bedNo)]?.patientKey === patientKey) {
       const assignedData = await applyRoundRobinNurse(patientKey, data, bedNo);
       patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo });
-      await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), {
+      await updatePatient(patientKey,{
         bedStatus: 'assigned',
         bedNo,
         nurseId: assignedData.nurseId || '',
@@ -7611,11 +7668,11 @@
     const assignedBedNo = bedAssignments.findIndex(bed => bed?.patientKey === key) + 1;
     if (assignedBedNo > 0) {
       clearLocalTimerAlertsForBed(assignedBedNo);
-      await remove(ref(db, `${BEDS_PATH}/${assignedBedNo}`));
+      await removeBedRecord(assignedBedNo);
     }
     patientsByKey.delete(key);
     loadedKeys.delete(key);
-    await remove(ref(db, `${PATIENTS_PATH}/${key}`));
+    await removePatient(key);
     renderWaitingLists();
     showToast('대기 삭제 완료');
   };
@@ -8082,7 +8139,7 @@
         ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
       };
     }
-    await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), patch);
+    await updatePatient(patientKey,patch);
     patientsByKey.set(patientKey, {
       ...patient,
       appointmentAlerts,
@@ -9085,7 +9142,7 @@
     ];
 
     if (bed.patientKey) {
-      updates.push(update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { bodyParts: nextBodyParts }));
+      updates.push(updatePatient(bed.patientKey,{ bodyParts: nextBodyParts }));
     }
 
     await Promise.all(updates);
@@ -9173,7 +9230,7 @@
     try {
       await updateBedRecord(bedNo, { ...payload, ...timerUpdates });
       if (bed.patientKey) {
-        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), payload);
+        await updatePatient(bed.patientKey,payload);
       }
       if (treatmentChanged) clearLocalTimerAlertsForBed(bedNo);
     } catch(e) {
@@ -9367,7 +9424,7 @@
     if (bed?.patientKey) {
       patientsByKey.delete(bed.patientKey);
       loadedKeys.delete(bed.patientKey);
-      await remove(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`));
+      await removePatient(bed.patientKey);
     }
     await removeBedRecord(bedNo);
   };
@@ -9420,7 +9477,7 @@
 
   async function updatePatientBedNoForBed(bedNo, bed) {
     if (!bed?.patientKey) return;
-    await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { bedNo, bedStatus: 'assigned' });
+    await updatePatient(bed.patientKey,{ bedNo, bedStatus: 'assigned' });
   }
 
   function remapLocalAlertBedNo(alertId, bedNo) {
@@ -9521,7 +9578,7 @@
 
     try {
       await Promise.all([
-        update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), patientPatch),
+        updatePatient(bed.patientKey,patientPatch),
         removeBedRecord(bedNo)
       ]);
       patientsByKey.set(bed.patientKey, {
@@ -9676,7 +9733,7 @@
         currentIndex: nextCurrentIndex
       });
       if (bed.patientKey) {
-        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { treatments });
+        await updatePatient(bed.patientKey,{ treatments });
       }
     } catch(e) {
       console.error(e);
@@ -9784,7 +9841,7 @@
         currentIndex: nextCurrentIndex
       });
       if (bed.patientKey) {
-        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { treatments });
+        await updatePatient(bed.patientKey,{ treatments });
       }
     } catch(e) {
       console.error(e);
@@ -9818,7 +9875,7 @@
     try {
       await updateBedRecord(bedNo, resetPayload);
       if (bed.patientKey) {
-        await update(ref(db, `${PATIENTS_PATH}/${bed.patientKey}`), { treatments });
+        await updatePatient(bed.patientKey,{ treatments });
       }
       clearLocalTimerAlertsForBed(bedNo);
       showToast(`${removed} 제거 완료`);
@@ -10766,7 +10823,7 @@
         return;
       }
       const selected = shuffleRows(source).slice(0, Math.min(count, source.length));
-      await Promise.all(selected.map(patient => push(ref(db, PATIENTS_PATH), buildRandomTestPatientPayload(patient))));
+      await Promise.all(selected.map(patient => pushPatient(buildRandomTestPatientPayload(patient))));
       if (autoBedAssignEnabled) setTimeout(() => assignWaitingPatientsToBeds(true), 300);
       const suffix = selected.length < count ? ` (요청 ${count}명 중 ${selected.length}명)` : '';
       if (status) status.textContent = `DB 환자 ${selected.length}명 생성 완료${suffix}`;
@@ -10849,7 +10906,7 @@
       appointmentUndecided: false,
       appointmentUndecidedAlert: null
     };
-    await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), patch);
+    await updatePatient(patientKey,patch);
     patientsByKey.set(patientKey, {
       ...existingPatient,
       ...data,
