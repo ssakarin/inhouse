@@ -4043,6 +4043,20 @@
     });
   }
 
+  // Alert queues (callAlerts, bedAssignmentAlerts) are collections — push adds a
+  // child, remove drops one. These route to the local server (primary) with a
+  // Firebase mirror, falling back to Firebase-only when the local stream is down.
+  const pushCallAlert = (data) => pushLocalNode(CALL_ALERTS_PATH, data,
+    (childKey) => childKey ? set(ref(db, `${CALL_ALERTS_PATH}/${childKey}`), data) : push(ref(db, CALL_ALERTS_PATH), data));
+  const removeCallAlert = (key) => removeLocalNodeChild(CALL_ALERTS_PATH, key,
+    () => remove(ref(db, `${CALL_ALERTS_PATH}/${key}`)));
+  const pushBedAssignmentAlert = (data) => pushLocalNode(BED_ASSIGNMENT_ALERTS_PATH, data,
+    (childKey) => childKey ? set(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${childKey}`), data) : push(ref(db, BED_ASSIGNMENT_ALERTS_PATH), data));
+  const removeBedAssignmentAlert = (key) => removeLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, key,
+    () => remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${key}`)));
+  const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {},
+    () => remove(ref(db, BED_ASSIGNMENT_ALERTS_PATH)));
+
   async function localBedsRequest(path, body) {
     const res = await fetch(path, {
       method: 'POST',
@@ -5552,7 +5566,7 @@
     }
     const safeTarget = target === 'desk' ? 'desk' : 'clinic';
     try {
-      await push(ref(db, CALL_ALERTS_PATH), {
+      await pushCallAlert({
         target: safeTarget,
         doctorId: doctor.id,
         doctorName: doctor.name,
@@ -5742,22 +5756,20 @@
     syncNurseAutoAssignInputs();
   });
 
-  onValue(ref(db, CALL_ALERTS_PATH), (snapshot) => {
+  migrateNode(CALL_ALERTS_PATH, (value) => {
     callAlertItems.clear();
-    const rows = snapshot.val() || {};
-    Object.entries(rows).forEach(([key, data]) => {
+    Object.entries(value || {}).forEach(([key, data]) => {
       if (data) callAlertItems.set(key, data);
     });
     renderUpcomingAlerts();
   });
 
-  onValue(ref(db, BED_ASSIGNMENT_ALERTS_PATH), (snapshot) => {
+  migrateNode(BED_ASSIGNMENT_ALERTS_PATH, (value) => {
     bedAssignmentAlertItems.clear();
-    const rows = snapshot.val() || {};
-    Object.entries(rows).forEach(([key, data]) => {
+    Object.entries(value || {}).forEach(([key, data]) => {
       if (!data) return;
       if (Number(data.bedNo) >= 101) {
-        remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${key}`)).catch((e) => console.error('원장실 배정 알림 삭제 실패', e));
+        removeBedAssignmentAlert(key).catch((e) => console.error('원장실 배정 알림 삭제 실패', e));
         return;
       }
       bedAssignmentAlertItems.set(key, data);
@@ -6773,9 +6785,9 @@
 
     try {
       isClearingPatientDatabase = true;
-      await remove(ref(db, BEDS_PATH));
-      await remove(ref(db, PATIENTS_PATH));
-      await remove(ref(db, BED_ASSIGNMENT_ALERTS_PATH));
+      await runBedsRecordTransaction(() => ({})); // clears local beds (+ Firebase mirror)
+      await remove(ref(db, PATIENTS_PATH)); // patients still on Firebase
+      await clearBedAssignmentAlerts();
 
       patientsByKey.clear();
       loadedKeys.clear();
@@ -7299,7 +7311,7 @@
       const stillAssigned = Boolean(patientKey) && bed && String(bed.patientKey || '') === patientKey;
       if (stillAssigned) return;
       bedAssignmentAlertItems.delete(key);
-      remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${key}`)).catch((e) => console.error('배정 알림 정리 실패', e));
+      removeBedAssignmentAlert(key).catch((e) => console.error('배정 알림 정리 실패', e));
     });
   }
 
@@ -7308,7 +7320,7 @@
     if (Number(bedNo) >= 101) return;
     const name = data.name || '환자';
     try {
-      await push(ref(db, BED_ASSIGNMENT_ALERTS_PATH), {
+      await pushBedAssignmentAlert({
         patientKey,
         bedNo: Number(bedNo),
         bedLabel: getBedLabel(bedNo),
@@ -8015,7 +8027,7 @@
     bedAssignmentAlertItems.delete(id);
     renderUpcomingAlerts();
     try {
-      await remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${id}`));
+      await removeBedAssignmentAlert(id);
     } catch (e) {
       console.error(e);
       showToast('베드 배정 알림 확인 실패');
@@ -8027,7 +8039,7 @@
     callAlertItems.delete(id);
     renderUpcomingAlerts();
     try {
-      await remove(ref(db, `${CALL_ALERTS_PATH}/${id}`));
+      await removeCallAlert(id);
     } catch (e) {
       console.error(e);
       showToast('호출 확인 실패');
@@ -11283,7 +11295,7 @@
     renderBedMonitors();
     syncFixedBedArrivalOverlay();
     try {
-      await remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${alert.key}`));
+      await removeBedAssignmentAlert(alert.key);
     } catch (e) {
       console.error(e);
       showToast('베드 배정 알림 확인 실패');
