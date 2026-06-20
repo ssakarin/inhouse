@@ -3854,28 +3854,9 @@
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<!-- Firebase -->
 <script type="module">
   import * as XLSX from "./vendor/xlsx/0.18.5/xlsx.mjs";
   window.XLSX = XLSX;
-
-  // Firebase fully removed — the local server is the only backend. These inert
-  // stubs keep any residual Firebase-shaped calls (mirror callbacks, legacy
-  // fallback listeners) as harmless no-ops so nothing reaches the network.
-  const db = null;
-  const ref = () => null;
-  const query = () => null;
-  const orderByChild = () => null;
-  const onValue = () => {};
-  const onChildAdded = () => {};
-  const onChildChanged = () => {};
-  const onChildRemoved = () => {};
-  const set = async () => {};
-  const update = async () => {};
-  const remove = async () => {};
-  const push = async () => ({ key: null });
-  const get = async () => ({ val: () => null, exists: () => false });
-  const runTransaction = async (_ref, fn) => ({ committed: true, snapshot: { val: () => fn(null) } });
 
   const PATIENTS_PATH  = 'patients';
   const BEDS_PATH      = 'beds';
@@ -3883,17 +3864,8 @@
   const BED_ASSIGNMENT_ALERTS_PATH = 'bedAssignmentAlerts';
   let bedScreenWakeLock = null;
   const SERVER_MODE = location.protocol === 'http:' || location.protocol === 'https:';
-  let firebaseConnected = true;
-  let localFallbackActive = false;
-  let localFallbackDirty = false;
-  let localFallbackPollTimer = null;
-  const LOCAL_BEDS_MIRROR_DELAY_MS = 1500;
-  let localBedsMirrorTimer = null;
-  let pendingLocalBedsMirror = null;
 
-  // Bed state migration: the local server is the primary source of truth for
-  // beds (realtime via SSE). Firebase is kept mirrored as a warm fallback used
-  // only when the local server/SSE is unreachable.
+  // The local server is the only backend; beds + all state sync live over SSE.
   const BEDS_LOCAL_PRIMARY = SERVER_MODE;
   let bedsSSE = null;
   let bedsLocalLive = false;          // true while the SSE stream is connected
@@ -3902,10 +3874,7 @@
   function updateConnectionStatusLabel() {
     const el = document.getElementById('connectionStatusText');
     if (!el) return;
-    const online = BEDS_LOCAL_PRIMARY ? bedsLocalLive : (firebaseConnected && !localFallbackActive);
-    document.body.classList.toggle('local-fallback-mode', BEDS_LOCAL_PRIMARY ? !bedsLocalLive : localFallbackActive);
-    document.body.classList.toggle('firebase-offline-mode', !firebaseConnected);
-    el.innerHTML = `<span class="status-dot"></span>${online ? 'Online' : 'Offline'}`;
+    el.innerHTML = `<span class="status-dot"></span>${bedsLocalLive ? 'Online' : 'Offline'}`;
   }
 
   function applyBedsFromLocal(beds, version) {
@@ -3945,19 +3914,17 @@
           localStateGet(key).then(value => handler(value)).catch(() => {});
         });
       };
-      // EventSource auto-reconnects. While disconnected, the Firebase onValue
-      // listener takes over as the fallback source.
+      // EventSource auto-reconnects on its own after a drop.
       bedsSSE.onerror = () => { bedsLocalLive = false; updateConnectionStatusLabel(); };
     } catch (error) {
       console.warn('beds SSE 시작 실패', error);
     }
   }
 
-  // --- Generic local-server realtime nodes (staff, settings) -----------------
-  // Mirrors Firebase onValue/set/push/update/remove/transaction over the local
-  // server's /api/state + SSE "state" events. The local server is primary while
-  // its SSE stream is live (bedsLocalLive); Firebase is kept mirrored as a warm
-  // fallback that drives the UI only when the local stream is down.
+  // --- Local-server realtime nodes (staff, settings, alerts, patients) -------
+  // Collection state keys are read via /api/state (+ SSE "state" events for live
+  // cross-device updates) and written via atomic child ops on the server, so
+  // concurrent edits to different children don't clobber each other.
   const localStateSubscribers = new Map(); // key -> handler(value)
 
   async function subscribeLocalNode(key, applyFn) {
@@ -3969,18 +3936,8 @@
     }
   }
 
-  function mirrorToFirebase(fn) {
-    try { const p = fn(); if (p && typeof p.catch === 'function') p.catch(e => console.warn('Firebase 미러 실패', e)); }
-    catch (error) { console.warn('Firebase 미러 실패', error); }
-  }
-
-  async function setLocalNode(key, value, firebaseMirror) {
-    if (BEDS_LOCAL_PRIMARY) {
-      await localStatePut(key, value);
-      if (firebaseMirror) mirrorToFirebase(firebaseMirror);
-      return;
-    }
-    if (firebaseMirror) await firebaseMirror();
+  async function setLocalNode(key, value) {
+    await localStatePut(key, value);
   }
 
   async function localStateChild(op, body) {
@@ -3993,88 +3950,37 @@
     return res.json();
   }
 
-  // Atomic child ops via the server (no client whole-map read-modify-write), so
-  // concurrent edits to different children from different devices don't clobber.
-  async function pushLocalNode(collectionKey, value, firebaseMirror) {
-    if (BEDS_LOCAL_PRIMARY) {
-      const { childKey } = await localStateChild('push', { key: collectionKey, value });
-      if (firebaseMirror) mirrorToFirebase(() => firebaseMirror(childKey));
-      return childKey;
-    }
-    if (firebaseMirror) return firebaseMirror(null);
+  async function pushLocalNode(collectionKey, value) {
+    const { childKey } = await localStateChild('push', { key: collectionKey, value });
+    return childKey;
   }
 
-  async function updateLocalNodeChild(collectionKey, childKey, patch, firebaseMirror) {
-    if (BEDS_LOCAL_PRIMARY) {
-      await localStateChild('merge', { key: collectionKey, childKey, patch });
-      if (firebaseMirror) mirrorToFirebase(firebaseMirror);
-      return;
-    }
-    if (firebaseMirror) await firebaseMirror();
+  async function updateLocalNodeChild(collectionKey, childKey, patch) {
+    await localStateChild('merge', { key: collectionKey, childKey, patch });
   }
 
-  async function removeLocalNodeChild(collectionKey, childKey, firebaseMirror) {
-    if (BEDS_LOCAL_PRIMARY) {
-      await localStateChild('delete', { key: collectionKey, childKey });
-      if (firebaseMirror) mirrorToFirebase(firebaseMirror);
-      return;
-    }
-    if (firebaseMirror) await firebaseMirror();
+  async function removeLocalNodeChild(collectionKey, childKey) {
+    await localStateChild('delete', { key: collectionKey, childKey });
   }
 
-  // One-time seed: if the local node is empty, copy the current Firebase value in
-  // so the UI isn't blank when local becomes primary.
-  const seededLocalNodes = new Set();
-  async function seedLocalNodeIfEmpty(key, firebaseValue) {
-    if (!BEDS_LOCAL_PRIMARY || seededLocalNodes.has(key)) return;
-    seededLocalNodes.add(key);
-    try {
-      const cur = await localStateGet(key);
-      const empty = cur === null || cur === undefined
-        || (typeof cur === 'object' && !Array.isArray(cur) && Object.keys(cur).length === 0);
-      if (empty && firebaseValue !== null && firebaseValue !== undefined) {
-        await localStatePut(key, firebaseValue);
-      }
-    } catch (error) {
-      console.warn('로컬 노드 시드 실패', key, error);
-    }
-  }
-
-  // Wire a node to the local server (primary, via SSE) while keeping Firebase as
-  // a seed source + fallback that drives the UI only when local is unreachable.
+  // Subscribe a node to the local server (live via SSE "state" events).
   function migrateNode(key, applyFn) {
-    if (BEDS_LOCAL_PRIMARY) subscribeLocalNode(key, applyFn);
-    onValue(ref(db, key), (snapshot) => {
-      const value = snapshot.val();
-      seedLocalNodeIfEmpty(key, value);
-      if (!BEDS_LOCAL_PRIMARY || !bedsLocalLive) applyFn(value);
-    });
+    subscribeLocalNode(key, applyFn);
   }
 
-  // Alert queues (callAlerts, bedAssignmentAlerts) are collections — push adds a
-  // child, remove drops one. These route to the local server (primary) with a
-  // Firebase mirror, falling back to Firebase-only when the local stream is down.
-  const pushCallAlert = (data) => pushLocalNode(CALL_ALERTS_PATH, data,
-    (childKey) => childKey ? set(ref(db, `${CALL_ALERTS_PATH}/${childKey}`), data) : push(ref(db, CALL_ALERTS_PATH), data));
-  const removeCallAlert = (key) => removeLocalNodeChild(CALL_ALERTS_PATH, key,
-    () => remove(ref(db, `${CALL_ALERTS_PATH}/${key}`)));
-  const pushBedAssignmentAlert = (data) => pushLocalNode(BED_ASSIGNMENT_ALERTS_PATH, data,
-    (childKey) => childKey ? set(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${childKey}`), data) : push(ref(db, BED_ASSIGNMENT_ALERTS_PATH), data));
-  const removeBedAssignmentAlert = (key) => removeLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, key,
-    () => remove(ref(db, `${BED_ASSIGNMENT_ALERTS_PATH}/${key}`)));
-  const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {},
-    () => remove(ref(db, BED_ASSIGNMENT_ALERTS_PATH)));
+  // Alert queues (callAlerts, bedAssignmentAlerts) — collections; push adds a
+  // child, remove drops one.
+  const pushCallAlert = (data) => pushLocalNode(CALL_ALERTS_PATH, data);
+  const removeCallAlert = (key) => removeLocalNodeChild(CALL_ALERTS_PATH, key);
+  const pushBedAssignmentAlert = (data) => pushLocalNode(BED_ASSIGNMENT_ALERTS_PATH, data);
+  const removeBedAssignmentAlert = (key) => removeLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, key);
+  const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {});
 
-  // Patients (the live board working set, separate from the SQLite chart DB) —
-  // local primary via SSE with Firebase mirror/fallback. Atomic child ops keep
-  // concurrent edits from different devices safe.
-  const updatePatient = (key, patch) => updateLocalNodeChild(PATIENTS_PATH, key, patch,
-    () => update(ref(db, `${PATIENTS_PATH}/${key}`), patch));
-  const pushPatient = (data) => pushLocalNode(PATIENTS_PATH, data,
-    (childKey) => childKey ? set(ref(db, `${PATIENTS_PATH}/${childKey}`), data) : push(ref(db, PATIENTS_PATH), data));
-  const removePatient = (key) => removeLocalNodeChild(PATIENTS_PATH, key,
-    () => remove(ref(db, `${PATIENTS_PATH}/${key}`)));
-  const clearPatients = () => setLocalNode(PATIENTS_PATH, {}, () => remove(ref(db, PATIENTS_PATH)));
+  // Patients (the live board working set, separate from the SQLite chart DB).
+  const updatePatient = (key, patch) => updateLocalNodeChild(PATIENTS_PATH, key, patch);
+  const pushPatient = (data) => pushLocalNode(PATIENTS_PATH, data);
+  const removePatient = (key) => removeLocalNodeChild(PATIENTS_PATH, key);
+  const clearPatients = () => setLocalNode(PATIENTS_PATH, {});
 
   async function localBedsRequest(path, body) {
     const res = await fetch(path, {
@@ -4084,27 +3990,6 @@
     });
     if (!res.ok && res.status !== 409) throw new Error(`로컬 beds 요청 실패 (${res.status})`);
     return res;
-  }
-
-  // One-time migration safety net: if the local server has no bed state yet,
-  // seed it from the current Firebase snapshot so the board isn't blank when
-  // local becomes primary. After this, local is authoritative.
-  let bedsSeedChecked = false;
-  async function seedLocalBedsFromFirebaseIfEmpty(firebaseBeds) {
-    if (!BEDS_LOCAL_PRIMARY || bedsSeedChecked) return;
-    bedsSeedChecked = true;
-    try {
-      const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
-      const beds = cur.beds;
-      const localEmpty = !beds || (Array.isArray(beds) ? beds.filter(Boolean).length === 0 : Object.keys(beds).length === 0);
-      const firebaseHasData = firebaseBeds && Object.keys(firebaseBeds).length > 0;
-      if (localEmpty && firebaseHasData) {
-        await localBedsRequest('/api/beds/cas', { expectedVersion: cur.version, beds: firebaseBeds });
-        console.info('로컬 beds를 Firebase 현재 상태로 초기화함');
-      }
-    } catch (error) {
-      console.warn('로컬 beds 시드 실패', error);
-    }
   }
 
   async function localStateGet(key) {
@@ -4123,41 +4008,6 @@
     });
     if (!res.ok) throw new Error(`로컬 상태 저장 실패: ${key}`);
     return (await res.json()).value;
-  }
-
-  async function syncLocalSnapshot(key, value) {
-    try {
-      await localStatePut(key, value || {});
-      if (key === 'beds') {
-        localFallbackDirty = false;
-        await localStatePut('bedsDirty', false);
-      }
-    } catch (error) {
-      console.warn('로컬 스냅샷 저장 실패', key, error);
-    }
-  }
-
-  function scheduleLocalBedsMirror(beds) {
-    if (!SERVER_MODE) return;
-    pendingLocalBedsMirror = clonePlain(beds || {});
-    if (localBedsMirrorTimer) clearTimeout(localBedsMirrorTimer);
-    localBedsMirrorTimer = setTimeout(async () => {
-      const snapshot = pendingLocalBedsMirror || {};
-      pendingLocalBedsMirror = null;
-      localBedsMirrorTimer = null;
-      await syncLocalSnapshot('beds', snapshot);
-    }, LOCAL_BEDS_MIRROR_DELAY_MS);
-  }
-
-  async function flushLocalBedsMirror() {
-    if (!SERVER_MODE || !pendingLocalBedsMirror) return;
-    if (localBedsMirrorTimer) {
-      clearTimeout(localBedsMirrorTimer);
-      localBedsMirrorTimer = null;
-    }
-    const snapshot = pendingLocalBedsMirror;
-    pendingLocalBedsMirror = null;
-    await syncLocalSnapshot('beds', snapshot);
   }
 
   function isBedScreenWakeLockTarget() {
@@ -4385,101 +4235,47 @@
     return JSON.parse(JSON.stringify(value));
   }
 
-  function getCurrentBedsObject() {
-    const beds = {};
-    getAllBedEntries().forEach(({ bed, bedNo }) => {
-      if (bed) beds[String(bedNo)] = clonePlain(bed);
-    });
-    return beds;
-  }
-
-  async function saveLocalBedsObject(beds, { markDirty = true } = {}) {
-    const nextBeds = beds || {};
-    await localStatePut('beds', nextBeds);
-    if (markDirty) {
-      localFallbackDirty = true;
-      await localStatePut('bedsDirty', true);
-    }
-    await applyBedsState(nextBeds, {
-      allowMigration: false,
-      allowAutoAssign: false,
-      fromLocalFallback: true
-    });
-  }
 
   // Best-effort mirror of a bed write to Firebase so it stays a warm fallback.
-  async function mirrorBedToFirebase(fn) {
-    try { await fn(); } catch (error) { console.warn('Firebase 미러 실패', error); }
-  }
-
   async function updateBedRecord(bedNo, patch) {
-    if (BEDS_LOCAL_PRIMARY) {
-      await localBedsRequest('/api/beds/update', { bedNo, patch });
-      mirrorBedToFirebase(() => update(ref(db, `${BEDS_PATH}/${bedNo}`), patch));
-      return;
-    }
-    return update(ref(db, `${BEDS_PATH}/${bedNo}`), patch);
+    await localBedsRequest('/api/beds/update', { bedNo, patch });
   }
 
   async function updateBedChildRecord(bedNo, childKey, patch) {
-    if (BEDS_LOCAL_PRIMARY) {
-      await localBedsRequest('/api/beds/update-child', { bedNo, childKey, patch });
-      mirrorBedToFirebase(() => update(ref(db, `${BEDS_PATH}/${bedNo}/${childKey}`), patch));
-      return;
-    }
-    return update(ref(db, `${BEDS_PATH}/${bedNo}/${childKey}`), patch);
+    await localBedsRequest('/api/beds/update-child', { bedNo, childKey, patch });
   }
 
   async function removeBedRecord(bedNo) {
-    if (BEDS_LOCAL_PRIMARY) {
-      await localBedsRequest('/api/beds/remove', { bedNo });
-      mirrorBedToFirebase(() => remove(ref(db, `${BEDS_PATH}/${bedNo}`)));
-      return;
-    }
-    return remove(ref(db, `${BEDS_PATH}/${bedNo}`));
+    await localBedsRequest('/api/beds/remove', { bedNo });
   }
 
   async function runBedRecordTransaction(bedNo, mutator) {
-    if (BEDS_LOCAL_PRIMARY) {
-      const key = String(bedNo);
-      for (let attempt = 0; attempt < 6; attempt++) {
-        const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
-        const beds = cur.beds || {};
-        const current = beds[key] !== undefined ? beds[key] : null;
-        const next = mutator(clonePlain(current));
-        if (next === undefined) return { committed: false, snapshot: { val: () => current } };
-        const nextBeds = clonePlain(beds) || {};
-        if (next === null) delete nextBeds[key]; else nextBeds[key] = next;
-        const res = await localBedsRequest('/api/beds/cas', { expectedVersion: cur.version, beds: nextBeds });
-        if (res.ok) {
-          mirrorBedToFirebase(() => next === null
-            ? remove(ref(db, `${BEDS_PATH}/${bedNo}`))
-            : set(ref(db, `${BEDS_PATH}/${bedNo}`), next));
-          return { committed: true, snapshot: { val: () => next } };
-        }
-        // 409 conflict → another device wrote first; retry with fresh state.
-      }
-      throw new Error('beds 트랜잭션 재시도 초과');
+    const key = String(bedNo);
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
+      const beds = cur.beds || {};
+      const current = beds[key] !== undefined ? beds[key] : null;
+      const next = mutator(clonePlain(current));
+      if (next === undefined) return { committed: false, snapshot: { val: () => current } };
+      const nextBeds = clonePlain(beds) || {};
+      if (next === null) delete nextBeds[key]; else nextBeds[key] = next;
+      const res = await localBedsRequest('/api/beds/cas', { expectedVersion: cur.version, beds: nextBeds });
+      if (res.ok) return { committed: true, snapshot: { val: () => next } };
+      // 409 conflict → another device wrote first; retry with fresh state.
     }
-    return runTransaction(ref(db, `${BEDS_PATH}/${bedNo}`), mutator);
+    throw new Error('beds 트랜잭션 재시도 초과');
   }
 
   async function runBedsRecordTransaction(mutator) {
-    if (BEDS_LOCAL_PRIMARY) {
-      for (let attempt = 0; attempt < 6; attempt++) {
-        const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
-        const next = mutator(clonePlain(cur.beds || {}));
-        if (next === undefined) return { committed: false, snapshot: { val: () => cur.beds || {} } };
-        const res = await localBedsRequest('/api/beds/cas', { expectedVersion: cur.version, beds: next || {} });
-        if (res.ok) {
-          mirrorBedToFirebase(() => set(ref(db, BEDS_PATH), next || {}));
-          return { committed: true, snapshot: { val: () => next || {} } };
-        }
-        // 409 conflict → retry with fresh state.
-      }
-      throw new Error('beds 전체 트랜잭션 재시도 초과');
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
+      const next = mutator(clonePlain(cur.beds || {}));
+      if (next === undefined) return { committed: false, snapshot: { val: () => cur.beds || {} } };
+      const res = await localBedsRequest('/api/beds/cas', { expectedVersion: cur.version, beds: next || {} });
+      if (res.ok) return { committed: true, snapshot: { val: () => next || {} } };
+      // 409 conflict → retry with fresh state.
     }
-    return runTransaction(ref(db, BEDS_PATH), mutator);
+    throw new Error('beds 전체 트랜잭션 재시도 초과');
   }
   let selectedBedNo = getUrlBedNo();
   let selectedReceiveBedNo = getUrlBedNo();
@@ -5332,10 +5128,7 @@
     const name = treatments.join(',');
     try {
       const record = { name, treatments, timestamp: Date.now() };
-      await pushLocalNode('settings/treatmentPresets', record,
-        (childKey) => childKey
-          ? set(ref(db, `settings/treatmentPresets/${childKey}`), record)
-          : push(ref(db, 'settings/treatmentPresets'), record));
+      await pushLocalNode('settings/treatmentPresets', record);
       treatmentSelections.presetTreatmentGrid = [];
       renderTreatmentChips('presetTreatmentGrid');
       syncTreatBtnStates('presetTreatmentGrid');
@@ -5350,8 +5143,7 @@
     if (!key) return;
     if (!confirm('프리셋을 삭제하시겠습니까?')) return;
     try {
-      await removeLocalNodeChild('settings/treatmentPresets', key,
-        () => remove(ref(db, `settings/treatmentPresets/${key}`)));
+      await removeLocalNodeChild('settings/treatmentPresets', key);
       showToast('프리셋 삭제 완료');
     } catch (e) {
       console.error(e);
@@ -5650,8 +5442,7 @@
     staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacation: Boolean(checked) });
     renderStaffControls();
     try {
-      await updateLocalNodeChild('staff/nurses', key, { vacation: Boolean(checked) },
-        () => update(ref(db, `staff/nurses/${key}`), { vacation: Boolean(checked) }));
+      await updateLocalNodeChild('staff/nurses', key, { vacation: Boolean(checked) });
       showToast(checked ? '간호사 자리비움 처리 완료' : '간호사 자리비움 해제 완료');
     } catch (e) {
       console.error(e);
@@ -5670,10 +5461,7 @@
 
     try {
       const record = { name, timestamp: Date.now() };
-      await pushLocalNode(`staff/${type}`, record,
-        (childKey) => childKey
-          ? set(ref(db, `staff/${type}/${childKey}`), record)
-          : push(ref(db, `staff/${type}`), record));
+      await pushLocalNode(`staff/${type}`, record);
       input.value = '';
       showToast(`${label} 추가 완료`);
     } catch (e) {
@@ -5712,8 +5500,7 @@
     if (!confirm(`${name} ${label}을 삭제하시겠습니까?`)) return;
 
     try {
-      await removeLocalNodeChild(`staff/${type}`, key,
-        () => remove(ref(db, `staff/${type}/${key}`)));
+      await removeLocalNodeChild(`staff/${type}`, key);
       showToast(`${label} 삭제 완료`);
     } catch (e) {
       console.error(e);
@@ -5801,7 +5588,7 @@
     const input = document.getElementById('procedureMinutesInput');
     const value = Math.max(0, Math.min(120, Number(input?.value) || 0));
     try {
-      await setLocalNode('settings/procedureMinutes', value, () => set(ref(db, 'settings/procedureMinutes'), value));
+      await setLocalNode('settings/procedureMinutes', value);
       showToast(`처치시간 ${value}분 저장 완료`);
     } catch (e) {
       console.error(e);
@@ -5819,8 +5606,8 @@
     const procValue = Math.max(0, Math.min(120, Number(procInput?.value) || 0));
     try {
       await Promise.all([
-        setLocalNode('settings/treatmentMinutes', rows, () => set(ref(db, 'settings/treatmentMinutes'), rows)),
-        setLocalNode('settings/procedureMinutes', procValue, () => set(ref(db, 'settings/procedureMinutes'), procValue)),
+        setLocalNode('settings/treatmentMinutes', rows),
+        setLocalNode('settings/procedureMinutes', procValue),
       ]);
       showToast('저장 완료');
     } catch (e) {
@@ -5831,7 +5618,7 @@
 
   window.saveAutoBedAssignEnabled = async (enabled) => {
     autoBedAssignEnabled = Boolean(enabled);
-    await setLocalNode('settings/autoBedAssignEnabled', autoBedAssignEnabled, () => set(ref(db, 'settings/autoBedAssignEnabled'), autoBedAssignEnabled));
+    await setLocalNode('settings/autoBedAssignEnabled', autoBedAssignEnabled);
     if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
     showToast(enabled ? '베드 자동배정 켜짐' : '베드 자동배정 꺼짐');
   };
@@ -5840,7 +5627,7 @@
   window.saveNurseAutoAssignEnabled = async (enabled) => {
     nurseAutoAssignEnabled = Boolean(enabled);
     syncNurseAutoAssignInputs();
-    await setLocalNode('settings/nurseAutoAssignEnabled', nurseAutoAssignEnabled, () => set(ref(db, 'settings/nurseAutoAssignEnabled'), nurseAutoAssignEnabled));
+    await setLocalNode('settings/nurseAutoAssignEnabled', nurseAutoAssignEnabled);
     showToast(enabled ? '간호사 자동배정 켜짐' : '간호사 자동배정 꺼짐');
   };
 
@@ -6848,11 +6635,6 @@
   const pageLoadedAt = Date.now();
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
 
-  const patientsRef = query(
-    ref(db, PATIENTS_PATH),
-    orderByChild('timestamp')
-  );
-
   function syncPatientPCreditSchema(patientKey, data) {
     if (!patientKey || !data) return;
     const patch = {};
@@ -6958,33 +6740,7 @@
     prevPatientsSnapshot = clonePlain(next);
   }
 
-  async function seedPatientsFromFirebaseIfEmpty() {
-    if (!BEDS_LOCAL_PRIMARY) return;
-    try {
-      const cur = await localStateGet(PATIENTS_PATH);
-      const empty = !cur || (typeof cur === 'object' && Object.keys(cur).length === 0);
-      if (!empty) return;
-      const snap = await get(ref(db, PATIENTS_PATH));
-      const fb = snap.val();
-      if (fb && Object.keys(fb).length) await localStatePut(PATIENTS_PATH, fb);
-    } catch (error) {
-      console.warn('환자 시드 실패', error);
-    }
-  }
-
-  if (BEDS_LOCAL_PRIMARY) {
-    seedPatientsFromFirebaseIfEmpty();
-    subscribeLocalNode(PATIENTS_PATH, applyPatientsSnapshot);
-  }
-  onChildAdded(patientsRef, (snapshot) => {
-    if (!BEDS_LOCAL_PRIMARY || !bedsLocalLive) applyPatientAdded(snapshot.key, snapshot.val());
-  });
-  onChildChanged(patientsRef, (snapshot) => {
-    if (!BEDS_LOCAL_PRIMARY || !bedsLocalLive) applyPatientChanged(snapshot.key, snapshot.val());
-  });
-  onChildRemoved(patientsRef, (snapshot) => {
-    if (!BEDS_LOCAL_PRIMARY || !bedsLocalLive) applyPatientRemoved(snapshot.key);
-  });
+  subscribeLocalNode(PATIENTS_PATH, applyPatientsSnapshot);
 
   function scheduleDisabledBedCleanup(bedNo, bed) {
     const key = String(bedNo);
@@ -7096,99 +6852,7 @@
     ensureBedTicker();
   }
 
-  onValue(ref(db, BEDS_PATH), async (snapshot) => {
-    const beds = snapshot.val() || {};
-    firebaseConnected = true;
-    seedLocalBedsFromFirebaseIfEmpty(beds);
-    // When the local server is the primary source and its SSE stream is live,
-    // ignore Firebase echoes (our own mirror writes) so they don't override the
-    // authoritative local state. Firebase only drives the UI as a fallback.
-    if (BEDS_LOCAL_PRIMARY) {
-      updateConnectionStatusLabel();
-      return;
-    }
-    if (localFallbackActive && localFallbackDirty) {
-      return;
-    }
-    localFallbackActive = false;
-    updateConnectionStatusLabel();
-    if (!BEDS_LOCAL_PRIMARY) scheduleLocalBedsMirror(beds);
-    await applyBedsState(beds, { allowMigration: true, allowAutoAssign: true, fromLocalFallback: false });
-  });
-
   startBedsSSE();
-
-  async function syncPendingLocalBedsToFirebase() {
-    if (!SERVER_MODE) return;
-    let isDirty = localFallbackDirty;
-    try {
-      isDirty = Boolean(isDirty || await localStateGet('bedsDirty'));
-    } catch (error) {
-      console.warn('로컬 변경 여부 확인 실패', error);
-    }
-    if (!isDirty) return;
-
-    try {
-      const localBeds = await localStateGet('beds') || {};
-      await set(ref(db, BEDS_PATH), localBeds);
-      localFallbackDirty = false;
-      await localStatePut('bedsDirty', false);
-    } catch (error) {
-      console.error('로컬 임시 beds Firebase 복구 실패', error);
-      localFallbackDirty = true;
-      throw error;
-    }
-  }
-
-  async function loadLocalFallbackBeds() {
-    if (!SERVER_MODE) {
-      updateConnectionStatusLabel();
-      return;
-    }
-    try {
-      const beds = await localStateGet('beds') || {};
-      localFallbackDirty = Boolean(await localStateGet('bedsDirty'));
-      localFallbackActive = true;
-      updateConnectionStatusLabel();
-      await applyBedsState(beds, { allowMigration: false, allowAutoAssign: false, fromLocalFallback: true });
-    } catch (error) {
-      console.error('로컬 임시 beds 로드 실패', error);
-      updateConnectionStatusLabel();
-    }
-  }
-
-  onValue(ref(db, '.info/connected'), async (snapshot) => {
-    firebaseConnected = snapshot.val() === true;
-    // With the local server as primary, beds realtime is driven by SSE, not by
-    // the old Firebase-down→local fallback flow. Just track Firebase status here
-    // (it's still used to mirror writes); skip the legacy polling/sync dance.
-    if (BEDS_LOCAL_PRIMARY) {
-      updateConnectionStatusLabel();
-      return;
-    }
-    if (firebaseConnected) {
-      if (localFallbackPollTimer) {
-        clearInterval(localFallbackPollTimer);
-        localFallbackPollTimer = null;
-      }
-      try {
-        await syncPendingLocalBedsToFirebase();
-        localFallbackActive = false;
-        updateConnectionStatusLabel();
-      } catch (error) {
-        localFallbackActive = true;
-        updateConnectionStatusLabel();
-      }
-      return;
-    }
-    await flushLocalBedsMirror();
-    loadLocalFallbackBeds();
-    if (SERVER_MODE && !localFallbackPollTimer) {
-      localFallbackPollTimer = setInterval(() => {
-        if (!firebaseConnected) loadLocalFallbackBeds();
-      }, 2500);
-    }
-  });
 
   function renderNotif(key, data, isNew) {
     const list = document.getElementById('notifList');
@@ -10853,25 +10517,6 @@
       receiveDismissed: Boolean(existing.receiveDismissed),
       notifyDismissed: Boolean(existing.notifyDismissed)
     };
-  }
-
-  async function sendAppointmentCancelDeskAlert(patientKey, patient, dates) {
-    const canceledDates = normalizeAppointmentDates(dates);
-    if (!patientKey || !canceledDates.length) return;
-    const dateText = canceledDates.map(formatAppointmentDate).filter(Boolean).join(', ');
-    try {
-      await push(ref(db, CALL_ALERTS_PATH), {
-        target: 'desk',
-        kind: 'appointmentCancel',
-        patientKey,
-        chartNo: patient?.chartNo || '',
-        patientName: patient?.name || '',
-        message: `${patient?.name || '환자'} ${dateText} 예약 취소`,
-        timestamp: Date.now()
-      });
-    } catch (e) {
-      console.error('예약 취소 알림 전송 실패', e);
-    }
   }
 
   async function setPatientAppointment(patientKey, data, appointmentDates, undecided = false) {
