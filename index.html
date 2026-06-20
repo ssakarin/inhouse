@@ -6787,7 +6787,7 @@
   // ─── 수신 ───────────────────────────────
   window.clearPatientDatabase = async () => {
     const btn = document.getElementById('clearPatientDbBtn');
-    const ok = confirm('Firebase 현재 데이터를 비울까요?\n\n삭제 대상: Firebase patients, beds, 베드 배정 알림\n유지 대상: 환자 차트 DB, 설정, 원장/간호사, 치료시간');
+    const ok = confirm('현재 데이터를 비울까요?\n\n삭제 대상: 환자, 베드, 베드 배정 알림\n유지 대상: 환자 차트 DB, 설정, 원장/간호사, 치료시간');
     if (!ok) return;
 
     const password = prompt('현재 데이터 삭제 비밀번호를 입력하세요.');
@@ -6830,15 +6830,15 @@
       renderWaitingLists();
       renderUpcomingAlerts();
       updateCount();
-      showToast('Firebase 비우기 완료');
+      showToast('현재 데이터 비우기 완료');
     } catch (e) {
       console.error(e);
-      showToast('Firebase 비우기 실패');
+      showToast('현재 데이터 비우기 실패');
     } finally {
       isClearingPatientDatabase = false;
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'Firebase 비우기';
+        btn.textContent = '현재 데이터 비우기';
       }
     }
   };
