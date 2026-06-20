@@ -3889,13 +3889,80 @@
   let localBedsMirrorTimer = null;
   let pendingLocalBedsMirror = null;
 
+  // Bed state migration: the local server is the primary source of truth for
+  // beds (realtime via SSE). Firebase is kept mirrored as a warm fallback used
+  // only when the local server/SSE is unreachable.
+  const BEDS_LOCAL_PRIMARY = SERVER_MODE;
+  let bedsSSE = null;
+  let bedsLocalLive = false;          // true while the SSE stream is connected
+  let latestLocalBedsVersion = 0;     // last version seen from the local server
+
   function updateConnectionStatusLabel() {
     const el = document.getElementById('connectionStatusText');
     if (!el) return;
-    document.body.classList.toggle('local-fallback-mode', localFallbackActive);
+    const online = BEDS_LOCAL_PRIMARY ? bedsLocalLive : (firebaseConnected && !localFallbackActive);
+    document.body.classList.toggle('local-fallback-mode', BEDS_LOCAL_PRIMARY ? !bedsLocalLive : localFallbackActive);
     document.body.classList.toggle('firebase-offline-mode', !firebaseConnected);
-    const label = firebaseConnected && !localFallbackActive ? 'Online' : 'Offline';
-    el.innerHTML = `<span class="status-dot"></span>${label}`;
+    el.innerHTML = `<span class="status-dot"></span>${online ? 'Online' : 'Offline'}`;
+  }
+
+  function applyBedsFromLocal(beds, version) {
+    if (typeof version === 'number') latestLocalBedsVersion = version;
+    bedsLocalLive = true;
+    updateConnectionStatusLabel();
+    applyBedsState(beds || {}, { allowMigration: true, allowAutoAssign: true, fromLocalFallback: false });
+  }
+
+  function startBedsSSE() {
+    if (!BEDS_LOCAL_PRIMARY || bedsSSE) return;
+    try {
+      bedsSSE = new EventSource('/api/events');
+      bedsSSE.addEventListener('beds', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          applyBedsFromLocal(data.beds, data.version);
+        } catch (error) {
+          console.warn('beds SSE 파싱 실패', error);
+        }
+      });
+      bedsSSE.onopen = () => { bedsLocalLive = true; updateConnectionStatusLabel(); };
+      // EventSource auto-reconnects. While disconnected, the Firebase onValue
+      // listener takes over as the fallback source.
+      bedsSSE.onerror = () => { bedsLocalLive = false; updateConnectionStatusLabel(); };
+    } catch (error) {
+      console.warn('beds SSE 시작 실패', error);
+    }
+  }
+
+  async function localBedsRequest(path, body) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(body || {})
+    });
+    if (!res.ok && res.status !== 409) throw new Error(`로컬 beds 요청 실패 (${res.status})`);
+    return res;
+  }
+
+  // One-time migration safety net: if the local server has no bed state yet,
+  // seed it from the current Firebase snapshot so the board isn't blank when
+  // local becomes primary. After this, local is authoritative.
+  let bedsSeedChecked = false;
+  async function seedLocalBedsFromFirebaseIfEmpty(firebaseBeds) {
+    if (!BEDS_LOCAL_PRIMARY || bedsSeedChecked) return;
+    bedsSeedChecked = true;
+    try {
+      const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
+      const beds = cur.beds;
+      const localEmpty = !beds || (Array.isArray(beds) ? beds.filter(Boolean).length === 0 : Object.keys(beds).length === 0);
+      const firebaseHasData = firebaseBeds && Object.keys(firebaseBeds).length > 0;
+      if (localEmpty && firebaseHasData) {
+        await localBedsRequest('/api/beds/cas', { expectedVersion: cur.version, beds: firebaseBeds });
+        console.info('로컬 beds를 Firebase 현재 상태로 초기화함');
+      }
+    } catch (error) {
+      console.warn('로컬 beds 시드 실패', error);
+    }
   }
 
   async function localStateGet(key) {
@@ -4198,61 +4265,77 @@
     });
   }
 
+  // Best-effort mirror of a bed write to Firebase so it stays a warm fallback.
+  async function mirrorBedToFirebase(fn) {
+    try { await fn(); } catch (error) { console.warn('Firebase 미러 실패', error); }
+  }
+
   async function updateBedRecord(bedNo, patch) {
-    if (localFallbackActive && SERVER_MODE) {
-      const beds = getCurrentBedsObject();
-      const key = String(bedNo);
-      beds[key] = { ...(beds[key] || {}), ...(patch || {}) };
-      await saveLocalBedsObject(beds);
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      await localBedsRequest('/api/beds/update', { bedNo, patch });
+      mirrorBedToFirebase(() => update(ref(db, `${BEDS_PATH}/${bedNo}`), patch));
       return;
     }
     return update(ref(db, `${BEDS_PATH}/${bedNo}`), patch);
   }
 
   async function updateBedChildRecord(bedNo, childKey, patch) {
-    if (localFallbackActive && SERVER_MODE) {
-      const beds = getCurrentBedsObject();
-      const key = String(bedNo);
-      if (!beds[key]) return;
-      beds[key][childKey] = { ...(beds[key][childKey] || {}), ...(patch || {}) };
-      await saveLocalBedsObject(beds);
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      await localBedsRequest('/api/beds/update-child', { bedNo, childKey, patch });
+      mirrorBedToFirebase(() => update(ref(db, `${BEDS_PATH}/${bedNo}/${childKey}`), patch));
       return;
     }
     return update(ref(db, `${BEDS_PATH}/${bedNo}/${childKey}`), patch);
   }
 
   async function removeBedRecord(bedNo) {
-    if (localFallbackActive && SERVER_MODE) {
-      const beds = getCurrentBedsObject();
-      delete beds[String(bedNo)];
-      await saveLocalBedsObject(beds);
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      await localBedsRequest('/api/beds/remove', { bedNo });
+      mirrorBedToFirebase(() => remove(ref(db, `${BEDS_PATH}/${bedNo}`)));
       return;
     }
     return remove(ref(db, `${BEDS_PATH}/${bedNo}`));
   }
 
   async function runBedRecordTransaction(bedNo, mutator) {
-    if (localFallbackActive && SERVER_MODE) {
-      const beds = getCurrentBedsObject();
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
       const key = String(bedNo);
-      const current = beds[key] || null;
-      const next = mutator(clonePlain(current));
-      if (next === undefined) return { committed: false, snapshot: { val: () => current } };
-      if (next === null) delete beds[key];
-      else beds[key] = next;
-      await saveLocalBedsObject(beds);
-      return { committed: true, snapshot: { val: () => next } };
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
+        const beds = cur.beds || {};
+        const current = beds[key] !== undefined ? beds[key] : null;
+        const next = mutator(clonePlain(current));
+        if (next === undefined) return { committed: false, snapshot: { val: () => current } };
+        const nextBeds = clonePlain(beds) || {};
+        if (next === null) delete nextBeds[key]; else nextBeds[key] = next;
+        const res = await localBedsRequest('/api/beds/cas', { expectedVersion: cur.version, beds: nextBeds });
+        if (res.ok) {
+          mirrorBedToFirebase(() => next === null
+            ? remove(ref(db, `${BEDS_PATH}/${bedNo}`))
+            : set(ref(db, `${BEDS_PATH}/${bedNo}`), next));
+          return { committed: true, snapshot: { val: () => next } };
+        }
+        // 409 conflict → another device wrote first; retry with fresh state.
+      }
+      throw new Error('beds 트랜잭션 재시도 초과');
     }
     return runTransaction(ref(db, `${BEDS_PATH}/${bedNo}`), mutator);
   }
 
   async function runBedsRecordTransaction(mutator) {
-    if (localFallbackActive && SERVER_MODE) {
-      const current = getCurrentBedsObject();
-      const next = mutator(clonePlain(current));
-      if (next === undefined) return { committed: false, snapshot: { val: () => current } };
-      await saveLocalBedsObject(next || {});
-      return { committed: true, snapshot: { val: () => next || {} } };
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
+        const next = mutator(clonePlain(cur.beds || {}));
+        if (next === undefined) return { committed: false, snapshot: { val: () => cur.beds || {} } };
+        const res = await localBedsRequest('/api/beds/cas', { expectedVersion: cur.version, beds: next || {} });
+        if (res.ok) {
+          mirrorBedToFirebase(() => set(ref(db, BEDS_PATH), next || {}));
+          return { committed: true, snapshot: { val: () => next || {} } };
+        }
+        // 409 conflict → retry with fresh state.
+      }
+      throw new Error('beds 전체 트랜잭션 재시도 초과');
     }
     return runTransaction(ref(db, BEDS_PATH), mutator);
   }
@@ -6838,15 +6921,25 @@
 
   onValue(ref(db, BEDS_PATH), async (snapshot) => {
     const beds = snapshot.val() || {};
+    firebaseConnected = true;
+    seedLocalBedsFromFirebaseIfEmpty(beds);
+    // When the local server is the primary source and its SSE stream is live,
+    // ignore Firebase echoes (our own mirror writes) so they don't override the
+    // authoritative local state. Firebase only drives the UI as a fallback.
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      updateConnectionStatusLabel();
+      return;
+    }
     if (localFallbackActive && localFallbackDirty) {
       return;
     }
-    firebaseConnected = true;
     localFallbackActive = false;
     updateConnectionStatusLabel();
-    scheduleLocalBedsMirror(beds);
+    if (!BEDS_LOCAL_PRIMARY) scheduleLocalBedsMirror(beds);
     await applyBedsState(beds, { allowMigration: true, allowAutoAssign: true, fromLocalFallback: false });
   });
+
+  startBedsSSE();
 
   async function syncPendingLocalBedsToFirebase() {
     if (!SERVER_MODE) return;
@@ -6889,6 +6982,13 @@
 
   onValue(ref(db, '.info/connected'), async (snapshot) => {
     firebaseConnected = snapshot.val() === true;
+    // With the local server as primary, beds realtime is driven by SSE, not by
+    // the old Firebase-down→local fallback flow. Just track Firebase status here
+    // (it's still used to mirror writes); skip the legacy polling/sync dance.
+    if (BEDS_LOCAL_PRIMARY) {
+      updateConnectionStatusLabel();
+      return;
+    }
     if (firebaseConnected) {
       if (localFallbackPollTimer) {
         clearInterval(localFallbackPollTimer);
