@@ -3783,7 +3783,7 @@
           <div class="staff-list" id="nurseList"></div>
         </div>
         <div class="card">
-          <div class="card-label">Firebase 현재 데이터</div>
+          <div class="card-label">현재 데이터</div>
           <div class="rr-setting" style="margin-top:0">
             <span class="rr-setting-text">DB 저장 없이 현재 beds / patients만 비우기</span>
           </div>
@@ -3793,7 +3793,7 @@
           </div>
           <div id="randomTestStatus" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:18px;line-height:1.5"></div>
           <button class="export-btn" id="clearPatientDbBtn" onclick="clearPatientDatabase()" style="margin-top:10px">
-            Firebase 비우기
+            현재 데이터 비우기
           </button>
         </div>
         <div class="card">
@@ -3857,23 +3857,26 @@
 <!-- Firebase -->
 <script type="module">
   import * as XLSX from "./vendor/xlsx/0.18.5/xlsx.mjs";
-  import { initializeApp } from "./vendor/firebase/10.12.2/firebase-app.js";
-  import { getDatabase, ref, push, onChildAdded, onChildChanged, onChildRemoved, onValue, query, orderByChild, get, set, update, remove, runTransaction } from "./vendor/firebase/10.12.2/firebase-database.js";
   window.XLSX = XLSX;
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyC0bPN-bEaEe7dLnfHPrQY10pnNdlkE1RA",
-    authDomain: "khhongik-inhouse.firebaseapp.com",
-    databaseURL: "https://khhongik-inhouse-default-rtdb.firebaseio.com",
-    projectId: "khhongik-inhouse",
-    storageBucket: "khhongik-inhouse.firebasestorage.app",
-    messagingSenderId: "399934659057",
-    appId: "1:399934659057:web:299e94b388f853442dcc50",
-    measurementId: "G-MPN5V3CYY8"
-  };
+  // Firebase fully removed — the local server is the only backend. These inert
+  // stubs keep any residual Firebase-shaped calls (mirror callbacks, legacy
+  // fallback listeners) as harmless no-ops so nothing reaches the network.
+  const db = null;
+  const ref = () => null;
+  const query = () => null;
+  const orderByChild = () => null;
+  const onValue = () => {};
+  const onChildAdded = () => {};
+  const onChildChanged = () => {};
+  const onChildRemoved = () => {};
+  const set = async () => {};
+  const update = async () => {};
+  const remove = async () => {};
+  const push = async () => ({ key: null });
+  const get = async () => ({ val: () => null, exists: () => false });
+  const runTransaction = async (_ref, fn) => ({ committed: true, snapshot: { val: () => fn(null) } });
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
   const PATIENTS_PATH  = 'patients';
   const BEDS_PATH      = 'beds';
   const CALL_ALERTS_PATH = 'callAlerts';
@@ -3972,7 +3975,7 @@
   }
 
   async function setLocalNode(key, value, firebaseMirror) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       await localStatePut(key, value);
       if (firebaseMirror) mirrorToFirebase(firebaseMirror);
       return;
@@ -3993,7 +3996,7 @@
   // Atomic child ops via the server (no client whole-map read-modify-write), so
   // concurrent edits to different children from different devices don't clobber.
   async function pushLocalNode(collectionKey, value, firebaseMirror) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       const { childKey } = await localStateChild('push', { key: collectionKey, value });
       if (firebaseMirror) mirrorToFirebase(() => firebaseMirror(childKey));
       return childKey;
@@ -4002,7 +4005,7 @@
   }
 
   async function updateLocalNodeChild(collectionKey, childKey, patch, firebaseMirror) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       await localStateChild('merge', { key: collectionKey, childKey, patch });
       if (firebaseMirror) mirrorToFirebase(firebaseMirror);
       return;
@@ -4011,7 +4014,7 @@
   }
 
   async function removeLocalNodeChild(collectionKey, childKey, firebaseMirror) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       await localStateChild('delete', { key: collectionKey, childKey });
       if (firebaseMirror) mirrorToFirebase(firebaseMirror);
       return;
@@ -4410,7 +4413,7 @@
   }
 
   async function updateBedRecord(bedNo, patch) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       await localBedsRequest('/api/beds/update', { bedNo, patch });
       mirrorBedToFirebase(() => update(ref(db, `${BEDS_PATH}/${bedNo}`), patch));
       return;
@@ -4419,7 +4422,7 @@
   }
 
   async function updateBedChildRecord(bedNo, childKey, patch) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       await localBedsRequest('/api/beds/update-child', { bedNo, childKey, patch });
       mirrorBedToFirebase(() => update(ref(db, `${BEDS_PATH}/${bedNo}/${childKey}`), patch));
       return;
@@ -4428,7 +4431,7 @@
   }
 
   async function removeBedRecord(bedNo) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       await localBedsRequest('/api/beds/remove', { bedNo });
       mirrorBedToFirebase(() => remove(ref(db, `${BEDS_PATH}/${bedNo}`)));
       return;
@@ -4437,7 +4440,7 @@
   }
 
   async function runBedRecordTransaction(bedNo, mutator) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       const key = String(bedNo);
       for (let attempt = 0; attempt < 6; attempt++) {
         const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
@@ -4462,7 +4465,7 @@
   }
 
   async function runBedsRecordTransaction(mutator) {
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       for (let attempt = 0; attempt < 6; attempt++) {
         const cur = await fetch('/api/beds', { cache: 'no-store' }).then(r => r.json());
         const next = mutator(clonePlain(cur.beds || {}));
@@ -6669,16 +6672,18 @@
     }
 
     try {
-      const [patientsSnapshot, bedsSnapshot, doctorsSnapshot, nursesSnapshot] = await Promise.all([
-        get(ref(db, PATIENTS_PATH)),
-        get(ref(db, BEDS_PATH)),
-        get(ref(db, 'staff/doctors')),
-        get(ref(db, 'staff/nurses'))
+      const [patients, bedsState, doctors, nurses] = await Promise.all([
+        localStateGet(PATIENTS_PATH).then(v => v || {}),
+        fetch('/api/beds', { cache: 'no-store' }).then(r => r.json()).then(d => d.beds || {}),
+        localStateGet('staff/doctors').then(v => v || {}),
+        localStateGet('staff/nurses').then(v => v || {})
       ]);
-      const patients = patientsSnapshot.val() || {};
-      const beds = bedsSnapshot.val() || {};
-      const doctors = doctorsSnapshot.val() || {};
-      const nurses = nursesSnapshot.val() || {};
+      // beds is stored 1-based (index 0 null); normalize to a {bedNo: data} map.
+      const beds = {};
+      (Array.isArray(bedsState) ? bedsState : Object.entries(bedsState)).forEach((entry, idx) => {
+        if (Array.isArray(bedsState)) { if (entry) beds[idx] = entry; }
+        else { const [k, v] = entry; if (v) beds[k] = v; }
+      });
       const lines = [];
 
       lines.push('patients');
@@ -6785,7 +6790,7 @@
     const ok = confirm('Firebase 현재 데이터를 비울까요?\n\n삭제 대상: Firebase patients, beds, 베드 배정 알림\n유지 대상: 환자 차트 DB, 설정, 원장/간호사, 치료시간');
     if (!ok) return;
 
-    const password = prompt('Firebase 현재 데이터 삭제 비밀번호를 입력하세요.');
+    const password = prompt('현재 데이터 삭제 비밀번호를 입력하세요.');
     if (password !== '337758') {
       showToast('비밀번호가 맞지 않습니다');
       return;
@@ -7098,7 +7103,7 @@
     // When the local server is the primary source and its SSE stream is live,
     // ignore Firebase echoes (our own mirror writes) so they don't override the
     // authoritative local state. Firebase only drives the UI as a fallback.
-    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+    if (BEDS_LOCAL_PRIMARY) {
       updateConnectionStatusLabel();
       return;
     }
@@ -7270,29 +7275,25 @@
     if (!nurses.length) return null;
 
     const dateKey = getTodayKey();
-    const stateRef = ref(db, 'settings/nurseRoundRobinState');
-    let result;
+    const mutate = (value) => {
+      const state = value && typeof value === 'object' ? value : {};
+      const previousDate = String(state.lastDate || '');
+      const sameDate = previousDate === dateKey;
+      const previousStartOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
+      const startOffset = sameDate ? previousStartOffset : (previousDate ? (previousStartOffset + 1) % nurses.length : 0);
+      const count = sameDate ? Number(state.count || 0) + 1 : 1;
+      return { ...state, lastDate: dateKey, startOffset, count, updatedAt: Date.now() };
+    };
+    let state;
     try {
-      result = await runTransaction(stateRef, value => {
-        const state = value && typeof value === 'object' ? value : {};
-        const previousDate = String(state.lastDate || '');
-        const sameDate = previousDate === dateKey;
-        const previousStartOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
-        const startOffset = sameDate ? previousStartOffset : (previousDate ? (previousStartOffset + 1) % nurses.length : 0);
-        const count = sameDate ? Number(state.count || 0) + 1 : 1;
-        return {
-          ...state,
-          lastDate: dateKey,
-          startOffset,
-          count,
-          updatedAt: Date.now()
-        };
-      });
+      const current = await localStateGet('settings/nurseRoundRobinState');
+      state = mutate(current);
+      await localStatePut('settings/nurseRoundRobinState', state);
     } catch (e) {
       console.error('간호사 round robin 순번 저장 실패', e);
       return null;
     }
-    const state = result.snapshot.val() || {};
+    state = state || {};
     const count = Number(state.count || 1);
     const serial = Math.max(0, count - 1);
     const startOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
