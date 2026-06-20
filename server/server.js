@@ -303,6 +303,15 @@ function sseSend(res, event, payload) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 
+// Push a generic app_state key change to all connected clients (staff, settings,
+// etc.). Lets the client mirror Firebase onValue() over the local server.
+function sseBroadcastState(key, value) {
+  const frame = { key, value };
+  for (const client of sseClients) {
+    try { sseSend(client, "state", frame); } catch { sseClients.delete(client); }
+  }
+}
+
 function getBedsState() {
   return getStateValue("beds") || {};
 }
@@ -519,18 +528,23 @@ async function handleApi(req, res, pathname) {
     if (req.method === "PUT") {
       const payload = await readJson(req);
       const value = Object.prototype.hasOwnProperty.call(payload || {}, "value") ? payload.value : payload;
-      jsonResponse(res, 200, { key: normalizeStateKey(key), value: setStateValue(key, value) });
+      const saved = setStateValue(key, value);
+      sseBroadcastState(normalizeStateKey(key), saved);
+      jsonResponse(res, 200, { key: normalizeStateKey(key), value: saved });
       return true;
     }
     if (req.method === "PATCH") {
       const payload = await readJson(req);
       const patch = Object.prototype.hasOwnProperty.call(payload || {}, "value") ? payload.value : payload;
       const value = patchObject(getStateValue(key), patch);
-      jsonResponse(res, 200, { key: normalizeStateKey(key), value: setStateValue(key, value) });
+      const saved = setStateValue(key, value);
+      sseBroadcastState(normalizeStateKey(key), saved);
+      jsonResponse(res, 200, { key: normalizeStateKey(key), value: saved });
       return true;
     }
     if (req.method === "DELETE") {
       statements.deleteState.run(normalizeStateKey(key));
+      sseBroadcastState(normalizeStateKey(key), null);
       jsonResponse(res, 200, { ok: true, key: normalizeStateKey(key) });
       return true;
     }

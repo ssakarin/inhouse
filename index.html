@@ -3924,13 +3924,123 @@
           console.warn('beds SSE 파싱 실패', error);
         }
       });
-      bedsSSE.onopen = () => { bedsLocalLive = true; updateConnectionStatusLabel(); };
+      bedsSSE.addEventListener('state', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const handler = localStateSubscribers.get(data.key);
+          if (handler) handler(data.value);
+        } catch (error) {
+          console.warn('state SSE 파싱 실패', error);
+        }
+      });
+      bedsSSE.onopen = () => {
+        bedsLocalLive = true;
+        updateConnectionStatusLabel();
+        // Re-pull every subscribed state key on (re)connect so we don't miss
+        // changes that happened while disconnected.
+        localStateSubscribers.forEach((handler, key) => {
+          localStateGet(key).then(value => handler(value)).catch(() => {});
+        });
+      };
       // EventSource auto-reconnects. While disconnected, the Firebase onValue
       // listener takes over as the fallback source.
       bedsSSE.onerror = () => { bedsLocalLive = false; updateConnectionStatusLabel(); };
     } catch (error) {
       console.warn('beds SSE 시작 실패', error);
     }
+  }
+
+  // --- Generic local-server realtime nodes (staff, settings) -----------------
+  // Mirrors Firebase onValue/set/push/update/remove/transaction over the local
+  // server's /api/state + SSE "state" events. The local server is primary while
+  // its SSE stream is live (bedsLocalLive); Firebase is kept mirrored as a warm
+  // fallback that drives the UI only when the local stream is down.
+  const localStateSubscribers = new Map(); // key -> handler(value)
+
+  async function subscribeLocalNode(key, applyFn) {
+    localStateSubscribers.set(key, applyFn);
+    try {
+      applyFn(await localStateGet(key));
+    } catch (error) {
+      console.warn('로컬 노드 초기 로드 실패', key, error);
+    }
+  }
+
+  function mirrorToFirebase(fn) {
+    try { const p = fn(); if (p && typeof p.catch === 'function') p.catch(e => console.warn('Firebase 미러 실패', e)); }
+    catch (error) { console.warn('Firebase 미러 실패', error); }
+  }
+
+  async function setLocalNode(key, value, firebaseMirror) {
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      await localStatePut(key, value);
+      if (firebaseMirror) mirrorToFirebase(firebaseMirror);
+      return;
+    }
+    if (firebaseMirror) await firebaseMirror();
+  }
+
+  async function pushLocalNode(collectionKey, value, firebaseMirror) {
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      const map = (await localStateGet(collectionKey)) || {};
+      const childKey = `loc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      map[childKey] = value;
+      await localStatePut(collectionKey, map);
+      if (firebaseMirror) mirrorToFirebase(() => firebaseMirror(childKey));
+      return childKey;
+    }
+    if (firebaseMirror) return firebaseMirror(null);
+  }
+
+  async function updateLocalNodeChild(collectionKey, childKey, patch, firebaseMirror) {
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      const map = (await localStateGet(collectionKey)) || {};
+      map[childKey] = { ...(map[childKey] || {}), ...(patch || {}) };
+      await localStatePut(collectionKey, map);
+      if (firebaseMirror) mirrorToFirebase(firebaseMirror);
+      return;
+    }
+    if (firebaseMirror) await firebaseMirror();
+  }
+
+  async function removeLocalNodeChild(collectionKey, childKey, firebaseMirror) {
+    if (BEDS_LOCAL_PRIMARY && bedsLocalLive) {
+      const map = (await localStateGet(collectionKey)) || {};
+      delete map[childKey];
+      await localStatePut(collectionKey, map);
+      if (firebaseMirror) mirrorToFirebase(firebaseMirror);
+      return;
+    }
+    if (firebaseMirror) await firebaseMirror();
+  }
+
+  // One-time seed: if the local node is empty, copy the current Firebase value in
+  // so the UI isn't blank when local becomes primary.
+  const seededLocalNodes = new Set();
+  async function seedLocalNodeIfEmpty(key, firebaseValue) {
+    if (!BEDS_LOCAL_PRIMARY || seededLocalNodes.has(key)) return;
+    seededLocalNodes.add(key);
+    try {
+      const cur = await localStateGet(key);
+      const empty = cur === null || cur === undefined
+        || (typeof cur === 'object' && !Array.isArray(cur) && Object.keys(cur).length === 0);
+      if (empty && firebaseValue !== null && firebaseValue !== undefined) {
+        await localStatePut(key, firebaseValue);
+      }
+    } catch (error) {
+      console.warn('로컬 노드 시드 실패', key, error);
+    }
+  }
+
+  // Wire a node to the local server (primary, via SSE) while keeping Firebase as
+  // a seed source + fallback that drives the UI only when local is unreachable.
+  function migrateNode(key, applyFn) {
+    if (BEDS_LOCAL_PRIMARY) subscribeLocalNode(key, applyFn);
+    onValue(ref(db, key), (snapshot) => {
+      const value = snapshot.val();
+      seedLocalNodeIfEmpty(key, value);
+      if (!BEDS_LOCAL_PRIMARY || !bedsLocalLive) applyFn(value);
+    });
   }
 
   async function localBedsRequest(path, body) {
@@ -5188,11 +5298,11 @@
     if (!treatments.length) { showToast('치료를 1개 이상 선택해주세요'); return; }
     const name = treatments.join(',');
     try {
-      await push(ref(db, 'settings/treatmentPresets'), {
-        name,
-        treatments,
-        timestamp: Date.now()
-      });
+      const record = { name, treatments, timestamp: Date.now() };
+      await pushLocalNode('settings/treatmentPresets', record,
+        (childKey) => childKey
+          ? set(ref(db, `settings/treatmentPresets/${childKey}`), record)
+          : push(ref(db, 'settings/treatmentPresets'), record));
       treatmentSelections.presetTreatmentGrid = [];
       renderTreatmentChips('presetTreatmentGrid');
       syncTreatBtnStates('presetTreatmentGrid');
@@ -5207,7 +5317,8 @@
     if (!key) return;
     if (!confirm('프리셋을 삭제하시겠습니까?')) return;
     try {
-      await remove(ref(db, `settings/treatmentPresets/${key}`));
+      await removeLocalNodeChild('settings/treatmentPresets', key,
+        () => remove(ref(db, `settings/treatmentPresets/${key}`)));
       showToast('프리셋 삭제 완료');
     } catch (e) {
       console.error(e);
@@ -5506,7 +5617,8 @@
     staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacation: Boolean(checked) });
     renderStaffControls();
     try {
-      await update(ref(db, `staff/nurses/${key}`), { vacation: Boolean(checked) });
+      await updateLocalNodeChild('staff/nurses', key, { vacation: Boolean(checked) },
+        () => update(ref(db, `staff/nurses/${key}`), { vacation: Boolean(checked) }));
       showToast(checked ? '간호사 자리비움 처리 완료' : '간호사 자리비움 해제 완료');
     } catch (e) {
       console.error(e);
@@ -5524,10 +5636,11 @@
     if (!name) { showToast(`${label} 이름을 입력해주세요`); return; }
 
     try {
-      await push(ref(db, `staff/${type}`), {
-        name,
-        timestamp: Date.now()
-      });
+      const record = { name, timestamp: Date.now() };
+      await pushLocalNode(`staff/${type}`, record,
+        (childKey) => childKey
+          ? set(ref(db, `staff/${type}/${childKey}`), record)
+          : push(ref(db, `staff/${type}`), record));
       input.value = '';
       showToast(`${label} 추가 완료`);
     } catch (e) {
@@ -5566,7 +5679,8 @@
     if (!confirm(`${name} ${label}을 삭제하시겠습니까?`)) return;
 
     try {
-      await remove(ref(db, `staff/${type}/${key}`));
+      await removeLocalNodeChild(`staff/${type}`, key,
+        () => remove(ref(db, `staff/${type}/${key}`)));
       showToast(`${label} 삭제 완료`);
     } catch (e) {
       console.error(e);
@@ -5575,17 +5689,16 @@
   };
 
   ['doctors', 'nurses'].forEach(type => {
-    onValue(ref(db, `staff/${type}`), (snapshot) => {
-      const rows = snapshot.val() || {};
-      staffByType[type] = new Map(Object.entries(rows));
+    migrateNode(`staff/${type}`, (value) => {
+      staffByType[type] = new Map(Object.entries(value || {}));
       renderStaffControls();
       if (type === 'doctors') renderBedMonitors();
     });
   });
 
-  onValue(ref(db, 'settings/procedureMinutes'), (snapshot) => {
-    const value = Number(snapshot.val() || 0);
-    procedureMinutes = Math.max(0, Math.min(120, Number.isFinite(value) ? value : 0));
+  migrateNode('settings/procedureMinutes', (value) => {
+    const num = Number(value || 0);
+    procedureMinutes = Math.max(0, Math.min(120, Number.isFinite(num) ? num : 0));
     // procedureMinutesInput은 이제 treatmentMinutesList 안에 있음
     const input = document.getElementById('procedureMinutesInput');
     if (input && document.activeElement !== input) input.value = String(procedureMinutes);
@@ -5593,25 +5706,23 @@
     updateBedRemainingChip();
   });
 
-  onValue(ref(db, 'settings/treatmentMinutes'), (snapshot) => {
-    const rows = snapshot.val() || {};
-    treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES, ...rows };
+  migrateNode('settings/treatmentMinutes', (value) => {
+    treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES, ...(value || {}) };
     renderTreatmentMinutesSettings();
     updateDeskWaitChip();
     updateBedRemainingChip();
     renderUpcomingAlerts();
   });
 
-  onValue(ref(db, 'settings/treatmentPresets'), (snapshot) => {
-    const rows = snapshot.val() || {};
-    treatmentPresets = Object.entries(rows)
-      .map(([key, value]) => ({
+  migrateNode('settings/treatmentPresets', (value) => {
+    treatmentPresets = Object.entries(value || {})
+      .map(([key, item]) => ({
         key,
-        name: value?.name || '',
-        treatments: Array.isArray(value?.treatments)
-          ? value.treatments.map(name => getTreatmentByName(name)?.name).filter(Boolean)
+        name: item?.name || '',
+        treatments: Array.isArray(item?.treatments)
+          ? item.treatments.map(name => getTreatmentByName(name)?.name).filter(Boolean)
           : [],
-        timestamp: Number(value?.timestamp || 0)
+        timestamp: Number(item?.timestamp || 0)
       }))
       .filter(p => p.name && p.treatments.length)
       .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -5619,15 +5730,15 @@
     renderAllTreatmentPresetSelects();
   });
 
-  onValue(ref(db, 'settings/autoBedAssignEnabled'), (snapshot) => {
-    autoBedAssignEnabled = Boolean(snapshot.val());
+  migrateNode('settings/autoBedAssignEnabled', (value) => {
+    autoBedAssignEnabled = Boolean(value);
     const input = document.getElementById('autoBedAssignEnabled');
     if (input) input.checked = autoBedAssignEnabled;
     if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
   });
 
-  onValue(ref(db, 'settings/nurseAutoAssignEnabled'), (snapshot) => {
-    nurseAutoAssignEnabled = snapshot.val() !== false;
+  migrateNode('settings/nurseAutoAssignEnabled', (value) => {
+    nurseAutoAssignEnabled = value !== false;
     syncNurseAutoAssignInputs();
   });
 
@@ -5659,7 +5770,7 @@
     const input = document.getElementById('procedureMinutesInput');
     const value = Math.max(0, Math.min(120, Number(input?.value) || 0));
     try {
-      await set(ref(db, 'settings/procedureMinutes'), value);
+      await setLocalNode('settings/procedureMinutes', value, () => set(ref(db, 'settings/procedureMinutes'), value));
       showToast(`처치시간 ${value}분 저장 완료`);
     } catch (e) {
       console.error(e);
@@ -5677,8 +5788,8 @@
     const procValue = Math.max(0, Math.min(120, Number(procInput?.value) || 0));
     try {
       await Promise.all([
-        set(ref(db, 'settings/treatmentMinutes'), rows),
-        set(ref(db, 'settings/procedureMinutes'), procValue),
+        setLocalNode('settings/treatmentMinutes', rows, () => set(ref(db, 'settings/treatmentMinutes'), rows)),
+        setLocalNode('settings/procedureMinutes', procValue, () => set(ref(db, 'settings/procedureMinutes'), procValue)),
       ]);
       showToast('저장 완료');
     } catch (e) {
@@ -5689,7 +5800,7 @@
 
   window.saveAutoBedAssignEnabled = async (enabled) => {
     autoBedAssignEnabled = Boolean(enabled);
-    await set(ref(db, 'settings/autoBedAssignEnabled'), autoBedAssignEnabled);
+    await setLocalNode('settings/autoBedAssignEnabled', autoBedAssignEnabled, () => set(ref(db, 'settings/autoBedAssignEnabled'), autoBedAssignEnabled));
     if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
     showToast(enabled ? '베드 자동배정 켜짐' : '베드 자동배정 꺼짐');
   };
@@ -5698,7 +5809,7 @@
   window.saveNurseAutoAssignEnabled = async (enabled) => {
     nurseAutoAssignEnabled = Boolean(enabled);
     syncNurseAutoAssignInputs();
-    await set(ref(db, 'settings/nurseAutoAssignEnabled'), nurseAutoAssignEnabled);
+    await setLocalNode('settings/nurseAutoAssignEnabled', nurseAutoAssignEnabled, () => set(ref(db, 'settings/nurseAutoAssignEnabled'), nurseAutoAssignEnabled));
     showToast(enabled ? '간호사 자동배정 켜짐' : '간호사 자동배정 꺼짐');
   };
 
