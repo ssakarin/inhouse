@@ -291,7 +291,103 @@ function loginPageHtml() {
 </html>`;
 }
 
+// --- Realtime bed state (SSE push + atomic updates + CAS transactions) -------
+// `beds` lives in app_state (encrypted). Node runs one request handler at a
+// time, so each read-merge-write below is atomic without locking. Cross-device
+// updates are pushed live over Server-Sent Events. Transactions use an optimistic
+// version check (compare-and-set) to mirror Firebase runTransaction semantics.
+
+const sseClients = new Set();
+
+function sseSend(res, event, payload) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+}
+
+function getBedsState() {
+  return getStateValue("beds") || {};
+}
+
+function getBedsVersion() {
+  const v = getStateValue("__bedsVersion");
+  return typeof v === "number" ? v : 0;
+}
+
+function commitBeds(beds) {
+  const next = beds || {};
+  setStateValue("beds", next);
+  const version = getBedsVersion() + 1;
+  setStateValue("__bedsVersion", version);
+  const frame = { version, beds: next };
+  for (const client of sseClients) {
+    try { sseSend(client, "beds", frame); } catch { sseClients.delete(client); }
+  }
+  return version;
+}
+
 async function handleApi(req, res, pathname) {
+  if (pathname === "/api/events" && req.method === "GET") {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no"
+    });
+    res.write("retry: 3000\n\n");
+    sseSend(res, "beds", { version: getBedsVersion(), beds: getBedsState() });
+    sseClients.add(res);
+    const ping = setInterval(() => {
+      try { res.write(": ping\n\n"); } catch { /* closed */ }
+    }, 25000);
+    req.on("close", () => { clearInterval(ping); sseClients.delete(res); });
+    return true;
+  }
+
+  if (pathname === "/api/beds" && req.method === "GET") {
+    jsonResponse(res, 200, { version: getBedsVersion(), beds: getBedsState() });
+    return true;
+  }
+
+  if (pathname === "/api/beds/update" && req.method === "POST") {
+    const { bedNo, patch } = (await readJson(req)) || {};
+    const beds = getBedsState();
+    const key = String(bedNo);
+    beds[key] = { ...(beds[key] || {}), ...(patch || {}) };
+    jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
+    return true;
+  }
+
+  if (pathname === "/api/beds/update-child" && req.method === "POST") {
+    const { bedNo, childKey, patch } = (await readJson(req)) || {};
+    const beds = getBedsState();
+    const key = String(bedNo);
+    if (!beds[key]) { jsonResponse(res, 200, { ok: false, reason: "no-bed" }); return true; }
+    beds[key][childKey] = { ...(beds[key][childKey] || {}), ...(patch || {}) };
+    jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
+    return true;
+  }
+
+  if (pathname === "/api/beds/remove" && req.method === "POST") {
+    const { bedNo } = (await readJson(req)) || {};
+    const beds = getBedsState();
+    delete beds[String(bedNo)];
+    jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
+    return true;
+  }
+
+  // Compare-and-set: client sends the whole next beds tree + the version it read.
+  // Rejected (409) with the current state if another device wrote first, so the
+  // client can re-run its mutator and retry (= runTransaction).
+  if (pathname === "/api/beds/cas" && req.method === "POST") {
+    const { expectedVersion, beds } = (await readJson(req)) || {};
+    const current = getBedsVersion();
+    if (typeof expectedVersion === "number" && expectedVersion !== current) {
+      jsonResponse(res, 409, { ok: false, conflict: true, version: current, beds: getBedsState() });
+      return true;
+    }
+    jsonResponse(res, 200, { ok: true, version: commitBeds(beds || {}) });
+    return true;
+  }
+
   if (pathname === "/api/login" && req.method === "POST") {
     const payload = await readJson(req);
     if (!safeEqual(payload?.password || "", LOGIN_PASSWORD)) {
