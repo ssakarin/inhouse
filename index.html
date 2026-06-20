@@ -3479,7 +3479,6 @@
       <img class="brand-icon" src="assets/logo-icon.png" alt="경희홍익한의원 로고">
       <div class="brand-copy">
         <h1><span>경희</span><span class="brand-highlight">홍익</span><span>한의원</span><span class="bed-header-bed-chip" id="bedHeaderBedChip">1번</span></h1>
-        <p id="connectionStatusText"><span class="status-dot"></span>Online</p>
       </div>
       <div class="header-left-desk-controls">
       </div>
@@ -6108,13 +6107,13 @@
 
   function renderBedScheduleCalendar(selectedDates = []) {
     const calendar = document.getElementById('bedScheduleCalendar');
-    const customInput = document.getElementById('bedScheduleCustomInput');
-    const confirmBtn = document.getElementById('bedScheduleConfirmBtn');
     if (!calendar) return;
     pendingBedScheduleDates = normalizeAppointmentDates(selectedDates);
+    const bed = getBedData(selectedBedNo);
+    const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
+    const undecided = Boolean(patient?.appointmentUndecided);
     const today = addLocalDays(new Date(), 0);
     const presetDateItems = getBedSchedulePresetDateItems(today);
-    const presetDates = presetDateItems.map(item => item.dateValue);
     calendar.innerHTML = presetDateItems.map(({ date, dateValue, offset }) => {
       const className = [
         'bed-schedule-day',
@@ -6123,14 +6122,7 @@
       ].filter(Boolean).join(' ');
       const label = offset === 0 ? `오늘 ${formatScheduleDayLabel(date)}` : formatScheduleDayLabel(date);
       return `<button type="button" class="${className}" onclick="selectBedScheduleDate('${dateValue}')">${escapeHtml(label)}</button>`;
-    }).join('') + `<button type="button" class="bed-schedule-day${pendingBedScheduleDates.some(date => !presetDates.includes(date)) ? ' selected' : ''}" onclick="toggleBedScheduleCustomDate()">기타</button>`;
-    if (customInput) {
-      customInput.min = toLocalDateInputValue(today);
-      customInput.value = pendingBedScheduleDates.find(date => !presetDates.includes(date)) || '';
-      customInput.classList.remove('show');
-    }
-    renderBedScheduleCustomCalendar();
-    if (confirmBtn) confirmBtn.disabled = false;
+    }).join('') + `<button type="button" class="bed-schedule-day${undecided ? ' selected' : ''}" onclick="toggleBedScheduleUndecided()">기타</button>`;
     disableAutocomplete(calendar.closest('.bed-schedule-panel') || calendar);
   }
 
@@ -6228,47 +6220,22 @@
     setBedScheduleOpen(!panel?.classList.contains('bed-schedule-open'));
   };
 
-  window.selectBedScheduleDate = (dateValue) => {
-    const date = String(dateValue || '').trim();
-    const nextDates = pendingBedScheduleDates.includes(date)
-      ? pendingBedScheduleDates.filter(item => item !== date)
-      : [...pendingBedScheduleDates, date];
-    renderBedScheduleCalendar(nextDates);
-  };
-
-  window.openBedScheduleCustomDate = () => {
-    const panel = document.getElementById('bedScheduleCustomCalendar');
-    if (!panel) return;
-    const presetDates = getBedSchedulePresetDateItems().map(item => item.dateValue);
-    const firstCustomDate = pendingBedScheduleDates.find(date => !presetDates.includes(date));
-    bedScheduleCustomMonthDate = getLocalMonthStart(parseLocalDateValue(firstCustomDate) || bedScheduleCustomMonthDate || new Date());
-    panel.classList.add('show');
-    renderBedScheduleCustomCalendar();
-  };
-
-  window.toggleBedScheduleCustomDate = () => {
-    openBedScheduleCustomDate();
-  };
-
-  window.changeBedScheduleCustomMonth = (delta) => {
-    bedScheduleCustomMonthDate = addLocalMonths(bedScheduleCustomMonthDate || new Date(), delta);
-    renderBedScheduleCustomCalendar();
-  };
-
-  window.confirmBedScheduleDate = async () => {
-    const appointmentDates = normalizeAppointmentDates(pendingBedScheduleDates);
+  // Save the bed's appointment immediately (no confirm step). Real dates and the
+  // "미정" marker (undecided) can coexist — both are toggled independently.
+  async function commitBedSchedule(nextDates, undecided) {
     const bed = getBedData(selectedBedNo);
     if (!bed) {
       showToast('현재 베드가 비어 있습니다');
       return;
     }
-    const chartNo = normalizeChartNo(bed.chartNo || '');
     if (!bed.patientKey) {
       showToast('환자 정보가 있어야 예약을 저장할 수 있습니다');
       return;
     }
+    const appointmentDates = normalizeAppointmentDates(nextDates);
+    const isUndecided = Boolean(undecided);
     const ok = await setPatientAppointment(bed.patientKey, {
-      chartNo,
+      chartNo: normalizeChartNo(bed.chartNo || ''),
       name: bed.name || '',
       age: bed.age || '',
       gender: bed.gender || '',
@@ -6277,18 +6244,43 @@
       memo: bed.memo || '',
       treatments: Array.isArray(bed.treatments) ? bed.treatments : [],
       bodyParts: normalizeBodyParts(bed.bodyParts)
-    }, appointmentDates);
+    }, appointmentDates, isUndecided);
     if (ok) {
-      if (appointmentDates.length) {
-        const appointmentLabel = appointmentDates.length === 1
-          ? formatAppointmentDate(appointmentDates[0])
-          : `${formatAppointmentDate(appointmentDates[0])} 외 ${appointmentDates.length - 1}개`;
-        showToast(`${bed.name || '환자'}님 ${appointmentLabel} 예약`);
-      } else {
+      const total = appointmentDates.length + (isUndecided ? 1 : 0);
+      if (!total) {
         showToast(`${bed.name || '환자'}님 예약 삭제`);
+      } else {
+        const parts = [];
+        if (appointmentDates.length) {
+          parts.push(appointmentDates.length === 1
+            ? formatAppointmentDate(appointmentDates[0])
+            : `${formatAppointmentDate(appointmentDates[0])} 외 ${appointmentDates.length - 1}개`);
+        }
+        if (isUndecided) parts.push('미정');
+        showToast(`${bed.name || '환자'}님 ${parts.join(' ')} 예약`);
       }
       populateBedSchedulePanel();
     }
+  }
+
+  // Pressing a date toggles it and saves right away (keeps the 미정 marker as-is).
+  window.selectBedScheduleDate = (dateValue) => {
+    const date = String(dateValue || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const bed = getBedData(selectedBedNo);
+    const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
+    const current = normalizeAppointmentDates(patient || {});
+    const next = current.includes(date) ? current.filter(item => item !== date) : [...current, date];
+    commitBedSchedule(next, Boolean(patient?.appointmentUndecided));
+  };
+
+  // "기타" = 미정 (no calendar). Toggles the undecided marker, keeping any dates.
+  window.toggleBedScheduleUndecided = () => {
+    const bed = getBedData(selectedBedNo);
+    const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
+    const current = normalizeAppointmentDates(patient || {});
+    const isUndecided = Boolean(patient?.appointmentUndecided);
+    commitBedSchedule(current, !isUndecided);
   };
 
   window.saveBedPatientInfo = async () => {
@@ -7621,18 +7613,29 @@
     return alert[field] !== true;
   }
 
+  function shouldShowUndecidedAlertForMode(data, mode = window.currentMode) {
+    if (!data?.appointmentUndecided) return false;
+    const field = getAppointmentAlertDismissField(mode);
+    if (!field) return false;
+    const alert = data?.appointmentUndecidedAlert || {};
+    if (field === 'clinicDismissed' && (alert.clinicDismissed === true || alert.receiveDismissed === true || alert.notifyDismissed === true)) return false;
+    return alert[field] !== true;
+  }
+
   function getVisibleAppointmentAlertItems(mode = window.currentMode) {
     if (mode !== 'input') return [];
     return [...patientsByKey.entries()]
       .map(([patientKey, patient]) => {
         const dates = normalizeAppointmentDates(patient || {})
           .filter(date => shouldShowAppointmentAlertForMode(patient, mode, date));
-        if (!dates.length) return null;
+        const undecided = shouldShowUndecidedAlertForMode(patient, mode);
+        if (!dates.length && !undecided) return null;
         return {
           patientKey,
           name: patient?.name || '환자',
           chartNo: patient?.chartNo || '',
           dates,
+          undecided,
           timestamp: Number(patient?.timestamp || 0)
         };
       })
@@ -7772,7 +7775,7 @@
       <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.patientKey)}')">
         <div class="upcoming-time">예약</div>
         <div>
-          <div class="upcoming-main">${escapeHtml(item.name)} ${escapeHtml(item.dates.map(formatAppointmentDate).filter(Boolean).join(', '))}</div>
+          <div class="upcoming-main">${escapeHtml(item.name)} ${escapeHtml([item.dates.map(formatAppointmentDate).filter(Boolean).join(', '), item.undecided ? '미정' : ''].filter(Boolean).join(' '))}</div>
           ${item.chartNo ? `<div class="upcoming-sub">${escapeHtml(item.chartNo)}</div>` : ''}
         </div>
       </div>`
@@ -7927,7 +7930,9 @@
     const dates = appointmentDate
       ? [appointmentDate]
       : normalizeAppointmentDates(patient).filter(date => shouldShowAppointmentAlertForMode(patient, window.currentMode, date));
-    if (!dates.length) return;
+    // Dismissing the whole item (no specific date) also clears the 미정 entry.
+    const dismissUndecided = !appointmentDate && shouldShowUndecidedAlertForMode(patient, window.currentMode);
+    if (!dates.length && !dismissUndecided) return;
     const appointmentAlerts = { ...(patient.appointmentAlerts || {}) };
     dates.forEach(date => {
       appointmentAlerts[date] = {
@@ -7946,11 +7951,20 @@
         ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
       };
     }
+    if (dismissUndecided) {
+      patch.appointmentUndecidedAlert = {
+        ...(patient.appointmentUndecidedAlert || {}),
+        date: '미정',
+        [field]: true,
+        ...(field === 'clinicDismissed' ? { receiveDismissed: true, notifyDismissed: true } : {})
+      };
+    }
     await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), patch);
     patientsByKey.set(patientKey, {
       ...patient,
       appointmentAlerts,
-      ...(patch.appointmentAlert ? { appointmentAlert: patch.appointmentAlert } : {})
+      ...(patch.appointmentAlert ? { appointmentAlert: patch.appointmentAlert } : {}),
+      ...(patch.appointmentUndecidedAlert ? { appointmentUndecidedAlert: patch.appointmentUndecidedAlert } : {})
     });
     renderUpcomingAlerts();
   };
@@ -8588,12 +8602,6 @@
     return `
       <div class="bed-schedule-panel" id="bedSchedulePanel">
         <div class="bed-schedule-calendar" id="bedScheduleCalendar"></div>
-        <input class="bed-schedule-custom-input" id="bedScheduleCustomInput" type="date" onchange="selectBedScheduleDate(this.value)">
-        <div class="bed-schedule-custom-calendar" id="bedScheduleCustomCalendar"></div>
-        <div class="bed-schedule-actions">
-          <button class="bed-schedule-cancel" type="button" onclick="populateBedSchedulePanel()">취소</button>
-          <button class="bed-schedule-confirm" id="bedScheduleConfirmBtn" type="button" onclick="confirmBedScheduleDate()" disabled>확인</button>
-        </div>
       </div>`;
   }
 
@@ -9773,6 +9781,7 @@
       age: bed.age || '',
       appointmentDate,
       appointmentDateCount: appointmentDates.length,
+      appointmentUndecided: Boolean(patient?.appointmentUndecided),
       chiefComplaint: bed.chiefComplaint || '',
       memo: bed.memo || '',
       bodyParts: normalizeBodyParts(bed.bodyParts),
@@ -9870,7 +9879,9 @@
       status.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.gender)}</span>` : '',
       status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
       status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : '',
-      status.appointmentDate ? `<span class="bed-meta-chip">${escapeHtml(formatAppointmentChipDate(status.appointmentDate, status.appointmentDateCount))}</span>` : '',
+      status.appointmentDate
+        ? `<span class="bed-meta-chip">${escapeHtml(formatAppointmentChipDate(status.appointmentDate, status.appointmentDateCount + (status.appointmentUndecided ? 1 : 0)))}</span>`
+        : (status.appointmentUndecided ? `<span class="bed-meta-chip">미정</span>` : ''),
     ].filter(Boolean).join('');
     const staffHtml = [
       status.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">메모있음</span>` : ''
@@ -10682,14 +10693,11 @@
     }
   }
 
-  async function setPatientAppointment(patientKey, data, appointmentDates) {
+  async function setPatientAppointment(patientKey, data, appointmentDates, undecided = false) {
     if (!patientKey) return false;
     const dates = normalizeAppointmentDates(appointmentDates);
+    const isUndecided = Boolean(undecided);
     const existingPatient = patientsByKey.get(patientKey) || {};
-    const previousDates = normalizeAppointmentDates(existingPatient || {});
-    if (!dates.length && previousDates.length) {
-      await sendAppointmentCancelDeskAlert(patientKey, { ...existingPatient, ...data }, previousDates);
-    }
     const existingAlerts = existingPatient.appointmentAlerts || {};
     const appointmentAlerts = Object.fromEntries(dates.map(date => [
       date,
@@ -10697,18 +10705,26 @@
     ]));
     const appointmentDate = dates[0] || '';
     const appointmentAlert = appointmentDate ? (appointmentAlerts[appointmentDate] || createAppointmentAlert(appointmentDate)) : null;
-    const patch = dates.length ? {
+    const appointmentUndecidedAlert = isUndecided
+      ? createAppointmentAlert('미정', existingPatient.appointmentUndecidedAlert || {})
+      : null;
+    const hasAny = dates.length > 0 || isUndecided;
+    const patch = hasAny ? {
       ...data,
       appointmentDates: dates,
       appointmentDate,
       appointmentAlerts,
-      appointmentAlert
+      appointmentAlert,
+      appointmentUndecided: isUndecided,
+      appointmentUndecidedAlert
     } : {
       ...data,
       appointmentDates: [],
       appointmentDate: '',
       appointmentAlerts: null,
-      appointmentAlert: null
+      appointmentAlert: null,
+      appointmentUndecided: false,
+      appointmentUndecidedAlert: null
     };
     await update(ref(db, `${PATIENTS_PATH}/${patientKey}`), patch);
     patientsByKey.set(patientKey, {
@@ -10717,7 +10733,9 @@
       appointmentDates: dates,
       appointmentDate,
       appointmentAlerts: dates.length ? appointmentAlerts : {},
-      appointmentAlert
+      appointmentAlert,
+      appointmentUndecided: isUndecided,
+      appointmentUndecidedAlert
     });
     renderUpcomingAlerts();
     renderBedMonitors();
