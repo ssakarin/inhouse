@@ -49,6 +49,7 @@ db.exec(`
     PRIMARY KEY (chart_no, visit_date)
   );
   CREATE INDEX IF NOT EXISTS idx_patient_visits_date ON patient_visits (visit_date);
+  CREATE INDEX IF NOT EXISTS idx_patient_visits_doctor ON patient_visits (doctor_name);
 `);
 
 function ensurePatientSearchColumns() {
@@ -315,6 +316,285 @@ function patientsByVisitMonth(month) {
   const records = [...patientsByChart.values()];
   records.sort((a, b) => normalizeChartNo(a.chartNo).localeCompare(normalizeChartNo(b.chartNo), "ko", { numeric: true }));
   return { month: normalizedMonth, counts, patients: records };
+}
+
+function ymd(date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return ymd(d);
+}
+
+function visitDatesOf(record = {}) {
+  const dates = Array.isArray(record.visitDates) ? record.visitDates.map(String) : [];
+  Object.keys(record.visitHistory || {}).forEach(date => dates.push(String(date)));
+  return [...new Set(dates.filter(Boolean))].sort();
+}
+
+function isPrescriptionChiefComplaint(value) {
+  const text = String(value || "").trim().replace(/\s+/g, "");
+  return text === "처방" || text === "-처방-";
+}
+
+function isPrescriptionVisit(record = {}, date) {
+  const history = record.visitHistory || {};
+  if (Object.prototype.hasOwnProperty.call(history, date)) {
+    return isPrescriptionChiefComplaint(history[date]?.chiefComplaint);
+  }
+  return isPrescriptionChiefComplaint(record.chiefComplaint);
+}
+
+function normalizeVisitType(value) {
+  const text = String(value || "").trim().replace(/\s+/g, "");
+  if (text.includes("초진")) return "초진";
+  if (text.includes("재진")) return "재진";
+  return "";
+}
+
+function getVisitRecord(record = {}, date) {
+  return (record.visitHistory || {})[date] || {};
+}
+
+function explicitNewVisitDatesOf(record = {}) {
+  return visitDatesOf(record).filter(date => normalizeVisitType(getVisitRecord(record, date).visitType) === "초진");
+}
+
+function newVisitDatesOf(record = {}) {
+  const explicitDates = explicitNewVisitDatesOf(record);
+  if (explicitDates.length) return explicitDates;
+  const dates = visitDatesOf(record);
+  return dates.length ? [dates[0]] : [];
+}
+
+function nonPrescriptionVisitDatesOf(record = {}) {
+  return visitDatesOf(record).filter(date => !isPrescriptionVisit(record, date));
+}
+
+function visitsWithinDays(dates, startDate, days) {
+  const endDate = addDays(startDate, days - 1);
+  return dates.filter(date => date >= startDate && date <= endDate).length;
+}
+
+function isoWeekKey(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const weekYear = d.getFullYear();
+  const week1 = new Date(weekYear, 0, 4);
+  const weekNo = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  return `${weekYear}${String(weekNo).padStart(2, "0")}`;
+}
+
+function periodKey(dateStr, unit = "week") {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  if (unit === "day") return dateStr.replaceAll("-", "");
+  if (unit === "month") return `${year}${String(month).padStart(2, "0")}`;
+  if (unit === "quarter") return `${year}Q${Math.ceil(month / 3)}`;
+  if (unit === "year") return String(year);
+  return isoWeekKey(dateStr);
+}
+
+function normalizeTreatmentStatName(name) {
+  const text = String(name || "").trim();
+  if (text === "추나" || text === "단추") return "단순추나";
+  if (text === "복추") return "복잡추나";
+  return text;
+}
+
+function collectStatsDoctors() {
+  return db.prepare(`
+    SELECT DISTINCT doctor_name AS doctorName
+    FROM patient_visits
+    WHERE doctor_name IS NOT NULL AND TRIM(doctor_name) <> ''
+    ORDER BY doctor_name COLLATE NOCASE
+  `).all().map(row => row.doctorName);
+}
+
+function noFollowupNewPatientsFromRecords(records, docFilter = "") {
+  const todayStr = ymd(new Date());
+  const targetDates = new Map(Array.from({ length: 14 }, (_, index) => 20 - index).map(daysAgo => [addDays(todayStr, -daysAgo), daysAgo]));
+  const rows = [];
+  for (const record of records) {
+    const dates = visitDatesOf(record).filter(date => date <= todayStr);
+    if (!dates.length) continue;
+    for (const firstDate of newVisitDatesOf(record).filter(date => date <= todayStr)) {
+      if (!targetDates.has(firstDate)) continue;
+      const firstEntry = getVisitRecord(record, firstDate);
+      if (isPrescriptionVisit(record, firstDate)) continue;
+      const doctorName = normalizeSearchText(firstEntry.doctorName || record.doctorName);
+      if (docFilter && doctorName !== docFilter) continue;
+      if (dates.some(date => date > firstDate && date <= todayStr)) continue;
+      rows.push({
+        chartNo: record.chartNo || "",
+        name: record.name || "",
+        firstDate,
+        daysAgo: targetDates.get(firstDate),
+        doctorName,
+        age: record.age || "",
+        gender: record.gender || "",
+        phone: record.phone || record.phoneNumber || record.tel || ""
+      });
+    }
+  }
+  return rows.sort((a, b) => b.daysAgo - a.daysAgo || String(a.chartNo).localeCompare(String(b.chartNo), "ko", { numeric: true }));
+}
+
+function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start || "") || !/^\d{4}-\d{2}-\d{2}$/.test(end || "")) {
+    throw new Error("start and end must be YYYY-MM-DD");
+  }
+  const records = listPatients();
+  const inRange = date => date >= start && date <= end;
+  const patientSet = new Set();
+  const prescriptionPatientSet = new Set();
+  const newPatientSet = new Set();
+  let visits = 0;
+  let coreVisits = 0;
+  let newPatients = 0;
+  let returningPatients = 0;
+  let thirdVisitPatients = 0;
+  const treatmentCounts = {};
+  let pharmaTotal = 0;
+  const doctorCounts = {};
+  const weekdayCounts = {};
+  const weekdayDateSets = {};
+  const treatmentComboCounts = {};
+  const trendBuckets = {};
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+
+  for (const record of records) {
+    const dates = visitDatesOf(record);
+    if (!dates.length) continue;
+    const pid = String(record.chartNo || record.name || "");
+    if (!pid) continue;
+    let matchedCore = false;
+
+    for (const date of dates.filter(inRange)) {
+      const entry = getVisitRecord(record, date);
+      const doctorName = normalizeSearchText(entry.doctorName || record.doctorName);
+      if (docFilter && doctorName !== docFilter) continue;
+      const isPrescription = isPrescriptionVisit(record, date);
+      visits += 1;
+      const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
+      const weekday = weekdays[new Date(`${date}T00:00:00`).getDay()];
+      weekdayCounts[weekday] = (weekdayCounts[weekday] || 0) + 1;
+      if (!weekdayDateSets[weekday]) weekdayDateSets[weekday] = new Set();
+      weekdayDateSets[weekday].add(date);
+      const key = periodKey(date, chartUnit);
+      if (!trendBuckets[key]) {
+        trendBuckets[key] = {
+          key,
+          visits: 0,
+          coreVisits: 0,
+          newPatients: 0,
+          returningPatients: 0,
+          thirdVisitPatients: 0,
+          patientIds: new Set(),
+          prescriptionPatientIds: new Set(),
+          dates: new Set()
+        };
+      }
+      trendBuckets[key].visits += 1;
+      trendBuckets[key].dates.add(date);
+      if (isPrescription) {
+        prescriptionPatientSet.add(pid);
+        trendBuckets[key].prescriptionPatientIds.add(pid);
+      } else {
+        matchedCore = true;
+        coreVisits += 1;
+        trendBuckets[key].coreVisits += 1;
+        trendBuckets[key].patientIds.add(pid);
+      }
+      let countedPharma = false;
+      const comboParts = [];
+      for (const rawTreatment of treatments) {
+        const treatment = normalizeTreatmentStatName(rawTreatment);
+        if (!treatment) continue;
+        treatmentCounts[treatment] = (treatmentCounts[treatment] || 0) + 1;
+        comboParts.push(treatment);
+        if (treatment.includes("약침") && !countedPharma) {
+          pharmaTotal += 1;
+          countedPharma = true;
+        }
+      }
+      const combo = [...new Set(comboParts)].sort((a, b) => a.localeCompare(b, "ko")).join(" + ");
+      if (combo) treatmentComboCounts[combo] = (treatmentComboCounts[combo] || 0) + 1;
+      if (doctorName) doctorCounts[doctorName] = (doctorCounts[doctorName] || 0) + 1;
+    }
+
+    if (matchedCore) patientSet.add(pid);
+
+    for (const firstDate of newVisitDatesOf(record)) {
+      if (!inRange(firstDate) || isPrescriptionVisit(record, firstDate)) continue;
+      const firstDoctor = normalizeSearchText(getVisitRecord(record, firstDate).doctorName || record.doctorName);
+      if (docFilter && firstDoctor !== docFilter) continue;
+      newPatients += 1;
+      newPatientSet.add(pid);
+      const nonPrescriptionDates = nonPrescriptionVisitDatesOf(record);
+      const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21);
+      const isReturning = followupVisitCount >= 2;
+      const isThirdVisit = followupVisitCount >= 3;
+      if (isReturning) returningPatients += 1;
+      if (isThirdVisit) thirdVisitPatients += 1;
+      const key = periodKey(firstDate, chartUnit);
+      if (trendBuckets[key]) {
+        trendBuckets[key].newPatients += 1;
+        if (isReturning) trendBuckets[key].returningPatients += 1;
+        if (isThirdVisit) trendBuckets[key].thirdVisitPatients += 1;
+      }
+    }
+  }
+
+  Object.keys(weekdayCounts).forEach(day => {
+    const clinicDays = Math.max(1, weekdayDateSets[day]?.size || 0);
+    weekdayCounts[day] = weekdayCounts[day] / clinicDays;
+  });
+
+  const trendStats = Object.values(trendBuckets)
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map(bucket => {
+      const clinicDays = Math.max(1, bucket.dates.size);
+      return {
+        key: bucket.key,
+        clinicDays,
+        visits: bucket.visits,
+        newPatients: bucket.newPatients,
+        returningPatients: bucket.returningPatients,
+        thirdVisitPatients: bucket.thirdVisitPatients,
+        avgVisitsPerDay: bucket.coreVisits / clinicDays,
+        avgNewPatientsPerDay: bucket.newPatients / clinicDays,
+        avgPrescriptionPatientsPerDay: bucket.prescriptionPatientIds.size / clinicDays,
+        returnRate: bucket.newPatients ? bucket.returningPatients / bucket.newPatients : 0,
+        thirdVisitRate: bucket.newPatients ? bucket.thirdVisitPatients / bucket.newPatients : 0
+      };
+    });
+
+  return {
+    recordCount: records.length,
+    uniquePatients: patientSet.size,
+    totalPatients: patientSet.size + prescriptionPatientSet.size,
+    visits,
+    coreVisits,
+    prescriptionPatients: prescriptionPatientSet.size,
+    newPatients,
+    revisitPatients: Math.max(0, patientSet.size - newPatientSet.size),
+    returnRate: newPatients ? returningPatients / newPatients : 0,
+    thirdVisitRate: newPatients ? thirdVisitPatients / newPatients : 0,
+    avgVisitsPerPatient: patientSet.size ? coreVisits / patientSet.size : 0,
+    pharmaTotal,
+    treatmentCounts,
+    doctorCounts,
+    weekdayCounts,
+    treatmentComboCounts,
+    trendStats,
+    noFollowupRows: noFollowupNewPatientsFromRecords(records, docFilter)
+  };
 }
 
 function getPatient(chartNo) {
@@ -691,6 +971,21 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/patients/count" && req.method === "GET") {
     jsonResponse(res, 200, { count: countPatients() });
+    return true;
+  }
+
+  if (pathname === "/api/stats/doctors" && req.method === "GET") {
+    jsonResponse(res, 200, collectStatsDoctors());
+    return true;
+  }
+
+  if (pathname === "/api/stats" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const start = requestUrl.searchParams.get("start") || "";
+    const end = requestUrl.searchParams.get("end") || "";
+    const docFilter = requestUrl.searchParams.get("doctor") || "";
+    const chartUnit = requestUrl.searchParams.get("unit") || "week";
+    jsonResponse(res, 200, computeClinicStats({ start, end, docFilter, chartUnit }));
     return true;
   }
 

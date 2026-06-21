@@ -128,6 +128,48 @@
   .chart-toggle input { accent-color: var(--accent); }
   .chart-toggle-swatch { width: 16px; height: 3px; border-radius: 999px; display: inline-block; }
   .wide-card { grid-column: 1 / -1; }
+  .followup-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    max-width: 100%;
+  }
+  .followup-column {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .followup-row {
+    display: grid;
+    grid-template-columns: 72px minmax(70px, 1fr) 72px 78px;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .followup-row:last-child { border-bottom: 0; }
+  .followup-head { min-height: 32px; color: var(--muted); font-size: 11px; font-weight: 900; background: rgba(255,255,255,0.035); }
+  .followup-days { color: var(--gold); font-weight: 900; text-align: right; }
+  .followup-name { font-weight: 900; }
+  .followup-meta, .followup-doctor { color: var(--muted); font-weight: 800; }
+  @media (max-width: 1100px) {
+    .followup-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .followup-list { grid-template-columns: 1fr; }
+    .followup-row {
+      grid-template-columns: 72px 1fr;
+      gap: 4px 10px;
+      align-items: start;
+    }
+    .followup-head { display: none; }
+    .followup-days { grid-row: span 3; text-align: left; }
+    .followup-meta, .followup-doctor { font-size: 12px; }
+    .followup-doctor::before { content: "원장 "; color: var(--muted); }
+  }
 </style>
 </head>
 <body>
@@ -199,7 +241,7 @@
       <div id="doctorTableWrap"></div>
     </div>
     <div class="card">
-      <div class="card-title">요일별 진료 건수</div>
+      <div class="card-title">요일별 평균 진료 건수</div>
       <div id="weekdayTableWrap"></div>
     </div>
     <div class="card">
@@ -273,6 +315,20 @@
         req.onerror = () => reject(req.error);
       });
     } finally { db.close(); }
+  }
+
+  async function loadServerDoctors() {
+    const res = await fetch("/api/stats/doctors", { cache: "no-store" });
+    if (!res.ok) throw new Error(`서버 원장 목록 조회 실패 (${res.status})`);
+    return await res.json();
+  }
+
+  async function loadServerStats(start, end, docFilter, chartUnit) {
+    const params = new URLSearchParams({ start, end, unit: chartUnit || "week" });
+    if (docFilter) params.set("doctor", docFilter);
+    const res = await fetch(`/api/stats?${params.toString()}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`서버 통계 조회 실패 (${res.status})`);
+    return await res.json();
   }
 
   // ── 날짜 유틸 ───────────────────────────────────────────────────
@@ -436,6 +492,7 @@
     let pharmaTotal = 0;       // 약침 합계 (약침1~4·L·자)
     const doctorCounts = {};
     const weekdayCounts = {};
+    const weekdayDateSets = {};
     const treatmentComboCounts = {};
     const trendBuckets = {};
 
@@ -454,6 +511,8 @@
         const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
         const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(date + "T00:00:00").getDay()];
         weekdayCounts[weekday] = (weekdayCounts[weekday] || 0) + 1;
+        if (!weekdayDateSets[weekday]) weekdayDateSets[weekday] = new Set();
+        weekdayDateSets[weekday].add(date);
         const key = periodKey(date, chartUnit);
         if (!trendBuckets[key]) {
           trendBuckets[key] = { key, visits: 0, coreVisits: 0, newPatients: 0, returningPatients: 0, thirdVisitPatients: 0, patientIds: new Set(), prescriptionPatientIds: new Set(), dates: new Set() };
@@ -506,6 +565,11 @@
         }
       }
     }
+
+    Object.keys(weekdayCounts).forEach(day => {
+      const clinicDays = Math.max(1, weekdayDateSets[day]?.size || 0);
+      weekdayCounts[day] = weekdayCounts[day] / clinicDays;
+    });
 
     const trendStats = Object.values(trendBuckets)
       .sort((a, b) => a.key.localeCompare(b.key))
@@ -567,6 +631,14 @@
     if (docs.includes(prev)) sel.value = prev;
   }
 
+  async function populateServerDoctorFilter() {
+    const sel = $("doctorFilter");
+    const prev = sel.value;
+    const docs = await loadServerDoctors();
+    sel.innerHTML = `<option value="">전체</option>` + docs.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("");
+    if (docs.includes(prev)) sel.value = prev;
+  }
+
   // ── 렌더 ────────────────────────────────────────────────────────
   function renderSummary(s) {
     $("summaryMetrics").innerHTML = `
@@ -585,22 +657,29 @@
     `;
   }
 
-  function renderCountTable(wrapId, counts, { gold = false, limit = 0, order = null } = {}) {
+  function formatStatValue(value, decimals = 0) {
+    const number = Number(value || 0);
+    return decimals > 0
+      ? number.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+      : number.toLocaleString();
+  }
+
+  function renderCountTable(wrapId, counts, { gold = false, limit = 0, order = null, valueHeader = "건수", decimals = 0 } = {}) {
     const entries = order
       ? order.map(name => [name, counts[name] || 0]).filter(([, count]) => count > 0)
       : Object.entries(counts).sort((a, b) => b[1] - a[1]);
     const rows = limit ? entries.slice(0, limit) : entries;
     const wrap = $(wrapId);
     if (!rows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
-    const max = rows[0][1] || 1;
+    const max = Math.max(1, ...rows.map(([, count]) => Number(count) || 0));
     wrap.innerHTML = `
       <table>
-        <thead><tr><th>항목</th><th class="num">건수</th><th class="bar-cell"></th></tr></thead>
+        <thead><tr><th>항목</th><th class="num">${valueHeader}</th><th class="bar-cell"></th></tr></thead>
         <tbody>
           ${rows.map(([name, count]) => `
             <tr${gold && name.includes("약침") ? ' class="highlight"' : ""}>
               <td>${escapeHtml(name)}</td>
-              <td class="num">${count.toLocaleString()}</td>
+              <td class="num">${formatStatValue(count, decimals)}</td>
               <td class="bar-cell"><div class="bar${gold && name.includes("약침") ? " gold" : ""}" style="width:${Math.round((count / max) * 100)}%"></div></td>
             </tr>
           `).join("")}
@@ -615,31 +694,30 @@
       wrap.innerHTML = `<div class="empty">대상자 없음</div>`;
       return;
     }
+    const columnCount = 3;
+    const columnSize = Math.ceil(rows.length / columnCount);
+    const columns = Array.from({ length: columnCount }, (_, index) => rows.slice(index * columnSize, (index + 1) * columnSize)).filter(Boolean);
     wrap.innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th>경과</th>
-            <th>초진일</th>
-            <th>차트번호</th>
-            <th>이름</th>
-            <th>정보</th>
-            <th>원장</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map(row => `
-            <tr>
-              <td class="num">${row.daysAgo}일 전</td>
-              <td>${escapeHtml(row.firstDate)}</td>
-              <td>${escapeHtml(row.chartNo || "-")}</td>
-              <td>${escapeHtml(row.name || "-")}</td>
-              <td>${escapeHtml([row.gender, row.age ? `${row.age}세` : ""].filter(Boolean).join(" · ") || "-")}</td>
-              <td>${escapeHtml(row.doctorName || "-")}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
+      <div class="followup-list">
+        ${columns.map(column => `
+          <div class="followup-column">
+            <div class="followup-row followup-head">
+              <div>경과</div>
+              <div>이름</div>
+              <div>정보</div>
+              <div>원장</div>
+            </div>
+            ${column.map(row => `
+              <div class="followup-row">
+                <div class="followup-days">${row.daysAgo}일 전</div>
+                <div class="followup-name">${escapeHtml(row.name || "-")}</div>
+                <div class="followup-meta">${escapeHtml([row.gender, row.age ? `${row.age}세` : ""].filter(Boolean).join(" · ") || "-")}</div>
+                <div class="followup-doctor">${escapeHtml(row.doctorName || "-")}</div>
+              </div>
+            `).join("")}
+          </div>
+        `).join("")}
+      </div>
     `;
   }
 
@@ -759,7 +837,7 @@
   let lastResult = null;  // CSV용 마지막 집계 결과
   let chartUnitTouched = false;
 
-  function run() {
+  async function run() {
     let start = $("startDate").value;
     let end = $("endDate").value;
     if (!start || !end) { $("status").textContent = "시작일과 종료일을 선택하세요."; return; }
@@ -769,17 +847,24 @@
     if (!chartUnitTouched) $("chartUnit").value = defaultChartUnit(start, end);
     const chartUnit = $("chartUnit").value || "week";
     const unitLabel = { day: "일", week: "주", month: "월", quarter: "분기", year: "년" }[chartUnit] || "주";
-    $("rangeLabel").textContent = `조회 기간: ${start} ~ ${end} · 원장: ${docLabel} · 그래프: ${unitLabel} 단위 (전체 ${allRecords.length.toLocaleString()}명 환자 기준)`;
+    $("status").classList.remove("error");
     $("status").textContent = "";
-    const s = computeStats(start, end, docFilter, chartUnit);
-    renderSummary(s);
-    renderWeeklyChart(s.trendStats, chartUnit);
-    renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
-    renderCountTable("doctorTableWrap", s.doctorCounts);
-    renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"] });
-    renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
-    renderNoFollowupTable(noFollowupNewPatients(docFilter));
-    lastResult = { start, end, docLabel, chartUnit, stats: s };
+    try {
+      const s = SERVER_MODE ? await loadServerStats(start, end, docFilter, chartUnit) : computeStats(start, end, docFilter, chartUnit);
+      const recordCount = SERVER_MODE ? Number(s.recordCount || 0) : allRecords.length;
+      $("rangeLabel").textContent = `조회 기간: ${start} ~ ${end} · 원장: ${docLabel} · 그래프: ${unitLabel} 단위 (전체 ${recordCount.toLocaleString()}명 환자 기준)`;
+      renderSummary(s);
+      renderWeeklyChart(s.trendStats, chartUnit);
+      renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
+      renderCountTable("doctorTableWrap", s.doctorCounts);
+      renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"], valueHeader: "평균", decimals: 1 });
+      renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
+      renderNoFollowupTable(SERVER_MODE ? (s.noFollowupRows || []) : noFollowupNewPatients(docFilter));
+      lastResult = { start, end, docLabel, chartUnit, stats: s };
+    } catch (e) {
+      $("status").textContent = "오류: " + (e?.message || e);
+      $("status").classList.add("error");
+    }
   }
 
   // ── CSV 다운로드 ────────────────────────────────────────────────
@@ -819,7 +904,7 @@
       .forEach(([name, c]) => lines.push(["원장별", name, c].map(csvEscape).join(",")));
     ["월", "화", "수", "목", "금", "토", "일"]
       .filter(day => stats.weekdayCounts[day])
-      .forEach(day => lines.push(["요일별", day, stats.weekdayCounts[day]].map(csvEscape).join(",")));
+      .forEach(day => lines.push(["요일별 평균", day, Number(stats.weekdayCounts[day] || 0).toFixed(1)].map(csvEscape).join(",")));
     Object.entries(stats.treatmentComboCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)
       .forEach(([name, c]) => lines.push(["치료조합 Top 10", name, c].map(csvEscape).join(",")));
     const csv = "﻿" + lines.join("\r\n");
@@ -835,10 +920,15 @@
   async function reload() {
     $("status").textContent = "DB 읽는 중...";
     try {
-      allRecords = await loadRecords();
-      populateDoctorFilter();
+      if (SERVER_MODE) {
+        allRecords = [];
+        await populateServerDoctorFilter();
+      } else {
+        allRecords = await loadRecords();
+        populateDoctorFilter();
+      }
+      $("status").classList.remove("error");
       $("status").textContent = "";
-      run();
     } catch (e) {
       allRecords = [];
       $("status").textContent = "오류: " + (e?.message || e);
@@ -859,10 +949,10 @@
     if (lastResult) renderWeeklyChart(lastResult.stats.trendStats, lastResult.chartUnit);
   });
 
-  // 초기: 어제 기준으로 로드
+  // 초기: 최근 90일 전체를 주 단위로 로드
   (async () => {
     await reload();
-    applyPreset("yesterday");
+    applyPreset("90");
   })();
 </script>
 </body>

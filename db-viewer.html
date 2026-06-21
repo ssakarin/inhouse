@@ -208,7 +208,8 @@
   .form-grid label, .wide-field { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 900; }
   .wide-field { grid-column: 1 / -1; }
   .info-grid { grid-template-columns: 1fr; }
-  .info-row1 { display: grid; grid-template-columns: 1.3fr 1fr 0.6fr 0.7fr 1fr 1.5fr; gap: 10px; }
+  .info-row1 { display: grid; grid-template-columns: 1.3fr 1fr 0.6fr 0.7fr 1fr 0.8fr; gap: 10px; }
+  .info-third-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .section-title { padding: 12px 12px 0; color: var(--gold); font-weight: 900; font-size: 13px; }
   .text-input {
     font-family: inherit;
@@ -513,9 +514,11 @@
     .editor-layout { grid-template-columns: 1fr; }
     .patient-list-pane { border-right: 0; border-bottom: 1px solid var(--line); }
     .patient-list { max-height: 260px; }
+    .info-row1 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 760px) {
     .summary, .form-grid, .package-toggle-row { grid-template-columns: 1fr; }
+    .info-row1, .info-third-row { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -573,12 +576,14 @@
               <label>성별<input id="editGender" type="text" readonly></label>
               <input id="editPhone" type="hidden">
               <label>최근 담당원장<input id="editDoctorName" type="text" readonly></label>
+              <label>최근 초진/재진<select id="editVisitType"><option value="">-</option><option value="초진">초진</option><option value="재진">재진</option></select></label>
             </div>
-            <label>최근 초진/재진<select id="editVisitType"><option value="">-</option><option value="초진">초진</option><option value="재진">재진</option></select></label>
-            <label>주상병명<input id="editChiefComplaint" type="text"></label>
+            <div class="info-third-row">
+              <label>주상병명<input id="editChiefComplaint" type="text"></label>
+              <label>최근 치료목록<input class="text-input" id="editTreatmentsText" type="text" readonly></label>
+              <label>최근 치료부위<input class="text-input" id="editBodyPartsText" type="text" readonly></label>
+            </div>
             <label>과거 주상병명<input class="text-input" id="editPastChiefComplaints" type="text" placeholder="과거 진료 기록의 다른 주상병명" readonly></label>
-            <label>최근 치료목록<input class="text-input" id="editTreatmentsText" type="text" readonly></label>
-            <label>최근 치료부위<input class="text-input" id="editBodyPartsText" type="text" readonly></label>
             <div class="memo-row">
               <label class="memo-field">메모<textarea id="editMemo"></textarea></label>
               <div class="memo-actions">
@@ -608,10 +613,6 @@
               <div class="visit-calendar" id="visitCalendar"></div>
               <div class="visit-detail-card" id="visitDetail"></div>
             </div>
-          </div>
-          <div class="section-title">선택 환자 전체 JSON</div>
-          <div class="form-grid">
-            <label class="wide-field">patient<textarea id="selectedPatientJson" spellcheck="false" readonly></textarea></label>
           </div>
         </div>
       </div>
@@ -1036,6 +1037,10 @@
     ].filter(Boolean).join(" / ");
   }
 
+  function visitDetailInput(id, value = "") {
+    return `<input id="${id}" type="text" value="${escapeHtml(value)}">`;
+  }
+
   function renderVisitDetail(date = selectedVisitDate) {
     const detailEl = $("visitDetail");
     if (!detailEl) return;
@@ -1067,11 +1072,19 @@
       </div>
       <div class="visit-detail-section">
         <div class="visit-detail-grid">
-          <div class="visit-detail-label">초진/재진</div><div>${escapeHtml(record.visitType || "-")}</div>
-          <div class="visit-detail-label">담당원장</div><div>${escapeHtml(record.doctorName || "-")}</div>
-          <div class="visit-detail-label">치료목록</div><div>${escapeHtml(formatTreatmentsText(record.treatments) || "-")}</div>
-          <div class="visit-detail-label">치료부위</div><div>${escapeHtml(formatBodyPartsText(record.bodyParts) || "-")}</div>
-          <div class="visit-detail-label">주상병명</div><div>${escapeHtml(record.chiefComplaint || "-")}</div>
+          <div class="visit-detail-label">초진/재진</div>
+          <select id="visitDetailVisitType">
+            <option value=""${!record.visitType ? " selected" : ""}>-</option>
+            <option value="초진"${record.visitType === "초진" ? " selected" : ""}>초진</option>
+            <option value="재진"${record.visitType === "재진" ? " selected" : ""}>재진</option>
+          </select>
+          <div class="visit-detail-label">담당원장</div><div>${visitDetailInput("visitDetailDoctorName", record.doctorName || "")}</div>
+          <div class="visit-detail-label">치료목록</div><div>${visitDetailInput("visitDetailTreatments", formatTreatmentsText(record.treatments))}</div>
+          <div class="visit-detail-label">치료부위</div><div>${visitDetailInput("visitDetailBodyParts", formatBodyPartsText(record.bodyParts))}</div>
+          <div class="visit-detail-label">주상병명</div><div>${visitDetailInput("visitDetailChiefComplaint", record.chiefComplaint || "")}</div>
+        </div>
+        <div class="memo-buttons" style="margin-top:10px">
+          <button class="good" type="button" data-save-visit-date="${escapeHtml(date)}">이 날짜 수정</button>
         </div>
       </div>
       <div class="visit-detail-section">
@@ -1287,16 +1300,34 @@
     renderVisitCalendar();
     renderVisitStats();
     try {
-      const record = readFormRecord();
-      await putIndexedRecord(record, selectedChartNo);
-      selectedChartNo = record.chartNo;
-      const index = latestIndexedValue.findIndex(patient => String(patient.chartNo || "") === String(record.chartNo));
-      if (index >= 0) latestIndexedValue[index] = record;
-      else latestIndexedValue.push(record);
-      $("selectedPatientJson").value = stringify(record);
-      renderPatientList();
-      renderGlobalVisitCalendar();
+      await persistCurrentPatientRecord();
       setStatus("indexedStatus", "날짜 기록 삭제됨");
+    } catch (error) {
+      setStatus("indexedStatus", "오류", true);
+      $("selectedPatientStatus").textContent = error?.message || String(error);
+    }
+  }
+
+  async function saveVisitDateDetail(date) {
+    if (!date) return;
+    if (!getSelectedPatient()) return;
+    activeVisitHistory[date] = {
+      ...(activeVisitHistory?.[date] || {}),
+      visitType: $("visitDetailVisitType")?.value?.trim() || "",
+      doctorName: $("visitDetailDoctorName")?.value?.trim() || "",
+      treatments: parseCommaText($("visitDetailTreatments")?.value || ""),
+      bodyParts: parseBodyPartsText($("visitDetailBodyParts")?.value || "", activeVisitHistory?.[date]?.bodyParts || {}),
+      chiefComplaint: $("visitDetailChiefComplaint")?.value?.trim() || ""
+    };
+    activeVisitDates = [...new Set([...(activeVisitDates || []), date].map(String).filter(Boolean))].sort();
+    selectedVisitDate = date;
+    activeVisitMonth = date.slice(0, 7);
+    syncDerivedEditorFieldsFromVisits();
+    renderVisitCalendar();
+    renderVisitStats();
+    try {
+      await persistCurrentPatientRecord();
+      setStatus("indexedStatus", "날짜 기록 수정됨");
     } catch (error) {
       setStatus("indexedStatus", "오류", true);
       $("selectedPatientStatus").textContent = error?.message || String(error);
@@ -1407,7 +1438,6 @@
     renderVisitCalendar();
     renderPackageViewer();
     renderVisitStats();
-    $("selectedPatientJson").value = stringify(patient);
     $("selectedPatientStatus").textContent = "";
     if (renderList) renderPatientList();
   }
@@ -1433,7 +1463,7 @@
 
   function clearEditor() {
     selectedChartNo = "";
-    ["editChartNo", "editName", "editAge", "editGender", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText", "selectedPatientJson"].forEach(id => { $(id).value = ""; });
+    ["editChartNo", "editName", "editAge", "editGender", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText"].forEach(id => { $(id).value = ""; });
     activeVisitDates = [];
     activeVisitHistory = {};
     activeVisitMonth = new Date().toISOString().slice(0, 7);
@@ -1485,16 +1515,22 @@
     });
   }
 
+  async function persistCurrentPatientRecord() {
+    const record = readFormRecord();
+    await putIndexedRecord(record, selectedChartNo);
+    selectedChartNo = record.chartNo;
+    upsertLatestIndexedRecord(record);
+    monthlyVisitCache.clear();
+    if (!latestIndexedTotal) latestIndexedTotal = await getIndexedRecordCount();
+    renderSummary("indexedSummary", hasLoadedFullIndexed ? latestIndexedValue : null, hasLoadedFullIndexed ? {} : { countOverride: latestIndexedTotal, sizeLabel: "전체 로드 전", 모드: SERVER_MODE ? "검색 우선" : "로컬" });
+    renderPatientList();
+    renderGlobalVisitCalendar();
+    return record;
+  }
+
   async function savePatientForm() {
     try {
-      const record = readFormRecord();
-      await putIndexedRecord(record, selectedChartNo);
-      selectedChartNo = record.chartNo;
-      const index = latestIndexedValue.findIndex(patient => String(patient.chartNo || "") === String(record.chartNo));
-      if (index >= 0) latestIndexedValue[index] = record;
-      else latestIndexedValue.push(record);
-      if (!latestIndexedTotal) latestIndexedTotal = await getIndexedRecordCount();
-      renderSummary("indexedSummary", hasLoadedFullIndexed ? latestIndexedValue : null, hasLoadedFullIndexed ? {} : { countOverride: latestIndexedTotal, sizeLabel: "전체 로드 전", 모드: SERVER_MODE ? "검색 우선" : "로컬" });
+      const record = await persistCurrentPatientRecord();
       selectPatient(record.chartNo);
       setStatus("indexedStatus", "저장됨");
     } catch (error) {
@@ -1633,8 +1669,13 @@
     if (day) selectVisitDate(day.dataset.visitDate);
   });
   $("visitDetail").addEventListener("click", event => {
-    const button = event.target.closest("[data-delete-combined-date]");
-    if (button) deleteCombinedDate(button.dataset.deleteCombinedDate);
+    const saveButton = event.target.closest("[data-save-visit-date]");
+    if (saveButton) {
+      saveVisitDateDetail(saveButton.dataset.saveVisitDate);
+      return;
+    }
+    const deleteButton = event.target.closest("[data-delete-combined-date]");
+    if (deleteButton) deleteCombinedDate(deleteButton.dataset.deleteCombinedDate);
   });
   $("visitCalendar").addEventListener("contextmenu", event => {
     const day = event.target.closest("[data-visit-date]");
