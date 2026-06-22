@@ -1999,6 +1999,31 @@ const contentTypes = {
   ".webmanifest": "application/manifest+json; charset=utf-8"
 };
 
+const STATIC_MEMORY_CACHE_MAX_BYTES = 2 * 1024 * 1024;
+const staticFileCache = new Map();
+
+function cacheStaticFile(safePath) {
+  const filePath = path.resolve(ROOT_DIR, "." + safePath);
+  if (!filePath.startsWith(ROOT_DIR)) return null;
+  const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+  if (!stat || stat.isDirectory() || stat.size > STATIC_MEMORY_CACHE_MAX_BYTES) return null;
+  const ext = path.extname(filePath).toLowerCase();
+  const entry = {
+    body: fs.readFileSync(filePath),
+    contentType: contentTypes[ext] || "application/octet-stream",
+    size: stat.size
+  };
+  staticFileCache.set(safePath, entry);
+  return entry;
+}
+
+function getStaticFileEntry(safePath, filePath, stat) {
+  if (stat.size <= STATIC_MEMORY_CACHE_MAX_BYTES) {
+    return staticFileCache.get(safePath) || cacheStaticFile(safePath);
+  }
+  return null;
+}
+
 function serveStatic(res, pathname) {
   const safePath = pathname === "/" ? "/index.html" : decodeURIComponent(pathname);
   const filePath = path.resolve(ROOT_DIR, "." + safePath);
@@ -2015,12 +2040,21 @@ function serveStatic(res, pathname) {
   const cacheControl = safePath.startsWith("/vendor/") || safePath.startsWith("/assets/")
     ? "public, max-age=31536000, immutable"
     : "no-store";
+  const cached = getStaticFileEntry(safePath, filePath, stat);
   res.writeHead(200, {
-    "Content-Type": contentTypes[ext] || "application/octet-stream",
+    "Content-Type": cached?.contentType || contentTypes[ext] || "application/octet-stream",
     "Content-Length": stat.size,
     "Cache-Control": cacheControl
   });
+  if (cached) {
+    res.end(cached.body);
+    return;
+  }
   fs.createReadStream(filePath).pipe(res);
+}
+
+for (const safePath of ["/index.html", "/db-viewer.html", "/stats.html", "/util.html", "/sw.js"]) {
+  try { cacheStaticFile(safePath); } catch (error) { console.warn(`[static] cache failed ${safePath}: ${error.message}`); }
 }
 
 const SLOW_REQUEST_MS = Number(process.env.SLOW_REQUEST_MS || 500);
