@@ -69,6 +69,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_patient_visits_chart_no ON patient_visits (chart_no);
 `);
 
+// 1회 마이그레이션: 예전 DB(auto_vacuum=NONE)를 INCREMENTAL로 전환하면서
+// VACUUM으로 단편화(빈 페이지)를 회수하고 비대해진 WAL을 잘라낸다.
+// 전환된 뒤(auto_vacuum=2)에는 매 시작마다 건너뛴다 → pull + 재시작만으로 자가 정리.
+try {
+  const autoVacuum = db.prepare("PRAGMA auto_vacuum").get()?.auto_vacuum;
+  if (autoVacuum !== 2) {
+    console.log("[db] one-time maintenance: converting to incremental auto_vacuum + VACUUM...");
+    const startedAt = Date.now();
+    db.exec("PRAGMA auto_vacuum = INCREMENTAL; VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
+    console.log(`[db] one-time VACUUM done in ${Date.now() - startedAt}ms`);
+  }
+} catch (error) {
+  console.warn(`[db] startup maintenance failed: ${error.message}`);
+}
+
 function readMaybeEncryptedJson(raw) {
   return JSON.parse(isEncrypted(raw) ? decrypt(raw) : raw);
 }
