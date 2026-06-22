@@ -48,13 +48,12 @@ if (-not $BackupDir) {
 }
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
-$escapedRoot = $Root.Replace("'", "''")
-$escapedNodeExe = $NodeExe.Replace("'", "''")
-$escapedScriptPath = $ScriptPath.Replace("'", "''")
-$escapedBackupDir = $BackupDir.Replace("'", "''")
-$escapedLogFile = $LogFile.Replace("'", "''")
-$command = "Set-Location -LiteralPath '$escapedRoot'; & '$escapedNodeExe' '$escapedScriptPath' --backup-dir '$escapedBackupDir' --retention-days 1095 >> '$escapedLogFile' 2>&1"
-$taskRun = "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `"$command`""
+$RunnerPath = Join-Path $Root "server\run-slack-backup.ps1"
+if (-not (Test-Path -LiteralPath $RunnerPath)) {
+  throw "Slack backup runner not found: $RunnerPath"
+}
+
+$taskRun = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$RunnerPath`""
 
 $schtasksArgs = @(
   "/Create",
