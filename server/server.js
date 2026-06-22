@@ -33,6 +33,8 @@ fs.mkdirSync(SLACK_BACKUP_DIR, { recursive: true });
 
 const db = new DatabaseSync(DB_PATH);
 const stateValueCache = new Map();
+let patientCache = null;
+let patientChartIndex = null;
 db.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA synchronous = NORMAL;
@@ -323,6 +325,7 @@ function backfillPatientSearchColumns() {
 
 backfillPatientSearchColumns();
 ensurePatientVisitIndex();
+ensurePatientCache();
 
 function normalizeChartNo(value) {
   return String(value || "").trim().replace(/\.0$/, "");
@@ -391,11 +394,70 @@ function parsePatientRow(row) {
   };
 }
 
+function patientSort(a, b) {
+  return normalizeChartNo(a.chartNo).localeCompare(normalizeChartNo(b.chartNo), "ko", { numeric: true })
+    || normalizeSearchText(a.name).localeCompare(normalizeSearchText(b.name), "ko")
+    || normalizeSearchText(a.patientId).localeCompare(normalizeSearchText(b.patientId), "ko");
+}
+
+function indexCachedPatient(record) {
+  if (!patientCache || !patientChartIndex || !record?.patientId) return;
+  const previous = patientCache.get(record.patientId);
+  if (previous?.chartNo) {
+    const oldChartNo = normalizeChartNo(previous.chartNo);
+    const oldIds = patientChartIndex.get(oldChartNo);
+    if (oldIds) {
+      oldIds.delete(record.patientId);
+      if (!oldIds.size) patientChartIndex.delete(oldChartNo);
+    }
+  }
+  patientCache.set(record.patientId, record);
+  const chartNo = normalizeChartNo(record.chartNo);
+  if (!patientChartIndex.has(chartNo)) patientChartIndex.set(chartNo, new Set());
+  patientChartIndex.get(chartNo).add(record.patientId);
+}
+
+function removeCachedPatient(patientId) {
+  if (!patientCache || !patientChartIndex) return;
+  const normalizedId = normalizeSearchText(patientId);
+  const previous = patientCache.get(normalizedId);
+  if (previous?.chartNo) {
+    const ids = patientChartIndex.get(normalizeChartNo(previous.chartNo));
+    if (ids) {
+      ids.delete(normalizedId);
+      if (!ids.size) patientChartIndex.delete(normalizeChartNo(previous.chartNo));
+    }
+  }
+  patientCache.delete(normalizedId);
+}
+
+function clearPatientCache() {
+  patientCache = new Map();
+  patientChartIndex = new Map();
+}
+
+function invalidatePatientCache() {
+  patientCache = null;
+  patientChartIndex = null;
+}
+
+function ensurePatientCache() {
+  if (patientCache && patientChartIndex) return;
+  patientCache = new Map();
+  patientChartIndex = new Map();
+  for (const row of statements.listPatients.all()) {
+    indexCachedPatient(parsePatientRow(row));
+  }
+  console.log(`[db] Loaded ${patientCache.size} patient row(s) into memory cache`);
+}
+
 function listPatients() {
-  return statements.listPatients.all().map(parsePatientRow);
+  ensurePatientCache();
+  return [...patientCache.values()].sort(patientSort);
 }
 
 function countPatients() {
+  if (patientCache) return patientCache.size;
   return Number(statements.countPatients.get()?.count || 0);
 }
 
@@ -403,8 +465,15 @@ function searchPatients(query, limit = 50) {
   const q = normalizeSearchText(query);
   if (!q) return [];
   const safeLimit = Math.max(1, Math.min(100, Number(limit || 50)));
-  const pattern = `%${escapeLike(q)}%`;
-  return statements.searchPatients.all(pattern, pattern, pattern, safeLimit).map(parsePatientRow);
+  ensurePatientCache();
+  return [...patientCache.values()]
+    .filter(record =>
+      normalizeChartNo(record.chartNo).includes(q)
+      || normalizeSearchText(record.name).includes(q)
+      || getPatientPhone(record).includes(q)
+    )
+    .sort(patientSort)
+    .slice(0, safeLimit);
 }
 
 function visitEntriesFromRecord(record = {}) {
@@ -762,14 +831,18 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
 }
 
 function getPatientById(patientId) {
-  const row = statements.getPatientById.get(normalizeSearchText(patientId));
-  return row ? parsePatientRow(row) : null;
+  ensurePatientCache();
+  return patientCache.get(normalizeSearchText(patientId)) || null;
 }
 
 function getPatientsByChartNo(chartNo) {
   const normalized = normalizeChartNo(chartNo);
   if (!normalized) return [];
-  return statements.listPatientsByChartNo.all(normalized).map(parsePatientRow);
+  ensurePatientCache();
+  return [...(patientChartIndex.get(normalized) || [])]
+    .map(patientId => patientCache.get(patientId))
+    .filter(Boolean)
+    .sort(patientSort);
 }
 
 function getPatient(chartNo) {
@@ -794,8 +867,8 @@ function resolvePatientId(record = {}) {
 
   const name = normalizeSearchText(record.name);
   if (name) {
-    const sameName = statements.findPatientByChartName.get(chartNo, name);
-    if (sameName?.patient_id) return sameName.patient_id;
+    const sameName = getPatientsByChartNo(chartNo).find(patient => normalizeSearchText(patient.name) === name);
+    if (sameName?.patientId) return sameName.patientId;
   }
 
   const existing = getPatientsByChartNo(chartNo);
@@ -819,6 +892,7 @@ function savePatient(record) {
     now
   );
   syncPatientVisitIndex(normalized);
+  indexCachedPatient(normalized);
   return normalized;
 }
 
@@ -1376,6 +1450,7 @@ function importPatients(records, mode = "merge", shouldBackup = true) {
   if (mode === "replace") {
     statements.deleteAllPatients.run();
     statements.deleteAllPatientVisits.run();
+    clearPatientCache();
   }
   let saved = 0;
   db.exec("BEGIN");
@@ -1388,6 +1463,7 @@ function importPatients(records, mode = "merge", shouldBackup = true) {
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
+    invalidatePatientCache();
     throw error;
   }
   return { ok: true, mode, saved, skipped: records.length - saved };
@@ -1765,6 +1841,7 @@ async function handleApi(req, res, pathname) {
     if (before.length) backupPatients(before, "delete-all");
     statements.deleteAllPatients.run();
     statements.deleteAllPatientVisits.run();
+    clearPatientCache();
     jsonResponse(res, 200, { ok: true, deleted: before.length });
     return true;
   }
@@ -1788,6 +1865,7 @@ async function handleApi(req, res, pathname) {
       if (before) backupPatients([before], `delete-${before.chartNo || patientId}`);
       statements.deletePatient.run(patientId);
       statements.deletePatientVisits.run(patientId);
+      removeCachedPatient(patientId);
       jsonResponse(res, 200, { ok: true, deleted: Boolean(before), patientId });
       return true;
     }
@@ -1818,6 +1896,7 @@ async function handleApi(req, res, pathname) {
       if (before?.patientId) {
         statements.deletePatient.run(before.patientId);
         statements.deletePatientVisits.run(before.patientId);
+        removeCachedPatient(before.patientId);
       }
       jsonResponse(res, 200, { ok: true, deleted: Boolean(before), chartNo });
       return true;
