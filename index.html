@@ -3996,9 +3996,25 @@
         try {
           const data = JSON.parse(event.data);
           const handler = localStateSubscribers.get(data.key);
+          localStateSnapshots.set(data.key, clonePlain(data.value || {}));
           if (handler) handler(data.value);
         } catch (error) {
           console.warn('state SSE 파싱 실패', error);
+        }
+      });
+      bedsSSE.addEventListener('state-child', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const key = data.key;
+          const handler = localStateSubscribers.get(key);
+          if (!handler) return;
+          const next = { ...(localStateSnapshots.get(key) || {}) };
+          if (data.op === 'delete') delete next[data.childKey];
+          else next[data.childKey] = data.value;
+          localStateSnapshots.set(key, clonePlain(next));
+          handler(next);
+        } catch (error) {
+          console.warn('state child SSE parse failed', error);
         }
       });
       bedsSSE.onopen = () => {
@@ -4007,7 +4023,10 @@
         // Re-pull every subscribed state key on (re)connect so we don't miss
         // changes that happened while disconnected.
         localStateSubscribers.forEach((handler, key) => {
-          localStateGet(key).then(value => handler(value)).catch(() => {});
+          localStateGet(key).then(value => {
+            localStateSnapshots.set(key, clonePlain(value || {}));
+            handler(value);
+          }).catch(() => {});
         });
       };
       // EventSource auto-reconnects on its own after a drop.
@@ -4022,11 +4041,14 @@
   // cross-device updates) and written via atomic child ops on the server, so
   // concurrent edits to different children don't clobber each other.
   const localStateSubscribers = new Map(); // key -> handler(value)
+  const localStateSnapshots = new Map();   // key -> latest full local snapshot
 
   async function subscribeLocalNode(key, applyFn) {
     localStateSubscribers.set(key, applyFn);
     try {
-      applyFn(await localStateGet(key));
+      const value = await localStateGet(key);
+      localStateSnapshots.set(key, clonePlain(value || {}));
+      applyFn(value);
     } catch (error) {
       console.warn('로컬 노드 초기 로드 실패', key, error);
     }

@@ -91,6 +91,15 @@
   .status.error { color: var(--danger); }
   .note { color: var(--muted); font-size: 12px; font-weight: 800; margin-top: 10px; line-height: 1.5; }
   .result-table { margin-top: 12px; overflow-x: auto; }
+  .message-output { margin-top: 12px; max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .message-output table { min-width: 760px; }
+  .message-output td { vertical-align: top; }
+  .message-output .message-time { color: var(--muted); white-space: nowrap; }
+  .message-output .message-user { color: var(--green); font-weight: 900; white-space: nowrap; }
+  .message-output .message-text { white-space: pre-wrap; word-break: break-word; }
+  .sheet-link { color: var(--accent); font-weight: 900; word-break: break-all; }
+  .sync-result { margin-top: 12px; overflow-x: auto; }
+  .sync-result table { min-width: 680px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
   th { color: var(--muted); font-size: 11px; font-weight: 900; }
@@ -118,6 +127,28 @@
   </div>
 
   <div class="card">
+    <div class="card-title">온라인관리 최근 채팅</div>
+    <div class="tool-row">
+      <input class="search-input" id="onlineSlackDaysInput" type="number" min="1" max="30" step="1" value="2" aria-label="최근 일수">
+      <button class="good" id="onlineSlackBtn" type="button">온라인관리 채팅 가져오기</button>
+    </div>
+    <div class="note">기본값은 최근 2일이며 최대 30일까지 조회합니다.</div>
+    <div class="status" id="onlineSlackStatus">대기 중</div>
+    <div class="message-output" id="onlineSlackResult"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">3차 내원 체크 테스트</div>
+    <div class="tool-row">
+      <input class="search-input" id="thirdVisitShareEmailInput" type="email" placeholder="공유할 이메일(선택)" autocomplete="off">
+      <button class="good" id="thirdVisitSyncBtn" type="button">테스트 시트 생성 후 반영</button>
+    </div>
+    <div class="note">원본 구글시트는 수정하지 않고 복사본을 만든 뒤 환자 DB의 진료 기록으로 초진/재진 칸을 채웁니다.</div>
+    <div class="status" id="thirdVisitSyncStatus">대기 중</div>
+    <div class="sync-result" id="thirdVisitSyncResult"></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">환자 연락처 검색</div>
     <div class="tool-row">
       <input class="search-input" id="patientNameInput" type="search" placeholder="성함 입력" autocomplete="off">
@@ -132,6 +163,14 @@
 <script>
   const backupBtn = document.getElementById("slackBackupBtn");
   const statusEl = document.getElementById("slackBackupStatus");
+  const onlineSlackDaysInput = document.getElementById("onlineSlackDaysInput");
+  const onlineSlackBtn = document.getElementById("onlineSlackBtn");
+  const onlineSlackStatus = document.getElementById("onlineSlackStatus");
+  const onlineSlackResult = document.getElementById("onlineSlackResult");
+  const thirdVisitShareEmailInput = document.getElementById("thirdVisitShareEmailInput");
+  const thirdVisitSyncBtn = document.getElementById("thirdVisitSyncBtn");
+  const thirdVisitSyncStatus = document.getElementById("thirdVisitSyncStatus");
+  const thirdVisitSyncResult = document.getElementById("thirdVisitSyncResult");
   const patientNameInput = document.getElementById("patientNameInput");
   const patientSearchBtn = document.getElementById("patientSearchBtn");
   const patientSearchStatus = document.getElementById("patientSearchStatus");
@@ -168,6 +207,120 @@
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function setOnlineSlackStatus(text, type = "") {
+    onlineSlackStatus.className = "status" + (type ? ` ${type}` : "");
+    onlineSlackStatus.textContent = text;
+  }
+
+  function renderOnlineSlackMessages(messages) {
+    if (!messages.length) {
+      onlineSlackResult.innerHTML = "";
+      setOnlineSlackStatus("조회된 메시지가 없습니다.");
+      return;
+    }
+    onlineSlackResult.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>시간</th>
+            <th>작성자</th>
+            <th>내용</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${messages.map(message => `
+            <tr>
+              <td class="message-time">${escapeHtml(message.time || "-")}</td>
+              <td class="message-user">${escapeHtml(message.user || "-")}</td>
+              <td class="message-text">${escapeHtml(message.text || "")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function loadOnlineSlackMessages() {
+    const days = Math.min(30, Math.max(1, Number.parseInt(onlineSlackDaysInput.value, 10) || 2));
+    onlineSlackDaysInput.value = String(days);
+    onlineSlackBtn.disabled = true;
+    onlineSlackResult.innerHTML = "";
+    setOnlineSlackStatus(`#온라인관리 최근 ${days}일 채팅 조회 중...`);
+    try {
+      const res = await fetch(`/api/slack/online-management?days=${encodeURIComponent(days)}`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `조회 실패 (${res.status})`);
+      const messages = Array.isArray(data.messages) ? data.messages : [];
+      renderOnlineSlackMessages(messages);
+      setOnlineSlackStatus(`#${data.channel || "온라인관리"}: ${messages.length.toLocaleString()}개 메시지`, "good");
+    } catch (error) {
+      setOnlineSlackStatus(error?.message || String(error), "error");
+    } finally {
+      onlineSlackBtn.disabled = false;
+    }
+  }
+
+  function setThirdVisitSyncStatus(text, type = "") {
+    thirdVisitSyncStatus.className = "status" + (type ? ` ${type}` : "");
+    thirdVisitSyncStatus.textContent = text;
+  }
+
+  function renderThirdVisitSyncResult(data) {
+    const missing = Array.isArray(data.missingRevisitNames) ? data.missingRevisitNames : [];
+    thirdVisitSyncResult.innerHTML = `
+      <table>
+        <tbody>
+          <tr>
+            <th>테스트 시트</th>
+            <td><a class="sheet-link" href="${escapeHtml(data.testSpreadsheetUrl || "#")}" target="_blank" rel="noopener">${escapeHtml(data.testSpreadsheetUrl || "-")}</a></td>
+          </tr>
+          <tr>
+            <th>워크시트</th>
+            <td>${escapeHtml(data.worksheetTitle || "-")}</td>
+          </tr>
+          <tr>
+            <th>기존 마지막 초진일</th>
+            <td>${escapeHtml(data.lastDate || "-")}</td>
+          </tr>
+          <tr>
+            <th>진료 / 초진 / 재진</th>
+            <td>${Number(data.totalVisits || 0).toLocaleString()} / ${Number(data.newPatients || 0).toLocaleString()} / ${Number(data.revisitPatients || 0).toLocaleString()}</td>
+          </tr>
+          <tr>
+            <th>변경</th>
+            <td>${Number(data.changedRows?.length || 0).toLocaleString()}행 · ${Number(data.updatedCells || 0).toLocaleString()}셀</td>
+          </tr>
+          <tr>
+            <th>재진 누락</th>
+            <td>${missing.length ? escapeHtml(missing.join(", ")) : "없음"}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function runThirdVisitTestSync() {
+    thirdVisitSyncBtn.disabled = true;
+    thirdVisitSyncResult.innerHTML = "";
+    setThirdVisitSyncStatus("테스트 구글시트 생성 및 반영 중...");
+    try {
+      const res = await fetch("/api/google/third-visit-test-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        cache: "no-store",
+        body: JSON.stringify({ shareEmail: thirdVisitShareEmailInput.value.trim() })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `작업 실패 (${res.status})`);
+      renderThirdVisitSyncResult(data);
+      setThirdVisitSyncStatus("테스트 시트 생성 및 반영 완료", "good");
+    } catch (error) {
+      setThirdVisitSyncStatus(error?.message || String(error), "error");
+    } finally {
+      thirdVisitSyncBtn.disabled = false;
+    }
   }
 
   function patientPhone(record = {}) {
@@ -231,6 +384,14 @@
   }
 
   backupBtn.addEventListener("click", runSlackBackup);
+  onlineSlackBtn.addEventListener("click", loadOnlineSlackMessages);
+  onlineSlackDaysInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") loadOnlineSlackMessages();
+  });
+  thirdVisitSyncBtn.addEventListener("click", runThirdVisitTestSync);
+  thirdVisitShareEmailInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") runThirdVisitTestSync();
+  });
   patientSearchBtn.addEventListener("click", searchPatientContact);
   patientNameInput.addEventListener("keydown", event => {
     if (event.key === "Enter") searchPatientContact();

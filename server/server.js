@@ -13,6 +13,9 @@ const DATA_DIR = path.join(__dirname, "data");
 const BACKUP_DIR = path.join(__dirname, "backups");
 const SLACK_BACKUP_DIR = path.join(ROOT_DIR, "slack_backups");
 const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
+const GOOGLE_SERVICE_ACCOUNT_FILE = process.env.GOOGLE_SERVICE_ACCOUNT_FILE || path.join(ROOT_DIR, "..", "3rd_visit_check", "service_account.json");
+const THIRD_VISIT_SPREADSHEET_ID = process.env.THIRD_VISIT_SPREADSHEET_ID || "15gFBhgjPRiQpno5Q-LmAlB1SbvyP_VNrYTLpD7lhuy4";
+const THIRD_VISIT_WORKSHEET_INDEX = Number(process.env.THIRD_VISIT_WORKSHEET_INDEX || 1);
 
 // Login password (gates every page and API) and the delete-all confirmation
 // password. Both are read from env so they are not hardcoded; defaults keep the
@@ -20,6 +23,7 @@ const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
 const LOGIN_PASSWORD = process.env.CLINIC_PASSWORD || "7677";
 const DELETE_PASSWORD = process.env.CLINIC_DELETE_PASSWORD || "337758";
 const SLACK_TOKEN = process.env.SLACK_TOKEN || "";
+const ONLINE_MANAGEMENT_SLACK_CHANNEL = process.env.ONLINE_MANAGEMENT_SLACK_CHANNEL || "\uC628\uB77C\uC778\uAD00\uB9AC";
 const SESSION_COOKIE = "sid";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 365; // 1 year — enter once per device
 
@@ -28,6 +32,7 @@ fs.mkdirSync(BACKUP_DIR, { recursive: true });
 fs.mkdirSync(SLACK_BACKUP_DIR, { recursive: true });
 
 const db = new DatabaseSync(DB_PATH);
+const stateValueCache = new Map();
 db.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA synchronous = NORMAL;
@@ -237,6 +242,20 @@ const statements = {
     FROM patient_visits pv
     LEFT JOIN patients p ON p.patient_id = pv.patient_id
     WHERE pv.visit_date >= ? AND pv.visit_date <= ?
+    ORDER BY pv.visit_date, pv.chart_no COLLATE NOCASE, p.name COLLATE NOCASE, pv.patient_id
+  `),
+  listVisitsAfterDate: db.prepare(`
+    SELECT
+      pv.patient_id,
+      pv.chart_no,
+      pv.visit_date,
+      pv.doctor_name,
+      pv.visit_type,
+      pv.chief_complaint,
+      p.name
+    FROM patient_visits pv
+    LEFT JOIN patients p ON p.patient_id = pv.patient_id
+    WHERE pv.visit_date > ?
     ORDER BY pv.visit_date, pv.chart_no COLLATE NOCASE, p.name COLLATE NOCASE, pv.patient_id
   `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
@@ -880,14 +899,51 @@ async function listSlackChannels() {
   return channels;
 }
 
-async function readSlackChannelMessages(channelId) {
+async function listSlackChannelsByTypes(types) {
+  const channels = [];
+  let cursor = "";
+  do {
+    const data = await slackApi("conversations.list", {
+      types,
+      exclude_archived: false,
+      limit: 1000,
+      cursor
+    });
+    channels.push(...(Array.isArray(data.channels) ? data.channels : []));
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return channels;
+}
+
+function normalizeSlackChannelName(value) {
+  return String(value || "").trim().replace(/^#/, "").toLowerCase();
+}
+
+async function findSlackChannelByName(channelName) {
+  const target = normalizeSlackChannelName(channelName);
+  const publicChannels = await listSlackChannels();
+  const foundPublic = publicChannels.find(channel => normalizeSlackChannelName(channel.name) === target);
+  if (foundPublic) return foundPublic;
+
+  try {
+    const privateChannels = await listSlackChannelsByTypes("private_channel");
+    return privateChannels.find(channel => normalizeSlackChannelName(channel.name) === target) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readSlackChannelMessages(channelId, options = {}) {
   const messages = [];
   let cursor = "";
   do {
     const data = await slackApi("conversations.history", {
       channel: channelId,
       limit: 1000,
-      cursor
+      cursor,
+      oldest: options.oldest,
+      latest: options.latest,
+      inclusive: options.inclusive
     });
     messages.push(...(Array.isArray(data.messages) ? data.messages : []));
     cursor = data.response_metadata?.next_cursor || "";
@@ -908,6 +964,336 @@ function slackMessageUser(message = {}) {
 
 function slackMessageText(message = {}) {
   return String(message.text || message.blocks?.map(block => block.text?.text).filter(Boolean).join(" ") || "(내용 없음)").replace(/\r?\n/g, "\\n");
+}
+
+async function readOnlineManagementSlackMessages(days = 2) {
+  const safeDays = Math.min(30, Math.max(1, Number.parseInt(days, 10) || 2));
+  const channel = await findSlackChannelByName(ONLINE_MANAGEMENT_SLACK_CHANNEL);
+  if (!channel) throw new Error(`Slack channel not found: #${ONLINE_MANAGEMENT_SLACK_CHANNEL}`);
+  if (!channel.is_member && !channel.is_archived) {
+    try {
+      await slackApi("conversations.join", { channel: channel.id });
+    } catch {
+      // Private channels cannot be joined through this API. If the token is not
+      // already a member, conversations.history will return the Slack error.
+    }
+  }
+
+  const oldestDate = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
+  const oldest = String(Math.floor(oldestDate.getTime() / 1000));
+  const messages = await readSlackChannelMessages(channel.id, { oldest, inclusive: true });
+  const rows = [...messages].reverse().map(message => ({
+    ts: message.ts || "",
+    time: formatSlackTimestamp(message.ts),
+    user: slackMessageUser(message),
+    text: slackMessageText(message)
+  }));
+  return {
+    ok: true,
+    channel: channel.name || ONLINE_MANAGEMENT_SLACK_CHANNEL,
+    channelId: channel.id,
+    days: safeDays,
+    since: oldestDate.toISOString(),
+    messages: rows
+  };
+}
+
+function base64UrlJson(value) {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function readGoogleServiceAccount() {
+  if (!fs.existsSync(GOOGLE_SERVICE_ACCOUNT_FILE)) {
+    throw new Error(`Google service account file not found: ${GOOGLE_SERVICE_ACCOUNT_FILE}`);
+  }
+  return JSON.parse(fs.readFileSync(GOOGLE_SERVICE_ACCOUNT_FILE, "utf8"));
+}
+
+let googleTokenCache = null;
+
+async function googleAccessToken(scopes) {
+  const now = Math.floor(Date.now() / 1000);
+  if (googleTokenCache?.accessToken && googleTokenCache.expiresAt > now + 60) {
+    return googleTokenCache.accessToken;
+  }
+
+  const account = readGoogleServiceAccount();
+  if (!account.client_email || !account.private_key) {
+    throw new Error("service_account.json is missing client_email or private_key");
+  }
+
+  const header = base64UrlJson({ alg: "RS256", typ: "JWT" });
+  const payload = base64UrlJson({
+    iss: account.client_email,
+    scope: scopes.join(" "),
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now
+  });
+  const signingInput = `${header}.${payload}`;
+  const signature = crypto
+    .createSign("RSA-SHA256")
+    .update(signingInput)
+    .sign(account.private_key.replace(/\\n/g, "\n"))
+    .toString("base64url");
+
+  const body = new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion: `${signingInput}.${signature}`
+  });
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error_description || data.error || `Google token request failed (${res.status})`);
+  googleTokenCache = {
+    accessToken: data.access_token,
+    expiresAt: now + Number(data.expires_in || 3600)
+  };
+  return googleTokenCache.accessToken;
+}
+
+async function googleApi(url, options = {}) {
+  const token = await googleAccessToken([
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+  ]);
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options.body ? { "Content-Type": "application/json; charset=utf-8" } : {}),
+      ...(options.headers || {})
+    }
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const message = data?.error?.message || data?.error_description || data?.error || `Google API failed (${res.status})`;
+    throw new Error(message);
+  }
+  return data;
+}
+
+function quoteSheetName(title) {
+  return `'${String(title || "").replace(/'/g, "''")}'`;
+}
+
+function columnName(index) {
+  let n = index + 1;
+  let name = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    name = String.fromCharCode(65 + rem) + name;
+    n = Math.floor((n - 1) / 26);
+  }
+  return name;
+}
+
+function cellA1(rowIndex, colIndex) {
+  return `${columnName(colIndex)}${rowIndex + 2}`;
+}
+
+function parseThirdVisitSheetDate(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})$/);
+  if (!match) return "";
+  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+}
+
+function formatThirdVisitSheetDate(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  return `${Number(match[1])}. ${Number(match[2])}. ${Number(match[3])}`;
+}
+
+function compareIsoDate(a, b) {
+  return String(a || "").localeCompare(String(b || ""));
+}
+
+function ensureSheetRow(values, rowIndex, columnCount) {
+  while (values.length <= rowIndex) values.push(Array(columnCount).fill(""));
+  while (values[rowIndex].length < columnCount) values[rowIndex].push("");
+}
+
+function thirdVisitInsuranceType(visitType) {
+  return String(visitType || "").includes("자보") ? "자보" : "건보";
+}
+
+function isThirdVisitPrescription(value) {
+  return String(value || "").trim().replace(/\s+/g, "") === "-처방-";
+}
+
+function buildThirdVisitUpdates(sheetValues, visits) {
+  if (!sheetValues.length) throw new Error("선택한 워크시트가 비어 있습니다.");
+  const headers = sheetValues[0] || [];
+  if (headers.length <= 20) throw new Error("시트의 컬럼 수가 부족합니다. 최소 21개 컬럼이 필요합니다.");
+
+  const rows = sheetValues.slice(1).map(row => {
+    const next = [...row];
+    while (next.length < headers.length) next.push("");
+    return next;
+  });
+  const existingFirstDates = rows.map(row => String(row[18] || "").trim()).filter(Boolean);
+  if (!existingFirstDates.length) throw new Error("기존 시트의 19번째 컬럼에서 마지막 진료일을 찾지 못했습니다.");
+  const lastDate = parseThirdVisitSheetDate(existingFirstDates[existingFirstDates.length - 1]);
+  if (!lastDate) throw new Error(`기존 시트의 마지막 진료일 형식을 읽지 못했습니다: ${existingFirstDates[existingFirstDates.length - 1]}`);
+
+  const periodRows = visits
+    .filter(row => row.name && compareIsoDate(row.visitDate, lastDate) > 0)
+    .map(row => ({
+      name: String(row.name || "").trim(),
+      doctorName: String(row.doctorName || "").trim(),
+      visitType: String(row.visitType || "").trim(),
+      chiefComplaint: String(row.chiefComplaint || "").trim(),
+      visitDate: row.visitDate,
+      sheetDate: formatThirdVisitSheetDate(row.visitDate)
+    }))
+    .filter(row => row.name && row.sheetDate);
+
+  const newRows = periodRows
+    .filter(row => normalizeVisitType(row.visitType) === "초진" && !isThirdVisitPrescription(row.chiefComplaint))
+    .sort((a, b) => compareIsoDate(a.visitDate, b.visitDate));
+
+  let lastFirstDateIndex = -1;
+  rows.forEach((row, index) => {
+    if (String(row[18] || "").trim()) lastFirstDateIndex = index;
+  });
+
+  const changedRows = new Set();
+  newRows.forEach((row, index) => {
+    const rowIndex = lastFirstDateIndex + 1 + index;
+    ensureSheetRow(rows, rowIndex, headers.length);
+    const values = [
+      "",
+      row.name,
+      row.doctorName,
+      thirdVisitInsuranceType(row.visitType),
+      ...Array(14).fill(""),
+      row.sheetDate
+    ];
+    for (let col = 0; col < values.length; col += 1) rows[rowIndex][col] = values[col];
+    changedRows.add(rowIndex);
+  });
+
+  rows.forEach(row => { row[1] = String(row[1] || "").trim(); });
+
+  const revisitRows = periodRows
+    .filter(row => normalizeVisitType(row.visitType) === "재진")
+    .sort((a, b) => compareIsoDate(a.visitDate, b.visitDate));
+  const existingRevisitNames = new Set(rows.filter(row => revisitRows.some(visit => visit.name === row[1])).map(row => row[1]));
+  const missingRevisitNames = [...new Set(revisitRows.map(row => row.name).filter(name => !existingRevisitNames.has(name)))].sort();
+
+  for (const row of revisitRows) {
+    const rowIndex = rows.map((sheetRow, index) => sheetRow[1] === row.name ? index : -1).filter(index => index >= 0).pop();
+    if (rowIndex === undefined) continue;
+
+    const firstDate = parseThirdVisitSheetDate(rows[rowIndex][18]);
+    if (!firstDate) continue;
+    if (compareIsoDate(row.visitDate, firstDate) <= 0) continue;
+    if (compareIsoDate(row.visitDate, addDays(firstDate, 21)) > 0) continue;
+
+    if (!String(rows[rowIndex][19] || "").trim()) {
+      rows[rowIndex][19] = row.sheetDate;
+      changedRows.add(rowIndex);
+      continue;
+    }
+    if (rows[rowIndex][19] === row.sheetDate) continue;
+
+    const secondDate = parseThirdVisitSheetDate(rows[rowIndex][19]);
+    if (!String(rows[rowIndex][20] || "").trim() && secondDate && compareIsoDate(secondDate, row.visitDate) < 0) {
+      rows[rowIndex][20] = row.sheetDate;
+      changedRows.add(rowIndex);
+    }
+  }
+
+  const updateCols = [1, 2, 3, 18, 19, 20];
+  const updates = [];
+  for (const rowIndex of [...changedRows].sort((a, b) => a - b)) {
+    for (const colIndex of updateCols) {
+      updates.push({
+        rowIndex,
+        colIndex,
+        range: cellA1(rowIndex, colIndex),
+        values: [[rows[rowIndex][colIndex] || ""]]
+      });
+    }
+  }
+
+  return {
+    lastDate: formatThirdVisitSheetDate(lastDate),
+    totalVisits: periodRows.length,
+    newPatients: newRows.length,
+    revisitPatients: revisitRows.length,
+    missingRevisitNames,
+    changedRows: [...changedRows].sort((a, b) => a - b),
+    updates
+  };
+}
+
+async function copyThirdVisitSpreadsheet(shareEmail = "") {
+  const name = `3차 내원 체크 테스트 ${new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`;
+  const file = await googleApi(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(THIRD_VISIT_SPREADSHEET_ID)}/copy?supportsAllDrives=true`, {
+    method: "POST",
+    body: JSON.stringify({ name })
+  });
+  const email = normalizeSearchText(shareEmail);
+  if (email) {
+    await googleApi(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}/permissions?sendNotificationEmail=false&supportsAllDrives=true`, {
+      method: "POST",
+      body: JSON.stringify({ type: "user", role: "writer", emailAddress: email })
+    });
+  }
+  return file;
+}
+
+async function runThirdVisitGoogleSheetTest(shareEmail = "") {
+  const copied = await copyThirdVisitSpreadsheet(shareEmail);
+  const spreadsheet = await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(copied.id)}?fields=spreadsheetId,spreadsheetUrl,properties.title,sheets.properties`);
+  const sheet = spreadsheet.sheets?.[THIRD_VISIT_WORKSHEET_INDEX]?.properties;
+  if (!sheet?.title) throw new Error(`구글 시트에 ${THIRD_VISIT_WORKSHEET_INDEX + 1}번째 워크시트가 없습니다.`);
+
+  const range = `${quoteSheetName(sheet.title)}!A:ZZ`;
+  const valueData = await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(copied.id)}/values/${encodeURIComponent(range)}?majorDimension=ROWS`);
+  const lastCol19Values = (valueData.values || []).slice(1).map(row => row?.[18]).filter(Boolean);
+  const lastDate = parseThirdVisitSheetDate(lastCol19Values[lastCol19Values.length - 1]);
+  if (!lastDate) throw new Error("기존 시트의 마지막 진료일을 읽지 못했습니다.");
+
+  const visits = statements.listVisitsAfterDate.all(lastDate).map(row => ({
+    name: row.name || "",
+    doctorName: row.doctor_name || "",
+    visitType: row.visit_type || "",
+    chiefComplaint: row.chief_complaint || "",
+    visitDate: row.visit_date || ""
+  }));
+  const result = buildThirdVisitUpdates(valueData.values || [], visits);
+  if (result.updates.length) {
+    await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(copied.id)}/values:batchUpdate`, {
+      method: "POST",
+      body: JSON.stringify({
+        valueInputOption: "USER_ENTERED",
+        data: result.updates.map(update => ({
+          range: `${quoteSheetName(sheet.title)}!${update.range}`,
+          values: update.values
+        }))
+      })
+    });
+  }
+
+  return {
+    ok: true,
+    sourceSpreadsheetId: THIRD_VISIT_SPREADSHEET_ID,
+    testSpreadsheetId: copied.id,
+    testSpreadsheetUrl: spreadsheet.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${copied.id}/edit`,
+    worksheetTitle: sheet.title,
+    worksheetIndex: THIRD_VISIT_WORKSHEET_INDEX,
+    savedToSource: false,
+    updatedCells: result.updates.length,
+    ...result
+  };
 }
 
 async function backupSlackText() {
@@ -1012,15 +1398,21 @@ function normalizeStateKey(value) {
 }
 
 function getStateValue(key) {
-  const row = statements.getState.get(normalizeStateKey(key));
-  return row ? JSON.parse(decrypt(row.data_json)) : null;
+  const stateKey = normalizeStateKey(key);
+  if (stateValueCache.has(stateKey)) return stateValueCache.get(stateKey);
+  const row = statements.getState.get(stateKey);
+  const value = row ? JSON.parse(decrypt(row.data_json)) : null;
+  stateValueCache.set(stateKey, value);
+  return value;
 }
 
 function setStateValue(key, value) {
   const stateKey = normalizeStateKey(key);
   if (!stateKey) throw new Error("state key is required");
-  statements.upsertState.run(stateKey, encrypt(JSON.stringify(value ?? null)), new Date().toISOString());
-  return value ?? null;
+  const saved = value ?? null;
+  statements.upsertState.run(stateKey, encrypt(JSON.stringify(saved)), new Date().toISOString());
+  stateValueCache.set(stateKey, saved);
+  return saved;
 }
 
 function patchObject(base, patch) {
@@ -1145,12 +1537,27 @@ function sseSend(res, event, payload) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 
+function sseFrame(event, payload) {
+  return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+}
+
+function sseSendFrame(res, frame) {
+  res.write(frame);
+}
+
 // Push a generic app_state key change to all connected clients (staff, settings,
 // etc.). This is the local server equivalent of realtime state subscriptions.
 function sseBroadcastState(key, value) {
-  const frame = { key, value };
+  const frame = sseFrame("state", { key, value });
   for (const client of sseClients) {
-    try { sseSend(client, "state", frame); } catch { sseClients.delete(client); }
+    try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
+  }
+}
+
+function sseBroadcastStateChild(key, op, childKey, value) {
+  const frame = sseFrame("state-child", { key, op, childKey, value });
+  for (const client of sseClients) {
+    try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
   }
 }
 
@@ -1168,9 +1575,9 @@ function commitBeds(beds) {
   setStateValue("beds", next);
   const version = getBedsVersion() + 1;
   setStateValue("__bedsVersion", version);
-  const frame = { version, beds: next };
+  const frame = sseFrame("beds", { version, beds: next });
   for (const client of sseClients) {
-    try { sseSend(client, "beds", frame); } catch { sseClients.delete(client); }
+    try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
   }
   return version;
 }
@@ -1260,8 +1667,8 @@ async function handleApi(req, res, pathname) {
       delete map[childKey];
     }
     setStateValue(key, map);
-    sseBroadcastState(key, map);
-    jsonResponse(res, 200, { ok: true, key, childKey, value: map });
+    sseBroadcastStateChild(key, op, childKey, op === "delete" ? null : map[childKey]);
+    jsonResponse(res, 200, { ok: true, key, childKey });
     return true;
   }
 
@@ -1449,6 +1856,18 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (pathname === "/api/slack/online-management" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, await readOnlineManagementSlackMessages(requestUrl.searchParams.get("days")));
+    return true;
+  }
+
+  if (pathname === "/api/google/third-visit-test-sync" && req.method === "POST") {
+    const payload = await readJson(req);
+    jsonResponse(res, 200, await runThirdVisitGoogleSheetTest(payload?.shareEmail || ""));
+    return true;
+  }
+
   const stateMatch = pathname.match(/^\/api\/state\/(.+)$/);
   if (stateMatch) {
     const key = decodeURIComponent(stateMatch[1]);
@@ -1481,6 +1900,7 @@ async function handleApi(req, res, pathname) {
     }
     if (req.method === "DELETE") {
       statements.deleteState.run(normalizeStateKey(key));
+      stateValueCache.set(normalizeStateKey(key), null);
       sseBroadcastState(normalizeStateKey(key), null);
       jsonResponse(res, 200, { ok: true, key: normalizeStateKey(key) });
       return true;
