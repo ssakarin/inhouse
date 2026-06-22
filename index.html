@@ -10762,21 +10762,23 @@
     }
     if (status) status.textContent = 'DB 환자 목록 불러오는 중...';
     try {
-      const records = (await getAllChartPatients())
-        .filter(patient => patient?.name && normalizeChartNo(patient.chartNo));
       const currentChartNos = new Set(
         [...patientsByKey.values()]
           .map(patient => normalizeChartNo(patient?.chartNo))
           .filter(Boolean)
       );
-      const candidates = records.filter(patient => !currentChartNos.has(normalizeChartNo(patient.chartNo)));
-      const source = candidates.length ? candidates : records;
-      if (!source.length) {
+      const res = await fetch('/api/patients/random', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ count, excludeChartNos: [...currentChartNos] })
+      });
+      if (!res.ok) throw new Error(`random patients failed (${res.status})`);
+      const selected = await res.json();
+      if (!selected.length) {
         if (status) status.textContent = 'DB에 불러올 환자가 없습니다.';
         showToast('DB에 불러올 환자가 없습니다');
         return;
       }
-      const selected = shuffleRows(source).slice(0, Math.min(count, source.length));
       await Promise.all(selected.map(patient => pushPatient(buildRandomTestPatientPayload(patient))));
       if (autoBedAssignEnabled) setTimeout(() => assignWaitingPatientsToBeds(true), 300);
       const suffix = selected.length < count ? ` (요청 ${count}명 중 ${selected.length}명)` : '';

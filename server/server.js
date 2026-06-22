@@ -476,6 +476,27 @@ function searchPatients(query, limit = 50) {
     .slice(0, safeLimit);
 }
 
+function randomPatients(limit = 10, excludeChartNos = []) {
+  const safeLimit = Math.max(1, Math.min(50, Number(limit || 10)));
+  const excluded = new Set((excludeChartNos || []).map(normalizeChartNo).filter(Boolean));
+  ensurePatientCache();
+  const candidates = [];
+  for (const record of patientCache.values()) {
+    const chartNo = normalizeChartNo(record.chartNo);
+    if (!record?.name || !chartNo || excluded.has(chartNo)) continue;
+    candidates.push(record);
+  }
+  const source = candidates.length
+    ? candidates
+    : [...patientCache.values()].filter(record => record?.name && normalizeChartNo(record.chartNo));
+  const count = Math.min(safeLimit, source.length);
+  for (let i = 0; i < count; i += 1) {
+    const j = i + Math.floor(Math.random() * (source.length - i));
+    [source[i], source[j]] = [source[j], source[i]];
+  }
+  return source.slice(0, count);
+}
+
 function visitEntriesFromRecord(record = {}) {
   const dates = Array.isArray(record.visitDates) ? record.visitDates.map(String) : [];
   Object.keys(record.visitHistory || {}).forEach(date => dates.push(String(date)));
@@ -1811,6 +1832,12 @@ async function handleApi(req, res, pathname) {
     const chartNos = Array.isArray(payload) ? payload : payload?.chartNos;
     if (!Array.isArray(chartNos)) throw new Error("JSON array or { chartNos: [] } is required");
     jsonResponse(res, 200, getPatients([...new Set(chartNos.map(normalizeChartNo).filter(Boolean))]));
+    return true;
+  }
+
+  if (pathname === "/api/patients/random" && req.method === "POST") {
+    const payload = (await readJson(req)) || {};
+    jsonResponse(res, 200, randomPatients(payload.count || 10, payload.excludeChartNos || []));
     return true;
   }
 
