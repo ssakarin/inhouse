@@ -3982,7 +3982,8 @@
   const debugCounters = {};
   const debugCounterTicks = {};
   let debugCounterPanelTimer = 0;
-  let debugCountersVisible = localStorage.getItem('clinicDebugCounters') !== '0';
+  const debugCounterParams = new URLSearchParams(location.search);
+  let debugCountersVisible = debugCounterParams.get('debug') === '1';
 
   function getDebugCounterPage() {
     const view = (new URLSearchParams(location.search).get('view') || '').toLowerCase();
@@ -4054,12 +4055,10 @@
   };
   window.hideDebugCounters = () => {
     debugCountersVisible = false;
-    localStorage.setItem('clinicDebugCounters', '0');
     document.getElementById('debugCounterPanel')?.remove();
   };
   window.showDebugCounters = () => {
     debugCountersVisible = true;
-    localStorage.setItem('clinicDebugCounters', '1');
     renderDebugCounterPanel();
   };
 
@@ -10417,6 +10416,14 @@
     el.classList.toggle('open');
   };
 
+  let lastPassiveUpcomingAlertsRenderAt = 0;
+  function renderUpcomingAlertsPassively() {
+    const now = Date.now();
+    if (now - lastPassiveUpcomingAlertsRenderAt < 5000) return;
+    lastPassiveUpcomingAlertsRenderAt = now;
+    renderUpcomingAlerts();
+  }
+
   function ensureBedTicker() {
     if (bedRenderTicker) return;
 
@@ -10431,7 +10438,7 @@
       };
       bedAssignments.forEach((bed, index) => tickBed(bed, index + 1));
       Object.entries(doctorBedMap).forEach(([bedNo, bed]) => tickBed(bed, Number(bedNo)));
-      renderUpcomingAlerts();
+      renderUpcomingAlertsPassively();
       updateDeskWaitChip();
       updateBedRemainingChip();
       syncDoctorProcedureAlerts();
