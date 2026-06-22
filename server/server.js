@@ -36,8 +36,10 @@ const stateValueCache = new Map();
 let patientCache = null;
 let patientChartIndex = null;
 db.exec(`
+  PRAGMA auto_vacuum = INCREMENTAL;
   PRAGMA journal_mode = WAL;
   PRAGMA synchronous = NORMAL;
+  PRAGMA journal_size_limit = 16777216;
   CREATE TABLE IF NOT EXISTS patients (
     patient_id TEXT PRIMARY KEY,
     chart_no TEXT NOT NULL,
@@ -439,6 +441,17 @@ function clearPatientCache() {
 function invalidatePatientCache() {
   patientCache = null;
   patientChartIndex = null;
+}
+
+// 대량 import/삭제 후 호출: 빈 페이지를 OS로 반환(incremental_vacuum)하고
+// WAL 파일을 journal_size_limit 이하로 잘라 단편화·WAL 팽창을 막는다.
+function runDbMaintenance() {
+  try {
+    db.exec("PRAGMA incremental_vacuum;");
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+  } catch (error) {
+    console.warn(`[db] maintenance failed: ${error.message}`);
+  }
 }
 
 function ensurePatientCache() {
@@ -1474,19 +1487,28 @@ function importPatients(records, mode = "merge", shouldBackup = true) {
     clearPatientCache();
   }
   let saved = 0;
-  db.exec("BEGIN");
+  // 전체를 단일 트랜잭션에 넣으면 WAL이 한 번에 수십 MB로 부푼다.
+  // 일정 건수마다 커밋해 WAL을 작게 유지한다.
+  const BATCH_SIZE = 500;
   try {
+    db.exec("BEGIN");
     for (const record of records) {
       if (!normalizeChartNo(record?.chartNo)) continue;
       savePatient(record);
       saved += 1;
+      if (saved % BATCH_SIZE === 0) {
+        db.exec("COMMIT");
+        db.exec("BEGIN");
+      }
     }
     db.exec("COMMIT");
   } catch (error) {
-    db.exec("ROLLBACK");
+    try { db.exec("ROLLBACK"); } catch { /* no active transaction */ }
     invalidatePatientCache();
     throw error;
   }
+  // 삭제(replace)로 생긴 빈 페이지 회수 + WAL 정리
+  runDbMaintenance();
   return { ok: true, mode, saved, skipped: records.length - saved };
 }
 
@@ -1869,6 +1891,7 @@ async function handleApi(req, res, pathname) {
     statements.deleteAllPatients.run();
     statements.deleteAllPatientVisits.run();
     clearPatientCache();
+    runDbMaintenance();
     jsonResponse(res, 200, { ok: true, deleted: before.length });
     return true;
   }
