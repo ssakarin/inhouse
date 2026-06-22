@@ -2018,7 +2018,39 @@ function serveStatic(res, pathname) {
   fs.createReadStream(filePath).pipe(res);
 }
 
+const SLOW_REQUEST_MS = Number(process.env.SLOW_REQUEST_MS || 500);
+const EVENT_LOOP_LAG_MS = Number(process.env.EVENT_LOOP_LAG_MS || 300);
+
+function logMemorySuffix() {
+  const memory = process.memoryUsage();
+  return `rss=${Math.round(memory.rss / 1024 / 1024)}MB heap=${Math.round(memory.heapUsed / 1024 / 1024)}MB`;
+}
+
+let lastLagCheck = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const lag = now - lastLagCheck - 1000;
+  lastLagCheck = now;
+  if (lag > EVENT_LOOP_LAG_MS) {
+    console.warn(`[perf] event-loop lag ${Math.round(lag)}ms ${logMemorySuffix()}`);
+  }
+}, 1000).unref();
+
 const server = http.createServer(async (req, res) => {
+  const startedAt = process.hrtime.bigint();
+  const originalWriteHead = res.writeHead;
+  let statusCode = 200;
+  res.writeHead = function patchedWriteHead(status, ...args) {
+    statusCode = Number(status) || statusCode;
+    return originalWriteHead.call(this, status, ...args);
+  };
+  res.on("finish", () => {
+    const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    if (elapsedMs >= SLOW_REQUEST_MS) {
+      const length = res.getHeader("Content-Length") || "-";
+      console.warn(`[perf] ${req.method} ${req.url} -> ${statusCode} ${Math.round(elapsedMs)}ms bytes=${length} ${logMemorySuffix()}`);
+    }
+  });
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const pathname = url.pathname;
