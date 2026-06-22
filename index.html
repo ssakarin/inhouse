@@ -7402,7 +7402,7 @@
           data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : '',
         ].filter(Boolean).join('');
         return `
-          <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)">
+          <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" oncontextmenu="confirmPurgeWaitingPatient(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)">
             <div class="waiting-rank">${index + 1}</div>
             <div>
               <div class="waiting-name">${escapeHtml(data.name)}</div>
@@ -7487,6 +7487,27 @@
     await removePatient(key);
     renderWaitingLists();
     showToast('대기 삭제 완료');
+  };
+
+  // 우클릭 삭제: chart DB에 기록하지 않고 대기/베드에서 그냥 제거한다.
+  window.confirmPurgeWaitingPatient = async (event, key) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const patient = patientsByKey.get(key);
+    if (!patient) return;
+    if (!confirm(`${patient.name || '대기'} 삭제하시겠습니까?`)) return;
+
+    const assignedBedNo = bedAssignments.findIndex(bed => bed?.patientKey === key) + 1;
+    if (assignedBedNo > 0) {
+      clearLocalTimerAlertsForBed(assignedBedNo);
+      await removeBedRecord(assignedBedNo);
+    }
+    patientsByKey.delete(key);
+    loadedKeys.delete(key);
+    await removePatient(key);
+    renderWaitingLists();
+    renderBedMonitors();
+    showToast('삭제 완료');
   };
 
   window.handleWaitingDragStart = (event, key) => {
@@ -9305,6 +9326,27 @@
     await confirmClearBedNumber(selectedBedNo);
   };
 
+  // 우클릭 삭제: 베드 비우기(clearBed)와 달리 chart DB에 기록하지 않고 베드만 비운다.
+  window.purgeBedPatient = async (event, bedNo) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const bed = getBedData(bedNo);
+    if (!bed) return;
+    if (!confirm(`${getBedLabel(bedNo)} ${bed.name || ''} 삭제하시겠습니까?`)) return;
+
+    clearLocalTimerAlertsForBed(bedNo);
+    if (bed.patientKey) {
+      patientsByKey.delete(bed.patientKey);
+      loadedKeys.delete(bed.patientKey);
+      await removePatient(bed.patientKey);
+    }
+    await removeBedRecord(bedNo);
+    renderWaitingLists();
+    renderBedMonitors();
+    renderBedDetail();
+    showToast('삭제 완료');
+  };
+
   window.toggleBedMovePanel = (bedNo) => {
     bedMovePanelOpenFor = Number(bedMovePanelOpenFor) === Number(bedNo) ? null : Number(bedNo);
     renderBedDetail();
@@ -9932,6 +9974,8 @@
     const dragHandlers = canMoveBed
       ? ` draggable="true" ondragstart="handleBedDragStart(event, ${status.bedNo})" ondragover="handleBedDragOver(event, ${status.bedNo})" ondrop="handleBedDrop(event, ${status.bedNo})" ondragend="handleBedDragEnd()"`
       : '';
+    // 우클릭 → 기록 없이 삭제(베드 비우기와 달리 patient DB에 남기지 않음)
+    const contextHandler = canMoveBed ? ` oncontextmenu="purgeBedPatient(event, ${status.bedNo})"` : '';
     const infoChips = [
       status.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.gender)}</span>` : '',
       status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
@@ -9945,7 +9989,7 @@
     ].filter(Boolean).join('');
     const compactName = `${getCompactBedMarker(status.bedNo)} ${status.name}`;
     return `
-      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}>
+      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${contextHandler}>
         <div class="bed-status-top">
           <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(monitorLabel)} ${escapeHtml(status.name)}`}</span>
           ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
