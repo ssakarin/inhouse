@@ -2264,7 +2264,8 @@
     color: var(--treatment-text);
     font-weight: 1000;
   }
-  .bed-treatment-chip.running { animation: treatmentBlink 1s ease-in-out infinite; }
+  /* 진행 중 치료 칩은 점멸하지 않는다 (타이머 진행바로 상태를 표시). */
+  .bed-treatment-chip.running { }
   .bed-treatment-chip.waiting:not([class*="treatment-"]) { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: var(--text2); }
   .bed-treatment-chip[draggable="true"] { cursor: grab; }
   .bed-treatment-chip[draggable="true"]:active { cursor: grabbing; }
@@ -8109,10 +8110,17 @@
     renderBedDetailInto(detail, selectedReceiveBedNo, true, 'receive');
   }
 
+  const lastBedDetailMarkup = new WeakMap();
   function renderBedDetailInto(detail, bedNo, allowControls, context = 'bed') {
     if (!detail) return;
     detail.classList.add('active');
-    detail.innerHTML = renderBedDetailMarkup(bedNo, allowControls, context);
+    const markup = renderBedDetailMarkup(bedNo, allowControls, context);
+    // 마크업이 바뀐 경우에만 교체한다. 비실행 베드의 상세는 고정이므로 다른 베드
+    // 변경으로 재렌더가 호출돼도 버튼이 새 노드로 교체되지 않아(탭 누락 방지) 안정적이다.
+    if (lastBedDetailMarkup.get(detail) !== markup) {
+      detail.innerHTML = markup;
+      lastBedDetailMarkup.set(detail, markup);
+    }
     if (context === 'bed') populateBedSchedulePanel();
   }
 
