@@ -1772,15 +1772,17 @@
     cursor: pointer;
     box-shadow: 0 3px 0 rgba(0,0,0,0.28), 0 8px 18px rgba(0,0,0,0.16);
     transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    transform: translate3d(0,0,0);
+    backface-visibility: hidden;
   }
   .bed-status:hover,
   .bed-status:focus {
-    transform: translateY(-1px);
+    transform: translate3d(0,-1px,0);
     border-color: var(--accent);
     box-shadow: 0 4px 0 rgba(0,0,0,0.30), 0 12px 24px rgba(0,0,0,0.22);
     outline: none;
   }
-  .bed-status:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,0.30), 0 6px 12px rgba(0,0,0,0.16); }
+  .bed-status:active { transform: translate3d(0,1px,0); box-shadow: 0 1px 0 rgba(0,0,0,0.30), 0 6px 12px rgba(0,0,0,0.16); }
   .bed-status.active { border-color: var(--accent); background: linear-gradient(180deg, var(--surface3), var(--surface)); }
   .bed-status.selected { box-shadow: 0 0 0 2px rgba(240,192,96,0.55); border-color: var(--gold); }
   .bed-status.move-source {
@@ -1794,12 +1796,17 @@
   .bed-status.alerting {
     border-color: var(--danger);
     animation: bedAlertPulse 0.9s ease-in-out infinite;
+    transition: transform 0.12s ease, border-color 0.15s ease;
   }
   .bed-status.done { border-color: var(--green); }
   .bed-status.done.alerting { border-color: var(--danger); }
   .bed-status.assignment-alerting {
     border-color: var(--gold);
-    animation-name: bedAssignmentPulse;
+    animation: bedAssignmentPulse 1.05s ease-in-out infinite;
+  }
+  .bed-status.assignment-alerting:hover,
+  .bed-status.assignment-alerting:focus {
+    border-color: var(--gold);
   }
   .bed-status.empty {
     background: linear-gradient(180deg, rgba(148,163,184,0.10), rgba(30,41,59,0.22));
