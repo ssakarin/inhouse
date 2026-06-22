@@ -4018,10 +4018,19 @@
           const key = data.key;
           const handler = localStateSubscribers.get(key);
           if (!handler) return;
-          const next = { ...(localStateSnapshots.get(key) || {}) };
+          const previous = localStateSnapshots.get(key) || {};
+          const hadChild = Object.prototype.hasOwnProperty.call(previous, data.childKey);
+          const next = { ...previous };
           if (data.op === 'delete') delete next[data.childKey];
           else next[data.childKey] = data.value;
           localStateSnapshots.set(key, clonePlain(next));
+          if (key === PATIENTS_PATH) {
+            if (data.op === 'delete') applyPatientRemoved(data.childKey);
+            else if (hadChild) applyPatientChanged(data.childKey, data.value);
+            else applyPatientAdded(data.childKey, data.value);
+            prevPatientsSnapshot = clonePlain(next);
+            return;
+          }
           handler(next);
         } catch (error) {
           console.warn('state child SSE parse failed', error);
@@ -4475,6 +4484,16 @@
   let hasLoadedBedsOnce = false;
   let isClearingPatientDatabase = false;
   window.currentMode = 'input';
+  let lastAutoAssignBedSignature = '';
+
+  function getAutoAssignBedSignatureFromBeds(beds = {}) {
+    return [
+      ...REGULAR_BED_NUMBERS,
+      ...getDoctorBedNumbers()
+    ]
+      .map(bedNo => `${bedNo}:${beds[String(bedNo)]?.patientKey || ''}`)
+      .join('|');
+  }
 
   let appRenderFrame = 0;
   const pendingAppRender = {
@@ -7007,6 +7026,9 @@
     for (let i = 1; i <= 10; i++) {
       if (beds[String(100 + i)]) doctorBedMap[100 + i] = beds[String(100 + i)];
     }
+    const autoAssignBedSignature = getAutoAssignBedSignatureFromBeds(beds);
+    const autoAssignRelevantChange = !lastAutoAssignBedSignature || autoAssignBedSignature !== lastAutoAssignBedSignature;
+    lastAutoAssignBedSignature = autoAssignBedSignature;
     pruneStaleBedAssignmentAlerts();
     if (DISABLED_BED_NUMBERS.has(selectedBedNo)) selectedBedNo = getUrlBedNo();
     if (DISABLED_BED_NUMBERS.has(selectedReceiveBedNo)) selectedReceiveBedNo = getUrlBedNo();
@@ -7016,7 +7038,7 @@
     handleRemoteTimerAlerts(!hasLoadedBedsOnce);
     syncDoctorProcedureAlerts();
     hasLoadedBedsOnce = true;
-    if (allowAutoAssign && !migratedCount) await assignWaitingPatientsToBeds();
+    if (allowAutoAssign && !migratedCount && autoAssignRelevantChange) await assignWaitingPatientsToBeds();
     requestFullBoardRender();
     ensureBedTicker();
   }
@@ -7238,13 +7260,16 @@
       const docBedNo = getDoctorBedNoForPatient(data.doctorId);
       if (!docBedNo) return false;
 
+      let placed = false;
       const result = await runBedsRecordTransaction((beds) => {
         beds = beds || {};
         const existing = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
-        if (existing || beds[String(docBedNo)]) return beds;
+        if (existing || beds[String(docBedNo)]) return undefined;
         beds[String(docBedNo)] = createBedAssignment(patientKey, data, docBedNo);
+        placed = true;
         return beds;
       });
+      if (!placed || !result.committed) return false;
 
       const beds = result.snapshot.val() || {};
       const bedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
@@ -7264,19 +7289,25 @@
     }
 
     // 재진: 기존 일반 베드 배정
+    let placed = false;
     const result = await runBedsRecordTransaction((beds) => {
       beds = beds || {};
       const existingBedNo = Object.keys(beds).find(bedNo => beds[bedNo]?.patientKey === patientKey);
-      if (existingBedNo) return beds;
+      if (existingBedNo) return undefined;
 
       const emptyBedNo = getPreferredBedOrder(data.gender)
         .map(String)
         .find(bedNo => !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(Number(bedNo)) && !beds[bedNo]);
-      if (!emptyBedNo) return beds;
+      if (!emptyBedNo) return undefined;
 
       beds[emptyBedNo] = createBedAssignment(patientKey, data, Number(emptyBedNo));
+      placed = true;
       return beds;
     });
+    if (!placed || !result.committed) {
+      if (!silent) showToast('鍮?踰좊뱶媛 ?놁뒿?덈떎');
+      return false;
+    }
 
     const beds = result.snapshot.val() || {};
     const bedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
@@ -7307,11 +7338,16 @@
     isAssigningWaitingPatients = true;
     shouldAssignWaitingAgain = false;
     let assignedCount = 0;
-    const assignedPatientKeys = bedAssignments
-      .filter(Boolean)
-      .map(bed => bed.patientKey);
+    const assignedPatientKeys = [
+      ...bedAssignments.filter(Boolean).map(bed => bed.patientKey),
+      ...Object.values(doctorBedMap).map(bed => bed.patientKey)
+    ].filter(Boolean);
 
     const waitingPatients = getWaitingPatients(assignedPatientKeys);
+    if (!waitingPatients.length) {
+      isAssigningWaitingPatients = false;
+      return 0;
+    }
     const occupiedBeds = new Set(
       REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1]))
     );
