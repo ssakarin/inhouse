@@ -40,7 +40,29 @@ Automatic safety backups:
 server/backups/
 ```
 
+Slack text backups:
+
+```text
+slack_backups/
+```
+
 These files are intentionally ignored by git.
+
+### Scheduled backups
+
+Patient DB daily backup:
+
+```powershell
+.\register-daily-backup-task.ps1
+```
+
+Slack backup every 3 months, deleting Slack text backups older than 3 years:
+
+```powershell
+.\register-slack-backup-task.ps1
+```
+
+Slack backup requires `SLACK_TOKEN` in the user or system environment.
 
 ## Encryption at rest
 

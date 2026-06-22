@@ -34,6 +34,7 @@ if (-not $nodeExe) {
 $env:CLINIC_PASSWORD = "khhongik1"
 $env:CLINIC_DELETE_PASSWORD = "337758"
 # $env:CLINIC_KEY_PATH = "C:\clinic-secret\key.bin"
+# $env:SLACK_TOKEN = "xoxb-your-slack-bot-token"
 
 Start-Process `
   -FilePath $nodeExe `

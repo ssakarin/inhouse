@@ -1,3 +1,4 @@
 server/data/
 server/backups/
 server/logs/
+slack_backups/

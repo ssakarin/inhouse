@@ -11,6 +11,7 @@ const PORT = Number(process.env.PORT || 8787);
 const ROOT_DIR = path.resolve(__dirname, "..");
 const DATA_DIR = path.join(__dirname, "data");
 const BACKUP_DIR = path.join(__dirname, "backups");
+const SLACK_BACKUP_DIR = path.join(ROOT_DIR, "slack_backups");
 const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
 
 // Login password (gates every page and API) and the delete-all confirmation
@@ -18,11 +19,13 @@ const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
 // app working on first run but should be overridden in production.
 const LOGIN_PASSWORD = process.env.CLINIC_PASSWORD || "7677";
 const DELETE_PASSWORD = process.env.CLINIC_DELETE_PASSWORD || "337758";
+const SLACK_TOKEN = process.env.SLACK_TOKEN || "";
 const SESSION_COOKIE = "sid";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 365; // 1 year — enter once per device
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
+fs.mkdirSync(SLACK_BACKUP_DIR, { recursive: true });
 
 const db = new DatabaseSync(DB_PATH);
 db.exec(`
@@ -644,6 +647,160 @@ function backupPatients(records, reason) {
   return file;
 }
 
+function parseBackupTimestampFromName(name) {
+  const match = name.match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3}))?Z/);
+  if (!match) return null;
+  const [, day, hh, mm, ss, ms = "000"] = match;
+  const date = new Date(`${day}T${hh}:${mm}:${ss}.${ms}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function pruneSlackTextBackups(retentionDays = 1095) {
+  if (!fs.existsSync(SLACK_BACKUP_DIR)) return { scanned: 0, deleted: 0, deletes: [] };
+  const now = Date.now();
+  const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
+  const deletes = [];
+  const files = fs.readdirSync(SLACK_BACKUP_DIR, { withFileTypes: true })
+    .filter(dirent => dirent.isFile() && /^slack-text-backup-.*\.txt$/i.test(dirent.name));
+  for (const dirent of files) {
+    const filePath = path.join(SLACK_BACKUP_DIR, dirent.name);
+    const time = parseBackupTimestampFromName(dirent.name) || fs.statSync(filePath).mtime;
+    if (now - time.getTime() <= retentionMs) continue;
+    fs.unlinkSync(filePath);
+    deletes.push(dirent.name);
+  }
+  return { scanned: files.length, deleted: deletes.length, deletes };
+}
+
+async function slackApi(method, params = {}) {
+  if (!SLACK_TOKEN) throw new Error("SLACK_TOKEN 환경변수가 설정되지 않았습니다.");
+  const body = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") body.set(key, String(value));
+  });
+  const response = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${SLACK_TOKEN}`,
+      "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
+    },
+    body
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(`Slack API ${method} 실패: ${data?.error || response.status}`);
+  }
+  return data;
+}
+
+async function listSlackChannels() {
+  const channels = [];
+  let cursor = "";
+  do {
+    const data = await slackApi("conversations.list", {
+      types: "public_channel",
+      exclude_archived: false,
+      limit: 1000,
+      cursor
+    });
+    channels.push(...(Array.isArray(data.channels) ? data.channels : []));
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return channels;
+}
+
+async function readSlackChannelMessages(channelId) {
+  const messages = [];
+  let cursor = "";
+  do {
+    const data = await slackApi("conversations.history", {
+      channel: channelId,
+      limit: 1000,
+      cursor
+    });
+    messages.push(...(Array.isArray(data.messages) ? data.messages : []));
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return messages;
+}
+
+function formatSlackTimestamp(ts) {
+  const seconds = Number.parseFloat(ts || "0");
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  const date = new Date(seconds * 1000);
+  return ymd(date) + " " + date.toTimeString().slice(0, 8);
+}
+
+function slackMessageUser(message = {}) {
+  return message.user || message.username || message.bot_id || "Unknown_User";
+}
+
+function slackMessageText(message = {}) {
+  return String(message.text || message.blocks?.map(block => block.text?.text).filter(Boolean).join(" ") || "(내용 없음)").replace(/\r?\n/g, "\\n");
+}
+
+async function backupSlackText() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const file = path.join(SLACK_BACKUP_DIR, `slack-text-backup-${stamp}.txt`);
+  const lines = [
+    "=== Slack Text Backup ===",
+    `Backup time: ${new Date().toLocaleString("ko-KR")}`,
+    ""
+  ];
+  const errors = [];
+  let messageCount = 0;
+  const channels = await listSlackChannels();
+
+  for (const channel of channels) {
+    const channelName = channel.name || channel.id;
+    try {
+      if (!channel.is_member && !channel.is_archived) {
+        try {
+          await slackApi("conversations.join", { channel: channel.id });
+        } catch (error) {
+          errors.push(`#${channelName} join 실패: ${error.message}`);
+        }
+      }
+      const messages = await readSlackChannelMessages(channel.id);
+      messageCount += messages.length;
+      lines.push("==========================================");
+      lines.push(`채널: #${channelName} (${messages.length}개 메시지)`);
+      lines.push("==========================================");
+      if (!messages.length) {
+        lines.push("(대화 내용이 없습니다.)", "");
+        continue;
+      }
+      for (const message of [...messages].reverse()) {
+        lines.push(`[${formatSlackTimestamp(message.ts)}] ${slackMessageUser(message)}: ${slackMessageText(message)}`);
+      }
+      lines.push("");
+    } catch (error) {
+      errors.push(`#${channelName} 백업 실패: ${error.message}`);
+      lines.push("==========================================");
+      lines.push(`채널: #${channelName}`);
+      lines.push(`백업 실패: ${error.message}`);
+      lines.push("");
+    }
+  }
+
+  if (errors.length) {
+    lines.push("=== Errors ===");
+    errors.forEach(error => lines.push(error));
+    lines.push("");
+  }
+  fs.writeFileSync(file, lines.join("\r\n"), "utf8");
+  const retention = pruneSlackTextBackups(1095);
+  return {
+    ok: true,
+    file,
+    filename: path.basename(file),
+    channels: channels.length,
+    messages: messageCount,
+    errors,
+    retention
+  };
+}
+
 function parsePatientImportPayload(payload) {
   const records = Array.isArray(payload) ? payload : payload?.patients;
   const mode = Array.isArray(payload) ? "merge" : (payload?.mode || "merge");
@@ -1082,6 +1239,11 @@ async function handleApi(req, res, pathname) {
       "X-Backup-File": path.basename(file)
     });
     res.end(body);
+    return true;
+  }
+
+  if (pathname === "/api/backup/slack-text" && req.method === "POST") {
+    jsonResponse(res, 200, await backupSlackText());
     return true;
   }
 

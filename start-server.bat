@@ -7,6 +7,7 @@ rem --- Secrets: change these for production. Leave unset to use defaults. ---
 set "CLINIC_PASSWORD=khhongik1"
 set "CLINIC_DELETE_PASSWORD=337758"
 rem set "CLINIC_KEY_PATH=C:\clinic-secret\key.bin"
+rem set "SLACK_TOKEN=xoxb-your-slack-bot-token"
 
 set "NODE_EXE=%ProgramFiles%\nodejs\node.exe"
 if not exist "%NODE_EXE%" set "NODE_EXE=%ProgramFiles(x86)%\nodejs\node.exe"
