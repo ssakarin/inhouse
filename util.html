@@ -59,6 +59,7 @@
   button:hover, a.btn-link:hover { border-color: var(--accent); }
   button:disabled { opacity: 0.55; cursor: wait; }
   button.good { border-color: rgba(74,222,128,0.55); color: var(--green); }
+  button.danger { border-color: rgba(251,113,133,0.55); color: var(--danger); }
   .card {
     background: var(--panel);
     border: 1px solid var(--line);
@@ -158,6 +159,17 @@
     <div class="status" id="patientSearchStatus">대기 중</div>
     <div class="result-table" id="patientSearchResult"></div>
   </div>
+
+  <div class="card">
+    <div class="card-title">현재 데이터</div>
+    <div class="tool-row">
+      <input class="search-input" id="randomTestCountInput" type="number" min="1" max="50" step="1" value="10" autocomplete="off" aria-label="랜덤 테스트 생성 인원">
+      <button class="good" id="randomTestCreateBtn" type="button">랜덤 테스트 생성</button>
+      <button class="danger" id="clearPatientDbBtn" type="button">현재 데이터 비우기</button>
+    </div>
+    <div class="note">DB 저장 없이 현재 beds / patients만 비웁니다. 환자 차트 DB, 설정, 원장/간호사, 치료시간은 유지됩니다.</div>
+    <div class="status" id="randomTestStatus">대기 중</div>
+  </div>
 </div>
 
 <script>
@@ -175,6 +187,10 @@
   const patientSearchBtn = document.getElementById("patientSearchBtn");
   const patientSearchStatus = document.getElementById("patientSearchStatus");
   const patientSearchResult = document.getElementById("patientSearchResult");
+  const randomTestCountInput = document.getElementById("randomTestCountInput");
+  const randomTestCreateBtn = document.getElementById("randomTestCreateBtn");
+  const clearPatientDbBtn = document.getElementById("clearPatientDbBtn");
+  const randomTestStatus = document.getElementById("randomTestStatus");
 
   function setStatus(text, type = "") {
     statusEl.className = "status" + (type ? ` ${type}` : "");
@@ -383,6 +399,197 @@
     }
   }
 
+  function setRandomTestStatus(text, type = "") {
+    randomTestStatus.className = "status" + (type ? ` ${type}` : "");
+    randomTestStatus.textContent = text;
+  }
+
+  function normalizeChartNo(value) {
+    return String(value ?? "").trim();
+  }
+
+  async function readJsonResponse(res, fallback = {}) {
+    const data = await res.json().catch(() => fallback);
+    if (!res.ok) throw new Error(data?.error || `요청 실패 (${res.status})`);
+    return data;
+  }
+
+  async function localStateGet(key) {
+    const res = await fetch(`/api/state/${encodeURIComponent(key)}`, { cache: "no-store" });
+    const data = await readJsonResponse(res, { value: null });
+    return data.value;
+  }
+
+  async function localStatePut(key, value) {
+    const res = await fetch(`/api/state/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ value })
+    });
+    return readJsonResponse(res);
+  }
+
+  async function pushLocalNode(collectionKey, value) {
+    const res = await fetch("/api/state-child/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ key: collectionKey, value })
+    });
+    return readJsonResponse(res);
+  }
+
+  async function runBedsRecordTransaction(mutator) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const current = await fetch("/api/beds", { cache: "no-store" }).then(res => readJsonResponse(res));
+      const next = mutator(structuredClone(current.beds || {}));
+      if (next === undefined) return false;
+      const res = await fetch("/api/beds/cas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ expectedVersion: current.version, beds: next || {} })
+      });
+      if (res.status === 409) continue;
+      await readJsonResponse(res);
+      return true;
+    }
+    throw new Error("beds 갱신 충돌이 계속 발생했습니다.");
+  }
+
+  function randomItem(rows) {
+    return rows.length ? rows[Math.floor(Math.random() * rows.length)] : null;
+  }
+
+  function getSortedStaff(staffMap) {
+    return Object.entries(staffMap || {}).sort((a, b) => {
+      const at = Number(a[1]?.timestamp || 0);
+      const bt = Number(b[1]?.timestamp || 0);
+      return at - bt || String(a[1]?.name || "").localeCompare(String(b[1]?.name || ""), "ko");
+    });
+  }
+
+  function getTreatmentPresets(presetMap) {
+    return Object.entries(presetMap || {})
+      .map(([key, preset]) => ({ key, ...(preset || {}) }))
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  }
+
+  function getLatestChartVisit(patient = {}) {
+    const byDate = patient.visitHistory || {};
+    const dates = [
+      ...(Array.isArray(patient.visitDates) ? patient.visitDates : []),
+      ...Object.keys(byDate)
+    ]
+      .map(date => String(date || "").trim())
+      .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date));
+    const latestDate = [...new Set(dates)].sort().pop() || "";
+    return latestDate ? (byDate[latestDate] || {}) : {};
+  }
+
+  function getRandomTreatments(patient = {}, latestVisit = {}, presets = []) {
+    const picked = randomItem(presets.filter(preset => Array.isArray(preset.treatments) && preset.treatments.length));
+    if (picked) return [...picked.treatments];
+    if (Array.isArray(latestVisit.treatments) && latestVisit.treatments.length) return [...latestVisit.treatments];
+    if (Array.isArray(patient.treatments) && patient.treatments.length) return [...patient.treatments];
+    return ["치료"];
+  }
+
+  function buildRandomTestPatientPayload(patient = {}, doctors = [], presets = []) {
+    const latestVisit = getLatestChartVisit(patient);
+    const doctor = randomItem(doctors);
+    const now = new Date();
+    return {
+      name: patient.name || "",
+      treatments: getRandomTreatments(patient, latestVisit, presets),
+      timestamp: now.getTime(),
+      timeStr: now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+      date: now.toLocaleDateString("ko-KR"),
+      bedStatus: "waiting",
+      patientId: patient.patientId || "",
+      chartNo: normalizeChartNo(patient.chartNo),
+      visitType: latestVisit.visitType || patient.visitType || "재진",
+      chiefComplaint: latestVisit.chiefComplaint || patient.chiefComplaint || "",
+      memo: "",
+      age: patient.age || "",
+      gender: patient.gender || "",
+      bodyParts: { front: [], back: [] },
+      doctorId: doctor?.[0] || "",
+      doctorName: doctor?.[1]?.name || "",
+      nurseId: "",
+      nurseName: ""
+    };
+  }
+
+  async function createRandomTestPatients() {
+    const count = Math.max(1, Math.min(50, Number(randomTestCountInput.value || 10)));
+    randomTestCountInput.value = String(count);
+    randomTestCreateBtn.disabled = true;
+    randomTestCreateBtn.textContent = "생성 중...";
+    setRandomTestStatus("DB 환자 목록 불러오는 중...");
+    try {
+      const [currentPatients, doctorsMap, presetsMap] = await Promise.all([
+        localStateGet("patients").then(value => value || {}),
+        localStateGet("staff/doctors").then(value => value || {}),
+        localStateGet("settings/treatmentPresets").then(value => value || {})
+      ]);
+      const currentChartNos = new Set(
+        Object.values(currentPatients)
+          .map(patient => normalizeChartNo(patient?.chartNo))
+          .filter(Boolean)
+      );
+      const res = await fetch("/api/patients/random", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ count, excludeChartNos: [...currentChartNos] })
+      });
+      const selected = await readJsonResponse(res, []);
+      if (!Array.isArray(selected) || !selected.length) {
+        setRandomTestStatus("DB에서 불러올 환자가 없습니다.", "error");
+        return;
+      }
+      const doctors = getSortedStaff(doctorsMap);
+      const presets = getTreatmentPresets(presetsMap);
+      await Promise.all(selected.map(patient => pushLocalNode("patients", buildRandomTestPatientPayload(patient, doctors, presets))));
+      const suffix = selected.length < count ? ` (요청 ${count}명 중 ${selected.length}명)` : "";
+      setRandomTestStatus(`DB 환자 ${selected.length}명 생성 완료${suffix}`, "good");
+    } catch (error) {
+      console.error(error);
+      setRandomTestStatus(error?.message || "랜덤 테스트 생성 실패", "error");
+    } finally {
+      randomTestCreateBtn.disabled = false;
+      randomTestCreateBtn.textContent = "랜덤 테스트 생성";
+    }
+  }
+
+  async function clearPatientDatabase() {
+    const ok = confirm("현재 데이터를 비울까요?\n\n삭제 대상: 환자, 베드, 베드 배정 알림\n유지 대상: 환자 차트 DB, 설정, 원장/간호사, 치료시간");
+    if (!ok) return;
+    const password = prompt("현재 데이터 삭제 비밀번호를 입력하세요.");
+    if (password !== "337758") {
+      setRandomTestStatus("비밀번호가 맞지 않습니다.", "error");
+      return;
+    }
+    const okAgain = confirm("정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.");
+    if (!okAgain) return;
+
+    clearPatientDbBtn.disabled = true;
+    clearPatientDbBtn.textContent = "삭제 중...";
+    setRandomTestStatus("현재 데이터 삭제 중...");
+    try {
+      await Promise.all([
+        runBedsRecordTransaction(() => ({})),
+        localStatePut("patients", {}),
+        localStatePut("bedAssignmentAlerts", {})
+      ]);
+      setRandomTestStatus("현재 데이터 비우기 완료", "good");
+    } catch (error) {
+      console.error(error);
+      setRandomTestStatus(error?.message || "현재 데이터 비우기 실패", "error");
+    } finally {
+      clearPatientDbBtn.disabled = false;
+      clearPatientDbBtn.textContent = "현재 데이터 비우기";
+    }
+  }
+
   backupBtn.addEventListener("click", runSlackBackup);
   onlineSlackBtn.addEventListener("click", loadOnlineSlackMessages);
   onlineSlackDaysInput.addEventListener("keydown", event => {
@@ -396,6 +603,11 @@
   patientNameInput.addEventListener("keydown", event => {
     if (event.key === "Enter") searchPatientContact();
   });
+  randomTestCreateBtn.addEventListener("click", createRandomTestPatients);
+  randomTestCountInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") createRandomTestPatients();
+  });
+  clearPatientDbBtn.addEventListener("click", clearPatientDatabase);
 </script>
 </body>
 </html>
