@@ -3,7 +3,7 @@ param(
   [string]$At = "13:30",
   [int]$DayOfMonth = 1,
   [int]$MonthInterval = 3,
-  [string]$BackupDir = "",
+  [string]$BackupDir = "C:\backup\slack",
   [string]$NodeExe = ""
 )
 
@@ -43,9 +43,6 @@ if (-not $NodeExe -or -not (Test-Path -LiteralPath $NodeExe)) {
 }
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
-if (-not $BackupDir) {
-  $BackupDir = Join-Path $Root "slack_backups"
-}
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
 $RunnerPath = Join-Path $Root "server\run-slack-backup.ps1"

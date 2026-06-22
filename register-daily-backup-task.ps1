@@ -1,7 +1,7 @@
 param(
   [string]$TaskName = "Inhouse Patient DB Daily Backup",
   [string]$At = "13:30",
-  [string]$BackupDir = "",
+  [string]$BackupDir = "C:\backup\server",
   [string]$NodeExe = ""
 )
 
@@ -65,5 +65,5 @@ Write-Host "Registered task: $TaskName"
 Write-Host "Schedule: daily at $At"
 Write-Host "Node: $NodeExe"
 Write-Host "Script: $ScriptPath"
-Write-Host "BackupDir: $(if ($BackupDir) { $BackupDir } else { Join-Path $Root 'server\backups' })"
+Write-Host "BackupDir: $BackupDir"
 Write-Host "Log: $LogFile"

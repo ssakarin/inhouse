@@ -4,7 +4,7 @@ $ServerDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = Split-Path -Parent $ServerDir
 $LogDir = Join-Path $ServerDir "logs"
 $LogFile = Join-Path $LogDir "slack-backup.log"
-$BackupDir = Join-Path $Root "slack_backups"
+$BackupDir = "C:\backup\slack"
 $ScriptPath = Join-Path $ServerDir "backup-slack.js"
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null

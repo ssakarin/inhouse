@@ -37,13 +37,13 @@ server/data/clinic.db
 Automatic safety backups:
 
 ```text
-server/backups/
+C:\backup\server
 ```
 
 Slack text backups:
 
 ```text
-slack_backups/
+C:\backup\slack
 ```
 
 These files are intentionally ignored by git.
@@ -87,7 +87,7 @@ IMPORTANT:
 ### Restoring / reading a backup
 
 ```powershell
-node server/decrypt-backup.js server/backups/patients-<...>.json.enc out.json
+node server/decrypt-backup.js C:\backup\server\patients-<...>.json.enc out.json
 ```
 
 `out.json` is plaintext PII — delete it once you are done.

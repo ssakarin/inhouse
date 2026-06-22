@@ -1,11 +1,11 @@
 "use strict";
 
-// Creates a plaintext Slack archive in ./slack_backups and deletes Slack text
+// Creates a plaintext Slack archive in C:\backup\slack and deletes Slack text
 // backups older than the retention window.
 //
 // Usage:
 //   node server/backup-slack.js
-//   node server/backup-slack.js --backup-dir "D:\clinic-slack-backups"
+//   node server/backup-slack.js --backup-dir "C:\backup\slack"
 //   node server/backup-slack.js --retention-days 1095
 //   node server/backup-slack.js --dry-run
 
@@ -26,7 +26,7 @@ function hasFlag(name) {
 }
 
 const SLACK_TOKEN = process.env.SLACK_TOKEN || "";
-const BACKUP_DIR = path.resolve(ROOT_DIR, readArg("--backup-dir", path.join(ROOT_DIR, "slack_backups")));
+const BACKUP_DIR = path.resolve(ROOT_DIR, readArg("--backup-dir", process.env.SLACK_BACKUP_DIR || "C:\\backup\\slack"));
 const RETENTION_DAYS = Number(readArg("--retention-days", "1095"));
 const DRY_RUN = hasFlag("--dry-run");
 

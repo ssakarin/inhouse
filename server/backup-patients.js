@@ -9,7 +9,7 @@
 //
 // Usage:
 //   node server/backup-patients.js
-//   node server/backup-patients.js --backup-dir "G:\My Drive\clinic-backups"
+//   node server/backup-patients.js --backup-dir "C:\backup\server"
 //   node server/backup-patients.js --dry-run
 
 const fs = require("node:fs");
@@ -20,7 +20,7 @@ const { encrypt, decrypt } = require("./crypto-util");
 const ROOT_DIR = path.resolve(__dirname, "..");
 const DATA_DIR = path.join(__dirname, "data");
 const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
-const DEFAULT_BACKUP_DIR = process.env.CLINIC_BACKUP_DIR || path.join(__dirname, "backups");
+const DEFAULT_BACKUP_DIR = process.env.CLINIC_BACKUP_DIR || "C:\\backup\\server";
 
 const args = process.argv.slice(2);
 
