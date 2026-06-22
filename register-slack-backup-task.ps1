@@ -48,19 +48,30 @@ if (-not $BackupDir) {
 }
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
-$backupArgs = @("`"$ScriptPath`"", "--backup-dir", "`"$BackupDir`"", "--retention-days", "1095")
-$command = "Set-Location -LiteralPath `"$Root`"; & `"$NodeExe`" $($backupArgs -join ' ') >> `"$LogFile`" 2>&1"
+$escapedRoot = $Root.Replace("'", "''")
+$escapedNodeExe = $NodeExe.Replace("'", "''")
+$escapedScriptPath = $ScriptPath.Replace("'", "''")
+$escapedBackupDir = $BackupDir.Replace("'", "''")
+$escapedLogFile = $LogFile.Replace("'", "''")
+$command = "Set-Location -LiteralPath '$escapedRoot'; & '$escapedNodeExe' '$escapedScriptPath' --backup-dir '$escapedBackupDir' --retention-days 1095 >> '$escapedLogFile' 2>&1"
 $taskRun = "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `"$command`""
 
-schtasks.exe /Create `
-  /TN $TaskName `
-  /SC MONTHLY `
-  /MO $MonthInterval `
-  /D $DayOfMonth `
-  /ST $At `
-  /TR $taskRun `
-  /RL HIGHEST `
-  /F | Out-Null
+$schtasksArgs = @(
+  "/Create",
+  "/TN", $TaskName,
+  "/SC", "MONTHLY",
+  "/MO", $MonthInterval,
+  "/D", $DayOfMonth,
+  "/ST", $At,
+  "/TR", $taskRun,
+  "/RL", "HIGHEST",
+  "/F"
+)
+
+& schtasks.exe @schtasksArgs | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  throw "Failed to register scheduled task with schtasks.exe (exit code $LASTEXITCODE)."
+}
 
 Write-Host "Registered task: $TaskName"
 Write-Host "Schedule: every $MonthInterval month(s) on day $DayOfMonth at $At"
