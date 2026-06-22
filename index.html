@@ -3979,7 +3979,11 @@
     el.innerHTML = `<span class="status-dot"></span>${bedsLocalLive ? 'Online' : 'Offline'}`;
   }
 
+  let lastLocalBedsSignature = '';
   function applyBedsFromLocal(beds, version) {
+    const signature = JSON.stringify({ version, beds: beds || {} });
+    if (signature === lastLocalBedsSignature) return;
+    lastLocalBedsSignature = signature;
     if (typeof version === 'number') latestLocalBedsVersion = version;
     bedsLocalLive = true;
     updateConnectionStatusLabel();
@@ -4472,6 +4476,50 @@
   let isClearingPatientDatabase = false;
   window.currentMode = 'input';
 
+  let appRenderFrame = 0;
+  const pendingAppRender = {
+    bedSelector: false,
+    bedDetail: false,
+    receiveBedDetail: false,
+    bedMonitors: false,
+    waitingLists: false,
+    upcomingAlerts: false,
+    count: false,
+    fixedBedArrival: false
+  };
+
+  function requestAppRender(parts = {}) {
+    Object.keys(pendingAppRender).forEach(key => {
+      if (parts[key]) pendingAppRender[key] = true;
+    });
+    if (appRenderFrame) return;
+    appRenderFrame = requestAnimationFrame(() => {
+      appRenderFrame = 0;
+      const render = { ...pendingAppRender };
+      Object.keys(pendingAppRender).forEach(key => { pendingAppRender[key] = false; });
+
+      if (render.bedSelector) renderBedSelector();
+      if (render.bedDetail) renderBedDetail();
+      if (render.receiveBedDetail) renderReceiveBedDetail();
+      if (render.bedMonitors) renderBedMonitors();
+      if (render.waitingLists) renderWaitingLists();
+      if (render.upcomingAlerts) renderUpcomingAlerts();
+      if (render.count) updateCount();
+      if (render.fixedBedArrival) syncFixedBedArrivalOverlay();
+    });
+  }
+
+  const requestFullBoardRender = () => requestAppRender({
+    bedSelector: true,
+    bedDetail: true,
+    receiveBedDetail: true,
+    bedMonitors: true,
+    waitingLists: true,
+    upcomingAlerts: true,
+    count: true,
+    fixedBedArrival: true
+  });
+
   renderBedSelector();
   renderBedMonitors();
   renderWaitingLists();
@@ -4793,10 +4841,13 @@
 
   window.updateCreditChip = function(gridId, values = null) {
     if (values !== null && values !== undefined) {
-      if (values.packages) setPackageStateForGrid(gridId, createEmptyPackageState(values));
-      else {
-        pCreditValuesByGrid[gridId] = normalizePCredits(typeof values === 'number' ? {} : values);
-        packageStatesByGrid[gridId] = createEmptyPackageState(values);
+      const popupOpenForGrid = activeCreditGridId === gridId && document.getElementById('creditOverlay')?.classList.contains('show');
+      if (!popupOpenForGrid) {
+        if (values.packages) setPackageStateForGrid(gridId, createEmptyPackageState(values));
+        else {
+          pCreditValuesByGrid[gridId] = normalizePCredits(typeof values === 'number' ? {} : values);
+          packageStatesByGrid[gridId] = createEmptyPackageState(values);
+        }
       }
     }
     const payload = getPCreditPayload(gridId);
@@ -6829,8 +6880,7 @@
 
     updateCount();
     if (isFirstLoad) setTimeout(() => { isFirstLoad = false; }, 500);
-    renderWaitingLists();
-    renderUpcomingAlerts();
+    requestAppRender({ waitingLists: true, upcomingAlerts: true, count: true });
   }
 
   function applyPatientChanged(key, data) {
@@ -6843,13 +6893,7 @@
     }
     loadedKeys.add(key);
     patientsByKey.set(key, data);
-    renderBedSelector();
-    renderBedDetail();
-    renderReceiveBedDetail();
-    renderBedMonitors();
-    renderWaitingLists();
-    renderUpcomingAlerts();
-    updateCount();
+    requestFullBoardRender();
   }
 
   function applyPatientRemoved(key) {
@@ -6858,13 +6902,7 @@
     patientsByKey.delete(key);
     loadedKeys.delete(key);
 
-    renderBedSelector();
-    renderBedDetail();
-    renderReceiveBedDetail();
-    renderBedMonitors();
-    renderWaitingLists();
-    renderUpcomingAlerts();
-    updateCount();
+    requestFullBoardRender();
   }
 
   // Local-primary patients: the local server holds the whole 'patients' map and
@@ -6953,14 +6991,7 @@
     if (isClearingPatientDatabase) {
       bedAssignments = Array(BED_COUNT).fill(null);
       doctorBedMap = {};
-      renderBedSelector();
-      renderBedDetail();
-      renderReceiveBedDetail();
-      renderBedMonitors();
-      renderWaitingLists();
-      renderUpcomingAlerts();
-      updateCount();
-      syncFixedBedArrivalOverlay();
+      requestFullBoardRender();
       return;
     }
     let migratedCount = 0;
@@ -6986,14 +7017,7 @@
     syncDoctorProcedureAlerts();
     hasLoadedBedsOnce = true;
     if (allowAutoAssign && !migratedCount) await assignWaitingPatientsToBeds();
-    renderBedSelector();
-    renderBedDetail();
-    renderReceiveBedDetail();
-    renderBedMonitors();
-    renderWaitingLists();
-    renderUpcomingAlerts();
-    updateCount();
-    syncFixedBedArrivalOverlay();
+    requestFullBoardRender();
     ensureBedTicker();
   }
 
