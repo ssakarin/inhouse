@@ -9616,6 +9616,9 @@
   };
 
   window.handleTreatChipDragOver = (event, bedNo, toIndex) => {
+    // 대기환자 드래그는 칩이 아니라 베드가 받아야 하므로 버블링을 막지 않는다.
+    // (여기서 stopPropagation/preventDefault를 하지 않으면 베드의 handleBedDragOver가 처리)
+    if (draggedWaitingPatientKey) return;
     event.stopPropagation();
     if (!draggedTreatment || draggedTreatment.bedNo !== bedNo) return;
     if (draggedTreatment.fromIndex === toIndex) return;
@@ -9639,6 +9642,8 @@
   };
 
   window.handleTreatChipDrop = async (event, bedNo, toIndex) => {
+    // 대기환자 드롭은 베드의 handleBedDrop이 처리하도록 버블링을 허용한다.
+    if (draggedWaitingPatientKey) return;
     event.stopPropagation();
     event.preventDefault();
     event.currentTarget.classList.remove('treat-drag-over');
