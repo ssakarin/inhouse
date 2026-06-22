@@ -1793,7 +1793,15 @@ async function handleApi(req, res, pathname) {
     const map = getStateValue(key) || {};
     let childKey = body.childKey;
     if (op === "merge") {
-      map[childKey] = { ...(map[childKey] || {}), ...(body.patch || {}) };
+      const patch = { ...(body.patch || {}) };
+      if (key === "patients" && (patch.credit === null || patch.credit === undefined)) delete patch.credit;
+      const previous = map[childKey] || {};
+      const next = { ...previous, ...patch };
+      if (!Object.keys(patch).length || JSON.stringify(previous) === JSON.stringify(next)) {
+        jsonResponse(res, 200, { ok: true, key, childKey, noop: true });
+        return true;
+      }
+      map[childKey] = next;
     } else if (op === "push") {
       childKey = `loc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       map[childKey] = body.value ?? null;

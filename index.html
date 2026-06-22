@@ -4203,7 +4203,12 @@
   const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {});
 
   // Patients (the live board working set, separate from the SQLite chart DB).
-  const updatePatient = (key, patch) => updateLocalNodeChild(PATIENTS_PATH, key, patch);
+  const updatePatient = (key, patch) => {
+    const safePatch = { ...(patch || {}) };
+    if (safePatch.credit === null || safePatch.credit === undefined) delete safePatch.credit;
+    if (!Object.keys(safePatch).length) return Promise.resolve();
+    return updateLocalNodeChild(PATIENTS_PATH, key, safePatch);
+  };
   const pushPatient = (data) => pushLocalNode(PATIENTS_PATH, data);
   const removePatient = (key) => removeLocalNodeChild(PATIENTS_PATH, key);
   const clearPatients = () => setLocalNode(PATIENTS_PATH, {});
@@ -6989,7 +6994,6 @@
       }
     });
     if (Object.prototype.hasOwnProperty.call(data, 'credit')) {
-      patch.credit = null;
       delete data.credit;
     }
     if (!Object.keys(patch).length) return;
