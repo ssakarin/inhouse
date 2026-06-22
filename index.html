@@ -3951,9 +3951,6 @@
 <div class="toast" id="toast"></div>
 
 <script type="module">
-  import * as XLSX from "./vendor/xlsx/0.18.5/xlsx.mjs";
-  window.XLSX = XLSX;
-
   const PATIENTS_PATH  = 'patients';
   const BEDS_PATH      = 'beds';
   const CALL_ALERTS_PATH = 'callAlerts';
@@ -3966,6 +3963,14 @@
   let bedsSSE = null;
   let bedsLocalLive = false;          // true while the SSE stream is connected
   let latestLocalBedsVersion = 0;     // last version seen from the local server
+  let xlsxModulePromise = null;
+
+  async function loadXlsx() {
+    if (!xlsxModulePromise) {
+      xlsxModulePromise = import("./vendor/xlsx/0.18.5/xlsx.mjs");
+    }
+    return xlsxModulePromise;
+  }
 
   function updateConnectionStatusLabel() {
     const el = document.getElementById('connectionStatusText');
@@ -10980,6 +10985,7 @@
     statusEl.textContent = '파일 읽는 중...';
 
     try {
+      const XLSX = await loadXlsx();
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array', cellText: true, cellDates: false });
       const ws = wb.Sheets[wb.SheetNames[0]];

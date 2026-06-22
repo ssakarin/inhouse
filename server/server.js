@@ -2006,14 +2006,19 @@ function serveStatic(res, pathname) {
     textResponse(res, 403, "Forbidden");
     return;
   }
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+  const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+  if (!stat || stat.isDirectory()) {
     textResponse(res, 404, "Not found");
     return;
   }
   const ext = path.extname(filePath).toLowerCase();
+  const cacheControl = safePath.startsWith("/vendor/") || safePath.startsWith("/assets/")
+    ? "public, max-age=31536000, immutable"
+    : "no-store";
   res.writeHead(200, {
     "Content-Type": contentTypes[ext] || "application/octet-stream",
-    "Cache-Control": "no-store"
+    "Content-Length": stat.size,
+    "Cache-Control": cacheControl
   });
   fs.createReadStream(filePath).pipe(res);
 }
