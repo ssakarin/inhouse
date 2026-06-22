@@ -68,6 +68,17 @@
   }
   .card-title { color: var(--gold); font-weight: 900; font-size: 14px; margin-bottom: 12px; }
   .tool-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+  .search-input {
+    width: min(260px, 100%);
+    border: 1px solid var(--line);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+  }
   .status {
     color: var(--muted);
     font-size: 13px;
@@ -79,6 +90,11 @@
   .status.good { color: var(--green); }
   .status.error { color: var(--danger); }
   .note { color: var(--muted); font-size: 12px; font-weight: 800; margin-top: 10px; line-height: 1.5; }
+  .result-table { margin-top: 12px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  th { color: var(--muted); font-size: 11px; font-weight: 900; }
+  td.phone { color: var(--green); font-weight: 900; }
 </style>
 </head>
 <body>
@@ -100,11 +116,26 @@
     <div class="note">Slack 공개 채널 메시지를 읽어 <strong>slack_backups</strong> 폴더에 텍스트 파일로 저장합니다.</div>
     <div class="status" id="slackBackupStatus">대기 중</div>
   </div>
+
+  <div class="card">
+    <div class="card-title">환자 연락처 검색</div>
+    <div class="tool-row">
+      <input class="search-input" id="patientNameInput" type="search" placeholder="성함 입력" autocomplete="off">
+      <button class="good" id="patientSearchBtn" type="button">연락처 검색</button>
+    </div>
+    <div class="note">검색 버튼을 누를 때만 서버에서 해당 검색어와 일치하는 환자만 가져옵니다.</div>
+    <div class="status" id="patientSearchStatus">대기 중</div>
+    <div class="result-table" id="patientSearchResult"></div>
+  </div>
 </div>
 
 <script>
   const backupBtn = document.getElementById("slackBackupBtn");
   const statusEl = document.getElementById("slackBackupStatus");
+  const patientNameInput = document.getElementById("patientNameInput");
+  const patientSearchBtn = document.getElementById("patientSearchBtn");
+  const patientSearchStatus = document.getElementById("patientSearchStatus");
+  const patientSearchResult = document.getElementById("patientSearchResult");
 
   function setStatus(text, type = "") {
     statusEl.className = "status" + (type ? ` ${type}` : "");
@@ -135,7 +166,75 @@
     }
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function patientPhone(record = {}) {
+    return record.phone || record.phoneNumber || record.tel || record.mobile || record.contact || "";
+  }
+
+  function setPatientSearchStatus(text, type = "") {
+    patientSearchStatus.className = "status" + (type ? ` ${type}` : "");
+    patientSearchStatus.textContent = text;
+  }
+
+  function renderPatientResults(records) {
+    if (!records.length) {
+      patientSearchResult.innerHTML = "";
+      setPatientSearchStatus("검색 결과 없음");
+      return;
+    }
+    patientSearchResult.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>성함</th>
+            <th>연락처</th>
+            <th>차트번호</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${records.map(record => `
+            <tr>
+              <td>${escapeHtml(record.name || "-")}</td>
+              <td class="phone">${escapeHtml(patientPhone(record) || "-")}</td>
+              <td>${escapeHtml(record.chartNo || "-")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+    setPatientSearchStatus(`${records.length.toLocaleString()}명 검색됨`, "good");
+  }
+
+  async function searchPatientContact() {
+    const q = patientNameInput.value.trim();
+    patientSearchResult.innerHTML = "";
+    if (!q) {
+      setPatientSearchStatus("성함을 입력하세요.", "error");
+      patientNameInput.focus();
+      return;
+    }
+    patientSearchBtn.disabled = true;
+    setPatientSearchStatus("검색 중...");
+    try {
+      const res = await fetch(`/api/patients/search?q=${encodeURIComponent(q)}&limit=20`, { cache: "no-store" });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data.error || `검색 실패 (${res.status})`);
+      renderPatientResults(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setPatientSearchStatus(error?.message || String(error), "error");
+    } finally {
+      patientSearchBtn.disabled = false;
+    }
+  }
+
   backupBtn.addEventListener("click", runSlackBackup);
+  patientSearchBtn.addEventListener("click", searchPatientContact);
+  patientNameInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") searchPatientContact();
+  });
 </script>
 </body>
 </html>
