@@ -1799,7 +1799,7 @@
   .bed-status.done.alerting { border-color: var(--danger); }
   .bed-status.assignment-alerting {
     border-color: var(--gold);
-    animation-name: bedAssignmentPulse;
+    animation: bedAssignmentPulse 1.05s ease-in-out infinite;
   }
   .bed-status.empty {
     background: linear-gradient(180deg, rgba(148,163,184,0.10), rgba(30,41,59,0.22));
@@ -4411,6 +4411,10 @@
   // 교체되어 "이동 불가" 커서·테두리 떨림이 생긴다. 드래그 동안에는 렌더를 미루고
   // 드래그 종료 시 한 번만 그린다.
   let bedRenderPending = false;
+  // 직전에 그린 베드 그리드 HTML. 내용이 같으면 innerHTML을 건드리지 않아
+  // (SSE가 자주 와도) DOM 교체로 인한 hover 떨림·황색 펄스 재시작을 막는다.
+  let lastInputBedHtml = null;
+  let lastReceiveBedHtml = null;
   function bedDragActive() {
     return draggedBedNo != null || draggedWaitingPatientKey != null || draggedTreatment != null;
   }
@@ -8830,7 +8834,14 @@
       if (bar) bar.style.width = `${percent}%`;
       if (card) card.classList.toggle('done', remaining <= 0);
     });
-    renderBedMonitors();
+    // 모니터 그리드는 매초 통째로 다시 그리지 않고 남은시간 텍스트만 제자리 갱신한다.
+    // (전체 renderBedMonitors를 매초 호출하면 베드 카드가 교체되어 hover 떨림과
+    //  황색 펄스 애니메이션 재시작이 발생했다. 스텝 완료/상태 변경은 SSE로 재렌더됨.)
+    const monitorStatus = getBedStatus(bedNo);
+    ['input', 'receive'].forEach(context => {
+      const span = document.getElementById(`monitor-time-${context}-${bedNo}`);
+      if (span) span.textContent = monitorStatus.noTimer ? '' : monitorStatus.remaining;
+    });
     renderUpcomingAlerts();
     if (bedNo === selectedBedNo) updateBedRemainingChip();
   }
@@ -9863,8 +9874,16 @@
       return renderBedStatusCard(status, 'receive');
     }).join('');
 
-    document.getElementById('inputBedMonitor').innerHTML = inputHtml;
-    document.getElementById('receiveBedMonitor').innerHTML = receiveHtml;
+    const inputEl = document.getElementById('inputBedMonitor');
+    if (inputEl && inputHtml !== lastInputBedHtml) {
+      inputEl.innerHTML = inputHtml;
+      lastInputBedHtml = inputHtml;
+    }
+    const receiveEl = document.getElementById('receiveBedMonitor');
+    if (receiveEl && receiveHtml !== lastReceiveBedHtml) {
+      receiveEl.innerHTML = receiveHtml;
+      lastReceiveBedHtml = receiveHtml;
+    }
     updateDeskWaitChip();
     updateReceiveAlertAudioState();
   }
@@ -9921,7 +9940,7 @@
       <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}>
         <div class="bed-status-top">
           <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(monitorLabel)} ${escapeHtml(status.name)}`}</span>
-          ${compact ? '' : `<span class="bed-status-time">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
+          ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
         ${compact ? '' : (infoChips ? `<div class="bed-status-info">${infoChips}</div>` : '')}
         ${compact ? '' : (staffHtml ? `<div class="bed-status-treatment">${staffHtml}</div>` : '')}
