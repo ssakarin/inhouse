@@ -4407,6 +4407,16 @@
   let draggedBedNo = null;
   let draggedTreatment = null; // { bedNo, fromIndex }
   let draggedWaitingPatientKey = null;
+  // 드래그 중 SSE 업데이트로 베드 그리드를 다시 그리면 hover 중인 drop 타깃 DOM이
+  // 교체되어 "이동 불가" 커서·테두리 떨림이 생긴다. 드래그 동안에는 렌더를 미루고
+  // 드래그 종료 시 한 번만 그린다.
+  let bedRenderPending = false;
+  function bedDragActive() {
+    return draggedBedNo != null || draggedWaitingPatientKey != null || draggedTreatment != null;
+  }
+  function flushPendingBedRender() {
+    if (bedRenderPending) renderBedMonitors();
+  }
   let isAssigningWaitingPatients = false;
   let shouldAssignWaitingAgain = false;
   let suppressBedClickUntil = 0;
@@ -7486,6 +7496,7 @@
     draggedWaitingPatientKey = null;
     event.currentTarget?.classList.remove('waiting-dragging');
     document.querySelectorAll('.waiting-drag-over').forEach(el => el.classList.remove('waiting-drag-over'));
+    flushPendingBedRender();
   };
 
   window.handleWaitingListDragOver = (event) => {
@@ -9639,6 +9650,7 @@
     document.querySelectorAll('.treat-drag-over, .treat-dragging').forEach(el => {
       el.classList.remove('treat-drag-over', 'treat-dragging');
     });
+    flushPendingBedRender();
   };
 
   window.handleTreatChipDrop = async (event, bedNo, toIndex) => {
@@ -9835,6 +9847,8 @@
   }
 
   function renderBedMonitors() {
+    if (bedDragActive()) { bedRenderPending = true; return; }
+    bedRenderPending = false;
     const doctorBedNums = getDoctorBedNumbers();
     const doctorInputHtml = doctorBedNums.map(bedNo => renderBedStatusCard(getBedStatus(bedNo), 'input')).join('');
     const doctorReceiveHtml = doctorBedNums.map(bedNo => renderBedStatusCard(getBedStatus(bedNo), 'receive')).join('');
