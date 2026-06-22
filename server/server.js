@@ -32,7 +32,8 @@ db.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA synchronous = NORMAL;
   CREATE TABLE IF NOT EXISTS patients (
-    chart_no TEXT PRIMARY KEY,
+    patient_id TEXT PRIMARY KEY,
+    chart_no TEXT NOT NULL,
     name TEXT,
     phone TEXT,
     data_json TEXT NOT NULL,
@@ -44,19 +45,142 @@ db.exec(`
     updated_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS patient_visits (
+    patient_id TEXT NOT NULL,
     chart_no TEXT NOT NULL,
     visit_date TEXT NOT NULL,
     doctor_name TEXT,
     visit_type TEXT,
     chief_complaint TEXT,
-    PRIMARY KEY (chart_no, visit_date)
+    PRIMARY KEY (patient_id, visit_date)
   );
+  CREATE INDEX IF NOT EXISTS idx_patients_chart_no ON patients (chart_no);
+  CREATE INDEX IF NOT EXISTS idx_patients_name ON patients (name);
   CREATE INDEX IF NOT EXISTS idx_patient_visits_date ON patient_visits (visit_date);
   CREATE INDEX IF NOT EXISTS idx_patient_visits_doctor ON patient_visits (doctor_name);
+  CREATE INDEX IF NOT EXISTS idx_patient_visits_chart_no ON patient_visits (chart_no);
+`);
+
+function readMaybeEncryptedJson(raw) {
+  return JSON.parse(isEncrypted(raw) ? decrypt(raw) : raw);
+}
+
+function encryptedJson(value) {
+  return encrypt(JSON.stringify(value));
+}
+
+function normalizePatientName(value) {
+  return normalizeSearchText(value).replace(/\s+/g, " ");
+}
+
+function makeDuplicatePatientId(chartNo, name) {
+  const hash = crypto.createHash("sha1").update(`${chartNo}\0${normalizePatientName(name)}`).digest("hex").slice(0, 10);
+  return `${chartNo}__${hash}`;
+}
+
+function patientIdForMigratedRow(chartNo, record = {}) {
+  return normalizeSearchText(record.patientId || record.patient_id || chartNo);
+}
+
+function ensurePatientIdentitySchema() {
+  const patientColumns = new Set(db.prepare("PRAGMA table_info(patients)").all().map(column => column.name));
+  if (!patientColumns.has("patient_id")) {
+    db.exec("ALTER TABLE patients RENAME TO patients_legacy");
+    db.exec(`
+      CREATE TABLE patients (
+        patient_id TEXT PRIMARY KEY,
+        chart_no TEXT NOT NULL,
+        name TEXT,
+        phone TEXT,
+        data_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_patients_chart_no ON patients (chart_no);
+      CREATE INDEX IF NOT EXISTS idx_patients_name ON patients (name);
+    `);
+    const legacyRows = db.prepare("SELECT chart_no, name, phone, data_json, updated_at FROM patients_legacy").all();
+    const insert = db.prepare(`
+      INSERT INTO patients (patient_id, chart_no, name, phone, data_json, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    db.exec("BEGIN");
+    try {
+      for (const row of legacyRows) {
+        const chartNo = normalizeChartNo(row.chart_no);
+        if (!chartNo) continue;
+        const record = readMaybeEncryptedJson(row.data_json);
+        const patientId = patientIdForMigratedRow(chartNo, record);
+        const normalized = { ...record, patientId, chartNo };
+        insert.run(
+          patientId,
+          chartNo,
+          normalizeSearchText(normalized.name || row.name),
+          getPatientPhone(normalized) || normalizeSearchText(row.phone),
+          encryptedJson(normalized),
+          row.updated_at || new Date().toISOString()
+        );
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    db.exec("DROP TABLE patients_legacy");
+  }
+
+  const visitColumns = new Set(db.prepare("PRAGMA table_info(patient_visits)").all().map(column => column.name));
+  if (!visitColumns.has("patient_id")) {
+    db.exec("ALTER TABLE patient_visits RENAME TO patient_visits_legacy");
+    db.exec(`
+      CREATE TABLE patient_visits (
+        patient_id TEXT NOT NULL,
+        chart_no TEXT NOT NULL,
+        visit_date TEXT NOT NULL,
+        doctor_name TEXT,
+        visit_type TEXT,
+        chief_complaint TEXT,
+        PRIMARY KEY (patient_id, visit_date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_patient_visits_date ON patient_visits (visit_date);
+      CREATE INDEX IF NOT EXISTS idx_patient_visits_doctor ON patient_visits (doctor_name);
+      CREATE INDEX IF NOT EXISTS idx_patient_visits_chart_no ON patient_visits (chart_no);
+    `);
+    const rows = db.prepare("SELECT chart_no, visit_date, doctor_name, visit_type, chief_complaint FROM patient_visits_legacy").all();
+    const chartToPatient = new Map(db.prepare("SELECT patient_id, chart_no FROM patients").all().map(row => [normalizeChartNo(row.chart_no), row.patient_id]));
+    const insert = db.prepare(`
+      INSERT OR REPLACE INTO patient_visits (patient_id, chart_no, visit_date, doctor_name, visit_type, chief_complaint)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    db.exec("BEGIN");
+    try {
+      for (const row of rows) {
+        const chartNo = normalizeChartNo(row.chart_no);
+        const patientId = chartToPatient.get(chartNo);
+        if (!chartNo || !patientId) continue;
+        insert.run(patientId, chartNo, row.visit_date, row.doctor_name, row.visit_type, row.chief_complaint);
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    db.exec("DROP TABLE patient_visits_legacy");
+  }
+}
+
+ensurePatientIdentitySchema();
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_patients_chart_no ON patients (chart_no);
+  CREATE INDEX IF NOT EXISTS idx_patients_name ON patients (name);
+  CREATE INDEX IF NOT EXISTS idx_patient_visits_date ON patient_visits (visit_date);
+  CREATE INDEX IF NOT EXISTS idx_patient_visits_doctor ON patient_visits (doctor_name);
+  CREATE INDEX IF NOT EXISTS idx_patient_visits_chart_no ON patient_visits (chart_no);
 `);
 
 function ensurePatientSearchColumns() {
   const columns = new Set(db.prepare("PRAGMA table_info(patients)").all().map(column => column.name));
+  if (!columns.has("patient_id")) throw new Error("patients.patient_id migration failed");
+  if (!columns.has("chart_no")) db.exec("ALTER TABLE patients ADD COLUMN chart_no TEXT");
   if (!columns.has("name")) db.exec("ALTER TABLE patients ADD COLUMN name TEXT");
   if (!columns.has("phone")) db.exec("ALTER TABLE patients ADD COLUMN phone TEXT");
 }
@@ -64,40 +188,45 @@ function ensurePatientSearchColumns() {
 ensurePatientSearchColumns();
 
 const statements = {
-  listPatients: db.prepare("SELECT data_json FROM patients ORDER BY chart_no COLLATE NOCASE"),
+  listPatients: db.prepare("SELECT patient_id, data_json FROM patients ORDER BY chart_no COLLATE NOCASE, name COLLATE NOCASE, patient_id"),
   countPatients: db.prepare("SELECT COUNT(*) AS count FROM patients"),
   searchPatients: db.prepare(`
-    SELECT data_json FROM patients
+    SELECT patient_id, data_json FROM patients
     WHERE chart_no LIKE ? ESCAPE '\\'
        OR name LIKE ? ESCAPE '\\'
        OR phone LIKE ? ESCAPE '\\'
-    ORDER BY chart_no COLLATE NOCASE
+    ORDER BY chart_no COLLATE NOCASE, name COLLATE NOCASE, patient_id
     LIMIT ?
   `),
-  getPatient: db.prepare("SELECT data_json FROM patients WHERE chart_no = ?"),
+  getPatientById: db.prepare("SELECT patient_id, data_json FROM patients WHERE patient_id = ?"),
+  listPatientsByChartNo: db.prepare("SELECT patient_id, data_json FROM patients WHERE chart_no = ? ORDER BY name COLLATE NOCASE, patient_id"),
+  findPatientByChartName: db.prepare("SELECT patient_id, data_json FROM patients WHERE chart_no = ? AND name = ? ORDER BY patient_id LIMIT 1"),
   upsertPatient: db.prepare(`
-    INSERT INTO patients (chart_no, name, phone, data_json, updated_at)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(chart_no) DO UPDATE SET
+    INSERT INTO patients (patient_id, chart_no, name, phone, data_json, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(patient_id) DO UPDATE SET
+      chart_no = excluded.chart_no,
       name = excluded.name,
       phone = excluded.phone,
       data_json = excluded.data_json,
       updated_at = excluded.updated_at
   `),
-  deletePatient: db.prepare("DELETE FROM patients WHERE chart_no = ?"),
+  deletePatient: db.prepare("DELETE FROM patients WHERE patient_id = ?"),
   deleteAllPatients: db.prepare("DELETE FROM patients"),
-  deletePatientVisits: db.prepare("DELETE FROM patient_visits WHERE chart_no = ?"),
+  deletePatientVisits: db.prepare("DELETE FROM patient_visits WHERE patient_id = ?"),
   deleteAllPatientVisits: db.prepare("DELETE FROM patient_visits"),
   upsertPatientVisit: db.prepare(`
-    INSERT INTO patient_visits (chart_no, visit_date, doctor_name, visit_type, chief_complaint)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(chart_no, visit_date) DO UPDATE SET
+    INSERT INTO patient_visits (patient_id, chart_no, visit_date, doctor_name, visit_type, chief_complaint)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(patient_id, visit_date) DO UPDATE SET
+      chart_no = excluded.chart_no,
       doctor_name = excluded.doctor_name,
       visit_type = excluded.visit_type,
       chief_complaint = excluded.chief_complaint
   `),
   listVisitChartNosByMonth: db.prepare(`
     SELECT
+      pv.patient_id,
       pv.chart_no,
       pv.visit_date,
       pv.doctor_name,
@@ -106,9 +235,9 @@ const statements = {
       p.name,
       p.phone
     FROM patient_visits pv
-    LEFT JOIN patients p ON p.chart_no = pv.chart_no
+    LEFT JOIN patients p ON p.patient_id = pv.patient_id
     WHERE pv.visit_date >= ? AND pv.visit_date <= ?
-    ORDER BY pv.visit_date, pv.chart_no COLLATE NOCASE
+    ORDER BY pv.visit_date, pv.chart_no COLLATE NOCASE, p.name COLLATE NOCASE, pv.patient_id
   `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
   upsertState: db.prepare(`
@@ -123,16 +252,17 @@ const statements = {
 // before encryption-at-rest was enabled). Runs every startup but is a no-op once
 // everything is encrypted, since isEncrypted() skips already-encrypted rows.
 function migrateEncryptAtRest() {
-  const patientRows = db.prepare("SELECT chart_no, data_json FROM patients").all();
+  const patientRows = db.prepare("SELECT patient_id, chart_no, data_json FROM patients").all();
   const stateRows = db.prepare("SELECT state_key, data_json FROM app_state").all();
-  const updatePatient = db.prepare("UPDATE patients SET data_json = ? WHERE chart_no = ?");
+  const updatePatient = db.prepare("UPDATE patients SET data_json = ? WHERE patient_id = ?");
   const updateState = db.prepare("UPDATE app_state SET data_json = ? WHERE state_key = ?");
   let migrated = 0;
   db.exec("BEGIN");
   try {
     for (const row of patientRows) {
       if (!isEncrypted(row.data_json)) {
-        updatePatient.run(encrypt(row.data_json), row.chart_no);
+        const record = readMaybeEncryptedJson(row.data_json);
+        updatePatient.run(encryptedJson({ ...record, patientId: row.patient_id, chartNo: normalizeChartNo(record.chartNo || row.chart_no) }), row.patient_id);
         migrated += 1;
       }
     }
@@ -153,15 +283,15 @@ function migrateEncryptAtRest() {
 migrateEncryptAtRest();
 
 function backfillPatientSearchColumns() {
-  const rows = db.prepare("SELECT chart_no, name, phone, data_json FROM patients WHERE name IS NULL OR phone IS NULL").all();
+  const rows = db.prepare("SELECT patient_id, chart_no, name, phone, data_json FROM patients WHERE name IS NULL OR phone IS NULL").all();
   if (!rows.length) return;
-  const update = db.prepare("UPDATE patients SET name = ?, phone = ? WHERE chart_no = ?");
+  const update = db.prepare("UPDATE patients SET name = ?, phone = ? WHERE patient_id = ?");
   let updated = 0;
   db.exec("BEGIN");
   try {
     for (const row of rows) {
       const record = JSON.parse(decrypt(row.data_json));
-      update.run(normalizeSearchText(record.name), getPatientPhone(record), row.chart_no);
+      update.run(normalizeSearchText(record.name), getPatientPhone(record), row.patient_id);
       updated += 1;
     }
     db.exec("COMMIT");
@@ -206,14 +336,18 @@ function textResponse(res, status, text) {
   res.end(text);
 }
 
-function readBody(req) {
+const DEFAULT_BODY_LIMIT_BYTES = 50 * 1024 * 1024;
+const LARGE_BODY_LIMIT_BYTES = 10 * 1024 * 1024 * 1024;
+
+function readBody(req, maxBytes = DEFAULT_BODY_LIMIT_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
     req.on("data", chunk => {
       total += chunk.length;
-      if (total > 50 * 1024 * 1024) {
-        reject(new Error("Request body too large"));
+      if (total > maxBytes) {
+        const limitMb = Math.round(maxBytes / 1024 / 1024);
+        reject(new Error(`Request body too large; limit is ${limitMb}MB`));
         req.destroy();
         return;
       }
@@ -230,7 +364,12 @@ async function readJson(req) {
 }
 
 function parsePatientRow(row) {
-  return JSON.parse(decrypt(row.data_json));
+  const record = JSON.parse(decrypt(row.data_json));
+  return {
+    ...record,
+    patientId: record.patientId || row.patient_id || record.chartNo,
+    chartNo: normalizeChartNo(record.chartNo)
+  };
 }
 
 function listPatients() {
@@ -267,10 +406,11 @@ function visitEntriesFromRecord(record = {}) {
 
 function syncPatientVisitIndex(record = {}) {
   const chartNo = normalizeChartNo(record?.chartNo);
-  if (!chartNo) return;
-  statements.deletePatientVisits.run(chartNo);
+  const patientId = normalizeSearchText(record?.patientId || chartNo);
+  if (!chartNo || !patientId) return;
+  statements.deletePatientVisits.run(patientId);
   for (const entry of visitEntriesFromRecord(record)) {
-    statements.upsertPatientVisit.run(chartNo, entry.date, entry.doctorName, entry.visitType, entry.chiefComplaint);
+    statements.upsertPatientVisit.run(patientId, chartNo, entry.date, entry.doctorName, entry.visitType, entry.chiefComplaint);
   }
 }
 
@@ -296,12 +436,14 @@ function patientsByVisitMonth(month) {
   const start = `${normalizedMonth}-01`;
   const end = `${normalizedMonth}-${String(new Date(year, rawMonth, 0).getDate()).padStart(2, "0")}`;
   const counts = {};
-  const patientsByChart = new Map();
+  const patientsById = new Map();
   for (const row of statements.listVisitChartNosByMonth.all(start, end)) {
     counts[row.visit_date] = (counts[row.visit_date] || 0) + 1;
     const chartNo = normalizeChartNo(row.chart_no);
-    if (!chartNo) continue;
-    const patient = patientsByChart.get(chartNo) || {
+    const patientId = normalizeSearchText(row.patient_id || chartNo);
+    if (!chartNo || !patientId) continue;
+    const patient = patientsById.get(patientId) || {
+      patientId,
       chartNo,
       name: row.name || "",
       phone: row.phone || "",
@@ -314,9 +456,9 @@ function patientsByVisitMonth(month) {
       visitType: row.visit_type || "",
       chiefComplaint: row.chief_complaint || ""
     };
-    patientsByChart.set(chartNo, patient);
+    patientsById.set(patientId, patient);
   }
-  const records = [...patientsByChart.values()];
+  const records = [...patientsById.values()];
   records.sort((a, b) => normalizeChartNo(a.chartNo).localeCompare(normalizeChartNo(b.chartNo), "ko", { numeric: true }));
   return { month: normalizedMonth, counts, patients: records };
 }
@@ -474,7 +616,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   for (const record of records) {
     const dates = visitDatesOf(record);
     if (!dates.length) continue;
-    const pid = String(record.chartNo || record.name || "");
+    const pid = String(record.patientId || record.chartNo || record.name || "");
     if (!pid) continue;
     let matchedCore = false;
 
@@ -600,9 +742,19 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   };
 }
 
-function getPatient(chartNo) {
-  const row = statements.getPatient.get(chartNo);
+function getPatientById(patientId) {
+  const row = statements.getPatientById.get(normalizeSearchText(patientId));
   return row ? parsePatientRow(row) : null;
+}
+
+function getPatientsByChartNo(chartNo) {
+  const normalized = normalizeChartNo(chartNo);
+  if (!normalized) return [];
+  return statements.listPatientsByChartNo.all(normalized).map(parsePatientRow);
+}
+
+function getPatient(chartNo) {
+  return getPatientsByChartNo(chartNo)[0] || null;
 }
 
 function getPatients(chartNos) {
@@ -610,18 +762,37 @@ function getPatients(chartNos) {
   for (const chartNo of chartNos) {
     const normalized = normalizeChartNo(chartNo);
     if (!normalized) continue;
-    const record = getPatient(normalized);
-    if (record) records.push(record);
+    records.push(...getPatientsByChartNo(normalized));
   }
   return records;
+}
+
+function resolvePatientId(record = {}) {
+  const chartNo = normalizeChartNo(record?.chartNo);
+  if (!chartNo) throw new Error("chartNo is required");
+  const requestedId = normalizeSearchText(record.patientId || record.patient_id);
+  if (requestedId) return requestedId;
+
+  const name = normalizeSearchText(record.name);
+  if (name) {
+    const sameName = statements.findPatientByChartName.get(chartNo, name);
+    if (sameName?.patient_id) return sameName.patient_id;
+  }
+
+  const existing = getPatientsByChartNo(chartNo);
+  if (!existing.length) return chartNo;
+  if (!name && existing.length === 1) return existing[0].patientId;
+  return makeDuplicatePatientId(chartNo, name || `unknown-${Date.now()}`);
 }
 
 function savePatient(record) {
   const chartNo = normalizeChartNo(record?.chartNo);
   if (!chartNo) throw new Error("chartNo is required");
+  const patientId = resolvePatientId(record);
   const now = new Date().toISOString();
-  const normalized = { ...record, chartNo };
+  const normalized = { ...record, patientId, chartNo };
   statements.upsertPatient.run(
+    patientId,
     chartNo,
     normalizeSearchText(normalized.name),
     getPatientPhone(normalized),
@@ -1191,6 +1362,30 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  const patientIdMatch = pathname.match(/^\/api\/patients\/id\/([^/]+)$/);
+  if (patientIdMatch) {
+    const patientId = normalizeSearchText(decodeURIComponent(patientIdMatch[1]));
+    if (req.method === "GET") {
+      const patient = getPatientById(patientId);
+      if (!patient) jsonResponse(res, 404, { error: "Patient not found" });
+      else jsonResponse(res, 200, patient);
+      return true;
+    }
+    if (req.method === "PUT") {
+      const record = await readJson(req);
+      jsonResponse(res, 200, savePatient({ ...record, patientId }));
+      return true;
+    }
+    if (req.method === "DELETE") {
+      const before = getPatientById(patientId);
+      if (before) backupPatients([before], `delete-${before.chartNo || patientId}`);
+      statements.deletePatient.run(patientId);
+      statements.deletePatientVisits.run(patientId);
+      jsonResponse(res, 200, { ok: true, deleted: Boolean(before), patientId });
+      return true;
+    }
+  }
+
   const patientMatch = pathname.match(/^\/api\/patients\/([^/]+)$/);
   if (patientMatch) {
     const chartNo = normalizeChartNo(decodeURIComponent(patientMatch[1]));
@@ -1206,10 +1401,17 @@ async function handleApi(req, res, pathname) {
       return true;
     }
     if (req.method === "DELETE") {
-      const before = getPatient(chartNo);
+      const matches = getPatientsByChartNo(chartNo);
+      if (matches.length > 1) {
+        jsonResponse(res, 409, { error: "Multiple patients share this chartNo. Delete by patientId.", chartNo, count: matches.length });
+        return true;
+      }
+      const before = matches[0] || null;
       if (before) backupPatients([before], `delete-${chartNo}`);
-      statements.deletePatient.run(chartNo);
-      statements.deletePatientVisits.run(chartNo);
+      if (before?.patientId) {
+        statements.deletePatient.run(before.patientId);
+        statements.deletePatientVisits.run(before.patientId);
+      }
       jsonResponse(res, 200, { ok: true, deleted: Boolean(before), chartNo });
       return true;
     }
@@ -1223,7 +1425,7 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname === "/api/import/patients-encrypted" && req.method === "POST") {
-    const raw = await readBody(req);
+    const raw = await readBody(req, LARGE_BODY_LIMIT_BYTES);
     const payload = JSON.parse(decrypt(raw));
     const { records, mode, shouldBackup } = parsePatientImportPayload(payload);
     jsonResponse(res, 200, importPatients(records, mode, shouldBackup));

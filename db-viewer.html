@@ -630,6 +630,7 @@
   let patientSearchSeq = 0;
   const monthlyVisitCache = new Map();
   let selectedChartNo = "";
+  let selectedPatientId = "";
   let activeVisitDates = [];
   let activeVisitHistory = {};
   let activeVisitMonth = new Date().toISOString().slice(0, 7);
@@ -785,16 +786,16 @@
     }).sort(compareChartNo).slice(0, limit);
   }
 
-  async function getIndexedRecord(chartNo) {
-    const normalized = String(chartNo || "");
+  async function getIndexedRecord(patientIdOrChartNo) {
+    const normalized = String(patientIdOrChartNo || "");
     if (!normalized) return null;
     if (SERVER_MODE) {
-      const res = await fetch(`/api/patients/${encodeURIComponent(normalized)}`, { cache: "no-store" });
+      const res = await fetch(`/api/patients/id/${encodeURIComponent(normalized)}`, { cache: "no-store" });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`서버 환자 조회 실패 (${res.status})`);
       return await res.json();
     }
-    return latestIndexedValue.find(patient => String(patient.chartNo || "") === normalized) || null;
+    return latestIndexedValue.find(patient => patientIdentity(patient) === normalized || String(patient.chartNo || "") === normalized) || null;
   }
 
   async function loadVisitMonth(month = globalVisitMonth) {
@@ -812,13 +813,13 @@
     return normalized;
   }
 
-  async function putIndexedRecord(record, oldChartNo = "") {
+  async function putIndexedRecord(record, oldPatientId = "") {
     if (!record?.chartNo) throw new Error("chartNo가 필요합니다.");
     if (SERVER_MODE) {
-      if (oldChartNo && oldChartNo !== record.chartNo) {
-        await deleteIndexedRecord(oldChartNo);
-      }
-      const res = await fetch(`/api/patients/${encodeURIComponent(record.chartNo)}`, {
+      const endpoint = record.patientId || oldPatientId
+        ? `/api/patients/id/${encodeURIComponent(record.patientId || oldPatientId)}`
+        : `/api/patients/${encodeURIComponent(record.chartNo)}`;
+      const res = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify(record)
@@ -829,7 +830,7 @@
     const { db, tx, store } = await transactionStore("readwrite");
     try {
       await new Promise((resolve, reject) => {
-        if (oldChartNo && oldChartNo !== record.chartNo) store.delete(oldChartNo);
+        if (oldPatientId && oldPatientId !== patientIdentity(record)) store.delete(oldPatientId);
         store.put(record);
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);
@@ -839,17 +840,17 @@
     }
   }
 
-  async function deleteIndexedRecord(chartNo) {
-    if (!chartNo) return;
+  async function deleteIndexedRecord(patientIdOrChartNo) {
+    if (!patientIdOrChartNo) return;
     if (SERVER_MODE) {
-      const res = await fetch(`/api/patients/${encodeURIComponent(chartNo)}`, { method: "DELETE" });
+      const res = await fetch(`/api/patients/id/${encodeURIComponent(patientIdOrChartNo)}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`서버 환자 삭제 실패 (${res.status})`);
       return;
     }
     const { db, tx, store } = await transactionStore("readwrite");
     try {
       await new Promise((resolve, reject) => {
-        store.delete(chartNo);
+        store.delete(patientIdOrChartNo);
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);
       });
@@ -860,6 +861,10 @@
 
   function normalizeChartNo(value) {
     return String(value || "").trim().replace(/\.0$/, "");
+  }
+
+  function patientIdentity(patient = {}) {
+    return String(patient.patientId || patient.chartNo || "");
   }
 
   function normalizePackageEntries(entries = []) {
@@ -955,8 +960,8 @@
 
   function upsertLatestIndexedRecord(record) {
     if (!record?.chartNo) return;
-    const chartNo = String(record.chartNo || "");
-    const index = latestIndexedValue.findIndex(patient => String(patient.chartNo || "") === chartNo);
+    const key = patientIdentity(record);
+    const index = latestIndexedValue.findIndex(patient => patientIdentity(patient) === key);
     if (index >= 0) latestIndexedValue[index] = record;
     else latestIndexedValue.push(record);
   }
@@ -1200,7 +1205,7 @@
         ${rows.map(patient => {
           const record = patient.visitHistory?.[date] || {};
           return `
-            <button class="day-patient-item" type="button" data-global-chart-no="${escapeHtml(patient.chartNo || "")}">
+            <button class="day-patient-item" type="button" data-global-patient-id="${escapeHtml(patientIdentity(patient))}">
               <span>
                 <span class="day-patient-main">${escapeHtml(patient.name || "(이름 없음)")}</span>
                 <span class="day-patient-sub">${escapeHtml(patientSubText(patient) || "-")}</span>
@@ -1343,7 +1348,7 @@
       renderSummary("indexedSummary", latestIndexedValue);
       renderPatientList();
       renderGlobalVisitCalendar();
-      if (selectedChartNo) selectPatient(selectedChartNo, false);
+      if (selectedPatientId) selectPatient(selectedPatientId, false);
       setStatus("indexedStatus", "완료");
     } catch (error) {
       latestIndexedValue = [];
@@ -1401,7 +1406,7 @@
     if (!hasLoadedFullIndexed) latestIndexedValue = rows;
     $("patientList").innerHTML = rows.length
       ? rows.map(patient => `
-        <button class="patient-item${String(patient.chartNo || "") === selectedChartNo ? " active" : ""}" type="button" data-chart-no="${escapeHtml(patient.chartNo || "")}">
+        <button class="patient-item${patientIdentity(patient) === selectedPatientId ? " active" : ""}" type="button" data-patient-id="${escapeHtml(patientIdentity(patient))}">
           <div class="patient-name">${escapeHtml(patient.name || "(이름 없음)")}</div>
           <div class="patient-sub">${escapeHtml([patient.chartNo || "-", patient.gender || "-", patient.age || "-", `진료 ${(patient.visitDates || []).length || 0}회`].filter(Boolean).join(" · "))}</div>
         </button>
@@ -1410,16 +1415,17 @@
   }
 
   function getSelectedPatient() {
-    return latestIndexedValue.find(patient => String(patient.chartNo || "") === selectedChartNo) || null;
+    return latestIndexedValue.find(patient => patientIdentity(patient) === selectedPatientId) || null;
   }
 
-  function selectPatient(chartNo, renderList = true) {
-    selectedChartNo = String(chartNo || "");
+  function selectPatient(patientId, renderList = true) {
+    selectedPatientId = String(patientId || "");
     const patient = getSelectedPatient();
     if (!patient) {
       clearEditor();
       return;
     }
+    selectedChartNo = String(patient.chartNo || "");
     $("editChartNo").value = patient.chartNo || "";
     $("editName").value = patient.name || "";
     $("editAge").value = patient.age ?? "";
@@ -1442,10 +1448,10 @@
     if (renderList) renderPatientList();
   }
 
-  async function selectPatientFull(chartNo, renderList = true) {
-    const normalized = String(chartNo || "");
+  async function selectPatientFull(patientId, renderList = true) {
+    const normalized = String(patientId || "");
     if (!normalized) return;
-    selectedChartNo = normalized;
+    selectedPatientId = normalized;
     try {
       const patient = await getIndexedRecord(normalized);
       if (!patient) {
@@ -1454,7 +1460,9 @@
         return;
       }
       upsertLatestIndexedRecord(patient);
-      selectPatient(normalized, renderList);
+      selectedPatientId = patientIdentity(patient);
+      selectedChartNo = String(patient.chartNo || "");
+      selectPatient(selectedPatientId, renderList);
     } catch (error) {
       setStatus("indexedStatus", "오류", true);
       $("selectedPatientStatus").textContent = error?.message || String(error);
@@ -1463,6 +1471,7 @@
 
   function clearEditor() {
     selectedChartNo = "";
+    selectedPatientId = "";
     ["editChartNo", "editName", "editAge", "editGender", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText"].forEach(id => { $(id).value = ""; });
     activeVisitDates = [];
     activeVisitHistory = {};
@@ -1499,6 +1508,7 @@
 
     return withPackageBalances({
       ...existing,
+      patientId: existing.patientId || selectedPatientId || chartNo,
       chartNo,
       name: $("editName").value.trim(),
       age: $("editAge").value ? Number($("editAge").value) : "",
@@ -1517,8 +1527,9 @@
 
   async function persistCurrentPatientRecord() {
     const record = readFormRecord();
-    await putIndexedRecord(record, selectedChartNo);
+    await putIndexedRecord(record, selectedPatientId);
     selectedChartNo = record.chartNo;
+    selectedPatientId = patientIdentity(record);
     upsertLatestIndexedRecord(record);
     monthlyVisitCache.clear();
     if (!latestIndexedTotal) latestIndexedTotal = await getIndexedRecordCount();
@@ -1531,7 +1542,7 @@
   async function savePatientForm() {
     try {
       const record = await persistCurrentPatientRecord();
-      selectPatient(record.chartNo);
+      selectPatient(patientIdentity(record));
       setStatus("indexedStatus", "저장됨");
     } catch (error) {
       setStatus("indexedStatus", "오류", true);
@@ -1551,9 +1562,9 @@
       alert("비밀번호가 맞지 않아 삭제하지 않았습니다.");
       return;
     }
-    await deleteIndexedRecord(patient.chartNo);
+    await deleteIndexedRecord(patientIdentity(patient));
     clearEditor();
-    latestIndexedValue = latestIndexedValue.filter(row => String(row.chartNo || "") !== String(patient.chartNo || ""));
+    latestIndexedValue = latestIndexedValue.filter(row => patientIdentity(row) !== patientIdentity(patient));
     latestIndexedTotal = Math.max(0, latestIndexedTotal - 1);
     renderSummary("indexedSummary", hasLoadedFullIndexed ? latestIndexedValue : null, hasLoadedFullIndexed ? {} : { countOverride: latestIndexedTotal, sizeLabel: "전체 로드 전", 모드: SERVER_MODE ? "검색 우선" : "로컬" });
     setStatus("indexedStatus", "삭제됨");
@@ -1694,9 +1705,9 @@
     renderGlobalVisitCalendar();
   });
   $("globalVisitPatientList").addEventListener("click", event => {
-    const item = event.target.closest("[data-global-chart-no]");
+    const item = event.target.closest("[data-global-patient-id]");
     if (item) {
-      selectPatientFull(item.dataset.globalChartNo);
+      selectPatientFull(item.dataset.globalPatientId);
       setPatientFindTab("search");
     }
   });
@@ -1710,7 +1721,7 @@
   $("patientSearchInput").addEventListener("input", renderPatientList);
   $("patientList").addEventListener("click", event => {
     const item = event.target.closest(".patient-item");
-    if (item) selectPatientFull(item.dataset.chartNo);
+    if (item) selectPatientFull(item.dataset.patientId);
   });
   $("savePatientBtn").addEventListener("click", savePatientForm);
   $("deletePatientBtn")?.addEventListener("click", deleteSelectedPatient);

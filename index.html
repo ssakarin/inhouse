@@ -3453,6 +3453,102 @@
     border: 1px solid rgba(57,169,245,0.65);
     color: var(--accent);
   }
+  .chart-patient-choice-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2400;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(5, 10, 18, 0.62);
+    backdrop-filter: blur(8px);
+  }
+  .chart-patient-choice-overlay.show { display: flex; }
+  .chart-patient-choice-dialog {
+    width: min(520px, 100%);
+    max-height: min(720px, 88vh);
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.42);
+    padding: 18px;
+  }
+  .chart-patient-choice-title {
+    font-size: 18px;
+    font-weight: 900;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .chart-patient-choice-sub {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 14px;
+  }
+  .chart-patient-choice-list {
+    display: grid;
+    gap: 8px;
+  }
+  .chart-patient-choice-item {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    text-align: left;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    padding: 12px;
+    cursor: pointer;
+  }
+  .chart-patient-choice-item:hover {
+    border-color: var(--accent);
+    background: rgba(57,169,245,0.12);
+  }
+  .chart-patient-choice-name {
+    font-size: 16px;
+    font-weight: 900;
+  }
+  .chart-patient-choice-meta {
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .chart-patient-choice-chip {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 7px;
+    font-size: 12px;
+    color: var(--text2);
+    background: rgba(255,255,255,0.04);
+  }
+  .chart-patient-choice-action {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .chart-patient-choice-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .chart-patient-choice-secondary {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text2);
+    padding: 9px 12px;
+    cursor: pointer;
+  }
+  .chart-patient-choice-secondary:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
 
   .status-dot {
     width: 8px; height: 8px;
@@ -5669,6 +5765,11 @@
       submitBtn: 'bedSubmitBtn'
     }
   };
+  const selectedChartPatientByScope = { desk: null, receive: null, bed: null };
+
+  function setSelectedChartPatient(scope, patient = null) {
+    selectedChartPatientByScope[scope] = patient?.patientId ? patient : null;
+  }
 
   window.submitPatient = async (scope = 'desk') => {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
@@ -5711,6 +5812,7 @@
         timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
         date: now.toLocaleDateString('ko-KR'),
         bedStatus: 'waiting',
+        patientId: selectedChartPatientByScope[scope]?.patientId || '',
         chartNo,
         visitType,
         chiefComplaint,
@@ -5742,6 +5844,7 @@
       syncTreatBtnStates(ids.treatmentGrid);
 
       if (scope === 'desk') window.clearChartLookupBadge?.();
+      setSelectedChartPatient(scope, null);
       resetPCredits(ids.treatmentGrid);
 
       showToast(`✅ ${name} 알림 전송 완료`);
@@ -5808,6 +5911,7 @@
 
   function populatePatientForm(scope, bed = null) {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    setSelectedChartPatient(scope, bed?.patientId ? bed : null);
     document.getElementById(ids.name).value = bed?.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed?.chiefComplaint || '';
@@ -6994,6 +7098,7 @@
       treatments: data.treatments || [],
       timeStr: data.timeStr || '',
       timestamp: data.timestamp || Date.now(),
+      patientId: data.patientId || '',
       chartNo: normalizeChartNo(data.chartNo),
       visitType: data.visitType || '',
       chiefComplaint: data.chiefComplaint || '',
@@ -7304,6 +7409,7 @@
     if (patient.chartNo) {
       const assignedBed = bedAssignments.find(bed => bed?.patientKey === key);
       await window.saveChartPatient?.({
+        patientId: patient.patientId || '',
         chartNo: normalizeChartNo(patient.chartNo),
         name: patient.name || '',
         age: patient.age || '',
@@ -9067,6 +9173,7 @@
       const patient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
       const indexDbPackages = applyPostTreatmentPackageBalances(getPackageStateFromPatient(patient || {}), bed, visitDate || '');
       await window.saveChartPatient?.({
+        patientId: patient?.patientId || bed.patientId || '',
         chartNo: normalizeChartNo(bed.chartNo),
         name: bed.name || '',
         age: bed.age || '',
@@ -10268,28 +10375,58 @@
 
   async function lookupChartPatient(chartNo) {
     if (!chartNo) return null;
+    const patients = await lookupChartPatients(chartNo);
+    return patients[0] || null;
+  }
+
+  async function lookupChartPatients(chartNo) {
+    if (!chartNo) return [];
     if (SERVER_MODE) {
       try {
-        const res = await fetch(`/api/patients/${encodeURIComponent(chartNo)}`, { cache: 'no-store' });
-        if (res.status === 404) return null;
+        const res = await fetch('/api/patients/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ chartNos: [chartNo] })
+        });
         if (!res.ok) throw new Error('server patient lookup failed');
-        return await res.json();
+        const records = await res.json();
+        return Array.isArray(records) ? records : [];
       } catch (error) {
         console.error('서버 차트 조회 실패', error);
-        return null;
+        return [];
       }
     }
     try {
       const db = await openChartDb();
-      return await new Promise((resolve, reject) => {
+      const patient = await new Promise((resolve, reject) => {
         const req = db.transaction(CHART_STORE, 'readonly').objectStore(CHART_STORE).get(chartNo);
         req.onsuccess = () => resolve(req.result || null);
         req.onerror = () => reject(req.error);
       });
-    } catch { return null; }
+      return patient ? [patient] : [];
+    } catch { return []; }
+  }
+
+  async function lookupChartPatientById(patientId) {
+    const normalized = String(patientId || '').trim();
+    if (!normalized || !SERVER_MODE) return null;
+    try {
+      const res = await fetch(`/api/patients/id/${encodeURIComponent(normalized)}`, { cache: 'no-store' });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error('server patient id lookup failed');
+      return await res.json();
+    } catch (error) {
+      console.error('서버 환자 ID 조회 실패', error);
+      return null;
+    }
   }
 
   async function lookupChartPatientFlexible(rawChartNo) {
+    const patients = await lookupChartPatientsFlexible(rawChartNo);
+    return patients[0] || null;
+  }
+
+  async function lookupChartPatientsFlexible(rawChartNo) {
     const raw = String(rawChartNo ?? '').trim();
     const normalized = normalizeChartNo(raw);
     const excelText = raw.replace(/\.0$/, '');
@@ -10301,21 +10438,121 @@
     ].filter(Boolean);
     const uniqueCandidates = [...new Set(candidates)];
     for (const key of uniqueCandidates) {
-      const patient = await lookupChartPatient(key);
-      if (patient) return patient;
+      const patients = await lookupChartPatients(key);
+      if (patients.length) {
+        const seen = new Set();
+        return patients.filter(patient => {
+          const id = String(patient?.patientId || patient?.chartNo || '');
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+      }
     }
-    return null;
+    return [];
+  }
+
+  function getPatientLatestVisitDate(patient = {}) {
+    const dates = Array.isArray(patient.visitDates) ? patient.visitDates : [];
+    return dates[dates.length - 1] || patient.appointmentDate || '';
+  }
+
+  function patientChoiceMeta(patient = {}) {
+    return [
+      patient.gender || '',
+      patient.age ? `${patient.age}세` : '',
+      patient.doctorName ? `원장 ${patient.doctorName}` : '',
+      getPatientLatestVisitDate(patient) ? `최근 ${getPatientLatestVisitDate(patient)}` : ''
+    ].filter(Boolean);
+  }
+
+  function chooseChartPatient(patients = [], chartNo = '') {
+    if (!patients.length) return Promise.resolve(null);
+    if (patients.length === 1) return Promise.resolve(patients[0]);
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'chart-patient-choice-overlay show';
+      overlay.innerHTML = `
+        <div class="chart-patient-choice-dialog" role="dialog" aria-modal="true">
+          <div class="chart-patient-choice-title">${escapeHtml(chartNo)} 환자 선택</div>
+          <div class="chart-patient-choice-sub">같은 차트번호의 환자가 ${patients.length.toLocaleString()}명 있습니다.</div>
+          <div class="chart-patient-choice-list">
+            ${patients.map((patient, index) => `
+              <button class="chart-patient-choice-item" type="button" data-index="${index}">
+                <span>
+                  <span class="chart-patient-choice-name">${escapeHtml(patient.name || '이름 없음')}</span>
+                  <span class="chart-patient-choice-meta">
+                    ${patientChoiceMeta(patient).map(item => `<span class="chart-patient-choice-chip">${escapeHtml(item)}</span>`).join('')}
+                  </span>
+                </span>
+                <span class="chart-patient-choice-action">선택</span>
+              </button>
+            `).join('')}
+          </div>
+          <div class="chart-patient-choice-foot">
+            <button class="chart-patient-choice-secondary" type="button" data-new="1">새 환자로 입력</button>
+            <button class="chart-patient-choice-secondary" type="button" data-cancel="1">닫기</button>
+          </div>
+        </div>`;
+      const close = value => {
+        overlay.remove();
+        resolve(value);
+      };
+      overlay.addEventListener('click', event => {
+        if (event.target === overlay || event.target.closest('[data-cancel]')) close(false);
+        const item = event.target.closest('[data-index]');
+        if (item) close(patients[Number(item.dataset.index)] || null);
+        if (event.target.closest('[data-new]')) close(null);
+      });
+      overlay.addEventListener('keydown', event => {
+        if (event.key === 'Escape') close(false);
+      });
+      document.body.appendChild(overlay);
+      overlay.querySelector('[data-index]')?.focus();
+    });
+  }
+
+  function applyChartPatientToForm(scope, patient) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    document.getElementById(ids.name).value = patient.name || '';
+    document.getElementById(ids.age).value = patient.age || '';
+    document.getElementById(ids.chiefComplaint).value = patient.chiefComplaint || '';
+    document.getElementById(ids.memo).value = patient.memo || '';
+    document.querySelector(`input[name="${ids.visitType}"][value="재진"]`)?.click();
+    document.querySelector(`input[name="${ids.gender}"][value="${patient.gender || '남'}"]`)?.click();
+    setSelectedStaffByStoredValue('doctors', scope, patient);
+    window.applyTreatmentsToForm?.(scope, patient.treatments || []);
+    window.applyBodyPartsToForm?.(scope, patient.bodyParts);
+    window.updateCreditChip?.(ids.treatmentGrid, patient);
+  }
+
+  function clearChartPatientFormForNew(scope) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    document.getElementById(ids.name).value = '';
+    document.getElementById(ids.age).value = '';
+    document.getElementById(ids.chiefComplaint).value = '';
+    document.getElementById(ids.memo).value = '';
+    document.querySelector(`input[name="${ids.visitType}"][value="초진"]`)?.click();
+    window.applyTreatmentsToForm?.(scope, []);
+    if (scope === 'desk') syncInitialVisitTreatment('desk');
+    window.applyBodyPartsToForm?.(scope, null);
+    resetPCredits(ids.treatmentGrid);
   }
 
   window.saveChartPatient = async function(data) {
     if (!data.chartNo) return;
     try {
       if (SERVER_MODE) {
-        const existing = await lookupChartPatient(data.chartNo) || {};
+        const patientId = String(data.patientId || '').trim();
+        const chartPatients = patientId ? [] : await lookupChartPatients(data.chartNo);
+        const existing = patientId
+          ? (await lookupChartPatientById(patientId) || {})
+          : (chartPatients.find(patient => String(patient?.name || '').trim() === String(data.name || '').trim()) || {});
+        const baseRecord = existing?.patientId ? existing : {};
         const { visitEntry, visitEntries, ...plainData } = data;
-        const visitPatch = mergeChartVisitHistory(existing, { visitEntry, visitEntries });
+        const visitPatch = mergeChartVisitHistory(baseRecord, { visitEntry, visitEntries });
         const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
-        const next = { ...existing, ...plainData, ...visitFields };
+        const next = { ...baseRecord, ...plainData, ...visitFields };
         if (latestVisit) {
           next.treatments = latestVisit.treatments || [];
           next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
@@ -10324,7 +10561,10 @@
         }
         if (latestChiefComplaint) next.chiefComplaint = latestChiefComplaint;
         if (data.appointmentDate === null) delete next.appointmentDate;
-        const res = await fetch(`/api/patients/${encodeURIComponent(next.chartNo)}`, {
+        const endpoint = next.patientId
+          ? `/api/patients/id/${encodeURIComponent(next.patientId)}`
+          : `/api/patients/${encodeURIComponent(next.chartNo)}`;
+        const res = await fetch(endpoint, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify(next)
@@ -10468,6 +10708,7 @@
       timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
       date: now.toLocaleDateString('ko-KR'),
       bedStatus: 'waiting',
+      patientId: patient.patientId || '',
       chartNo: normalizeChartNo(patient.chartNo),
       visitType: latestVisit.visitType || patient.visitType || '재진',
       chiefComplaint: latestVisit.chiefComplaint || patient.chiefComplaint || '',
@@ -10608,7 +10849,8 @@
     renderFormBodyPartSelector(scope);
   };
 
-  window.clearChartLookupBadge = function() {
+  window.clearChartLookupBadge = function(scope = 'desk') {
+    setSelectedChartPatient(scope, null);
     const badge = document.getElementById('chartLookupBadge');
     if (badge) { badge.textContent = ''; badge.className = 'chart-lookup-badge'; }
   };
@@ -10710,7 +10952,7 @@
     return '';
   }
 
-  window.importChartFile = async function(file) {
+  window.importChartFile = async function(file, options = {}) {
     if (!file) return;
     const statusEl = document.getElementById('chartImportStatus');
     statusEl.textContent = '파일 읽는 중...';
@@ -10742,8 +10984,10 @@
 
       statusEl.textContent = `컬럼 감지 완료 → 저장 중...`;
 
-      // 같은 차트번호가 여러 진료일로 들어오므로 환자별로 먼저 합침
+      // 같은 차트번호가 여러 진료일로 들어오므로 환자별로 먼저 합침.
+      // 단, 같은 파일 안에서 차트번호가 같고 이름이 다르면 별도 환자로 유지한다.
       const byChart = new Map();
+      const namesByChartInFile = new Map();
       const chartNameConflicts = [];
       const chartNameConflictKeys = new Set();
       let skipped = 0;
@@ -10752,6 +10996,23 @@
         const chartNo = normalizeChartNo(String(row[colChart] || '').trim().replace(/\.0$/, ''));
         const name    = String(row[colName]  || '').trim();
         if (!chartNo || !name) { skipped++; continue; }
+        const chartNameKey = `${chartNo}\u0000${name}`;
+        const namesForChart = namesByChartInFile.get(chartNo) || new Set();
+        if (!namesByChartInFile.has(chartNo)) namesByChartInFile.set(chartNo, namesForChart);
+        if (!namesForChart.has(name) && namesForChart.size) {
+          const firstName = [...namesForChart][0] || '';
+          const conflictKey = `${chartNo}|${firstName}|${name}`;
+          if (!chartNameConflictKeys.has(conflictKey)) {
+            chartNameConflictKeys.add(conflictKey);
+            chartNameConflicts.push({
+              rowNumber: rowIndex + 2,
+              chartNo,
+              firstName,
+              nextName: name
+            });
+          }
+        }
+        namesForChart.add(name);
 
         // 연령/성별 파싱 (예: "45/남", "38세/여", "45남")
         let age = '', gender = '';
@@ -10775,20 +11036,7 @@
         const visitType      = visitText.includes('초') ? '초진' : (visitText.includes('재') ? '재진' : '');
         const phone          = colPhone  ? String(row[colPhone]  || '').trim() : '';
 
-        const existingAgg = byChart.get(chartNo);
-        if (existingAgg?.name && existingAgg.name !== name) {
-          const conflictKey = `${chartNo}|${existingAgg.name}|${name}`;
-          if (!chartNameConflictKeys.has(conflictKey)) {
-            chartNameConflictKeys.add(conflictKey);
-            chartNameConflicts.push({
-              rowNumber: rowIndex + 2,
-              chartNo,
-              firstName: existingAgg.name,
-              nextName: name
-            });
-          }
-        }
-
+        const existingAgg = byChart.get(chartNameKey);
         const agg = existingAgg || { chartNo, name, age: '', gender: '', phone: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
         // 마스터 정보는 최신(나중) 행 값으로 갱신, 빈 값은 기존 유지
         agg.name = name || agg.name;
@@ -10799,8 +11047,19 @@
         if (doctorName) agg.doctorName = doctorName;
         if (visitType) agg.visitType = visitType;
         if (visitDate) agg.visitEntries.push({ date: visitDate, visitType, doctorName, chiefComplaint });
-        byChart.set(chartNo, agg);
+        byChart.set(chartNameKey, agg);
       }
+
+      const splitChartCount = [...namesByChartInFile.values()].filter(names => names.size > 1).length;
+      const splitPatientCount = [...namesByChartInFile.values()]
+        .reduce((sum, names) => sum + Math.max(0, names.size - 1), 0);
+      const splitSummary = splitPatientCount
+        ? ` · 동일 차트번호 다른 이름 ${splitPatientCount.toLocaleString()}명 별도 저장 처리`
+        : '';
+      const notifySplitComplete = () => {
+        if (options.alertSplit === false || !splitPatientCount) return;
+        alert(`동일 차트번호의 다른 이름 ${splitPatientCount.toLocaleString()}명을 별도 환자로 저장했습니다.`);
+      };
 
       if (chartNameConflicts.length) {
         const preview = chartNameConflicts
@@ -10828,13 +11087,19 @@
         });
       }
 
-      const existingByChartForConflict = new Map((existingRecordsForImport || []).map(record => [String(record.chartNo || ''), record]));
+      const existingByChartForConflict = new Map();
+      (existingRecordsForImport || []).forEach(record => {
+        const key = String(record.chartNo || '');
+        if (!existingByChartForConflict.has(key)) existingByChartForConflict.set(key, []);
+        existingByChartForConflict.get(key).push(record);
+      });
       const existingNameConflicts = patients
         .map(patient => {
-          const existing = existingByChartForConflict.get(patient.chartNo);
-          const existingName = String(existing?.name || '').trim();
-          return existingName && existingName !== patient.name
-            ? { chartNo: patient.chartNo, firstName: existingName, nextName: patient.name }
+          const existingRows = existingByChartForConflict.get(patient.chartNo) || [];
+          const hasSameName = existingRows.some(existing => String(existing?.name || '').trim() === patient.name);
+          const different = existingRows.find(existing => String(existing?.name || '').trim() && String(existing?.name || '').trim() !== patient.name);
+          return different && !hasSameName
+            ? { chartNo: patient.chartNo, firstName: String(different.name || '').trim(), nextName: patient.name }
             : null;
         })
         .filter(Boolean);
@@ -10878,8 +11143,11 @@
 
       if (SERVER_MODE) {
         const existingRecords = existingRecordsForImport || [];
-        const existingByChart = new Map(existingRecords.map(record => [String(record.chartNo || ''), record]));
-        const records = patients.map(agg => buildImportRecord(agg, existingByChart.get(agg.chartNo) || {}));
+        const findExistingForImport = agg => existingRecords.find(record =>
+          String(record.chartNo || '') === String(agg.chartNo || '') &&
+          String(record.name || '').trim() === String(agg.name || '').trim()
+        ) || {};
+        const records = patients.map(agg => buildImportRecord(agg, findExistingForImport(agg)));
         const BATCH = 1000;
         for (let i = 0; i < records.length; i += BATCH) {
           const batch = records.slice(i, i + BATCH);
@@ -10894,8 +11162,9 @@
         }
         updateChartDbCount();
         refreshAppointmentAlerts();
-        statusEl.textContent = `총 ${saved.toLocaleString()}명 저장 완료 (원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped}행 건너뜀` : ''})`;
-        return;
+        statusEl.textContent = `총 ${saved.toLocaleString()}명 저장 완료 (원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped}행 건너뜀` : ''}${splitSummary})`;
+        notifySplitComplete();
+        return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount };
       }
 
       const db = await openChartDb();
@@ -10922,10 +11191,13 @@
 
       updateChartDbCount();
       refreshAppointmentAlerts();
-      statusEl.textContent = `✅ ${saved.toLocaleString()}명 저장 완료 (총 ${rows.length.toLocaleString()}행)${skipped ? ` · ${skipped}행 건너뜀` : ''}`;
+      statusEl.textContent = `✅ ${saved.toLocaleString()}명 저장 완료 (총 ${rows.length.toLocaleString()}행)${skipped ? ` · ${skipped}행 건너뜀` : ''}${splitSummary}`;
+      notifySplitComplete();
+      return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount };
     } catch(e) {
       console.error(e);
       statusEl.textContent = '❌ 오류: ' + e.message;
+      return null;
     }
   };
 
@@ -10934,13 +11206,16 @@
     if (!file) return;
     let before = null;
     try { before = await getChartDbCount(); } catch {}
-    await importChartFile(file);
+    const result = await importChartFile(file, { alertSplit: false });
     let after = null;
     try { after = await getChartDbCount(); } catch {}
     const fmt = (n) => (n == null ? '?' : n.toLocaleString());
     const added = (before != null && after != null) ? Math.max(0, after - before) : null;
     const msg = `추가전 인원: ${fmt(before)}명\n추가후 인원: ${fmt(after)}명`
-      + (added != null ? `\n(신규 ${added.toLocaleString()}명)` : '');
+      + (added != null ? `\n(신규 ${added.toLocaleString()}명)` : '')
+      + (result?.splitPatientCount
+        ? `\n동일 차트번호의 다른 이름 ${result.splitPatientCount.toLocaleString()}명은 별도 환자로 저장했습니다.`
+        : '');
     alert(msg);
   };
 
@@ -10953,35 +11228,20 @@
     if (chartNoEl) chartNoEl.value = chartNo;
 
     const badge = document.getElementById('chartLookupBadge');
-    const patient = await lookupChartPatientFlexible(rawChartNo);
+    const matches = await lookupChartPatientsFlexible(rawChartNo);
+    const selected = await chooseChartPatient(matches, chartNo);
+    if (selected === false) return;
+    const patient = selected || null;
+    setSelectedChartPatient(scope, patient);
 
     if (patient) {
-      document.getElementById(ids.name).value = patient.name || '';
-      document.getElementById(ids.age).value = patient.age || '';
-      document.getElementById(ids.chiefComplaint).value = patient.chiefComplaint || '';
-      document.getElementById(ids.memo).value = patient.memo || '';
-      document.querySelector(`input[name="${ids.visitType}"][value="재진"]`)?.click();
-      document.querySelector(`input[name="${ids.gender}"][value="${patient.gender || '남'}"]`)?.click();
-      setSelectedStaffByStoredValue('doctors', scope, patient);
-      // 치료 항목 복원
-      window.applyTreatmentsToForm?.(scope, patient.treatments || []);
-      // 치료 부위 복원
-      window.applyBodyPartsToForm?.(scope, patient.bodyParts);
-      window.updateCreditChip?.(ids.treatmentGrid, patient);
+      applyChartPatientToForm(scope, patient);
       if (badge && scope === 'desk') {
-        badge.textContent = '재';
+        badge.textContent = matches.length > 1 ? '선택' : '재';
         badge.className = 'chart-lookup-badge returning';
       }
     } else {
-      document.getElementById(ids.name).value = '';
-      document.getElementById(ids.age).value = '';
-      document.getElementById(ids.chiefComplaint).value = '';
-      document.getElementById(ids.memo).value = '';
-      document.querySelector(`input[name="${ids.visitType}"][value="초진"]`)?.click();
-      window.applyTreatmentsToForm?.(scope, []);
-      if (scope === 'desk') syncInitialVisitTreatment('desk');
-      window.applyBodyPartsToForm?.(scope, null);
-      resetPCredits(ids.treatmentGrid);
+      clearChartPatientFormForNew(scope);
       if (badge && scope === 'desk') {
         badge.textContent = '초';
         badge.className = 'chart-lookup-badge new';

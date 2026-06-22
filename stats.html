@@ -499,7 +499,7 @@
     for (const rec of allRecords) {
       const dates = visitDatesOf(rec);
       if (!dates.length) continue;
-      const pid = String(rec.chartNo || rec.name || Math.random());
+      const pid = String(rec.patientId || rec.chartNo || rec.name || Math.random());
       let matchedCore = false;
 
       for (const date of dates.filter(inRange)) {
