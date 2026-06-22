@@ -3979,6 +3979,90 @@
     el.innerHTML = `<span class="status-dot"></span>${bedsLocalLive ? 'Online' : 'Offline'}`;
   }
 
+  const debugCounters = {};
+  const debugCounterTicks = {};
+  let debugCounterPanelTimer = 0;
+  let debugCountersVisible = localStorage.getItem('clinicDebugCounters') !== '0';
+
+  function getDebugCounterPage() {
+    const view = (new URLSearchParams(location.search).get('view') || '').toLowerCase();
+    const activePanel = document.querySelector('.panel.active')?.id || '';
+    return view || window.currentMode || activePanel || 'default';
+  }
+
+  function countDebugCounter(group, name, detail = '') {
+    if (!debugCountersVisible) return;
+    const key = `${group}:${name}`;
+    const now = Date.now();
+    if (!debugCounters[key]) {
+      debugCounters[key] = { group, name, detail, count: 0, page: getDebugCounterPage(), lastAt: 0 };
+      debugCounterTicks[key] = [];
+    }
+    const item = debugCounters[key];
+    item.count += 1;
+    item.detail = detail || item.detail;
+    item.page = getDebugCounterPage();
+    item.lastAt = now;
+    const ticks = debugCounterTicks[key];
+    ticks.push(now);
+    while (ticks.length && now - ticks[0] > 5000) ticks.shift();
+    scheduleDebugCounterPanelRender();
+  }
+
+  function scheduleDebugCounterPanelRender() {
+    if (debugCounterPanelTimer || !debugCountersVisible) return;
+    debugCounterPanelTimer = setTimeout(renderDebugCounterPanel, 500);
+  }
+
+  function renderDebugCounterPanel() {
+    debugCounterPanelTimer = 0;
+    if (!debugCountersVisible) return;
+    let panel = document.getElementById('debugCounterPanel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'debugCounterPanel';
+      panel.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99999;width:320px;max-height:45vh;overflow:auto;background:rgba(15,23,42,.94);color:#e5e7eb;border:1px solid rgba(148,163,184,.35);border-radius:8px;box-shadow:0 12px 34px rgba(0,0,0,.35);font:12px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;padding:10px;';
+      document.body.appendChild(panel);
+    }
+    const now = Date.now();
+    const rows = Object.values(debugCounters)
+      .sort((a, b) => (debugCounterTicks[b.group + ':' + b.name]?.length || 0) - (debugCounterTicks[a.group + ':' + a.name]?.length || 0) || b.count - a.count)
+      .slice(0, 28)
+      .map(item => {
+        const key = `${item.group}:${item.name}`;
+        const recent = (debugCounterTicks[key] || []).filter(ts => now - ts <= 5000).length;
+        const ago = item.lastAt ? Math.round((now - item.lastAt) / 1000) : '-';
+        return `<tr><td>${escapeHtml(item.group)}</td><td>${escapeHtml(item.name)}</td><td style="text-align:right">${item.count}</td><td style="text-align:right">${recent}/5s</td><td style="text-align:right">${ago}s</td></tr>`;
+      }).join('');
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <strong style="font-size:12px">SSE/render counter</strong>
+        <span style="margin-left:auto;color:#93c5fd">${escapeHtml(getDebugCounterPage())}</span>
+        <button onclick="window.resetDebugCounters()" style="font:inherit;background:#334155;color:#e5e7eb;border:0;border-radius:4px;padding:2px 6px">reset</button>
+        <button onclick="window.hideDebugCounters()" style="font:inherit;background:#334155;color:#e5e7eb;border:0;border-radius:4px;padding:2px 6px">hide</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="color:#cbd5e1"><th style="text-align:left">type</th><th style="text-align:left">name</th><th style="text-align:right">total</th><th style="text-align:right">rate</th><th style="text-align:right">ago</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5" style="color:#94a3b8">waiting...</td></tr>'}</tbody>
+      </table>`;
+  }
+
+  window.resetDebugCounters = () => {
+    Object.keys(debugCounters).forEach(key => delete debugCounters[key]);
+    Object.keys(debugCounterTicks).forEach(key => delete debugCounterTicks[key]);
+    renderDebugCounterPanel();
+  };
+  window.hideDebugCounters = () => {
+    debugCountersVisible = false;
+    localStorage.setItem('clinicDebugCounters', '0');
+    document.getElementById('debugCounterPanel')?.remove();
+  };
+  window.showDebugCounters = () => {
+    debugCountersVisible = true;
+    localStorage.setItem('clinicDebugCounters', '1');
+    renderDebugCounterPanel();
+  };
+
   let lastLocalBedsSignature = '';
   function applyBedsFromLocal(beds, version) {
     const signature = JSON.stringify({ version, beds: beds || {} });
@@ -3995,6 +4079,7 @@
     try {
       bedsSSE = new EventSource('/api/events');
       bedsSSE.addEventListener('beds', (event) => {
+        countDebugCounter('sse', 'beds');
         try {
           const data = JSON.parse(event.data);
           applyBedsFromLocal(data.beds, data.version);
@@ -4005,6 +4090,7 @@
       bedsSSE.addEventListener('state', (event) => {
         try {
           const data = JSON.parse(event.data);
+          countDebugCounter('sse', `state:${data.key || ''}`);
           const handler = localStateSubscribers.get(data.key);
           localStateSnapshots.set(data.key, clonePlain(data.value || {}));
           if (handler) handler(data.value);
@@ -4015,6 +4101,7 @@
       bedsSSE.addEventListener('state-child', (event) => {
         try {
           const data = JSON.parse(event.data);
+          countDebugCounter('sse', `state-child:${data.key || ''}`, `${data.op || ''}:${data.childKey || ''}`);
           const key = data.key;
           const handler = localStateSubscribers.get(key);
           if (!handler) return;
@@ -4037,6 +4124,7 @@
         }
       });
       bedsSSE.onopen = () => {
+        countDebugCounter('sse', 'open');
         bedsLocalLive = true;
         updateConnectionStatusLabel();
         // Re-pull every subscribed state key on (re)connect so we don't miss
@@ -4049,7 +4137,7 @@
         });
       };
       // EventSource auto-reconnects on its own after a drop.
-      bedsSSE.onerror = () => { bedsLocalLive = false; updateConnectionStatusLabel(); };
+      bedsSSE.onerror = () => { countDebugCounter('sse', 'error'); bedsLocalLive = false; updateConnectionStatusLabel(); };
     } catch (error) {
       console.warn('beds SSE 시작 실패', error);
     }
@@ -4078,6 +4166,7 @@
   }
 
   async function localStateChild(op, body) {
+    countDebugCounter('write', `state-child:${op}:${body?.key || ''}`, body?.childKey || '');
     const res = await fetch(`/api/state-child/${op}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -4120,6 +4209,7 @@
   const clearPatients = () => setLocalNode(PATIENTS_PATH, {});
 
   async function localBedsRequest(path, body) {
+    countDebugCounter('write', `beds:${path.split('/').pop() || path}`, body?.bedNo ? `bed:${body.bedNo}` : '');
     const res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -4138,6 +4228,7 @@
 
   async function localStatePut(key, value) {
     if (!SERVER_MODE) return null;
+    countDebugCounter('write', `state:${key || ''}`);
     const res = await fetch(`/api/state/${encodeURIComponent(key)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -4512,7 +4603,10 @@
 
   function requestAppRender(parts = {}) {
     Object.keys(pendingAppRender).forEach(key => {
-      if (parts[key]) pendingAppRender[key] = true;
+      if (parts[key]) {
+        pendingAppRender[key] = true;
+        countDebugCounter('render-request', key);
+      }
     });
     if (appRenderFrame) return;
     appRenderFrame = requestAnimationFrame(() => {
@@ -4520,14 +4614,14 @@
       const render = { ...pendingAppRender };
       Object.keys(pendingAppRender).forEach(key => { pendingAppRender[key] = false; });
 
-      if (render.bedSelector) renderBedSelector();
-      if (render.bedDetail) renderBedDetail();
-      if (render.receiveBedDetail) renderReceiveBedDetail();
-      if (render.bedMonitors) renderBedMonitors();
-      if (render.waitingLists) renderWaitingLists();
-      if (render.upcomingAlerts) renderUpcomingAlerts();
-      if (render.count) updateCount();
-      if (render.fixedBedArrival) syncFixedBedArrivalOverlay();
+      if (render.bedSelector) { countDebugCounter('render-run', 'bedSelector'); renderBedSelector(); }
+      if (render.bedDetail) { countDebugCounter('render-run', 'bedDetail'); renderBedDetail(); }
+      if (render.receiveBedDetail) { countDebugCounter('render-run', 'receiveBedDetail'); renderReceiveBedDetail(); }
+      if (render.bedMonitors) { countDebugCounter('render-run', 'bedMonitors'); renderBedMonitors(); }
+      if (render.waitingLists) { countDebugCounter('render-run', 'waitingLists'); renderWaitingLists(); }
+      if (render.upcomingAlerts) { countDebugCounter('render-run', 'upcomingAlerts'); renderUpcomingAlerts(); }
+      if (render.count) { countDebugCounter('render-run', 'count'); updateCount(); }
+      if (render.fixedBedArrival) { countDebugCounter('render-run', 'fixedBedArrival'); syncFixedBedArrivalOverlay(); }
     });
   }
 
@@ -4655,6 +4749,7 @@
   }
 
   function renderTreatmentGrid(gridId) {
+    countDebugCounter('render-call', `treatmentGrid:${gridId || ''}`);
     const grid = document.getElementById(gridId);
     if (!grid) return;
     grid.innerHTML = '';
@@ -4902,6 +4997,7 @@
   };
 
   function renderPackagePopup() {
+    countDebugCounter('render-call', 'packagePopup');
     const form = document.getElementById('creditForm');
     if (!form || !activeCreditGridId) return;
     const packages = getPackageStateForGrid(activeCreditGridId);
@@ -5215,6 +5311,7 @@
   };
 
   function renderTreatmentChips(gridId) {
+    countDebugCounter('render-call', `treatmentChips:${gridId || ''}`);
     const chipsWrap = document.getElementById(getTreatmentChipsId(gridId));
     if (!chipsWrap) return;
     const sel = treatmentSelections[gridId] || [];
@@ -7472,6 +7569,7 @@
   }
 
   function renderWaitingLists() {
+    countDebugCounter('render-call', 'waitingLists');
     const waitingPatients = getWaitingPatients();
     updateDeskWaitChip(waitingPatients);
     const html = waitingPatients.length
@@ -7763,6 +7861,7 @@
   }
 
   function renderUpcomingAlerts() {
+    countDebugCounter('render-call', 'upcomingAlerts');
     const renderAlertItemsHtml = (items) => items
       .sort((a, b) => {
         const priorityDiff = Number(a.alertPriority ?? 1) - Number(b.alertPriority ?? 1);
@@ -8167,6 +8266,7 @@
   };
 
   function renderBedSelector() {
+    countDebugCounter('render-call', 'bedSelector');
     const selector = document.getElementById('bedSelector');
     renderBedSelectorOptions(selector, selectedBedNo);
 
@@ -8199,6 +8299,7 @@
   };
 
   function renderBedDetail() {
+    countDebugCounter('render-call', 'bedDetail');
     const detail = document.getElementById('bedDetail');
     renderBodyPartSelector();
     populateBedEditForm();
@@ -8208,6 +8309,7 @@
   }
 
   function renderReceiveBedDetail() {
+    countDebugCounter('render-call', 'receiveBedDetail');
     const detail = document.getElementById('receiveBedDetail');
     renderBedDetailInto(detail, selectedReceiveBedNo, true, 'receive');
   }
@@ -8277,6 +8379,7 @@
   }
 
   function renderBodyPartSelector() {
+    countDebugCounter('render-call', 'bodyPartSelector');
     const map = document.getElementById('bodyMap');
     if (!map) return;
 
@@ -8303,6 +8406,7 @@
   }
 
   function renderFormBodyPartSelector(scope) {
+    countDebugCounter('render-call', `formBodyPartSelector:${scope || ''}`);
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const map = document.getElementById(ids.bodyPartForm);
     if (!map) return;
@@ -8952,7 +9056,6 @@
       const span = document.getElementById(`monitor-time-${context}-${bedNo}`);
       if (span) span.textContent = monitorStatus.noTimer ? '' : monitorStatus.remaining;
     });
-    renderUpcomingAlerts();
     if (bedNo === selectedBedNo) updateBedRemainingChip();
   }
 
@@ -9998,6 +10101,7 @@
   }
 
   function renderBedMonitors() {
+    countDebugCounter('render-call', 'bedMonitors');
     if (bedDragActive()) { bedRenderPending = true; return; }
     bedRenderPending = false;
     const doctorBedNums = getDoctorBedNumbers();
