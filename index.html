@@ -4429,6 +4429,9 @@
   // (SSE가 자주 와도) DOM 교체로 인한 hover 떨림·황색 펄스 재시작을 막는다.
   let lastInputBedHtml = null;
   let lastReceiveBedHtml = null;
+  function getBedMonitorStableHtml(html) {
+    return String(html || '').replace(/(<span class="bed-status-time" id="monitor-time-[^"]+">)[\s\S]*?(<\/span>)/g, '$1$2');
+  }
   function bedDragActive() {
     return draggedBedNo != null || draggedWaitingPatientKey != null || draggedTreatment != null;
   }
@@ -6024,6 +6027,8 @@
   function setTreatmentSelection(gridId, treatments = []) {
     // treatments는 이름 배열 (예: ['침', '핫팩'])
     const normalizedTreatments = treatments.map(name => getTreatmentByName(name)?.name).filter(Boolean);
+    const currentNames = (treatmentSelections[gridId] || []).map(item => item.name);
+    if (currentNames.length === normalizedTreatments.length && currentNames.every((name, index) => name === normalizedTreatments[index])) return;
     // 순서는 원래 treatments 배열 순서대로 유지
     const ordered = [];
     normalizedTreatments.forEach(name => {
@@ -6037,6 +6042,7 @@
 
   function populatePatientForm(scope, bed = null) {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    suppressSelectFieldAutosaveForPopulation();
     setSelectedChartPatient(scope, bed?.patientId ? bed : null);
     document.getElementById(ids.name).value = bed?.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
@@ -6092,6 +6098,7 @@
   function populateBedEditForm() {
     const bed = getBedData(selectedBedNo);
     const ids = PATIENT_FORM_IDS.bed;
+    suppressSelectFieldAutosaveForPopulation();
     formEditBedNoByScope.bed = selectedBedNo;
     if (!bed) {
       setIdentityFieldsLocked('bed', false);
@@ -9090,8 +9097,17 @@
 
   // ── 선택 필드 즉시 자동저장 (edit mode 전용) ────────────────────────
   const _selectSaveTimers = {};
+  let isPopulatingFormFromState = false;
+
+  function suppressSelectFieldAutosaveForPopulation() {
+    isPopulatingFormFromState = true;
+    queueMicrotask(() => {
+      isPopulatingFormFromState = false;
+    });
+  }
 
   function scheduleSelectFieldSave(scope, delay = 250) {
+    if (isPopulatingFormFromState) return;
     clearTimeout(_selectSaveTimers[scope]);
     _selectSaveTimers[scope] = setTimeout(() => autoSaveSelectFields(scope), delay);
   }
@@ -9998,16 +10014,25 @@
       return renderBedStatusCard(status, 'receive');
     }).join('');
 
+    const inputStableHtml = getBedMonitorStableHtml(inputHtml);
+    const receiveStableHtml = getBedMonitorStableHtml(receiveHtml);
     const inputEl = document.getElementById('inputBedMonitor');
-    if (inputEl && inputHtml !== lastInputBedHtml) {
+    if (inputEl && inputStableHtml !== lastInputBedHtml) {
       inputEl.innerHTML = inputHtml;
-      lastInputBedHtml = inputHtml;
+      lastInputBedHtml = inputStableHtml;
     }
     const receiveEl = document.getElementById('receiveBedMonitor');
-    if (receiveEl && receiveHtml !== lastReceiveBedHtml) {
+    if (receiveEl && receiveStableHtml !== lastReceiveBedHtml) {
       receiveEl.innerHTML = receiveHtml;
-      lastReceiveBedHtml = receiveHtml;
+      lastReceiveBedHtml = receiveStableHtml;
     }
+    [...new Set([...doctorBedNums, ...ACTIVE_BED_NUMBERS])].forEach((bedNo) => {
+      const status = getBedStatus(bedNo);
+      ['input', 'receive'].forEach(context => {
+        const span = document.getElementById(`monitor-time-${context}-${bedNo}`);
+        if (span) span.textContent = status.noTimer ? '' : status.remaining;
+      });
+    });
     updateDeskWaitChip();
     updateReceiveAlertAudioState();
   }
