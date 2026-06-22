@@ -4640,6 +4640,17 @@
     renderTreatmentChips(gridId);
   }
 
+  const lastTreatmentChipsHtml = new Map();
+  const stableHtmlByElement = new WeakMap();
+
+  function setStableInnerHTML(element, html) {
+    if (!element) return false;
+    if (stableHtmlByElement.get(element) === html) return false;
+    element.innerHTML = html;
+    stableHtmlByElement.set(element, html);
+    return true;
+  }
+
   function renderTreatmentGrid(gridId) {
     const grid = document.getElementById(gridId);
     if (!grid) return;
@@ -5205,12 +5216,15 @@
     if (!chipsWrap) return;
     const sel = treatmentSelections[gridId] || [];
     if (selectedTreatmentChip?.gridId === gridId && !sel[selectedTreatmentChip.index]) selectedTreatmentChip = null;
-    chipsWrap.innerHTML = sel.map((s, i) => {
+    const html = sel.map((s, i) => {
       const selectedClass = useClickTreatmentReorder() && selectedTreatmentChip?.gridId === gridId && selectedTreatmentChip.index === i ? 'selected' : '';
       const className = ['treat-chip', getTreatmentBadgeClass(s.name), selectedClass].filter(Boolean).join(' ');
       return `
       <span class="${className}" data-grid="${gridId}" data-index="${i}" ${treatmentSelectionChipAttrs(gridId, i)}>${escapeHtml(s.name)}</span>`;
     }).join('');
+    if (lastTreatmentChipsHtml.get(gridId) === html && chipsWrap.innerHTML === html) return;
+    chipsWrap.innerHTML = html;
+    lastTreatmentChipsHtml.set(gridId, html);
   }
 
   let _chipDragFromIndex = null;
@@ -8261,23 +8275,23 @@
 
     const bed = getBedData(selectedBedNo);
     if (!bed) {
-      map.innerHTML = `
+      setStableInnerHTML(map, `
         <div class="empty-state">
           <div class="empty-icon">◎</div>
           <div class="empty-text">현재 비어 있습니다</div>
-        </div>`;
+        </div>`);
       return;
     }
 
     const selectedParts = normalizeBodyParts(bed.bodyParts);
 
-    map.innerHTML = `
+    setStableInnerHTML(map, `
       <div class="body-map-grid">
         ${renderBodyFigure('front', '전면', selectedParts.front)}
         ${renderBodyFigure('back', '후면', selectedParts.back)}
       </div>
       <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>
-      <div class="body-treatment-chip-slot" id="${getTreatmentChipSlotId('bedTreatmentGrid')}"></div>`;
+      <div class="body-treatment-chip-slot" id="${getTreatmentChipSlotId('bedTreatmentGrid')}"></div>`);
     placeTreatmentChips('bedTreatmentGrid');
   }
 
@@ -8287,14 +8301,14 @@
     if (!map) return;
 
     const selectedParts = normalizeBodyParts(formBodyPartsByScope[scope]);
-    map.innerHTML = `
+    setStableInnerHTML(map, `
       <div class="card-label">치료부위 선택</div>
       <div class="body-map-grid">
         ${renderBodyFigure('front', '전면', selectedParts.front, `toggleFormBodyPart('${scope}', 'front', '__PART__')`)}
         ${renderBodyFigure('back', '후면', selectedParts.back, `toggleFormBodyPart('${scope}', 'back', '__PART__')`)}
       </div>
       <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>
-      <div class="body-treatment-chip-slot" id="${getTreatmentChipSlotId(ids.treatmentGrid)}"></div>`;
+      <div class="body-treatment-chip-slot" id="${getTreatmentChipSlotId(ids.treatmentGrid)}"></div>`);
     placeTreatmentChips(ids.treatmentGrid);
   }
 
