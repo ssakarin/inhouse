@@ -375,6 +375,28 @@
     overflow-x: hidden;
     scrollbar-gutter: stable;
   }
+  .alert-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .alert-card-action {
+    border: 1px solid rgba(56,189,248,0.36);
+    border-radius: 7px;
+    background: rgba(56,189,248,0.10);
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+  .alert-card-action:hover {
+    background: rgba(56,189,248,0.18);
+    border-color: rgba(56,189,248,0.62);
+  }
   .input-panel.input-form-open .input-form-column > .card,
   .receive-panel.receive-form-open .receive-form-column > .card {
     display: grid;
@@ -1169,7 +1191,7 @@
   }
   .staff-item {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     align-items: center;
     gap: 8px;
     background: var(--surface2);
@@ -1212,6 +1234,31 @@
     white-space: nowrap;
   }
   .staff-vacation-toggle input { accent-color: var(--danger); }
+  .staff-weekday-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .staff-weekday-toggle label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .staff-weekday-toggle input { display: none; }
+  .staff-weekday-toggle label:has(input:checked) {
+    background: rgba(251,113,133,0.14);
+    border-color: rgba(251,113,133,0.62);
+    color: var(--danger);
+  }
   .nurse-quick-btn {
     display: none;
     background: var(--surface2);
@@ -1996,6 +2043,55 @@
     max-height: min(88vh, 780px);
     overflow: auto;
   }
+  .discharged-popup {
+    width: min(560px, calc(100vw - 32px));
+    max-width: min(560px, calc(100vw - 32px));
+    max-height: min(82vh, 720px);
+    overflow: auto;
+  }
+  .discharged-list {
+    display: grid;
+    gap: 8px;
+    margin: 8px 0 18px;
+    text-align: left;
+  }
+  .discharged-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    background: rgba(16,27,45,0.68);
+    color: var(--text);
+    cursor: pointer;
+    padding: 10px 12px;
+    text-align: left;
+  }
+  .discharged-item:hover {
+    border-color: rgba(56,189,248,0.46);
+    background: rgba(30,41,59,0.86);
+  }
+  .discharged-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 900;
+  }
+  .discharged-sub {
+    color: var(--text3);
+    font-size: 12px;
+    margin-top: 3px;
+  }
+  .discharged-time {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
   .credit-form {
     display: grid;
     grid-template-columns: 1fr;
@@ -2257,6 +2353,27 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .bed-treatment-chip.added {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    border-style: dashed !important;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16);
+  }
+  .bed-treatment-chip .added-treatment-plus {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 1000;
+    line-height: 1;
+  }
   .bed-treatment-chip.treatment-hotpack { --treatment-glow-soft: rgba(250,204,21,0.35); --treatment-glow-strong: rgba(250,204,21,0.90); --treatment-text: #fde047; background: rgba(250,204,21,0.30); border: 1px solid rgba(250,204,21,0.92); color: #fde047; }
   .bed-treatment-chip.treatment-physical { --treatment-glow-soft: rgba(57,169,245,0.35); --treatment-glow-strong: rgba(57,169,245,0.88); --treatment-text: #9edcff; background: rgba(57,169,245,0.22); border: 1px solid rgba(57,169,245,0.72); color: #9edcff; }
   .bed-treatment-chip.treatment-infrared { --treatment-glow-soft: rgba(239,68,68,0.35); --treatment-glow-strong: rgba(239,68,68,0.88); --treatment-text: #ffc0c0; background: rgba(239,68,68,0.24); border: 1px solid rgba(239,68,68,0.84); color: #ffc0c0; }
@@ -2276,6 +2393,7 @@
     animation: treatmentBlink 0.9s ease-in-out infinite;
   }
   .bed-treatment-chip.waiting:not([class*="treatment-"]) { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: var(--text2); }
+  .bed-treatment-chip[data-complete-click="true"] { cursor: pointer; }
   .bed-treatment-chip[draggable="true"] { cursor: grab; }
   .bed-treatment-chip[draggable="true"]:active { cursor: grabbing; }
   .bed-treatment-chip.treat-drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
@@ -3632,10 +3750,6 @@
         <span class="rr-slider"></span>
       </span>
     </label>
-    <label class="rr-setting" style="margin-top:0;margin-bottom:10px">
-      <span class="rr-setting-text">시작 간호사</span>
-      <select class="staff-select nurse-start-select" id="nurseQuickRoundRobinStartSelect" onchange="saveNurseRoundRobinStart(this.value)"></select>
-    </label>
     <div class="staff-add-row">
       <input class="name-input" id="nurseQuickNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
       <button class="timer-set-btn" type="button" onclick="addStaff('nurses', 'nurseQuickNameInput')">추가</button>
@@ -3698,7 +3812,10 @@
           <div class="waiting-list waiting-list--compact" id="inputWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
         <div class="card">
-          <div class="card-label">알림</div>
+          <div class="card-label alert-card-title">
+            <span>알림</span>
+            <button type="button" class="alert-card-action" onclick="openDischargedPatientsPopup()">퇴실환자</button>
+          </div>
           <div class="upcoming-list" id="inputUpcomingAlerts"></div>
           <div class="doctor-alert-split" id="inputDoctorAlertSplit"></div>
         </div>
@@ -3886,10 +4003,6 @@
               <span class="rr-slider"></span>
             </span>
           </label>
-          <label class="rr-setting" style="margin-top:0;margin-bottom:10px">
-            <span class="rr-setting-text">시작 간호사</span>
-            <select class="staff-select nurse-start-select" id="nurseRoundRobinStartSelect" onchange="saveNurseRoundRobinStart(this.value)"></select>
-          </label>
           <div class="staff-add-row">
             <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
             <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
@@ -3951,6 +4064,16 @@
   </div>
 </div>
 
+<div class="notif-overlay" id="dischargedPatientsOverlay" onclick="closeDischargedPatientsPopup()">
+  <div class="notif-popup discharged-popup" onclick="event.stopPropagation()">
+    <div class="popup-name">오늘 퇴실환자</div>
+    <div class="discharged-list" id="dischargedPatientsList"></div>
+    <div class="credit-popup-actions">
+      <button class="popup-close" type="button" onclick="closeDischargedPatientsPopup()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
@@ -3958,7 +4081,9 @@
   const PATIENTS_PATH  = 'patients';
   const BEDS_PATH      = 'beds';
   const CALL_ALERTS_PATH = 'callAlerts';
+  const APPOINTMENT_DESK_ALERTS_PATH = 'appointmentDeskAlerts';
   const BED_ASSIGNMENT_ALERTS_PATH = 'bedAssignmentAlerts';
+  const DISCHARGED_PATIENTS_PATH_PREFIX = 'dischargedPatients';
   let bedScreenWakeLock = null;
   const SERVER_MODE = location.protocol === 'http:' || location.protocol === 'https:';
 
@@ -4200,6 +4325,8 @@
   // child, remove drops one.
   const pushCallAlert = (data) => pushLocalNode(CALL_ALERTS_PATH, data);
   const removeCallAlert = (key) => removeLocalNodeChild(CALL_ALERTS_PATH, key);
+  const saveAppointmentDeskAlert = (key, data) => updateLocalNodeChild(APPOINTMENT_DESK_ALERTS_PATH, key, data);
+  const removeAppointmentDeskAlert = (key) => removeLocalNodeChild(APPOINTMENT_DESK_ALERTS_PATH, key);
   const pushBedAssignmentAlert = (data) => pushLocalNode(BED_ASSIGNMENT_ALERTS_PATH, data);
   const removeBedAssignmentAlert = (key) => removeLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, key);
   const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {});
@@ -4214,6 +4341,20 @@
   const pushPatient = (data) => pushLocalNode(PATIENTS_PATH, data);
   const removePatient = (key) => removeLocalNodeChild(PATIENTS_PATH, key);
   const clearPatients = () => setLocalNode(PATIENTS_PATH, {});
+  const getDischargedPatientsPath = (date = getTodayKey()) => `${DISCHARGED_PATIENTS_PATH_PREFIX}/${date}`;
+  const saveDischargedPatientRecord = (date, key, data) => updateLocalNodeChild(getDischargedPatientsPath(date), key, data);
+  async function cleanupOldDischargedPatients(keepDate = getTodayKey()) {
+    if (!SERVER_MODE) return;
+    try {
+      await fetch('/api/discharged-patients/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ keepDate })
+      });
+    } catch (e) {
+      console.warn('퇴실환자 이전 날짜 정리 실패', e);
+    }
+  }
 
   async function localBedsRequest(path, body) {
     countDebugCounter('write', `beds:${path.split('/').pop() || path}`, body?.bedNo ? `bed:${body.bedNo}` : '');
@@ -4325,7 +4466,6 @@
   let treatmentPresets = [];
   let autoBedAssignEnabled = false;
   let nurseAutoAssignEnabled = true;
-  let nurseRoundRobinStartId = '';
 
   const patientsByKey = new Map();
   const staffByType = {
@@ -4551,6 +4691,11 @@
     desk: null,
     receive: null
   };
+  const formEditDischargedKeyByScope = {
+    desk: null,
+    receive: null
+  };
+  const dischargedPatientsByKey = new Map();
   const normalizedBedChartKeys = new Set();
   const migratingDisabledBedKeys = new Set();
   const cleaningDisabledBedKeys = new Set();
@@ -4582,6 +4727,7 @@
   const knownAssignedPatientKeys = new Set();
   const assignmentAlertItems = [];
   const callAlertItems = new Map();
+  const appointmentDeskAlertItems = new Map();
   const bedAssignmentAlertItems = new Map();
   let hasLoadedBedsOnce = false;
   let isClearingPatientDatabase = false;
@@ -5547,27 +5693,43 @@
     });
   }
 
-  function syncNurseRoundRobinStartSelects() {
-    const nurses = getSortedStaff('nurses');
-    const selectedNurse = nurseRoundRobinStartId ? staffByType.nurses.get(nurseRoundRobinStartId) : null;
-    const hasSelected = Boolean(selectedNurse && !selectedNurse.vacation);
-    const options = [
-      `<option value="">자동(등록순)</option>`,
-      ...nurses.map(([key, data]) =>
-        `<option value="${escapeHtml(key)}" ${data.vacation ? 'disabled' : ''}>${escapeHtml(data.name || '')}${data.vacation ? ' (자리비움)' : ''}</option>`
-      )
-    ].join('');
-    ['nurseRoundRobinStartSelect', 'nurseQuickRoundRobinStartSelect'].forEach(id => {
-      const select = document.getElementById(id);
-      if (!select) return;
-      select.innerHTML = options;
-      select.value = hasSelected ? nurseRoundRobinStartId : '';
-    });
-  }
-
   function getSortedStaff(type) {
     return [...staffByType[type].entries()]
       .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
+  }
+
+  const DOCTOR_VACATION_WEEKDAYS = [
+    { day: 1, label: '월' },
+    { day: 2, label: '화' },
+    { day: 3, label: '수' },
+    { day: 4, label: '목' },
+    { day: 5, label: '금' },
+    { day: 6, label: '토' }
+  ];
+
+  function normalizeDoctorVacationWeekdays(value) {
+    return [...new Set((Array.isArray(value) ? value : [])
+      .map(day => Number(day))
+      .filter(day => Number.isInteger(day) && day >= 1 && day <= 6))]
+      .sort((a, b) => a - b);
+  }
+
+  function isDoctorAutoVacationToday(doctor = {}, date = new Date()) {
+    const weekdays = normalizeDoctorVacationWeekdays(doctor.vacationWeekdays);
+    return weekdays.includes(date.getDay());
+  }
+
+  function isDoctorUnavailable(doctor = {}) {
+    return Boolean(doctor?.vacation || isDoctorAutoVacationToday(doctor));
+  }
+
+  function getActiveDoctors() {
+    return getSortedStaff('doctors').filter(([, doctor]) => !isDoctorUnavailable(doctor));
+  }
+
+  function getFirstActiveDoctor() {
+    const [id, doctor] = getActiveDoctors()[0] || [];
+    return id ? { id, name: doctor?.name || '' } : { id: '', name: '' };
   }
 
   function renderStaffControls() {
@@ -5580,24 +5742,36 @@
         if (!select) return;
         const selectedValue = select.value;
         select.innerHTML = `<option value="">${label} 선택 안함</option>` + staff.map(([key, data]) =>
-          `<option value="${escapeHtml(key)}">${escapeHtml(data.name || '')}</option>`
+          `<option value="${escapeHtml(key)}" ${type === 'doctors' && isDoctorUnavailable(data) ? 'disabled' : ''}>${escapeHtml(data.name || '')}${type === 'doctors' && isDoctorUnavailable(data) ? ' (자리비움)' : ''}</option>`
         ).join('');
-        if (staffByType[type].has(selectedValue)) select.value = selectedValue;
+        const selectedStaff = staffByType[type].get(selectedValue);
+        if (selectedStaff && !(type === 'doctors' && isDoctorUnavailable(selectedStaff))) select.value = selectedValue;
         const scope = selectId.startsWith('receive') ? 'receive' : selectId.startsWith('bed') ? 'bed' : 'desk';
         select.onchange = () => scheduleSelectFieldSave?.(scope, 0);
       });
 
       const listHtml = staff.length
-        ? staff.map(([key, data]) => `
-          <div class="staff-item${type === 'nurses' && data.vacation ? ' vacation' : ''}">
+        ? staff.map(([key, data]) => {
+          const doctorWeekdays = type === 'doctors' ? normalizeDoctorVacationWeekdays(data.vacationWeekdays) : [];
+          return `
+          <div class="staff-item${data.vacation ? ' vacation' : ''}">
             <div class="staff-name">${escapeHtml(data.name || '')}</div>
-            ${type === 'nurses' ? `
+            ${(type === 'nurses' || type === 'doctors') ? `
               <label class="staff-vacation-toggle">
-                <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="toggleNurseVacation('${key}', this.checked)">
+                <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacation' : 'toggleNurseVacation'}('${key}', this.checked)">
                 <span>자리비움</span>
               </label>` : ''}
+            ${type === 'doctors' ? `
+              <div class="staff-weekday-toggle" aria-label="요일별 자동 자리비움">
+                ${DOCTOR_VACATION_WEEKDAYS.map(({ day, label: dayLabel }) => `
+                  <label title="${dayLabel}요일 자동 자리비움">
+                    <input type="checkbox" ${doctorWeekdays.includes(day) ? 'checked' : ''} onchange="toggleDoctorVacationWeekday('${key}', ${day}, this.checked)">
+                    <span>${dayLabel}</span>
+                  </label>`).join('')}
+              </div>` : ''}
             <button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>
-          </div>`).join('')
+          </div>`;
+        }).join('')
         : `<div class="empty-state"><div class="empty-icon">+</div><div class="empty-text">등록된 ${label}이 없습니다</div></div>`;
 
       getStaffListIds(type).forEach(listId => {
@@ -5606,7 +5780,6 @@
         list.innerHTML = listHtml;
       });
     });
-    syncNurseRoundRobinStartSelects();
     renderDoctorAlertSelect();
   }
 
@@ -5614,10 +5787,10 @@
     const containers = ['doctorAlertBtns', 'bedDoctorAlertBtns']
       .map(id => document.getElementById(id))
       .filter(Boolean);
-    const doctors = getSortedStaff('doctors');
+    const doctors = getActiveDoctors();
 
     // 존재하지 않는 원장이 선택돼 있으면 해제
-    if (selectedDoctorAlertId && !staffByType.doctors.has(selectedDoctorAlertId)) {
+    if (selectedDoctorAlertId && !getActiveDoctors().some(([id]) => id === selectedDoctorAlertId)) {
       selectedDoctorAlertId = '';
       localStorage.removeItem('selectedDoctorAlertId');
     }
@@ -5655,7 +5828,7 @@
 
   // 버튼 1개 순환: 누를 때마다 등록된 원장만 순환
   window.cycleDoctorAlertFilter = () => {
-    const doctors = getSortedStaff('doctors');
+    const doctors = getActiveDoctors();
     if (!doctors.length) return;
     const cycle = doctors.map(([key]) => key);
     const idx = cycle.indexOf(selectedDoctorAlertId);
@@ -5711,11 +5884,11 @@
   }
 
   function getSelectedDoctorCallInfo() {
-    const doctors = getSortedStaff('doctors');
+    const doctors = getActiveDoctors();
     let id = selectedDoctorAlertId;
     if (!id && doctors.length) id = doctors[0][0];
     const doctor = id ? staffByType.doctors.get(id) : null;
-    return doctor ? { id, name: doctor.name || '원장' } : null;
+    return doctor && !isDoctorUnavailable(doctor) ? { id, name: doctor.name || '원장' } : null;
   }
 
   window.sendDoctorCallAlert = async (target) => {
@@ -5747,6 +5920,7 @@
     const select = document.getElementById(selectId);
     const key = select?.value || '';
     const data = key ? staffByType[type].get(key) : null;
+    if (type === 'doctors' && isDoctorUnavailable(data)) return { id: '', name: '' };
     return data ? { id: key, name: data.name || '' } : { id: '', name: '' };
   }
 
@@ -5759,13 +5933,21 @@
 
     const id = stored[`${type === 'doctors' ? 'doctor' : 'nurse'}Id`] || '';
     const name = stored[`${type === 'doctors' ? 'doctor' : 'nurse'}Name`] || '';
-    if (id && staffByType[type].has(id)) {
+    const storedIdData = id ? staffByType[type].get(id) : null;
+    if (storedIdData && !(type === 'doctors' && isDoctorUnavailable(storedIdData))) {
       select.value = id;
       return;
     }
     if (name) {
-      const match = getSortedStaff(type).find(([, data]) => (data?.name || '') === name);
-      if (match) select.value = match[0];
+      const match = getSortedStaff(type).find(([, data]) => (data?.name || '') === name && !(type === 'doctors' && isDoctorUnavailable(data)));
+      if (match) {
+        select.value = match[0];
+        return;
+      }
+    }
+    if (type === 'doctors' && (id || name)) {
+      const fallback = getFirstActiveDoctor();
+      select.value = fallback.id || '';
     }
   }
 
@@ -5798,6 +5980,51 @@
       staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacation: prev });
       renderStaffControls();
       showToast('자리비움 상태 저장 실패');
+    }
+  };
+
+  window.toggleDoctorVacation = async (key, checked) => {
+    if (!staffByType.doctors.has(key)) return;
+    const prev = Boolean(staffByType.doctors.get(key)?.vacation);
+    staffByType.doctors.set(key, { ...staffByType.doctors.get(key), vacation: Boolean(checked) });
+    renderStaffControls();
+    renderBedMonitors();
+    renderUpcomingAlerts();
+    try {
+      await updateLocalNodeChild('staff/doctors', key, { vacation: Boolean(checked) });
+      showToast(checked ? '원장 자리비움 처리 완료' : '원장 자리비움 해제 완료');
+    } catch (e) {
+      console.error(e);
+      staffByType.doctors.set(key, { ...staffByType.doctors.get(key), vacation: prev });
+      renderStaffControls();
+      renderBedMonitors();
+      renderUpcomingAlerts();
+      showToast('자리비움 상태 저장 실패');
+    }
+  };
+
+  window.toggleDoctorVacationWeekday = async (key, day, checked) => {
+    if (!staffByType.doctors.has(key)) return;
+    const current = staffByType.doctors.get(key) || {};
+    const prev = normalizeDoctorVacationWeekdays(current.vacationWeekdays);
+    const nextSet = new Set(prev);
+    if (checked) nextSet.add(Number(day));
+    else nextSet.delete(Number(day));
+    const next = normalizeDoctorVacationWeekdays([...nextSet]);
+    staffByType.doctors.set(key, { ...current, vacationWeekdays: next });
+    renderStaffControls();
+    renderBedMonitors();
+    renderUpcomingAlerts();
+    try {
+      await updateLocalNodeChild('staff/doctors', key, { vacationWeekdays: next });
+      showToast('원장 자동 자리비움 요일 저장 완료');
+    } catch (e) {
+      console.error(e);
+      staffByType.doctors.set(key, { ...staffByType.doctors.get(key), vacationWeekdays: prev });
+      renderStaffControls();
+      renderBedMonitors();
+      renderUpcomingAlerts();
+      showToast('자동 자리비움 요일 저장 실패');
     }
   };
 
@@ -5911,11 +6138,6 @@
     syncNurseAutoAssignInputs();
   });
 
-  migrateNode('settings/nurseRoundRobinStartId', (value) => {
-    nurseRoundRobinStartId = String(value || '');
-    syncNurseRoundRobinStartSelects();
-  });
-
   migrateNode(CALL_ALERTS_PATH, (value) => {
     callAlertItems.clear();
     Object.entries(value || {}).forEach(([key, data]) => {
@@ -5923,6 +6145,23 @@
     });
     renderUpcomingAlerts();
   });
+
+  migrateNode(APPOINTMENT_DESK_ALERTS_PATH, (value) => {
+    appointmentDeskAlertItems.clear();
+    Object.entries(value || {}).forEach(([key, data]) => {
+      if (data) appointmentDeskAlertItems.set(key, data);
+    });
+    renderUpcomingAlerts();
+  });
+
+  migrateNode(getDischargedPatientsPath(), (value) => {
+    dischargedPatientsByKey.clear();
+    Object.entries(value || {}).forEach(([key, data]) => {
+      if (data) dischargedPatientsByKey.set(key, data);
+    });
+    renderDischargedPatientsList();
+  });
+  cleanupOldDischargedPatients(getTodayKey());
 
   migrateNode(BED_ASSIGNMENT_ALERTS_PATH, (value) => {
     bedAssignmentAlertItems.clear();
@@ -5985,33 +6224,6 @@
     showToast(enabled ? '간호사 자동배정 켜짐' : '간호사 자동배정 꺼짐');
   };
 
-  window.saveNurseRoundRobinStart = async (nurseId) => {
-    const activeNurseIds = new Set(getActiveRoundRobinNurses().map(([id]) => id));
-    const nextId = activeNurseIds.has(nurseId) ? nurseId : '';
-    nurseRoundRobinStartId = nextId;
-    syncNurseRoundRobinStartSelects();
-    const nurses = getActiveRoundRobinNurses();
-    const startOffset = Math.max(0, nurses.findIndex(([id]) => id === nextId));
-    const state = {
-      startId: nextId,
-      lastDate: getTodayKey(),
-      startOffset: nextId ? startOffset : 0,
-      count: 0,
-      updatedAt: Date.now()
-    };
-    try {
-      await Promise.all([
-        setLocalNode('settings/nurseRoundRobinStartId', nextId),
-        setLocalNode('settings/nurseRoundRobinState', state)
-      ]);
-      const name = nextId ? (staffByType.nurses.get(nextId)?.name || '선택 간호사') : '등록순';
-      showToast(`시작 간호사: ${name}`);
-    } catch (e) {
-      console.error(e);
-      showToast('시작 간호사 저장 실패');
-    }
-  };
-
   const PATIENT_FORM_IDS = {
     desk: {
       name: 'patientName',
@@ -6068,6 +6280,11 @@
       if (saved) closeMonitorEditForm(scope);
       return;
     }
+    if ((scope === 'desk' || scope === 'receive') && formEditDischargedKeyByScope[scope]) {
+      const saved = await saveDischargedPatientInfo(scope);
+      if (saved) closeMonitorEditForm(scope);
+      return;
+    }
     if (scope === 'desk') syncInitialVisitTreatment('desk');
     const name = document.getElementById(ids.name).value.trim();
     const chartNo = normalizeChartNo(document.getElementById(ids.chartNo).value);
@@ -6076,13 +6293,23 @@
     const age = document.getElementById(ids.age).value.trim();
     const visitType = document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진';
     const gender = document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남';
-    const doctor = getSelectedStaff('doctors', scope);
+    let doctor = getSelectedStaff('doctors', scope);
     let nurse = getSelectedStaff('nurses', scope);
     let treatments = (treatmentSelections[ids.treatmentGrid] || []).map(s => s.name);
     const packagePayload = getPackagePayload(ids.treatmentGrid);
 
     if (!name) { showToast('❗ 성함을 입력해주세요'); return; }
     if (scope !== 'desk' && treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
+
+    const patientId = selectedChartPatientByScope[scope]?.patientId || '';
+    const duplicatePatient = findRealtimeRegisteredPatient({ patientId, chartNo, name });
+    if (duplicatePatient) {
+      showToast(`${duplicatePatient.name || name} 이미 ${duplicatePatient.location || '등록'}에 있습니다`);
+      return;
+    }
+    if (!doctor.id && selectedChartPatientByScope[scope]?.doctorName) {
+      doctor = getFirstActiveDoctor();
+    }
 
     const btn = document.getElementById(ids.submitBtn);
     btn.disabled = true;
@@ -6097,7 +6324,7 @@
         timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
         date: now.toLocaleDateString('ko-KR'),
         bedStatus: 'waiting',
-        patientId: selectedChartPatientByScope[scope]?.patientId || '',
+        patientId,
         chartNo,
         visitType,
         chiefComplaint,
@@ -6151,6 +6378,7 @@
   function closeMonitorEditForm(scope) {
     setFormEditMode(scope, null);
     setWaitingPatientEditMode(scope, null);
+    setDischargedPatientEditMode(scope, null);
     if (scope === 'receive') {
       setReceiveFormOpen(false);
     } else {
@@ -6233,10 +6461,12 @@
   function setFormEditMode(scope, bedNo = null) {
     formEditBedNoByScope[scope] = bedNo;
     if (bedNo || bedNo === null) formEditPatientKeyByScope[scope] = null;
+    if (bedNo) formEditDischargedKeyByScope[scope] = null;
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const button = document.getElementById(ids.submitBtn);
     const patientKey = formEditPatientKeyByScope[scope];
-    if (button) button.textContent = bedNo || patientKey ? '확인' : '입력';
+    const dischargedKey = formEditDischargedKeyByScope[scope];
+    if (button) button.textContent = bedNo || patientKey || dischargedKey ? '확인' : '입력';
     setIdentityFieldsLocked(scope, Boolean(bedNo));
   }
 
@@ -6245,9 +6475,23 @@
   function setWaitingPatientEditMode(scope, patientKey = null) {
     formEditPatientKeyByScope[scope] = patientKey;
     if (patientKey) formEditBedNoByScope[scope] = null;
+    if (patientKey) formEditDischargedKeyByScope[scope] = null;
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const button = document.getElementById(ids.submitBtn);
-    if (button) button.textContent = patientKey ? '확인' : (formEditBedNoByScope[scope] ? '확인' : '입력');
+    const dischargedKey = formEditDischargedKeyByScope[scope];
+    if (button) button.textContent = patientKey || dischargedKey ? '확인' : (formEditBedNoByScope[scope] ? '확인' : '입력');
+    setIdentityFieldsLocked(scope, false);
+  }
+
+  function setDischargedPatientEditMode(scope, dischargedKey = null) {
+    formEditDischargedKeyByScope[scope] = dischargedKey;
+    if (dischargedKey) {
+      formEditPatientKeyByScope[scope] = null;
+      formEditBedNoByScope[scope] = null;
+    }
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const button = document.getElementById(ids.submitBtn);
+    if (button) button.textContent = dischargedKey ? '확인' : (formEditPatientKeyByScope[scope] || formEditBedNoByScope[scope] ? '확인' : '입력');
     setIdentityFieldsLocked(scope, false);
   }
 
@@ -6620,10 +6864,24 @@
     btn.textContent = '저장 중...';
 
     try {
-      const nextIndex = form.treatments.length ? Math.min(Number(bed.currentIndex || 0), form.treatments.length - 1) : 0;
+      const addedTreatmentIndexes = getAddedTreatmentIndexesAfterEdit(
+        bed.treatments || [],
+        form.treatments,
+        bed.addedTreatmentIndexes || []
+      );
+      const preCompletedTreatmentIndexes = getPreCompletedIndexesAfterEdit(
+        bed.treatments || [],
+        form.treatments,
+        bed.preCompletedTreatmentIndexes || []
+      );
+      const nextIndexBase = form.treatments.length ? Math.min(Number(bed.currentIndex || 0), form.treatments.length - 1) : 0;
+      const preservedRunningIndex = bed.running ? findMatchingTreatmentGroupIndex(bed.treatments || [], form.treatments, bed.currentIndex || 0) : -1;
+      const nextIndex = preservedRunningIndex >= 0
+        ? preservedRunningIndex
+        : (form.treatments.length ? Math.max(0, getNextPendingTreatmentIndex(form.treatments, nextIndexBase, preCompletedTreatmentIndexes)) : 0);
       const nextTreatment = form.treatments[nextIndex] || '';
-      const currentTreatmentChanged = nextTreatment !== (bed.treatments?.[nextIndex] || '') || !form.treatments.length;
-      const nextTotal = nextTreatment ? getTreatmentSeconds(nextTreatment) : 0;
+      const currentTreatmentChanged = preservedRunningIndex < 0 && (nextTreatment !== (bed.treatments?.[nextIndex] || '') || !form.treatments.length);
+      const nextTotal = nextTreatment ? getConcurrentTreatmentSeconds(form.treatments, nextIndex) : 0;
       const timerPatch = currentTreatmentChanged
         ? {
           currentIndex: nextIndex,
@@ -6641,6 +6899,8 @@
       const patientPatch = {
         name: form.name,
         treatments: form.treatments,
+        addedTreatmentIndexes,
+        preCompletedTreatmentIndexes,
         chartNo: form.chartNo,
         visitType: form.visitType,
         chiefComplaint: form.chiefComplaint,
@@ -6763,6 +7023,73 @@
     }
   }
 
+  async function saveDischargedPatientInfo(scope) {
+    const dischargedKey = formEditDischargedKeyByScope[scope];
+    const patient = dischargedKey ? dischargedPatientsByKey.get(dischargedKey) : null;
+    if (!dischargedKey || !patient) {
+      showToast('퇴실환자 정보를 찾을 수 없습니다');
+      return false;
+    }
+
+    const form = getFormValues(scope);
+    if (!form.name) { showToast('❗ 성함을 입력해주세요'); return false; }
+
+    const payload = {
+      ...patient,
+      name: form.name,
+      chartNo: form.chartNo,
+      visitType: form.visitType,
+      chiefComplaint: form.chiefComplaint,
+      memo: form.memo,
+      age: form.age ? Number(form.age) : '',
+      gender: form.gender,
+      bodyParts: form.bodyParts,
+      treatments: form.treatments,
+      doctorId: form.doctor.id,
+      doctorName: form.doctor.name,
+      nurseId: form.nurse.id,
+      nurseName: form.nurse.name,
+      ...form.packagePayload,
+      updatedAt: Date.now()
+    };
+
+    const btn = document.getElementById(form.ids.submitBtn);
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
+    try {
+      if (payload.chartNo) {
+        await window.saveChartPatient?.({
+          patientId: payload.patientId || '',
+          chartNo: normalizeChartNo(payload.chartNo),
+          name: payload.name || '',
+          age: payload.age || '',
+          gender: payload.gender || '',
+          visitType: payload.visitType || '',
+          chiefComplaint: payload.chiefComplaint || '',
+          memo: payload.memo || '',
+          treatments: payload.treatments || [],
+          bodyParts: normalizeBodyParts(payload.bodyParts),
+          doctorName: payload.doctorName || '',
+          visitEntry: createChartVisitEntry({ ...payload, visitDate: payload.visitDate || payload.dischargeDate || getTodayKey() }),
+          packages: payload.packages || getPackageStateFromPatient(payload),
+          ...getPCreditsFromPackages(payload.packages || getPackageStateFromPatient(payload))
+        });
+      }
+      await saveDischargedPatientRecord(payload.dischargeDate || getTodayKey(), dischargedKey, payload);
+      dischargedPatientsByKey.set(dischargedKey, payload);
+      renderDischargedPatientsList();
+      showToast(`${form.name} 퇴실환자 수정 완료`);
+      return true;
+    } catch (e) {
+      console.error(e);
+      showToast('퇴실환자 저장 실패');
+      return false;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '확인';
+    }
+  }
+
   async function saveMonitorBedPatientInfo(scope) {
     const bedNo = formEditBedNoByScope[scope];
     const bed = getBedData(bedNo);
@@ -6777,10 +7104,24 @@
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const btn = document.getElementById(ids.submitBtn);
     const currentTreatment = bed.treatments?.[bed.currentIndex || 0] || '';
-    const nextCurrentIndex = form.treatments.length ? Math.min(bed.currentIndex || 0, form.treatments.length - 1) : 0;
+    const addedTreatmentIndexes = getAddedTreatmentIndexesAfterEdit(
+      bed.treatments || [],
+      form.treatments,
+      bed.addedTreatmentIndexes || []
+    );
+    const preCompletedTreatmentIndexes = getPreCompletedIndexesAfterEdit(
+      bed.treatments || [],
+      form.treatments,
+      bed.preCompletedTreatmentIndexes || []
+    );
+    const nextIndexBase = form.treatments.length ? Math.min(bed.currentIndex || 0, form.treatments.length - 1) : 0;
+    const preservedRunningIndex = bed.running ? findMatchingTreatmentGroupIndex(bed.treatments || [], form.treatments, bed.currentIndex || 0) : -1;
+    const nextCurrentIndex = preservedRunningIndex >= 0
+      ? preservedRunningIndex
+      : (form.treatments.length ? Math.max(0, getNextPendingTreatmentIndex(form.treatments, nextIndexBase, preCompletedTreatmentIndexes)) : 0);
     const nextTreatment = form.treatments[nextCurrentIndex] || '';
-    const currentTreatmentChanged = currentTreatment !== nextTreatment || !form.treatments.length;
-    const nextTotal = nextTreatment ? getTreatmentSeconds(nextTreatment) : 0;
+    const currentTreatmentChanged = preservedRunningIndex < 0 && (currentTreatment !== nextTreatment || !form.treatments.length);
+    const nextTotal = nextTreatment ? getConcurrentTreatmentSeconds(form.treatments, nextCurrentIndex) : 0;
     const timerUpdates = currentTreatmentChanged
       ? {
           currentIndex: nextCurrentIndex,
@@ -6808,6 +7149,8 @@
         gender: form.gender,
         bodyParts: form.bodyParts,
         treatments: form.treatments,
+        addedTreatmentIndexes,
+        preCompletedTreatmentIndexes,
         doctorId: form.doctor.id,
         doctorName: form.doctor.name,
         nurseId: form.nurse.id,
@@ -7271,6 +7614,44 @@
     return text.replace(/^0+(?=\d)/, '');
   }
 
+  function normalizePatientIdentity(value) {
+    return String(value ?? '').trim().toLowerCase();
+  }
+
+  function isSameRealtimePatientIdentity(source = {}, target = {}) {
+    const sourcePatientId = normalizePatientIdentity(source.patientId);
+    const targetPatientId = normalizePatientIdentity(target.patientId);
+    if (sourcePatientId && targetPatientId) return sourcePatientId === targetPatientId;
+
+    const sourceChartNo = normalizeChartNo(source.chartNo);
+    const targetChartNo = normalizeChartNo(target.chartNo);
+    if (!sourceChartNo || !targetChartNo || sourceChartNo !== targetChartNo) return false;
+
+    const sourceName = normalizePatientIdentity(source.name);
+    const targetName = normalizePatientIdentity(target.name);
+    return Boolean(sourceName && targetName && sourceName === targetName);
+  }
+
+  function findRealtimeRegisteredPatient(target = {}) {
+    if (!normalizePatientIdentity(target.patientId) && !(normalizeChartNo(target.chartNo) && normalizePatientIdentity(target.name))) {
+      return null;
+    }
+
+    for (const { bed, bedNo } of getAllBedEntries()) {
+      if (isSameRealtimePatientIdentity(bed, target)) {
+        return { ...bed, location: getBedLabel(bedNo) };
+      }
+    }
+
+    for (const patient of patientsByKey.values()) {
+      if (isSameRealtimePatientIdentity(patient, target)) {
+        return { ...patient, location: '대기' };
+      }
+    }
+
+    return null;
+  }
+
   function getTreatmentSeconds(treatment) {
     if (!treatment) return 0;
     return (Number(treatmentMinutes[treatment] || DEFAULT_TREATMENT_MINUTES[treatment] || 5)) * 60;
@@ -7280,12 +7661,281 @@
     return Math.max(0, Number(procedureMinutes || 0)) * 60;
   }
 
+  const SIMULTANEOUS_TREATMENTS = new Set(['침', '전침', '왕뜸', '전자뜸', '적외선']);
+
+  function isSimultaneousTreatment(treatment) {
+    return SIMULTANEOUS_TREATMENTS.has(String(treatment || '').trim());
+  }
+
   function isNeedleMoxaPair(first, second) {
     const a = String(first || '').trim();
     const b = String(second || '').trim();
     const isNeedle = value => value === '침';
     const isMoxa = value => value === '왕뜸' || value === '전자뜸';
     return (isNeedle(a) && isMoxa(b)) || (isMoxa(a) && isNeedle(b));
+  }
+
+  function isNeedleInfraredPair(first, second) {
+    const a = String(first || '').trim();
+    const b = String(second || '').trim();
+    return (a === '침' || a === '전침') && b === '적외선';
+  }
+
+  function shouldCompleteFollowingTreatmentTogether(first, second) {
+    return isSimultaneousTreatment(first) && isSimultaneousTreatment(second);
+  }
+
+  function getConcurrentTreatmentEndIndex(treatments = [], currentIndex = 0) {
+    if (!isSimultaneousTreatment(treatments[currentIndex])) return currentIndex;
+    let endIndex = currentIndex;
+    while (endIndex + 1 < treatments.length && shouldCompleteFollowingTreatmentTogether(treatments[endIndex], treatments[endIndex + 1])) {
+      endIndex += 1;
+    }
+    return endIndex;
+  }
+
+  function getConcurrentTreatmentStartIndex(treatments = [], currentIndex = 0) {
+    if (!isSimultaneousTreatment(treatments[currentIndex])) return currentIndex;
+    let startIndex = currentIndex;
+    while (startIndex > 0 && shouldCompleteFollowingTreatmentTogether(treatments[startIndex - 1], treatments[startIndex])) {
+      startIndex -= 1;
+    }
+    return startIndex;
+  }
+
+  function getConcurrentTreatmentNamesAroundIndex(treatments = [], currentIndex = 0) {
+    if (!treatments[currentIndex]) return [];
+    const startIndex = getConcurrentTreatmentStartIndex(treatments, currentIndex);
+    const endIndex = getConcurrentTreatmentEndIndex(treatments, startIndex);
+    return treatments.slice(startIndex, endIndex + 1).filter(Boolean);
+  }
+
+  function shouldBlinkTreatmentChip(treatments = [], currentIndex = 0, index = 0, running = false) {
+    if (!running) return false;
+    return index >= currentIndex && index <= getConcurrentTreatmentEndIndex(treatments, currentIndex);
+  }
+
+  function getConcurrentTreatmentNames(treatments = [], currentIndex = 0) {
+    if (!treatments[currentIndex]) return [];
+    const endIndex = getConcurrentTreatmentEndIndex(treatments, currentIndex);
+    return treatments.slice(currentIndex, endIndex + 1).filter(Boolean);
+  }
+
+  function formatTreatmentNames(treatments = []) {
+    return treatments.filter(Boolean).join(', ');
+  }
+
+  function getConcurrentTimerTreatment(treatments = [], currentIndex = 0) {
+    const names = getConcurrentTreatmentNames(treatments, currentIndex);
+    return names.find(name => !isNoTimerTreatment(name)) || names[0] || '';
+  }
+
+  function getConcurrentTreatmentSeconds(treatments = [], currentIndex = 0) {
+    const timerTreatment = getConcurrentTimerTreatment(treatments, currentIndex);
+    return timerTreatment ? getTreatmentSeconds(timerTreatment) : 0;
+  }
+
+  function arraysEqualShallow(a = [], b = []) {
+    return a.length === b.length && a.every((value, index) => value === b[index]);
+  }
+
+  function findMatchingTreatmentGroupIndex(previousTreatments = [], nextTreatments = [], previousIndex = 0) {
+    const group = getConcurrentTreatmentNames(previousTreatments, previousIndex);
+    if (!group.length) return -1;
+    const previousStart = getConcurrentTreatmentStartIndex(previousTreatments, previousIndex);
+    let occurrence = 0;
+    for (let index = 0; index <= previousStart && index < previousTreatments.length;) {
+      const names = getConcurrentTreatmentNames(previousTreatments, index);
+      if (arraysEqualShallow(names, group)) occurrence += 1;
+      index = getConcurrentTreatmentEndIndex(previousTreatments, index) + 1;
+    }
+
+    let seen = 0;
+    for (let index = 0; index < nextTreatments.length;) {
+      const names = getConcurrentTreatmentNames(nextTreatments, index);
+      if (arraysEqualShallow(names, group)) {
+        seen += 1;
+        if (seen === occurrence) return index;
+      }
+      index = getConcurrentTreatmentEndIndex(nextTreatments, index) + 1;
+    }
+    return -1;
+  }
+
+  function getConcurrentTreatmentGroupCount(treatments = [], startIndex = 0) {
+    let count = 0;
+    for (let index = Math.max(0, Number(startIndex || 0)); index < treatments.length;) {
+      count += 1;
+      index = getConcurrentTreatmentEndIndex(treatments, index) + 1;
+    }
+    return count;
+  }
+
+  function getFutureConcurrentTreatmentSeconds(treatments = [], startIndex = 0) {
+    let seconds = 0;
+    for (let index = Math.max(0, Number(startIndex || 0)); index < treatments.length;) {
+      seconds += getConcurrentTreatmentSeconds(treatments, index);
+      index = getConcurrentTreatmentEndIndex(treatments, index) + 1;
+    }
+    return seconds;
+  }
+
+  function isConcurrentTreatmentGroupPreCompleted(treatments = [], startIndex = 0, preCompletedIndexes = []) {
+    const completedSet = new Set(normalizePreCompletedTreatmentIndexes(preCompletedIndexes, treatments));
+    const endIndex = getConcurrentTreatmentEndIndex(treatments, startIndex);
+    for (let index = startIndex; index <= endIndex; index += 1) {
+      if (!completedSet.has(index)) return false;
+    }
+    return true;
+  }
+
+  function getFuturePendingTreatmentSeconds(treatments = [], startIndex = 0, preCompletedIndexes = []) {
+    let seconds = 0;
+    for (let index = Math.max(0, Number(startIndex || 0)); index < treatments.length;) {
+      if (!isConcurrentTreatmentGroupPreCompleted(treatments, index, preCompletedIndexes)) {
+        seconds += getConcurrentTreatmentSeconds(treatments, index);
+      }
+      index = getConcurrentTreatmentEndIndex(treatments, index) + 1;
+    }
+    return seconds;
+  }
+
+  function getPendingTreatmentGroupCount(treatments = [], startIndex = 0, preCompletedIndexes = []) {
+    let count = 0;
+    for (let index = Math.max(0, Number(startIndex || 0)); index < treatments.length;) {
+      if (!isConcurrentTreatmentGroupPreCompleted(treatments, index, preCompletedIndexes)) count += 1;
+      index = getConcurrentTreatmentEndIndex(treatments, index) + 1;
+    }
+    return count;
+  }
+
+  function normalizeAddedTreatmentIndexes(indexes = [], treatments = []) {
+    const max = Array.isArray(treatments) ? treatments.length : 0;
+    return [...new Set((Array.isArray(indexes) ? indexes : [])
+      .map(index => Number(index))
+      .filter(index => Number.isInteger(index) && index >= 0 && index < max))]
+      .sort((a, b) => a - b);
+  }
+
+  function getAddedTreatmentIndexesAfterEdit(previousTreatments = [], nextTreatments = [], previousAddedIndexes = []) {
+    const addedBefore = new Set(normalizeAddedTreatmentIndexes(previousAddedIndexes, previousTreatments));
+    const previousQueues = new Map();
+    previousTreatments.forEach((treatment, index) => {
+      const key = String(treatment || '').trim();
+      if (!key) return;
+      if (!previousQueues.has(key)) previousQueues.set(key, []);
+      previousQueues.get(key).push({ added: addedBefore.has(index) });
+    });
+
+    const nextAdded = [];
+    nextTreatments.forEach((treatment, index) => {
+      const key = String(treatment || '').trim();
+      const queue = previousQueues.get(key);
+      if (queue?.length) {
+        if (queue.shift().added) nextAdded.push(index);
+      } else if (key) {
+        nextAdded.push(index);
+      }
+    });
+    return nextAdded;
+  }
+
+  function swapAddedTreatmentIndexes(indexes = [], firstIndex, secondIndex, treatments = []) {
+    return normalizeAddedTreatmentIndexes(indexes, treatments).map(index => {
+      if (index === firstIndex) return secondIndex;
+      if (index === secondIndex) return firstIndex;
+      return index;
+    }).sort((a, b) => a - b);
+  }
+
+  function moveAddedTreatmentIndexes(indexes = [], fromIndex, toIndex, treatments = []) {
+    const movedSet = new Set(normalizeAddedTreatmentIndexes(indexes, treatments));
+    const next = [];
+    movedSet.forEach(index => {
+      if (index === fromIndex) {
+        next.push(toIndex);
+      } else if (fromIndex < toIndex && index > fromIndex && index <= toIndex) {
+        next.push(index - 1);
+      } else if (fromIndex > toIndex && index >= toIndex && index < fromIndex) {
+        next.push(index + 1);
+      } else {
+        next.push(index);
+      }
+    });
+    return normalizeAddedTreatmentIndexes(next, treatments);
+  }
+
+  function moveAddedTreatmentRangeIndexes(indexes = [], fromStart, fromEnd, toIndex, previousTreatments = [], nextTreatments = []) {
+    const rangeLength = Math.max(0, Number(fromEnd) - Number(fromStart) + 1);
+    if (!rangeLength) return normalizeAddedTreatmentIndexes(indexes, nextTreatments);
+    return normalizeAddedTreatmentIndexes(indexes, previousTreatments).map(index => {
+      if (index >= fromStart && index <= fromEnd) return toIndex + (index - fromStart);
+      if (toIndex < fromStart && index >= toIndex && index < fromStart) return index + rangeLength;
+      if (toIndex > fromEnd && index > fromEnd && index < toIndex) return index - rangeLength;
+      return index;
+    }).sort((a, b) => a - b).filter(index => index >= 0 && index < nextTreatments.length);
+  }
+
+  function removeAddedTreatmentIndex(indexes = [], removedIndex, treatments = []) {
+    const next = normalizeAddedTreatmentIndexes(indexes, treatments)
+      .filter(index => index !== removedIndex)
+      .map(index => index > removedIndex ? index - 1 : index);
+    return normalizeAddedTreatmentIndexes(next, treatments);
+  }
+
+  function normalizePreCompletedTreatmentIndexes(indexes = [], treatments = []) {
+    const max = Array.isArray(treatments) ? treatments.length : 0;
+    return [...new Set((Array.isArray(indexes) ? indexes : [])
+      .map(index => Number(index))
+      .filter(index => Number.isInteger(index) && index >= 0 && index < max))]
+      .sort((a, b) => a - b);
+  }
+
+  function getPreCompletedTreatmentIndexSet(bed = {}, treatments = []) {
+    return new Set(normalizePreCompletedTreatmentIndexes(bed.preCompletedTreatmentIndexes, treatments));
+  }
+
+  function getNextPendingTreatmentIndex(treatments = [], startIndex = 0, preCompletedIndexes = []) {
+    const completedSet = new Set(normalizePreCompletedTreatmentIndexes(preCompletedIndexes, treatments));
+    for (let index = Math.max(0, Number(startIndex || 0)); index < treatments.length;) {
+      const groupEndIndex = getConcurrentTreatmentEndIndex(treatments, index);
+      let allCompleted = true;
+      for (let groupIndex = index; groupIndex <= groupEndIndex; groupIndex += 1) {
+        if (!completedSet.has(groupIndex)) {
+          allCompleted = false;
+          break;
+        }
+      }
+      if (!allCompleted) return index;
+      index = groupEndIndex + 1;
+    }
+    return -1;
+  }
+
+  function getPreCompletedIndexesAfterEdit(previousTreatments = [], nextTreatments = [], previousCompletedIndexes = []) {
+    const completedBefore = new Set(normalizePreCompletedTreatmentIndexes(previousCompletedIndexes, previousTreatments));
+    const previousQueues = new Map();
+    previousTreatments.forEach((treatment, index) => {
+      const key = String(treatment || '').trim();
+      if (!key) return;
+      if (!previousQueues.has(key)) previousQueues.set(key, []);
+      previousQueues.get(key).push({ completed: completedBefore.has(index) });
+    });
+
+    const nextCompleted = [];
+    nextTreatments.forEach((treatment, index) => {
+      const key = String(treatment || '').trim();
+      const queue = previousQueues.get(key);
+      if (queue?.length && queue.shift().completed) nextCompleted.push(index);
+    });
+    return nextCompleted;
+  }
+
+  function removePreCompletedTreatmentIndex(indexes = [], removedIndex, treatments = []) {
+    const next = normalizePreCompletedTreatmentIndexes(indexes, treatments)
+      .filter(index => index !== removedIndex)
+      .map(index => index > removedIndex ? index - 1 : index);
+    return normalizePreCompletedTreatmentIndexes(next, treatments);
   }
 
   function getPreferredBedOrder(gender) {
@@ -7301,41 +7951,81 @@
     return getSortedStaff('nurses').filter(([, nurse]) => !nurse?.vacation);
   }
 
-  async function getNextRoundRobinNurse() {
+  function getCurrentNurseBedCounts() {
+    const counts = {};
+    getAllBedEntries().forEach(({ bed }) => {
+      const nurseId = String(bed?.nurseId || '');
+      if (!nurseId) return;
+      counts[nurseId] = (counts[nurseId] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function getRoundRobinStartOffset(state = {}, nurses = [], dateKey = getTodayKey()) {
+    const configuredStartId = '';
+    const configuredStartOffset = Math.max(0, nurses.findIndex(([id]) => id === configuredStartId));
+    const sameStartSetting = String(state.startId || '') === configuredStartId;
+    const previousDate = String(state.lastDate || '');
+    const sameDate = previousDate === dateKey;
+    const previousStartOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
+    return sameStartSetting
+      ? (sameDate ? previousStartOffset : (previousDate ? (previousStartOffset + 1) % nurses.length : configuredStartOffset))
+      : configuredStartOffset;
+  }
+
+  async function getNextFairNurse() {
     const nurses = getActiveRoundRobinNurses();
     if (!nurses.length) return null;
 
     const dateKey = getTodayKey();
-    const mutate = (value) => {
-      const state = value && typeof value === 'object' ? value : {};
-      const configuredStartId = nurses.some(([id]) => id === nurseRoundRobinStartId) ? nurseRoundRobinStartId : '';
-      const configuredStartOffset = Math.max(0, nurses.findIndex(([id]) => id === configuredStartId));
-      const sameStartSetting = String(state.startId || '') === configuredStartId;
-      const previousDate = String(state.lastDate || '');
-      const sameDate = previousDate === dateKey;
-      const previousStartOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
-      const startOffset = sameStartSetting
-        ? (sameDate ? previousStartOffset : (previousDate ? (previousStartOffset + 1) % nurses.length : configuredStartOffset))
-        : configuredStartOffset;
-      const count = sameDate && sameStartSetting ? Number(state.count || 0) + 1 : 1;
-      return { ...state, startId: configuredStartId, lastDate: dateKey, startOffset, count, updatedAt: Date.now() };
-    };
     let state;
     try {
       const current = await localStateGet('settings/nurseRoundRobinState');
-      state = mutate(current);
+      const baseState = current && typeof current === 'object' ? current : {};
+      const configuredStartId = '';
+      const startOffset = getRoundRobinStartOffset(baseState, nurses, dateKey);
+      const sameDate = String(baseState.lastDate || '') === dateKey && String(baseState.startId || '') === configuredStartId;
+      const todayAssignments = sameDate && baseState.todayAssignments && typeof baseState.todayAssignments === 'object'
+        ? { ...baseState.todayAssignments }
+        : {};
+      const currentBedCounts = getCurrentNurseBedCounts();
+      const ordered = nurses.map(([id, nurse], index) => {
+        const rrRank = (index - startOffset + nurses.length) % nurses.length;
+        const todayCount = Number(todayAssignments[id] || 0);
+        const currentCount = Number(currentBedCounts[id] || 0);
+        return {
+          id,
+          name: nurse?.name || '',
+          todayCount,
+          currentCount,
+          score: todayCount + (currentCount * 2),
+          rrRank
+        };
+      }).sort((a, b) =>
+        a.score - b.score ||
+        a.todayCount - b.todayCount ||
+        a.currentCount - b.currentCount ||
+        a.rrRank - b.rrRank
+      );
+      const picked = ordered[0];
+      if (!picked) return null;
+      todayAssignments[picked.id] = Number(todayAssignments[picked.id] || 0) + 1;
+      const count = Object.values(todayAssignments).reduce((sum, value) => sum + Number(value || 0), 0);
+      state = {
+        ...baseState,
+        startId: configuredStartId,
+        lastDate: dateKey,
+        startOffset,
+        count,
+        todayAssignments,
+        updatedAt: Date.now()
+      };
       await localStatePut('settings/nurseRoundRobinState', state);
+      return { id: picked.id, name: picked.name };
     } catch (e) {
-      console.error('간호사 round robin 순번 저장 실패', e);
+      console.error('간호사 공정배정 순번 저장 실패', e);
       return null;
     }
-    state = state || {};
-    const count = Number(state.count || 1);
-    const serial = Math.max(0, count - 1);
-    const startOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
-    const index = (startOffset + serial) % nurses.length;
-    const [id, nurse] = nurses[index] || [];
-    return id ? { id, name: nurse?.name || '' } : null;
   }
 
   async function applyRoundRobinNurse(patientKey, data, bedNo) {
@@ -7347,7 +8037,7 @@
       });
       return assignedData;
     }
-    const nurse = await getNextRoundRobinNurse();
+    const nurse = await getNextFairNurse();
     const assignedData = nurse
       ? { ...data, nurseId: nurse.id, nurseName: nurse.name }
       : { ...data, nurseId: '', nurseName: '' };
@@ -7360,11 +8050,13 @@
 
   function createBedAssignment(patientKey, data, bedNo = null) {
     const firstTreatment = data.treatments?.[0];
-    const total = firstTreatment ? getTreatmentSeconds(firstTreatment) : 0;
+    const total = firstTreatment ? getConcurrentTreatmentSeconds(data.treatments || [], 0) : 0;
     return {
       patientKey,
       name: data.name,
       treatments: data.treatments || [],
+      addedTreatmentIndexes: [],
+      preCompletedTreatmentIndexes: [],
       timeStr: data.timeStr || '',
       timestamp: data.timestamp || Date.now(),
       patientId: data.patientId || '',
@@ -7391,6 +8083,8 @@
 
   function getDoctorBedNoForPatient(doctorId) {
     if (!doctorId) return null;
+    const doctor = staffByType.doctors.get(doctorId);
+    if (!doctor || isDoctorUnavailable(doctor)) return null;
     const doctors = getSortedStaff('doctors');
     const index = doctors.findIndex(([key]) => key === doctorId);
     return index >= 0 ? 101 + index : null;
@@ -7683,6 +8377,56 @@
     showToast(`${patient.name || '대기환자'} 정보 불러옴`);
   };
 
+  function renderDischargedPatientsList() {
+    const list = document.getElementById('dischargedPatientsList');
+    if (!list) return;
+    const rows = [...dischargedPatientsByKey.entries()]
+      .filter(([, data]) => data?.name)
+      .sort((a, b) => Number(b[1]?.dischargedAt || b[1]?.timestamp || 0) - Number(a[1]?.dischargedAt || a[1]?.timestamp || 0));
+    list.innerHTML = rows.length
+      ? rows.map(([key, data]) => {
+        const time = data.dischargedTime || (data.dischargedAt
+          ? new Date(Number(data.dischargedAt)).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+          : '');
+        const chips = [
+          data.chartNo ? `차트 ${escapeHtml(String(data.chartNo))}` : '',
+          data.bedLabel || data.bedNo ? escapeHtml(data.bedLabel || getBedLabel(data.bedNo)) : '',
+          Array.isArray(data.treatments) && data.treatments.length ? `${data.treatments.length}개 치료` : ''
+        ].filter(Boolean).join(' · ');
+        return `
+          <button type="button" class="discharged-item" onclick="loadDischargedPatientToDesk('${escapeHtml(key)}')">
+            <div>
+              <div class="discharged-main"><span>${escapeHtml(data.name || '')}</span></div>
+              ${chips ? `<div class="discharged-sub">${chips}</div>` : ''}
+            </div>
+            <div class="discharged-time">${escapeHtml(time)}</div>
+          </button>`;
+      }).join('')
+      : '<div class="empty-state"><div class="empty-icon">✓</div><div class="empty-text">오늘 퇴실환자가 없습니다</div></div>';
+  }
+
+  window.openDischargedPatientsPopup = () => {
+    renderDischargedPatientsList();
+    document.getElementById('dischargedPatientsOverlay')?.classList.add('show');
+  };
+
+  window.closeDischargedPatientsPopup = () => {
+    document.getElementById('dischargedPatientsOverlay')?.classList.remove('show');
+  };
+
+  window.loadDischargedPatientToDesk = (key) => {
+    const patient = dischargedPatientsByKey.get(key);
+    if (!patient) {
+      showToast('퇴실환자 정보를 찾을 수 없습니다');
+      return;
+    }
+    populatePatientForm('desk', patient);
+    setDischargedPatientEditMode('desk', key);
+    setInputFormOpen(true);
+    closeDischargedPatientsPopup();
+    showToast(`${patient.name || '퇴실환자'} 정보 불러옴`);
+  };
+
   window.confirmDeleteWaitingPatient = async (event, key) => {
     event?.preventDefault();
     event?.stopPropagation();
@@ -7880,7 +8624,21 @@
 
   function getVisibleAppointmentAlertItems(mode = window.currentMode) {
     if (mode !== 'input') return [];
-    return [...patientsByKey.entries()]
+    const queuedItems = [...appointmentDeskAlertItems.entries()]
+      .map(([key, alert]) => ({ key, ...(alert || {}) }))
+      .filter(item => item.name && ((Array.isArray(item.dates) && item.dates.length) || item.undecided))
+      .map(item => ({
+        key: item.key,
+        patientKey: item.patientKey || item.key || '',
+        name: item.name || '환자',
+        chartNo: item.chartNo || '',
+        dates: normalizeAppointmentDates(item.dates || []),
+        undecided: Boolean(item.undecided),
+        timestamp: Number(item.timestamp || 0)
+      }));
+    const queuedPatientKeys = new Set(queuedItems.map(item => String(item.patientKey || item.key || '')));
+    const legacyItems = [...patientsByKey.entries()]
+      .filter(([patientKey]) => !queuedPatientKeys.has(String(patientKey)))
       .map(([patientKey, patient]) => {
         const dates = normalizeAppointmentDates(patient || {})
           .filter(date => shouldShowAppointmentAlertForMode(patient, mode, date));
@@ -7895,7 +8653,8 @@
           timestamp: Number(patient?.timestamp || 0)
         };
       })
-      .filter(Boolean)
+      .filter(Boolean);
+    return [...queuedItems, ...legacyItems]
       .sort((a, b) => {
         const dateCompare = String(a.dates[0] || '').localeCompare(String(b.dates[0] || ''));
         if (dateCompare) return dateCompare;
@@ -7952,21 +8711,30 @@
       const className = getTreatmentBadgeClass(label);
       return `<div class="upcoming-time treatment-badge ${className}">${escapeHtml(label)}</div>`;
     };
+    const getItemTreatmentNames = (item) => {
+      const names = Array.isArray(item.treatments) && item.treatments.length ? item.treatments : [item.treatment];
+      return names.map(name => String(name || '').trim()).filter(Boolean);
+    };
+    const renderTreatmentBadges = (item) => {
+      const names = getItemTreatmentNames(item);
+      return names.length ? names.map(renderTreatmentBadge).join('') : renderTreatmentBadge(item.treatment);
+    };
     const renderNurseBadge = (nurseName) => {
       const label = String(nurseName || '').trim();
       return label ? `<div class="upcoming-time nurse-badge">${escapeHtml(label)}</div>` : '';
     };
-    const renderTreatmentCompleteLabel = (treatment) => {
+    const renderTreatmentCompleteLabel = (item) => {
+      const treatment = Array.isArray(item?.treatments) ? item.treatments[0] : item;
       const className = getTreatmentBadgeClass(treatment);
       return `<span class="treatment-complete-label ${className}">완료</span>`;
     };
     const renderTreatmentAlertHtml = (item, options = {}) => {
       const main = options.main || `${item.bedLabel || ''}`.trim();
       const nurseBadge = renderNurseBadge(options.nurseName ?? item.nurseName);
-      const treatmentHtml = nurseBadge ? renderTreatmentBadge(item.treatment) : '';
+      const treatmentHtml = nurseBadge ? renderTreatmentBadges(item) : '';
       return `
         <div class="upcoming-item assignment no-dismiss${options.hideBadge ? ' no-label' : ''}">
-          ${options.hideBadge ? '' : (nurseBadge || renderTreatmentBadge(item.treatment))}
+          ${options.hideBadge ? '' : (nurseBadge || renderTreatmentBadges(item))}
           <div>
             <div class="upcoming-main alert-line-compact"><span class="upcoming-main-text">${escapeHtml(main)}</span>${treatmentHtml}</div>
             ${options.sub ? `<div class="upcoming-sub">${options.sub}</div>` : ''}
@@ -7975,9 +8743,9 @@
     };
     const renderDoctorProcedureAlertHtml = (item) => `
       ${renderTreatmentAlertHtml(item)}`;
-    const renderSimpleDoctorProcedureAlertHtml = (item) => renderTreatmentAlertHtml(item, { main: item.bedLabel || '' });
+    const renderSimpleDoctorProcedureAlertHtml = (item) => renderTreatmentAlertHtml(item, { main: item.bedLabel || '', nurseName: '' });
     const renderDoctorAlertSplitHtml = () => {
-      const doctors = getSortedStaff('doctors').slice(0, 2);
+      const doctors = getActiveDoctors().slice(0, 2);
       return Array.from({ length: 2 }, (_, index) => {
         const doctor = doctors[index];
         const doctorId = doctor?.[0] || '';
@@ -8060,6 +8828,9 @@
         const treatment = isAlertPending
           ? getCompletedTreatmentFromAlert(bed)
           : (bed.treatments?.[bed.currentIndex] || '치료');
+        const treatments = isAlertPending
+          ? String(treatment || '').split(',').map(name => name.trim()).filter(Boolean)
+          : getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
         const nextTreatment = isAlertPending
           ? getNextTreatmentFromCompletionAlert(bed)
           : getNextTreatmentFromRunningAlert(bed);
@@ -8070,6 +8841,7 @@
           doctorName: bed.doctorName || '',
           nurseName: bed.nurseName || '',
           treatment,
+          treatments,
           nextTreatment,
           remaining,
           alertPending: isAlertPending,
@@ -8086,10 +8858,10 @@
     const timerAlertItems = upcoming.length
       ? upcoming.filter(item => item.alertPending || item.remaining <= 30).map(item => {
         const nurseBadge = renderNurseBadge(item.nurseName);
-        const currentTreatmentHtml = nurseBadge ? renderTreatmentBadge(item.treatment) : '';
+        const currentTreatmentHtml = nurseBadge ? renderTreatmentBadges(item) : '';
         const countdownHtml = item.alertPending ? '' : `<span class="upcoming-countdown-chip">${Math.max(0, Math.ceil(Number(item.remaining) || 0))}</span>`;
         const nextTreatmentHtml = item.nextTreatment ? renderTreatmentBadge(item.nextTreatment) : '';
-        const completeHtml = item.alertPending ? renderTreatmentCompleteLabel(item.treatment) : '';
+        const completeHtml = item.alertPending ? renderTreatmentCompleteLabel(item) : '';
         const patientLineHtml = `<span class="upcoming-main-text">${escapeHtml(item.bedLabel)}</span>`;
         return {
           alertPending: item.alertPending,
@@ -8097,7 +8869,7 @@
           timestamp: Number(item.timestamp || 0),
           html: `
         <div class="upcoming-item">
-          ${nurseBadge || renderTreatmentBadge(item.treatment)}
+          ${nurseBadge || renderTreatmentBadges(item)}
           <div>
             <div class="upcoming-main alert-line-compact">${patientLineHtml}${currentTreatmentHtml}${countdownHtml}${completeHtml}${nextTreatmentHtml}</div>
           </div>
@@ -8183,6 +8955,17 @@
   window.dismissAppointmentAlert = async (patientKey, appointmentDate = '') => {
     const field = getAppointmentAlertDismissField();
     if (!patientKey || !field) return;
+    if (appointmentDeskAlertItems.has(patientKey)) {
+      appointmentDeskAlertItems.delete(patientKey);
+      renderUpcomingAlerts();
+      try {
+        await removeAppointmentDeskAlert(patientKey);
+      } catch (e) {
+        console.error(e);
+        showToast('예약 알림 확인 실패');
+      }
+      return;
+    }
     const patient = patientsByKey.get(patientKey) || {};
     const dates = appointmentDate
       ? [appointmentDate]
@@ -8397,12 +9180,12 @@
     if (bed.complete) return pendingAlertProcedureSeconds;
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
     const currentIndex = Number(bed.currentIndex || 0);
-    const remainingTreatments = treatments.slice(currentIndex);
+    const currentGroupEndIndex = getConcurrentTreatmentEndIndex(treatments, currentIndex);
     const currentRemaining = getRemaining(bed);
-    const futureSeconds = treatments
-      .slice(currentIndex + 1)
-      .reduce((sum, treatment) => sum + getTreatmentSeconds(treatment), 0);
-    return currentRemaining + futureSeconds + (remainingTreatments.length * getProcedureSeconds()) + pendingAlertProcedureSeconds;
+    const preCompletedIndexes = bed.preCompletedTreatmentIndexes || [];
+    const futureSeconds = getFuturePendingTreatmentSeconds(treatments, currentGroupEndIndex + 1, preCompletedIndexes);
+    const remainingGroupCount = 1 + getPendingTreatmentGroupCount(treatments, currentGroupEndIndex + 1, preCompletedIndexes);
+    return currentRemaining + futureSeconds + (remainingGroupCount * getProcedureSeconds()) + pendingAlertProcedureSeconds;
   }
 
   function updateBedRemainingChip() {
@@ -8691,14 +9474,20 @@
     }
 
     const currentIndex = Number(bed.currentIndex || 0);
+    const addedIndexes = new Set(normalizeAddedTreatmentIndexes(bed.addedTreatmentIndexes, treatments));
+    const preCompletedIndexes = getPreCompletedTreatmentIndexSet(bed, treatments);
     return treatments.map((treatment, index) => {
       const chipClass = bed.complete
         ? 'done'
-        : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'waiting'));
+        : (index < currentIndex || preCompletedIndexes.has(index) ? 'done' : (index === currentIndex ? 'current' : 'waiting'));
       const treatmentClass = getTreatmentBadgeClass(treatment);
-      const runningClass = bed.running && index === currentIndex ? ' running' : '';
+      const runningClass = shouldBlinkTreatmentChip(treatments, currentIndex, index, bed.running) ? ' running' : '';
       const selectedClass = useClickTreatmentReorder() && selectedBedTreatmentChip?.bedNo === bedNo && selectedBedTreatmentChip.index === index ? ' selected' : '';
-      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${selectedClass}" ${bedTreatmentChipAttrs(bedNo, index)}>${escapeHtml(treatment)}</span>`;
+      const addedClass = addedIndexes.has(index) ? ' added' : '';
+      const content = addedIndexes.has(index)
+        ? `<span class="added-treatment-plus">+</span>${escapeHtml(treatment)}`
+        : escapeHtml(treatment);
+      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${selectedClass}${addedClass}" ${bedTreatmentChipAttrs(bedNo, index)}>${content}</span>`;
     }).join('');
   }
 
@@ -8948,7 +9737,7 @@
   }
 
   // 타이머 불필요 치료 (시행완료 버튼만 표시)
-  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나']);
+  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선']);
   function isNoTimerTreatment(name) {
     if (!name) return false;
     if (NO_TIMER_TREATMENTS.has(name)) return true;
@@ -8992,10 +9781,15 @@
   function renderTimerCard(bedNo, bed, treatment, allowControls = true, context = 'bed') {
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
     const hasTreatment = treatments.length > 0 && Boolean(treatment);
-    const noTimer = isNoTimerTreatment(treatment);
+    const currentIndex = Number(bed.currentIndex || 0);
+    const concurrentTreatments = getConcurrentTreatmentNames(treatments, currentIndex);
+    const concurrentEndIndex = getConcurrentTreatmentEndIndex(treatments, currentIndex);
+    const displayTreatment = formatTreatmentNames(concurrentTreatments) || treatment;
+    const noTimer = concurrentTreatments.length ? concurrentTreatments.every(isNoTimerTreatment) : isNoTimerTreatment(treatment);
     const nextTaskHtml = renderNextStaffTaskHtml(bedNo, bed);
     const remaining = getRemaining(bed);
-    const percent = bed.total ? Math.max(0, Math.min(100, (remaining / bed.total) * 100)) : 0;
+    const totalForDisplay = getConcurrentTreatmentSeconds(treatments, currentIndex) || bed.total;
+    const percent = totalForDisplay ? Math.max(0, Math.min(100, (remaining / totalForDisplay) * 100)) : 0;
     const timerId = `${context}-timer-bed-${bedNo}`;
     const clockId = `${context}-timer-clock-bed-${bedNo}`;
     const barId = `${context}-timer-bar-bed-${bedNo}`;
@@ -9030,14 +9824,14 @@
           <div class="timer-top">
             <div class="timer-head">
               <div>
-                <div class="timer-treatment">${escapeHtml(treatment)}</div>
-                <div class="timer-step">${bed.currentIndex + 1}/${bed.treatments.length}번째 치료</div>
+                <div class="timer-treatment">${escapeHtml(displayTreatment)}</div>
+                <div class="timer-step">${currentIndex + 1}${concurrentEndIndex > currentIndex ? `-${concurrentEndIndex + 1}` : ''}/${bed.treatments.length}번째 치료</div>
               </div>
               ${nextTaskHtml}
             </div>
           </div>
           ${allowControls ? `<div class="timer-actions${isBedContext ? ' bed-timer-actions' : ''}">
-            <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${bed.currentIndex <= 0 ? 'disabled' : ''}>이전 치료</button>
+            <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${currentIndex <= 0 ? 'disabled' : ''}>이전 치료</button>
             <button class="timer-btn primary" onclick="completeNoTimerTreatment(${bedNo})">시행완료</button>
           </div>` : ''}
         </div>`;
@@ -9048,8 +9842,8 @@
         <div class="timer-top">
           <div class="timer-head">
             <div>
-              <div class="timer-treatment">${escapeHtml(treatment)}</div>
-              <div class="timer-step">${bed.currentIndex + 1}/${bed.treatments.length}번째 치료</div>
+              <div class="timer-treatment">${escapeHtml(displayTreatment)}</div>
+              <div class="timer-step">${currentIndex + 1}${concurrentEndIndex > currentIndex ? `-${concurrentEndIndex + 1}` : ''}/${bed.treatments.length}번째 치료</div>
             </div>
             ${nextTaskHtml}
           </div>
@@ -9063,8 +9857,8 @@
         </div>
         <div class="timer-progress"><div class="timer-bar" id="${barId}" style="width:${percent}%"></div></div>
         ${allowControls ? `<div class="treatment-nav">
-          <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${bed.currentIndex <= 0 ? 'disabled' : ''}>이전 치료</button>
-          <button class="timer-btn" onclick="moveTreatment(${bedNo}, 1)" ${bed.currentIndex >= bed.treatments.length - 1 ? 'disabled' : ''}>이후 치료</button>
+          <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${currentIndex <= 0 ? 'disabled' : ''}>이전 치료</button>
+          <button class="timer-btn" onclick="moveTreatment(${bedNo}, 1)" ${concurrentEndIndex >= bed.treatments.length - 1 ? 'disabled' : ''}>이후 치료</button>
         </div>` : ''}
         ${allowControls && !isBedContext ? `<div class="timer-settings">
           <input class="timer-minute-input" id="${inputId}" type="number" min="1" max="120" step="1" value="${Math.max(1, Math.round(bed.total / 60))}" aria-label="타이머 시간 분">
@@ -9126,11 +9920,14 @@
     const bed = getBedData(bedNo);
     if (!(bed?.treatments || []).length) return;
     if (!bed || bed.running || bed.complete || getRemaining(bed) <= 0) return;
+    const total = getConcurrentTreatmentSeconds(bed.treatments || [], bed.currentIndex || 0);
+    const remaining = getRemaining(bed);
 
     await updateBedRecord(bedNo, {
       running: true,
       startedAt: Date.now(),
-      remaining: getRemaining(bed)
+      total: total || bed.total || remaining,
+      remaining: total && remaining >= Number(bed.total || 0) ? total : remaining
     });
     playTimerStartSound();
   };
@@ -9151,7 +9948,7 @@
     finishingBeds.add(bedNo);
 
     const bedBefore = getBedData(bedNo);
-    const completedTreatment = bedBefore?.treatments?.[bedBefore.currentIndex] || '치료';
+    const completedTreatment = formatTreatmentNames(getConcurrentTreatmentNames(bedBefore?.treatments || [], bedBefore?.currentIndex || 0)) || '치료';
     const patientName = bedBefore?.name || '';
     const alertId = `${bedBefore?.patientKey || bedNo}-${bedBefore?.currentIndex || 0}-${Date.now()}`;
 
@@ -9164,9 +9961,10 @@
 
       const treatments = bed.treatments || [];
       const currentTreatment = treatments[bed.currentIndex];
-      const followingTreatment = treatments[bed.currentIndex + 1];
-      const nextIndex = bed.currentIndex + (isNeedleMoxaPair(currentTreatment, followingTreatment) ? 2 : 1);
-      if (nextIndex >= treatments.length) {
+      const groupEndIndex = getConcurrentTreatmentEndIndex(treatments, bed.currentIndex);
+      const completedTreatmentLabel = formatTreatmentNames(getConcurrentTreatmentNames(treatments, bed.currentIndex)) || currentTreatment;
+      const nextIndex = getNextPendingTreatmentIndex(treatments, groupEndIndex + 1, bed.preCompletedTreatmentIndexes || []);
+      if (nextIndex < 0 || nextIndex >= treatments.length) {
         return {
           ...bed,
           running: false,
@@ -9174,12 +9972,12 @@
           remaining: 0,
           complete: true,
           lastAlertId: alertId,
-          lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${currentTreatment} 완료`,
+          lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${completedTreatmentLabel} 완료`,
           doctorProcedureAlert: null
         };
       }
 
-      const nextTotal = getTreatmentSeconds(treatments[nextIndex]);
+      const nextTotal = getConcurrentTreatmentSeconds(treatments, nextIndex);
       return {
         ...bed,
         currentIndex: nextIndex,
@@ -9189,7 +9987,7 @@
         startedAt: null,
         complete: false,
         lastAlertId: alertId,
-        lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${currentTreatment} 완료`,
+        lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${completedTreatmentLabel} 완료`,
         doctorProcedureAlert: null
       };
     });
@@ -9322,10 +10120,24 @@
 
     const form = getFormValues(scope);
     const currentTreatment = bed.treatments?.[bed.currentIndex || 0] || '';
-    const nextIdx = form.treatments.length ? Math.min(bed.currentIndex || 0, form.treatments.length - 1) : 0;
+    const addedTreatmentIndexes = getAddedTreatmentIndexesAfterEdit(
+      bed.treatments || [],
+      form.treatments,
+      bed.addedTreatmentIndexes || []
+    );
+    const preCompletedTreatmentIndexes = getPreCompletedIndexesAfterEdit(
+      bed.treatments || [],
+      form.treatments,
+      bed.preCompletedTreatmentIndexes || []
+    );
+    const nextIndexBase = form.treatments.length ? Math.min(bed.currentIndex || 0, form.treatments.length - 1) : 0;
+    const preservedRunningIndex = bed.running ? findMatchingTreatmentGroupIndex(bed.treatments || [], form.treatments, bed.currentIndex || 0) : -1;
+    const nextIdx = preservedRunningIndex >= 0
+      ? preservedRunningIndex
+      : (form.treatments.length ? Math.max(0, getNextPendingTreatmentIndex(form.treatments, nextIndexBase, preCompletedTreatmentIndexes)) : 0);
     const nextTreatment = form.treatments[nextIdx] || '';
-    const treatmentChanged = currentTreatment !== nextTreatment || !form.treatments.length;
-    const nextTotal = nextTreatment ? getTreatmentSeconds(nextTreatment) : 0;
+    const treatmentChanged = preservedRunningIndex < 0 && (currentTreatment !== nextTreatment || !form.treatments.length);
+    const nextTotal = nextTreatment ? getConcurrentTreatmentSeconds(form.treatments, nextIdx) : 0;
     const timerUpdates = treatmentChanged ? {
       currentIndex: nextIdx,
       total: nextTotal,
@@ -9337,6 +10149,8 @@
 
     const payload = {
       treatments: form.treatments,
+      addedTreatmentIndexes,
+      preCompletedTreatmentIndexes,
       doctorId: form.doctor.id,
       doctorName: form.doctor.name,
       nurseId: form.nurse.id,
@@ -9387,7 +10201,7 @@
 
     const treatment = bed.treatments?.[bed.currentIndex];
     if (!treatment) return;
-    const total = getTreatmentSeconds(treatment);
+    const total = getConcurrentTreatmentSeconds(bed.treatments || [], bed.currentIndex || 0);
     await updateBedRecord(bedNo, {
       running: false,
       startedAt: null,
@@ -9401,10 +10215,14 @@
     if (!bed) return;
 
     const treatments = bed.treatments || [];
-    const nextIndex = Math.max(0, Math.min(treatments.length - 1, (bed.currentIndex || 0) + direction));
+    const currentIndex = Number(bed.currentIndex || 0);
+    const nextIndex = direction > 0
+      ? getNextPendingTreatmentIndex(treatments, getConcurrentTreatmentEndIndex(treatments, currentIndex) + 1, bed.preCompletedTreatmentIndexes || [])
+      : getConcurrentTreatmentStartIndex(treatments, Math.max(0, currentIndex - 1));
+    if (direction > 0 && nextIndex < 0) return;
     if (nextIndex === bed.currentIndex || !treatments[nextIndex]) return;
 
-    const total = getTreatmentSeconds(treatments[nextIndex]);
+    const total = getConcurrentTreatmentSeconds(treatments, nextIndex);
     await updateBedRecord(bedNo, {
       currentIndex: nextIndex,
       running: false,
@@ -9423,9 +10241,13 @@
     const bed = getBedData(bedNo);
     if (!bed) return;
     const treatments = bed.treatments || [];
-    const nextIndex = (bed.currentIndex || 0) + 1;
+    const nextIndex = getNextPendingTreatmentIndex(
+      treatments,
+      getConcurrentTreatmentEndIndex(treatments, bed.currentIndex || 0) + 1,
+      bed.preCompletedTreatmentIndexes || []
+    );
 
-    if (nextIndex >= treatments.length) {
+    if (nextIndex < 0 || nextIndex >= treatments.length) {
       // 마지막 치료 → 전체 완료
       await updateBedRecord(bedNo, {
         running: false,
@@ -9438,7 +10260,7 @@
       });
     } else {
       // 다음 치료로 이동
-      const nextTotal = getTreatmentSeconds(treatments[nextIndex]);
+      const nextTotal = getConcurrentTreatmentSeconds(treatments, nextIndex);
       await updateBedRecord(bedNo, {
         currentIndex: nextIndex,
         running: false,
@@ -9530,11 +10352,16 @@
   window.clearBed = async (bedNo, visitDate = '') => {
     const bed = getBedData(bedNo);
     clearLocalTimerAlertsForBed(bedNo);
+    const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    const dischargeDate = toLocalDateInputValue();
+    cleanupOldDischargedPatients(dischargeDate);
+    const dischargedAt = Date.now();
+    const indexDbPackages = bed?.chartNo
+      ? applyPostTreatmentPackageBalances(getPackageStateFromPatient(patient || {}), bed, visitDate || '')
+      : getPackageStateFromPatient(patient || {});
 
     // IndexedDB에 먼저 저장 (차트번호 있는 경우)
     if (bed?.chartNo) {
-      const patient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
-      const indexDbPackages = applyPostTreatmentPackageBalances(getPackageStateFromPatient(patient || {}), bed, visitDate || '');
       await window.saveChartPatient?.({
         patientId: patient?.patientId || bed.patientId || '',
         chartNo: normalizeChartNo(bed.chartNo),
@@ -9553,6 +10380,32 @@
         packages: indexDbPackages,
         ...getPCreditsFromPackages(indexDbPackages)
       });
+    }
+
+    if (bed) {
+      const dischargedKey = bed.patientKey || `bed-${bedNo}-${dischargedAt}`;
+      const dischargedRecord = {
+        ...(patient || {}),
+        ...bed,
+        patientKey: bed.patientKey || '',
+        bedNo,
+        bedLabel: getBedLabel(bedNo),
+        bedStatus: 'discharged',
+        dischargeDate,
+        dischargedAt,
+        dischargedTime: new Date(dischargedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        treatments: Array.isArray(bed.treatments) ? bed.treatments : [],
+        bodyParts: normalizeBodyParts(bed.bodyParts),
+        packages: indexDbPackages,
+        ...getPCreditsFromPackages(indexDbPackages)
+      };
+      try {
+        await saveDischargedPatientRecord(dischargeDate, dischargedKey, dischargedRecord);
+        dischargedPatientsByKey.set(dischargedKey, dischargedRecord);
+        renderDischargedPatientsList();
+      } catch (e) {
+        console.error('퇴실환자 저장 실패', e);
+      }
     }
 
     if (bed?.patientKey) {
@@ -9859,17 +10712,11 @@
     renderBedMonitors();
   };
 
-  // ── 치료 칩 클릭 교환 / 삭제 ────────────────────────────────────────
+  // ── 치료 칩 클릭 완료 ──────────────────────────────────────────────
   let selectedBedTreatmentChip = null;
 
   function bedTreatmentChipAttrs(bedNo, index) {
-    if (useClickTreatmentReorder()) return `onclick="handleBedTreatmentChipClick(event,${bedNo},${index})"`;
-    return `draggable="true"
-        ondragstart="handleTreatChipDragStart(event,${bedNo},${index})"
-        ondragover="handleTreatChipDragOver(event,${bedNo},${index})"
-        ondrop="handleTreatChipDrop(event,${bedNo},${index})"
-        ondragend="handleTreatChipDragEnd(event)"
-        ondragleave="handleTreatChipDragLeave(event)"`;
+    return `data-complete-click="true" onclick="handleBedTreatmentChipClick(event,${bedNo},${index})" title="클릭하면 이 치료를 완료 처리합니다"`;
   }
 
   async function swapTreatmentInBed(bedNo, fromIndex, toIndex) {
@@ -9879,6 +10726,12 @@
     const treatments = [...(bed.treatments || [])];
     if (!treatments[fromIndex] || !treatments[toIndex] || fromIndex === toIndex) return;
     [treatments[fromIndex], treatments[toIndex]] = [treatments[toIndex], treatments[fromIndex]];
+    const addedTreatmentIndexes = swapAddedTreatmentIndexes(
+      bed.addedTreatmentIndexes || [],
+      fromIndex,
+      toIndex,
+      treatments
+    );
 
     const currentIndex = Number(bed.currentIndex || 0);
     let nextCurrentIndex = currentIndex;
@@ -9889,10 +10742,11 @@
     try {
       await updateBedRecord(bedNo, {
         treatments,
+        addedTreatmentIndexes,
         currentIndex: nextCurrentIndex
       });
       if (bed.patientKey) {
-        await updatePatient(bed.patientKey,{ treatments });
+        await updatePatient(bed.patientKey,{ treatments, addedTreatmentIndexes });
       }
     } catch(e) {
       console.error(e);
@@ -9903,29 +10757,82 @@
   window.handleBedTreatmentChipClick = async (event, bedNo, index) => {
     event.preventDefault();
     event.stopPropagation();
+    selectedBedTreatmentChip = null;
     const bed = getBedData(bedNo);
     if (!bed?.treatments?.[index]) {
-      selectedBedTreatmentChip = null;
       renderBedMonitors();
       renderBedDetail();
       renderReceiveBedDetail();
       return;
     }
 
-    if (!selectedBedTreatmentChip || selectedBedTreatmentChip.bedNo !== bedNo) {
-      selectedBedTreatmentChip = { bedNo, index };
-      renderBedMonitors();
-      renderBedDetail();
-      renderReceiveBedDetail();
+    if (bed.complete) return;
+
+    const treatments = [...(bed.treatments || [])];
+    const currentIndex = Math.max(0, Math.min(treatments.length - 1, Number(bed.currentIndex || 0)));
+    const groupStart = getConcurrentTreatmentStartIndex(treatments, index);
+    const groupEnd = getConcurrentTreatmentEndIndex(treatments, groupStart);
+    if (groupEnd < currentIndex) {
+      showToast('이미 완료된 치료입니다');
       return;
     }
 
-    const fromIndex = selectedBedTreatmentChip.index;
-    selectedBedTreatmentChip = null;
-    if (fromIndex === index) {
-      await removeTreatmentFromBed(bedNo, index);
-    } else {
-      await swapTreatmentInBed(bedNo, fromIndex, index);
+    const preCompletedSet = getPreCompletedTreatmentIndexSet(bed, treatments);
+    let alreadyCompleted = true;
+    for (let groupIndex = groupStart; groupIndex <= groupEnd; groupIndex += 1) {
+      if (!preCompletedSet.has(groupIndex)) {
+        alreadyCompleted = false;
+        break;
+      }
+    }
+    if (alreadyCompleted) {
+      showToast('이미 완료된 치료입니다');
+      return;
+    }
+
+    for (let groupIndex = groupStart; groupIndex <= groupEnd; groupIndex += 1) {
+      preCompletedSet.add(groupIndex);
+    }
+    const preCompletedTreatmentIndexes = normalizePreCompletedTreatmentIndexes([...preCompletedSet], treatments);
+    const completedLabel = formatTreatmentNames(treatments.slice(groupStart, groupEnd + 1)) || treatments[index] || '치료';
+    const nextIndex = getNextPendingTreatmentIndex(treatments, currentIndex, preCompletedTreatmentIndexes);
+    const timerPatch = nextIndex < 0 || nextIndex >= treatments.length
+      ? {
+          currentIndex: Math.max(0, treatments.length - 1),
+          total: 0,
+          remaining: 0,
+          running: false,
+          startedAt: null,
+          complete: true,
+          lastAlertId: null,
+          lastAlertMessage: null,
+          doctorProcedureAlert: null
+        }
+      : {
+          currentIndex: nextIndex,
+          total: getConcurrentTreatmentSeconds(treatments, nextIndex),
+          remaining: getConcurrentTreatmentSeconds(treatments, nextIndex),
+          running: false,
+          startedAt: null,
+          complete: false,
+          lastAlertId: null,
+          lastAlertMessage: null,
+          doctorProcedureAlert: null
+        };
+
+    try {
+      await updateBedRecord(bedNo, {
+        preCompletedTreatmentIndexes,
+        ...timerPatch
+      });
+      if (bed.patientKey) {
+        await updatePatient(bed.patientKey, { preCompletedTreatmentIndexes });
+      }
+      clearLocalTimerAlertsForBed(bedNo);
+      showToast(`${completedLabel} 완료 처리`);
+    } catch (e) {
+      console.error(e);
+      showToast('치료 완료 처리 실패');
     }
     renderBedMonitors();
     renderBedDetail();
@@ -9988,6 +10895,12 @@
     // 순서 교체
     const [moved] = treatments.splice(fromIndex, 1);
     treatments.splice(toIndex, 0, moved);
+    const addedTreatmentIndexes = moveAddedTreatmentIndexes(
+      bed.addedTreatmentIndexes || [],
+      fromIndex,
+      toIndex,
+      treatments
+    );
 
     const currentIndex = Number(bed.currentIndex || 0);
     let nextCurrentIndex = currentIndex;
@@ -10003,10 +10916,11 @@
     try {
       await updateBedRecord(bedNo, {
         treatments,
+        addedTreatmentIndexes,
         currentIndex: nextCurrentIndex
       });
       if (bed.patientKey) {
-        await updatePatient(bed.patientKey,{ treatments });
+        await updatePatient(bed.patientKey,{ treatments, addedTreatmentIndexes });
       }
     } catch(e) {
       console.error(e);
@@ -10021,17 +10935,44 @@
     const treatments = [...(bed.treatments || [])];
     if (!treatments[fromIndex]) return;
 
+    const previousTreatments = [...treatments];
     const [removed] = treatments.splice(fromIndex, 1);
-    const firstTreatment = treatments[0] || '';
-    const firstTotal = firstTreatment ? getTreatmentSeconds(firstTreatment) : 0;
+    const addedTreatmentIndexes = removeAddedTreatmentIndex(
+      bed.addedTreatmentIndexes || [],
+      fromIndex,
+      bed.treatments || []
+    );
+    const preCompletedTreatmentIndexes = removePreCompletedTreatmentIndex(
+      bed.preCompletedTreatmentIndexes || [],
+      fromIndex,
+      bed.treatments || []
+    );
+    const preservedRunningIndex = bed.running
+      ? findMatchingTreatmentGroupIndex(previousTreatments, treatments, bed.currentIndex || 0)
+      : -1;
+    const nextIndexBase = Math.max(0, Math.min(Number(bed.currentIndex || 0), Math.max(0, treatments.length - 1)));
+    const nextPendingIndex = treatments.length
+      ? getNextPendingTreatmentIndex(treatments, nextIndexBase, preCompletedTreatmentIndexes)
+      : -1;
+    const nextIndex = preservedRunningIndex >= 0
+      ? preservedRunningIndex
+      : (nextPendingIndex >= 0 ? nextPendingIndex : 0);
+    const nextTotal = treatments[nextIndex] ? getConcurrentTreatmentSeconds(treatments, nextIndex) : 0;
+    const preserveTimer = preservedRunningIndex >= 0;
     const resetPayload = {
       treatments,
-      currentIndex: 0,
-      total: firstTotal,
-      remaining: firstTotal,
-      running: false,
-      startedAt: null,
-      complete: false,
+      addedTreatmentIndexes,
+      preCompletedTreatmentIndexes,
+      currentIndex: nextIndex,
+      ...(preserveTimer
+        ? {}
+        : {
+            total: nextTotal,
+            remaining: nextTotal,
+            running: false,
+            startedAt: null,
+            complete: !treatments.length || nextPendingIndex < 0
+          }),
       lastAlertId: null,
       lastAlertMessage: null,
       doctorProcedureAlert: null
@@ -10040,9 +10981,9 @@
     try {
       await updateBedRecord(bedNo, resetPayload);
       if (bed.patientKey) {
-        await updatePatient(bed.patientKey,{ treatments });
+        await updatePatient(bed.patientKey,{ treatments, addedTreatmentIndexes, preCompletedTreatmentIndexes });
       }
-      clearLocalTimerAlertsForBed(bedNo);
+      if (!preserveTimer) clearLocalTimerAlertsForBed(bedNo);
       showToast(`${removed} 제거 완료`);
     } catch(e) {
       console.error(e);
@@ -10084,10 +11025,11 @@
     const appointmentDate = appointmentDates[0] || '';
     const hasTreatment = treatments.length > 0;
     const currentIndex = Number(bed.currentIndex || 0);
-    const treatment = bed.complete ? '완료' : (treatments[currentIndex] || '');
+    const concurrentTreatments = getConcurrentTreatmentNames(treatments, currentIndex);
+    const treatment = bed.complete ? '완료' : (formatTreatmentNames(concurrentTreatments) || treatments[currentIndex] || '');
     const remainingSeconds = getRemaining(bed);
     const totalSeconds = Number(bed.total || 0);
-    const previousTreatment = currentIndex > 0 ? treatments[currentIndex - 1] : '';
+    const previousTreatment = currentIndex > 0 ? (formatTreatmentNames(getConcurrentTreatmentNamesAroundIndex(treatments, currentIndex - 1)) || treatments[currentIndex - 1]) : '';
     const lastTreatment = treatments[treatments.length - 1] || '';
     const procedureBlinking = isDoctorProcedureBlinking(bedNo, bed);
     const statusLabel = bed.complete
@@ -10115,11 +11057,13 @@
       stageState,
       stageLabel,
       statusDetail: !hasTreatment ? '치료 선택 대기' : (bed.running ? `${treatment} 진행중` : (isWaitingToStart ? statusLabel : treatment)),
-      noTimer: !bed.complete && isNoTimerTreatment(treatments[currentIndex]),
+      noTimer: !bed.complete && concurrentTreatments.length > 0 && concurrentTreatments.every(isNoTimerTreatment),
       procedureBlinking,
       remaining: bed.complete ? '완료' : (hasTreatment ? formatTimer(remainingSeconds) : '대기'),
       currentIndex,
       treatments,
+      addedTreatmentIndexes: normalizeAddedTreatmentIndexes(bed.addedTreatmentIndexes, treatments),
+      preCompletedTreatmentIndexes: normalizePreCompletedTreatmentIndexes(bed.preCompletedTreatmentIndexes, treatments),
       timeStr: bed.timeStr || '',
       visitType: bed.visitType || '',
       gender: bed.gender || '',
@@ -10143,13 +11087,19 @@
         </div>`;
     }
 
+    const addedIndexes = new Set(normalizeAddedTreatmentIndexes(status.addedTreatmentIndexes, status.treatments));
+    const preCompletedIndexes = new Set(normalizePreCompletedTreatmentIndexes(status.preCompletedTreatmentIndexes, status.treatments));
     const chips = status.treatments.length ? status.treatments.map((treatment, index) => {
       const chipClass = status.complete
         ? 'done'
-        : (index < status.currentIndex ? 'done' : (index === status.currentIndex ? 'current' : 'waiting'));
+        : (index < status.currentIndex || preCompletedIndexes.has(index) ? 'done' : (index === status.currentIndex ? 'current' : 'waiting'));
       const treatmentClass = getTreatmentBadgeClass(treatment);
-      const runningClass = status.stageState === 'running' && index === status.currentIndex ? ' running' : '';
-      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}">${escapeHtml(treatment)}</span>`;
+      const runningClass = shouldBlinkTreatmentChip(status.treatments, status.currentIndex, index, status.stageState === 'running') ? ' running' : '';
+      const addedClass = addedIndexes.has(index) ? ' added' : '';
+      const content = addedIndexes.has(index)
+        ? `<span class="added-treatment-plus">+</span>${escapeHtml(treatment)}`
+        : escapeHtml(treatment);
+      return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${addedClass}">${content}</span>`;
     }).join('') : '<span class="bed-treatment-chip waiting">치료 미선택</span>';
     const densityClass = status.treatments.length >= 9
       ? ' ultra-dense'
@@ -10343,8 +11293,10 @@
         return isDoctorProcedureTreatment(treatment);
       })
       .map(({ bedNo, bed }) => {
-        const treatment = bed.treatments?.[bed.currentIndex || 0] || '침';
-        const alertId = getDoctorProcedureAlertId(bedNo, bed, treatment);
+        const treatments = getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
+        const currentTreatment = bed.treatments?.[bed.currentIndex || 0] || '침';
+        const treatment = formatTreatmentNames(treatments) || '침';
+        const alertId = getDoctorProcedureAlertId(bedNo, bed, currentTreatment);
         if (isDoctorProcedureAlertDismissed(bedNo, bed)) return null;
         return {
           alertId,
@@ -10354,6 +11306,7 @@
           name: bed.name || '',
           nurseName: bed.nurseName || '',
           treatment,
+          treatments,
           timestamp: Number(bed.doctorProcedureAlert?.dismissedAt || bed.startedAt || bed.timestamp || 0),
           message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${treatment}`
         };
@@ -10381,11 +11334,12 @@
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
       .filter(({ bed }) => {
         if (!bed || bed.complete || bed.running || bed.lastAlertId) return false;
-        const treatment = bed.treatments?.[bed.currentIndex || 0];
-        return isReceiveTreatmentAlertTreatment(treatment);
+        const treatments = getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
+        return treatments.length > 1 || treatments.some(isReceiveTreatmentAlertTreatment);
       })
       .map(({ bedNo, bed }) => {
-        const treatment = bed.treatments?.[bed.currentIndex || 0] || '';
+        const treatments = getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
+        const treatment = formatTreatmentNames(treatments);
         return {
           bedNo,
           bedLabel: getBedLabel(bedNo),
@@ -10393,6 +11347,7 @@
           doctorName: bed.doctorName || '',
           nurseName: bed.nurseName || '',
           treatment,
+          treatments,
           timestamp: Number(bed.startedAt || bed.timestamp || 0),
           message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${treatment}`
         };
@@ -11095,7 +12050,7 @@
   }
 
   function getRandomDoctorForRandomTest() {
-    const picked = randomItem(getSortedStaff('doctors'));
+    const picked = randomItem(getActiveDoctors());
     return picked ? { id: picked[0], name: picked[1]?.name || '' } : { id: '', name: '' };
   }
 
@@ -11251,6 +12206,22 @@
       appointmentUndecided: isUndecided,
       appointmentUndecidedAlert
     });
+    if (hasAny) {
+      const alertData = {
+        patientKey,
+        name: data.name || existingPatient.name || '환자',
+        chartNo: normalizeChartNo(data.chartNo || existingPatient.chartNo || ''),
+        dates,
+        undecided: isUndecided,
+        timestamp: Date.now()
+      };
+      appointmentDeskAlertItems.set(patientKey, alertData);
+      try {
+        await saveAppointmentDeskAlert(patientKey, alertData);
+      } catch (e) {
+        console.error('예약 알림 저장 실패', e);
+      }
+    }
     renderUpcomingAlerts();
     renderBedMonitors();
     return true;

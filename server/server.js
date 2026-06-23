@@ -283,7 +283,8 @@ const statements = {
     VALUES (?, ?, ?)
     ON CONFLICT(state_key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
   `),
-  deleteState: db.prepare("DELETE FROM app_state WHERE state_key = ?")
+  deleteState: db.prepare("DELETE FROM app_state WHERE state_key = ?"),
+  deleteOldDischargedPatientStates: db.prepare("DELETE FROM app_state WHERE state_key LIKE 'dischargedPatients/%' AND state_key <> ?")
 };
 
 // One-time migration: encrypt any rows still stored as plaintext (data written
@@ -1811,6 +1812,19 @@ async function handleApi(req, res, pathname) {
     setStateValue(key, map);
     sseBroadcastStateChild(key, op, childKey, op === "delete" ? null : map[childKey]);
     jsonResponse(res, 200, { ok: true, key, childKey });
+    return true;
+  }
+
+  if (pathname === "/api/discharged-patients/cleanup" && req.method === "POST") {
+    const body = (await readJson(req)) || {};
+    const keepDate = String(body.keepDate || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(keepDate)) {
+      jsonResponse(res, 400, { error: "bad keepDate" });
+      return true;
+    }
+    const keepKey = normalizeStateKey(`dischargedPatients/${keepDate}`);
+    const result = statements.deleteOldDischargedPatientStates.run(keepKey);
+    jsonResponse(res, 200, { ok: true, keepKey, deleted: result.changes || 0 });
     return true;
   }
 
