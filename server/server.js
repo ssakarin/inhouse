@@ -2148,6 +2148,18 @@ setInterval(() => {
   }
 }, 1000).unref();
 
+const SHORT_LINKS = new Map([
+  ["/desk", "/?view=desk"],
+  ["/clinic", "/?view=clinic"],
+  ["/notify", "/?view=notify"],
+  ["/doctor1", "/?view=bed&bed=101"],
+  ["/doctor2", "/?view=bed&bed=102"],
+]);
+
+for (const bedNo of [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15]) {
+  SHORT_LINKS.set(`/bed${bedNo}`, `/?view=bed&bed=${bedNo}`);
+}
+
 const server = http.createServer(async (req, res) => {
   const startedAt = process.hrtime.bigint();
   const originalWriteHead = res.writeHead;
@@ -2166,6 +2178,13 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const pathname = url.pathname;
+    const shortLinkTarget = SHORT_LINKS.get(pathname.toLowerCase());
+    if (shortLinkTarget && (req.method === "GET" || req.method === "HEAD")) {
+      res.writeHead(302, { Location: shortLinkTarget });
+      res.end();
+      return;
+    }
+
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       res.end();
