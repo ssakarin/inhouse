@@ -1295,6 +1295,13 @@
     font-size: 13px;
     font-weight: 900;
   }
+  .rr-setting .staff-select {
+    flex: 1 1 160px;
+    min-width: 0;
+    max-width: 220px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
   .rr-switch {
     position: relative;
     width: 48px;
@@ -2264,8 +2271,10 @@
     color: var(--treatment-text);
     font-weight: 1000;
   }
-  /* 진행 중 치료 칩은 점멸하지 않는다 (타이머 진행바로 상태를 표시). */
-  .bed-treatment-chip.running { }
+  /* 진행 중인 치료 칩은 타이머가 켜진 동안 점멸한다. */
+  .bed-treatment-chip.running {
+    animation: treatmentBlink 0.9s ease-in-out infinite;
+  }
   .bed-treatment-chip.waiting:not([class*="treatment-"]) { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: var(--text2); }
   .bed-treatment-chip[draggable="true"] { cursor: grab; }
   .bed-treatment-chip[draggable="true"]:active { cursor: grabbing; }
@@ -3623,6 +3632,10 @@
         <span class="rr-slider"></span>
       </span>
     </label>
+    <label class="rr-setting" style="margin-top:0;margin-bottom:10px">
+      <span class="rr-setting-text">시작 간호사</span>
+      <select class="staff-select nurse-start-select" id="nurseQuickRoundRobinStartSelect" onchange="saveNurseRoundRobinStart(this.value)"></select>
+    </label>
     <div class="staff-add-row">
       <input class="name-input" id="nurseQuickNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
       <button class="timer-set-btn" type="button" onclick="addStaff('nurses', 'nurseQuickNameInput')">추가</button>
@@ -3872,6 +3885,10 @@
               <input id="nurseAutoAssignEnabled" type="checkbox" onchange="saveNurseAutoAssignEnabled(this.checked)">
               <span class="rr-slider"></span>
             </span>
+          </label>
+          <label class="rr-setting" style="margin-top:0;margin-bottom:10px">
+            <span class="rr-setting-text">시작 간호사</span>
+            <select class="staff-select nurse-start-select" id="nurseRoundRobinStartSelect" onchange="saveNurseRoundRobinStart(this.value)"></select>
           </label>
           <div class="staff-add-row">
             <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
@@ -4308,6 +4325,7 @@
   let treatmentPresets = [];
   let autoBedAssignEnabled = false;
   let nurseAutoAssignEnabled = true;
+  let nurseRoundRobinStartId = '';
 
   const patientsByKey = new Map();
   const staffByType = {
@@ -5529,6 +5547,24 @@
     });
   }
 
+  function syncNurseRoundRobinStartSelects() {
+    const nurses = getSortedStaff('nurses');
+    const selectedNurse = nurseRoundRobinStartId ? staffByType.nurses.get(nurseRoundRobinStartId) : null;
+    const hasSelected = Boolean(selectedNurse && !selectedNurse.vacation);
+    const options = [
+      `<option value="">자동(등록순)</option>`,
+      ...nurses.map(([key, data]) =>
+        `<option value="${escapeHtml(key)}" ${data.vacation ? 'disabled' : ''}>${escapeHtml(data.name || '')}${data.vacation ? ' (자리비움)' : ''}</option>`
+      )
+    ].join('');
+    ['nurseRoundRobinStartSelect', 'nurseQuickRoundRobinStartSelect'].forEach(id => {
+      const select = document.getElementById(id);
+      if (!select) return;
+      select.innerHTML = options;
+      select.value = hasSelected ? nurseRoundRobinStartId : '';
+    });
+  }
+
   function getSortedStaff(type) {
     return [...staffByType[type].entries()]
       .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
@@ -5570,6 +5606,7 @@
         list.innerHTML = listHtml;
       });
     });
+    syncNurseRoundRobinStartSelects();
     renderDoctorAlertSelect();
   }
 
@@ -5874,6 +5911,11 @@
     syncNurseAutoAssignInputs();
   });
 
+  migrateNode('settings/nurseRoundRobinStartId', (value) => {
+    nurseRoundRobinStartId = String(value || '');
+    syncNurseRoundRobinStartSelects();
+  });
+
   migrateNode(CALL_ALERTS_PATH, (value) => {
     callAlertItems.clear();
     Object.entries(value || {}).forEach(([key, data]) => {
@@ -5941,6 +5983,33 @@
     syncNurseAutoAssignInputs();
     await setLocalNode('settings/nurseAutoAssignEnabled', nurseAutoAssignEnabled);
     showToast(enabled ? '간호사 자동배정 켜짐' : '간호사 자동배정 꺼짐');
+  };
+
+  window.saveNurseRoundRobinStart = async (nurseId) => {
+    const activeNurseIds = new Set(getActiveRoundRobinNurses().map(([id]) => id));
+    const nextId = activeNurseIds.has(nurseId) ? nurseId : '';
+    nurseRoundRobinStartId = nextId;
+    syncNurseRoundRobinStartSelects();
+    const nurses = getActiveRoundRobinNurses();
+    const startOffset = Math.max(0, nurses.findIndex(([id]) => id === nextId));
+    const state = {
+      startId: nextId,
+      lastDate: getTodayKey(),
+      startOffset: nextId ? startOffset : 0,
+      count: 0,
+      updatedAt: Date.now()
+    };
+    try {
+      await Promise.all([
+        setLocalNode('settings/nurseRoundRobinStartId', nextId),
+        setLocalNode('settings/nurseRoundRobinState', state)
+      ]);
+      const name = nextId ? (staffByType.nurses.get(nextId)?.name || '선택 간호사') : '등록순';
+      showToast(`시작 간호사: ${name}`);
+    } catch (e) {
+      console.error(e);
+      showToast('시작 간호사 저장 실패');
+    }
   };
 
   const PATIENT_FORM_IDS = {
@@ -7239,12 +7308,17 @@
     const dateKey = getTodayKey();
     const mutate = (value) => {
       const state = value && typeof value === 'object' ? value : {};
+      const configuredStartId = nurses.some(([id]) => id === nurseRoundRobinStartId) ? nurseRoundRobinStartId : '';
+      const configuredStartOffset = Math.max(0, nurses.findIndex(([id]) => id === configuredStartId));
+      const sameStartSetting = String(state.startId || '') === configuredStartId;
       const previousDate = String(state.lastDate || '');
       const sameDate = previousDate === dateKey;
       const previousStartOffset = Math.max(0, Number(state.startOffset || 0)) % nurses.length;
-      const startOffset = sameDate ? previousStartOffset : (previousDate ? (previousStartOffset + 1) % nurses.length : 0);
-      const count = sameDate ? Number(state.count || 0) + 1 : 1;
-      return { ...state, lastDate: dateKey, startOffset, count, updatedAt: Date.now() };
+      const startOffset = sameStartSetting
+        ? (sameDate ? previousStartOffset : (previousDate ? (previousStartOffset + 1) % nurses.length : configuredStartOffset))
+        : configuredStartOffset;
+      const count = sameDate && sameStartSetting ? Number(state.count || 0) + 1 : 1;
+      return { ...state, startId: configuredStartId, lastDate: dateKey, startOffset, count, updatedAt: Date.now() };
     };
     let state;
     try {
@@ -10094,15 +10168,14 @@
     if (bedDragActive()) { bedRenderPending = true; return; }
     bedRenderPending = false;
     const doctorBedNums = getDoctorBedNumbers();
-    const doctorInputHtml = doctorBedNums.map(bedNo => renderBedStatusCard(getBedStatus(bedNo), 'input')).join('');
-    const doctorReceiveHtml = doctorBedNums.map(bedNo => renderBedStatusCard(getBedStatus(bedNo), 'receive')).join('');
+    const monitorBedNums = [...ACTIVE_BED_NUMBERS, ...doctorBedNums];
 
-    const inputHtml = doctorInputHtml + ACTIVE_BED_NUMBERS.map((bedNo) => {
+    const inputHtml = monitorBedNums.map((bedNo) => {
       const status = getBedStatus(bedNo);
       return renderBedStatusCard(status, 'input');
     }).join('');
 
-    const receiveHtml = doctorReceiveHtml + ACTIVE_BED_NUMBERS.map((bedNo) => {
+    const receiveHtml = monitorBedNums.map((bedNo) => {
       const status = getBedStatus(bedNo);
       return renderBedStatusCard(status, 'receive');
     }).join('');
@@ -10119,7 +10192,7 @@
       receiveEl.innerHTML = receiveHtml;
       lastReceiveBedHtml = receiveStableHtml;
     }
-    [...new Set([...doctorBedNums, ...ACTIVE_BED_NUMBERS])].forEach((bedNo) => {
+    monitorBedNums.forEach((bedNo) => {
       const status = getBedStatus(bedNo);
       ['input', 'receive'].forEach(context => {
         const span = document.getElementById(`monitor-time-${context}-${bedNo}`);
