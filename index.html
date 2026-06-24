@@ -5427,7 +5427,7 @@
           <input class="package-input" id="pkg-selected-date" type="date" value="${activePackageDate || today}">
           <input class="package-input" id="pkg-selected-purchase-qty" type="text" inputmode="numeric" maxlength="3" value="${escapeHtml((PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_FIELDS[0]).defaultPurchaseQty)}" aria-label="결제 수량">
           <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('purchase')">결제 추가</button>
-          <input class="package-input" id="pkg-selected-bonus-qty" type="text" inputmode="numeric" maxlength="3" value="1" aria-label="보너스 수량">
+          <input class="package-input" id="pkg-selected-bonus-qty" type="text" inputmode="decimal" maxlength="5" value="1" aria-label="보너스 수량">
           <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('bonus')">보너스 추가</button>
         </div>
         <div class="package-calendar-head">
@@ -5447,8 +5447,15 @@
     disableAutocomplete(form);
   }
 
-  function getPackageQtyInputValue(id) {
-    return Math.max(1, Math.min(999, Number(String(document.getElementById(id)?.value || '').replace(/[^0-9]/g, '')) || 1));
+  function getPackageQtyInputValue(id, allowDecimal = false) {
+    const raw = String(document.getElementById(id)?.value || '');
+    if (allowDecimal) {
+      // 보너스만 소수 허용(예: 2.5). 소수점 한 개만 남기고 0~999로 클램프, 소수 둘째 자리 반올림.
+      const cleaned = raw.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+      const num = Math.round((Number(cleaned) || 0) * 100) / 100;
+      return Math.max(0, Math.min(999, num));
+    }
+    return Math.max(1, Math.min(999, Number(raw.replace(/[^0-9]/g, '')) || 1));
   }
 
   window.selectPackageEntryType = function(key) {
@@ -5514,7 +5521,8 @@
       || document.getElementById('pkg-selected-date')?.value
       || toLocalDateInputValue();
     const selectedQtyId = type === 'purchase' ? 'pkg-selected-purchase-qty' : (type === 'bonus' ? 'pkg-selected-bonus-qty' : 'pkg-selected-usage-qty');
-    const qty = document.getElementById(qtyId) ? getPackageQtyInputValue(qtyId) : getPackageQtyInputValue(selectedQtyId);
+    const allowDecimal = type === 'bonus';
+    const qty = document.getElementById(qtyId) ? getPackageQtyInputValue(qtyId, allowDecimal) : getPackageQtyInputValue(selectedQtyId, allowDecimal);
     const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date, qty };
     if (isIncrease) pkg.purchases = [...normalizePackageEntries(pkg.purchases, 'purchase'), { ...entry, kind: type === 'bonus' ? 'bonus' : 'purchase' }];
     else pkg.usages = [...normalizePackageEntries(pkg.usages, 'usage'), entry];
