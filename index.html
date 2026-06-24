@@ -4281,9 +4281,26 @@
 
   const debugCounters = {};
   const debugCounterTicks = {};
+  const DEBUG_COUNTER_STORAGE_KEY = 'inhouse:debugCountersVisible';
   let debugCounterPanelTimer = 0;
   const debugCounterParams = new URLSearchParams(location.search);
-  let debugCountersVisible = debugCounterParams.get('debug') === '1';
+  const debugCounterParam = debugCounterParams.get('debug');
+  function readStoredDebugCountersVisible() {
+    try {
+      return localStorage.getItem(DEBUG_COUNTER_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+  function writeStoredDebugCountersVisible(visible) {
+    try {
+      if (visible) localStorage.setItem(DEBUG_COUNTER_STORAGE_KEY, '1');
+      else localStorage.removeItem(DEBUG_COUNTER_STORAGE_KEY);
+    } catch {}
+  }
+  if (debugCounterParam === '1') writeStoredDebugCountersVisible(true);
+  if (debugCounterParam === '0') writeStoredDebugCountersVisible(false);
+  let debugCountersVisible = debugCounterParam === '1' || (debugCounterParam !== '0' && readStoredDebugCountersVisible());
 
   function getDebugCounterPage() {
     const view = (new URLSearchParams(location.search).get('view') || '').toLowerCase();
@@ -4355,10 +4372,12 @@
   };
   window.hideDebugCounters = () => {
     debugCountersVisible = false;
+    writeStoredDebugCountersVisible(false);
     document.getElementById('debugCounterPanel')?.remove();
   };
   window.showDebugCounters = () => {
     debugCountersVisible = true;
+    writeStoredDebugCountersVisible(true);
     renderDebugCounterPanel();
   };
 

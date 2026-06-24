@@ -2258,6 +2258,14 @@ for (const bedNo of [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15]) {
   SHORT_LINKS.set(`/bed${bedNo}`, `/?view=bed&bed=${bedNo}`);
 }
 
+function mergeShortLinkQuery(target, sourceSearchParams) {
+  const redirectUrl = new URL(target, "http://localhost");
+  for (const [key, value] of sourceSearchParams) {
+    if (!redirectUrl.searchParams.has(key)) redirectUrl.searchParams.append(key, value);
+  }
+  return `${redirectUrl.pathname}${redirectUrl.search}`;
+}
+
 const server = http.createServer(async (req, res) => {
   const startedAt = process.hrtime.bigint();
   const originalWriteHead = res.writeHead;
@@ -2278,7 +2286,7 @@ const server = http.createServer(async (req, res) => {
     const pathname = url.pathname;
     const shortLinkTarget = SHORT_LINKS.get(pathname.toLowerCase());
     if (shortLinkTarget && (req.method === "GET" || req.method === "HEAD")) {
-      res.writeHead(302, { Location: shortLinkTarget });
+      res.writeHead(302, { Location: mergeShortLinkQuery(shortLinkTarget, url.searchParams) });
       res.end();
       return;
     }
