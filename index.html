@@ -2796,6 +2796,11 @@
     line-height: 1;
     padding: 3px 8px 5px;
   }
+  .bed-name-meta-chip--insurance {
+    background: rgba(167,139,250,0.18);
+    border-color: rgba(167,139,250,0.55);
+    color: rgb(196,181,253);
+  }
   .bed-patient-summary {
     display: inline-flex;
     flex-wrap: wrap;
@@ -2813,6 +2818,11 @@
     font-size: 12px;
     font-weight: 900;
     padding: 5px 8px;
+  }
+  .bed-patient-summary-chip--insurance {
+    background: rgba(167,139,250,0.18);
+    border-color: rgba(167,139,250,0.55);
+    color: rgb(196,181,253);
   }
   .bed-time { font-size: 12px; color: var(--text3); }
   .bed-detail-info {
@@ -10033,37 +10043,38 @@
     if (value.includes('2종')) return '2종';
     if (value.includes('1종')) return '1종';
     if (value.includes('비보험')) return '비보험';
-    if (value.includes('건강보험')) return value.includes('비') ? '비보험' : '';
+    if (value.includes('건강보험')) return value.includes('비') ? '비보험' : '일반';
     return '';
   }
 
   function getBedNameMetaChips(bed) {
-    const parts = [
-      bed.chartNo ? `${bed.chartNo}` : '',
-      getShortVisitTypeLabel(bed.visitType),
-      bed.gender || '',
-      bed.age ? `${bed.age}세` : ''
-    ].filter(Boolean);
+    const chip = (text, cls = '') => `<span class="bed-name-meta-chip${cls}">${escapeHtml(text)}</span>`;
+    const insuranceLabel = getInsuranceChipLabel(bed.insuranceType);
+    const chips = [];
+    if (bed.chartNo) chips.push(chip(`${bed.chartNo}`));
+    if (getShortVisitTypeLabel(bed.visitType)) chips.push(chip(getShortVisitTypeLabel(bed.visitType)));
+    if (bed.gender) chips.push(chip(bed.gender));
+    if (insuranceLabel) chips.push(chip(insuranceLabel, ' bed-name-meta-chip--insurance'));
+    if (bed.age) chips.push(chip(`${bed.age}세`));
 
-    if (!parts.length) return '';
-    return `<span class="bed-name-meta">${parts.map(part => `<span class="bed-name-meta-chip">${escapeHtml(part)}</span>`).join('')}</span>`;
+    if (!chips.length) return '';
+    return `<span class="bed-name-meta">${chips.join('')}</span>`;
   }
 
   function getBedDetailPatientSummaryChips(bed, includeIdentity = true) {
-    const identityParts = includeIdentity ? [
-      bed.chartNo ? `${bed.chartNo}번` : '',
-      bed.visitType || '',
-      bed.gender || '',
-      bed.age ? `${bed.age}세` : ''
-    ] : [];
-    const parts = [
-      ...identityParts,
-      bed.chiefComplaint || '',
-      bed.memo ? '메모있음' : ''
-    ].filter(Boolean);
-
-    if (!parts.length) return '';
-    return parts.map(part => `<span class="bed-patient-summary-chip">${escapeHtml(part)}</span>`).join('');
+    const chip = (text, cls = '') => `<span class="bed-patient-summary-chip${cls}">${escapeHtml(text)}</span>`;
+    const insuranceLabel = getInsuranceChipLabel(bed.insuranceType);
+    const chips = [];
+    if (includeIdentity) {
+      if (bed.chartNo) chips.push(chip(`${bed.chartNo}번`));
+      if (bed.visitType) chips.push(chip(bed.visitType));
+      if (bed.gender) chips.push(chip(bed.gender));
+      if (insuranceLabel) chips.push(chip(insuranceLabel, ' bed-patient-summary-chip--insurance'));
+      if (bed.age) chips.push(chip(`${bed.age}세`));
+    }
+    if (bed.chiefComplaint) chips.push(chip(bed.chiefComplaint));
+    if (bed.memo) chips.push(chip('메모있음'));
+    return chips.join('');
   }
 
   function getBedMoveTargetNumbers() {
