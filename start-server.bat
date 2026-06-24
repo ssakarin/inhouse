@@ -4,7 +4,8 @@ cd /d "%~dp0"
 set NODE_NO_WARNINGS=1
 
 rem --- Secrets: change these for production. Leave unset to use defaults. ---
-set "CLINIC_PASSWORD=khhongik1"
+rem set "CLINIC_REQUIRE_LOGIN=1"
+rem set "CLINIC_PASSWORD=your-login-password"
 set "CLINIC_DELETE_PASSWORD=337758"
 rem set "CLINIC_KEY_PATH=C:\clinic-secret\key.bin"
 rem set "SLACK_TOKEN=xoxb-your-slack-bot-token"

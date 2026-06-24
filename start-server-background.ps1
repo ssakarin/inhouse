@@ -31,7 +31,8 @@ if (-not $nodeExe) {
 }
 
 # --- Secrets: change for production. Inherited by the server child process. ---
-$env:CLINIC_PASSWORD = "khhongik1"
+# $env:CLINIC_REQUIRE_LOGIN = "1"
+# $env:CLINIC_PASSWORD = "your-login-password"
 $env:CLINIC_DELETE_PASSWORD = "337758"
 # $env:CLINIC_KEY_PATH = "C:\clinic-secret\key.bin"
 # $env:SLACK_TOKEN = "xoxb-your-slack-bot-token"

@@ -208,7 +208,7 @@
   .form-grid label, .wide-field { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 900; }
   .wide-field { grid-column: 1 / -1; }
   .info-grid { grid-template-columns: 1fr; }
-  .info-row1 { display: grid; grid-template-columns: 1.3fr 1fr 0.6fr 0.7fr 1fr 0.8fr; gap: 10px; }
+  .info-row1 { display: grid; grid-template-columns: 1.3fr 1fr 0.6fr 0.7fr 0.9fr 1fr 0.8fr; gap: 10px; }
   .info-third-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .section-title { padding: 12px 12px 0; color: var(--gold); font-weight: 900; font-size: 13px; }
   .text-input {
@@ -574,6 +574,7 @@
               <label>이름<input id="editName" type="text"></label>
               <label>나이<input id="editAge" type="number" min="0" max="130"></label>
               <label>성별<input id="editGender" type="text" readonly></label>
+              <label>보험종별<input id="editInsuranceType" type="text"></label>
               <input id="editPhone" type="hidden">
               <label>최근 담당원장<input id="editDoctorName" type="text" readonly></label>
               <label>최근 초진/재진<select id="editVisitType"><option value="">-</option><option value="초진">초진</option><option value="재진">재진</option></select></label>
@@ -657,6 +658,10 @@
 
   function getPatientPhone(patient = {}) {
     return String(patient.phone || patient.phoneNumber || patient.tel || patient.mobile || patient.contact || "").trim();
+  }
+
+  function getPatientInsuranceType(patient = {}) {
+    return String(patient.insuranceType || patient.insurance_type || patient["보험종별"] || patient.insuranceKind || patient.insuKind || patient.InsuKind || "").trim();
   }
 
   function normalizeAppointmentDates(patient = {}) {
@@ -781,7 +786,7 @@
       return await res.json();
     }
     return latestIndexedValue.filter(patient => {
-      const haystack = `${patient.chartNo || ""} ${patient.name || ""} ${getPatientPhone(patient)}`.toLowerCase();
+      const haystack = `${patient.chartNo || ""} ${patient.name || ""} ${getPatientPhone(patient)} ${getPatientInsuranceType(patient)}`.toLowerCase();
       return haystack.includes(q.toLowerCase());
     }).sort(compareChartNo).slice(0, limit);
   }
@@ -1393,7 +1398,7 @@
     try {
       rows = hasLoadedFullIndexed
         ? latestIndexedValue.filter(patient => {
-            const haystack = `${patient.chartNo || ""} ${patient.name || ""} ${getPatientPhone(patient)}`.toLowerCase();
+            const haystack = `${patient.chartNo || ""} ${patient.name || ""} ${getPatientPhone(patient)} ${getPatientInsuranceType(patient)}`.toLowerCase();
             return haystack.includes(query);
           }).sort(compareChartNo)
         : await searchIndexedRecords(query, 50);
@@ -1408,7 +1413,7 @@
       ? rows.map(patient => `
         <button class="patient-item${patientIdentity(patient) === selectedPatientId ? " active" : ""}" type="button" data-patient-id="${escapeHtml(patientIdentity(patient))}">
           <div class="patient-name">${escapeHtml(patient.name || "(이름 없음)")}</div>
-          <div class="patient-sub">${escapeHtml([patient.chartNo || "-", patient.gender || "-", patient.age || "-", `진료 ${(patient.visitDates || []).length || 0}회`].filter(Boolean).join(" · "))}</div>
+          <div class="patient-sub">${escapeHtml([patient.chartNo || "-", patient.gender || "-", patient.age || "-", getPatientInsuranceType(patient) || "-", `진료 ${(patient.visitDates || []).length || 0}회`].filter(Boolean).join(" · "))}</div>
         </button>
       `).join("")
       : `<div class="meta" style="padding:12px;">표시할 환자가 없습니다.</div>`;
@@ -1430,6 +1435,7 @@
     $("editName").value = patient.name || "";
     $("editAge").value = patient.age ?? "";
     $("editGender").value = patient.gender || "";
+    $("editInsuranceType").value = getPatientInsuranceType(patient);
     $("editPhone").value = getPatientPhone(patient);
     $("editAppointmentDate").value = formatAppointmentDates(patient);
     $("editMemo").value = patient.memo || "";
@@ -1472,7 +1478,7 @@
   function clearEditor() {
     selectedChartNo = "";
     selectedPatientId = "";
-    ["editChartNo", "editName", "editAge", "editGender", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText"].forEach(id => { $(id).value = ""; });
+    ["editChartNo", "editName", "editAge", "editGender", "editInsuranceType", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText"].forEach(id => { $(id).value = ""; });
     activeVisitDates = [];
     activeVisitHistory = {};
     activeVisitMonth = new Date().toISOString().slice(0, 7);
@@ -1513,6 +1519,7 @@
       name: $("editName").value.trim(),
       age: $("editAge").value ? Number($("editAge").value) : "",
       phone: $("editPhone").value.trim(),
+      insuranceType: $("editInsuranceType").value.trim(),
       memo: $("editMemo").value.trim(),
       visitType: latestRecord.visitType || visitType || existing.visitType || "",
       visitDates,

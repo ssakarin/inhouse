@@ -1,4 +1,4 @@
-# Inhouse Local Server
+﻿# Inhouse Local Server
 
 This is the first local-server version for sharing the app on the same Wi-Fi.
 
@@ -90,29 +90,21 @@ IMPORTANT:
 node server/decrypt-backup.js C:\backup\server\patients-<...>.json.enc out.json
 ```
 
-`out.json` is plaintext PII — delete it once you are done.
+`out.json` is plaintext PII ??delete it once you are done.
 
 ## Authentication
 
-Every page and API requires login with a shared password.
+Device login is disabled by default, so tablets/desks can open the app directly.
+To re-enable shared-password login, set both env vars before starting the server:
 
-- First visit on a device redirects to `/login`. After entering the password the
-  server sets an HttpOnly session cookie, so each device only logs in once
-  (cookie lasts 1 year; sessions survive server restarts).
-- `GET /api/*` without a valid session returns `401`; page requests redirect to
-  `/login`. Static assets (js/css/img/manifest) load without auth so the login
-  page and PWA shell work.
-- `POST /api/logout` clears the session.
+- `CLINIC_REQUIRE_LOGIN=1`
+- `CLINIC_PASSWORD` - login password
 
-Passwords come from env vars (defaults are used if unset — change them in
-production):
+Delete-all confirmation is separate and remains protected:
 
-- `CLINIC_PASSWORD` — login password (default `7677`)
-- `CLINIC_DELETE_PASSWORD` — delete-all confirmation password (default `7677`)
+- `CLINIC_DELETE_PASSWORD` - delete-all confirmation password (default `337758`)
 
-> Note: traffic is plain HTTP, so a determined sniffer on the same Wi-Fi can
-> still capture the session cookie. For full protection, terminate HTTPS (a
-> self-signed cert or a reverse proxy) in front of the server.
+> Note: traffic is plain HTTP. If shared-password login is re-enabled, use HTTPS or a trusted local network.
 
 ## Local mode
 

@@ -1005,6 +1005,44 @@
     flex-direction: column;
     gap: 8px;
   }
+  .bed-doctor-alert-list .doctor-room-alert-chips {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+  .bed-doctor-alert-list .doctor-room-alert-chips + div {
+    display: none;
+  }
+  .bed-doctor-alert-bed-chip,
+  .bed-doctor-alert-list .doctor-room-alert-treatment-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0 11px;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .bed-doctor-alert-bed-chip {
+    background: rgba(255,202,106,0.16);
+    border: 1px solid rgba(255,202,106,0.68);
+    color: var(--gold);
+  }
+  .bed-doctor-alert-list .doctor-room-alert-treatment-chip.upcoming-time.treatment-badge {
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    padding: 0 11px;
+    overflow: visible;
+    text-overflow: clip;
+  }
 
   .name-input {
     width: 100%;
@@ -2894,6 +2932,124 @@
     font-weight: 900;
     padding: 12px;
   }
+  body.app-fixed-doctor-bed .app {
+    width: 100%;
+    max-width: none;
+    min-height: 100dvh;
+    padding: 10px 8px;
+  }
+  body.app-fixed-doctor-bed #bedPanel,
+  body.app-fixed-doctor-bed .bed-layout,
+  body.app-fixed-doctor-bed .bed-doctor-alert-panel {
+    min-height: calc(100dvh - 76px);
+  }
+  body.app-fixed-doctor-bed .bed-layout {
+    display: block;
+    gap: 0;
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-panel.show {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(18px, 3vw, 32px);
+    min-height: calc(100dvh - 76px);
+    margin: 0;
+    padding: clamp(18px, 4vw, 40px);
+    border: 0;
+    border-radius: 16px;
+    background: var(--surface);
+  }
+  body.app-fixed-doctor-bed #bodyMap,
+  body.app-fixed-doctor-bed #bedEditSection,
+  body.app-fixed-doctor-bed .bed-arrival-overlay,
+  body.app-fixed-doctor-bed .bed-workspace,
+  body.app-fixed-doctor-bed .bed-summary,
+  body.app-fixed-doctor-bed .bed-detail-info,
+  body.app-fixed-doctor-bed .bed-package-zone,
+  body.app-fixed-doctor-bed .bed-timer-zone,
+  body.app-fixed-doctor-bed .bed-schedule-zone {
+    display: none !important;
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-head {
+    flex: 0 0 auto;
+    align-items: center;
+    gap: clamp(14px, 3vw, 28px);
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-title {
+    font-size: clamp(30px, 6vw, 64px);
+    line-height: 1.1;
+  }
+  body.app-fixed-doctor-bed .doctor-alert-btn {
+    min-height: clamp(58px, 10vw, 92px);
+    min-width: clamp(150px, 30vw, 280px);
+    padding: 0 clamp(20px, 4vw, 44px);
+    border-radius: 16px;
+    font-size: clamp(24px, 5vw, 48px);
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-list {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(14px, 3vw, 28px);
+    min-height: 0;
+    overflow-y: auto;
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-list .upcoming-item {
+    flex: 1 1 0;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: clamp(110px, 18vh, 220px);
+    padding: clamp(22px, 5vw, 54px);
+    border-radius: 18px;
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-list .upcoming-item > div:not(.doctor-room-alert-chips) {
+    display: none;
+  }
+  body.app-fixed-doctor-bed .doctor-room-alert-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 3vw, 28px);
+  }
+  body.app-fixed-doctor-bed .doctor-room-alert-bed-chip,
+  body.app-fixed-doctor-bed .doctor-room-alert-treatment-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: clamp(62px, 10vw, 104px);
+    padding: 0 clamp(22px, 5vw, 54px);
+    border-radius: 18px;
+    font-size: clamp(32px, 7vw, 76px);
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  body.app-fixed-doctor-bed .doctor-room-alert-bed-chip {
+    background: rgba(255,202,106,0.18);
+    border: 1.5px solid rgba(255,202,106,0.72);
+    color: var(--gold);
+  }
+  body.app-fixed-doctor-bed .doctor-room-alert-treatment-chip.upcoming-time.treatment-badge {
+    width: auto;
+    max-width: none;
+    min-width: clamp(110px, 20vw, 240px);
+    min-height: clamp(62px, 10vw, 104px);
+    padding: 0 clamp(22px, 5vw, 54px);
+    border-radius: 18px;
+    font-size: clamp(32px, 7vw, 76px);
+    line-height: 1;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-list .empty-state {
+    flex: 1 1 auto;
+    min-height: 70dvh;
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-list .empty-icon {
+    font-size: clamp(42px, 9vw, 92px);
+  }
+  body.app-fixed-doctor-bed .bed-doctor-alert-list .empty-text {
+    font-size: clamp(30px, 6vw, 64px);
+  }
   .timer-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -4204,7 +4360,8 @@
   function startBedsSSE() {
     if (!BEDS_LOCAL_PRIMARY || bedsSSE) return;
     try {
-      bedsSSE = new EventSource('/api/events');
+      const role = isFixedBedScreen() ? 'fixed-bed' : 'full';
+      bedsSSE = new EventSource(`/api/events?role=${encodeURIComponent(role)}`);
       bedsSSE.addEventListener('beds', (event) => {
         countDebugCounter('sse', 'beds');
         try {
@@ -4270,6 +4427,21 @@
     }
   }
 
+  function closeBedsSSE() {
+    if (!bedsSSE) return;
+    try {
+      bedsSSE.close();
+    } catch (error) {
+      console.warn('beds SSE close failed', error);
+    }
+    bedsSSE = null;
+    bedsLocalLive = false;
+    updateConnectionStatusLabel();
+  }
+
+  window.addEventListener('pagehide', closeBedsSSE);
+  window.addEventListener('beforeunload', closeBedsSSE);
+
   // --- Local-server realtime nodes (staff, settings, alerts, patients) -------
   // Collection state keys are read via /api/state (+ SSE "state" events for live
   // cross-device updates) and written via atomic child ops on the server, so
@@ -4277,7 +4449,13 @@
   const localStateSubscribers = new Map(); // key -> handler(value)
   const localStateSnapshots = new Map();   // key -> latest full local snapshot
 
+  function shouldSubscribeLocalNode(key) {
+    if (!isFixedBedScreen()) return true;
+    return key === 'settings/treatmentMinutes' || key === 'staff/doctors' || key === 'staff/nurses' || key === BED_ASSIGNMENT_ALERTS_PATH;
+  }
+
   async function subscribeLocalNode(key, applyFn) {
+    if (!shouldSubscribeLocalNode(key)) return;
     localStateSubscribers.set(key, applyFn);
     try {
       const value = await localStateGet(key);
@@ -4660,6 +4838,9 @@
   let draggedBedNo = null;
   let draggedTreatment = null; // { bedNo, fromIndex }
   let draggedWaitingPatientKey = null;
+  const transientAddedTreatmentAlerts = [];
+  const transientAddedTreatmentAlertTimers = new Map();
+  const suppressedAddedTreatmentAlertNames = new Map();
   // 드래그 중 SSE 업데이트로 베드 그리드를 다시 그리면 hover 중인 drop 타깃 DOM이
   // 교체되어 "이동 불가" 커서·테두리 떨림이 생긴다. 드래그 동안에는 렌더를 미루고
   // 드래그 종료 시 한 번만 그린다.
@@ -4724,6 +4905,8 @@
   const queuedTimerAlerts = new Set();
   const seenDoctorProcedureAlerts = new Set();
   const queuedDoctorProcedureAlerts = new Set();
+  const seenFixedDoctorRoomAlertIds = new Set();
+  let fixedDoctorRoomAlertAudioInitialized = false;
   const knownAssignedPatientKeys = new Set();
   const assignmentAlertItems = [];
   const callAlertItems = new Map();
@@ -4868,6 +5051,17 @@
     const visitType = document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '';
     if (visitType !== '초진') return;
     ensureTreatmentSelected(ids.treatmentGrid, '진찰');
+  }
+
+  function shouldOmitTreatmentOnDeskLoad(treatmentName) {
+    const name = String(treatmentName || '').replace(/\s+/g, '');
+    return name === '진찰' || name === '베드진찰';
+  }
+
+  function normalizeTreatmentsForFormLoad(scope, treatmentNames = []) {
+    const names = Array.isArray(treatmentNames) ? treatmentNames : [];
+    if (scope !== 'desk') return names;
+    return names.filter(name => !shouldOmitTreatmentOnDeskLoad(name));
   }
 
   function placeTreatmentChips(gridId) {
@@ -5823,6 +6017,7 @@
     queuedDoctorProcedureAlerts.clear();
     renderDoctorAlertSelect();
     syncDoctorProcedureAlerts();
+    syncFixedDoctorRoomAlertAudio(true);
     renderUpcomingAlerts();
   };
 
@@ -5856,6 +6051,18 @@
     return `<div class="upcoming-time treatment-badge ${className}">${escapeHtml(label)}</div>`;
   }
 
+  function renderDoctorRoomAlertChips(item) {
+    const treatmentNames = (Array.isArray(item?.treatments) && item.treatments.length ? item.treatments : [item?.treatment])
+      .map(name => String(name || '').trim())
+      .filter(Boolean);
+    const bedLabel = item?.bedLabel || (item?.bedNo ? String(item.bedNo) : '');
+    return `
+      <div class="doctor-room-alert-chips">
+        <span class="doctor-room-alert-bed-chip">${escapeHtml(bedLabel)}</span>
+        ${treatmentNames.map(name => `<span class="upcoming-time treatment-badge doctor-room-alert-treatment-chip ${getTreatmentBadgeClass(name)}">${escapeHtml(name)}</span>`).join('')}
+      </div>`;
+  }
+
   function renderBedDoctorAlertPanel() {
     const panel = document.getElementById('bedDoctorAlertPanel');
     const list = document.getElementById('bedDoctorAlertList');
@@ -5874,13 +6081,37 @@
         .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
         .map(item => `
         <div class="upcoming-item assignment no-dismiss">
-          ${renderTreatmentBadge(item.treatment)}
+          ${renderDoctorRoomAlertChips(item)}
           <div>
             <div class="upcoming-main">${escapeHtml(item.bedLabel)} ${escapeHtml(item.name || '환자')}</div>
           </div>
         </div>`)
         .join('')
       : `<div class="empty-state"><div class="empty-icon">-</div><div class="empty-text">알림 없음</div></div>`;
+  }
+
+  function syncFixedDoctorRoomAlertAudio(markOnly = false) {
+    if (!isFixedDoctorBedScreen()) {
+      seenFixedDoctorRoomAlertIds.clear();
+      fixedDoctorRoomAlertAudioInitialized = false;
+      return;
+    }
+    const doctorId = selectedDoctorAlertId || getActiveDoctors()[0]?.[0] || '';
+    const activeIds = new Set(
+      (doctorId ? getDoctorProcedureAlertItems(doctorId) : [])
+        .map(item => item.alertId)
+        .filter(Boolean)
+    );
+    seenFixedDoctorRoomAlertIds.forEach(alertId => {
+      if (!activeIds.has(alertId)) seenFixedDoctorRoomAlertIds.delete(alertId);
+    });
+    const newIds = [...activeIds].filter(alertId => !seenFixedDoctorRoomAlertIds.has(alertId));
+    activeIds.forEach(alertId => seenFixedDoctorRoomAlertIds.add(alertId));
+    if (!fixedDoctorRoomAlertAudioInitialized || markOnly) {
+      fixedDoctorRoomAlertAudioInitialized = true;
+      return;
+    }
+    if (newIds.length) playSoftTimerChime();
   }
 
   function getSelectedDoctorCallInfo() {
@@ -6174,6 +6405,7 @@
       bedAssignmentAlertItems.set(key, data);
     });
     renderUpcomingAlerts();
+    renderBedMonitors();
     syncFixedBedArrivalOverlay();
   });
 
@@ -6301,7 +6533,14 @@
     if (!name) { showToast('❗ 성함을 입력해주세요'); return; }
     if (scope !== 'desk' && treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
 
-    const patientId = selectedChartPatientByScope[scope]?.patientId || '';
+    // 차트번호 조회로 기존 환자가 자동 선택돼도, 입력한 이름이 다르면
+    // 동일 차트번호의 다른 사람이므로 그 환자의 patientId를 재사용하지 않는다.
+    // (재사용하면 베드비우기 저장 시 기존 환자 레코드를 덮어써 한 명만 남는다)
+    const selectedChartPatient = selectedChartPatientByScope[scope];
+    const patientId = (selectedChartPatient?.patientId &&
+      normalizePatientIdentity(selectedChartPatient.name) === normalizePatientIdentity(name))
+      ? selectedChartPatient.patientId
+      : '';
     const duplicatePatient = findRealtimeRegisteredPatient({ patientId, chartNo, name });
     if (duplicatePatient) {
       showToast(`${duplicatePatient.name || name} 이미 ${duplicatePatient.location || '등록'}에 있습니다`);
@@ -7159,7 +7398,10 @@
         credit: null
       };
       const { credit, packages, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPayload } = payload;
-      await updateBedRecord(bedNo, { ...bedPayload, ...timerUpdates });
+      await updateBedRecord(bedNo, {
+        ...bedPayload,
+        ...timerUpdates
+      });
       if (bed.patientKey) {
         await updatePatient(bed.patientKey,payload);
       }
@@ -7559,6 +7801,7 @@
     hasLoadedBedsOnce = true;
     if (allowAutoAssign && !migratedCount && autoAssignRelevantChange) await assignWaitingPatientsToBeds();
     requestFullBoardRender();
+    renderUpcomingAlerts();
     ensureBedTicker();
   }
 
@@ -7838,6 +8081,248 @@
       }
     });
     return nextAdded;
+  }
+
+  function getTreatmentDiffNames(previousTreatments = [], nextTreatments = [], direction = 'added') {
+    const sourceTreatments = direction === 'removed' ? nextTreatments : previousTreatments;
+    const targetTreatments = direction === 'removed' ? previousTreatments : nextTreatments;
+    const sourceQueues = new Map();
+    sourceTreatments.forEach(treatment => {
+      const key = String(treatment || '').trim();
+      if (!key) return;
+      sourceQueues.set(key, (sourceQueues.get(key) || 0) + 1);
+    });
+    const names = [];
+    targetTreatments.forEach(treatment => {
+      const key = String(treatment || '').trim();
+      if (!key) return;
+      const count = sourceQueues.get(key) || 0;
+      if (count > 0) sourceQueues.set(key, count - 1);
+      else names.push(key);
+    });
+    return names;
+  }
+
+  function getRemovedTreatmentNames(previousTreatments = [], nextTreatments = []) {
+    return getTreatmentDiffNames(previousTreatments, nextTreatments, 'removed');
+  }
+
+  function getNewlyAddedTreatmentIndexes(previousTreatments = [], nextTreatments = []) {
+    const addedNames = getTreatmentDiffNames(previousTreatments, nextTreatments, 'added');
+    return nextTreatments
+      .map((treatment, index) => ({ treatment: String(treatment || '').trim(), index }))
+      .filter(({ treatment }) => {
+        const foundIndex = addedNames.indexOf(treatment);
+        if (foundIndex < 0) return false;
+        addedNames.splice(foundIndex, 1);
+        return true;
+      })
+      .map(({ index }) => index);
+  }
+
+  function getTreatmentAlertKey(bedNo) {
+    return `added-bed-${bedNo}`;
+  }
+
+  function normalizeTreatmentNameList(treatmentNames = []) {
+    return (Array.isArray(treatmentNames) ? treatmentNames : [treatmentNames])
+      .map(name => String(name || '').trim())
+      .filter(Boolean);
+  }
+
+  function suppressAddedTreatmentAlertNames(bedNo, treatmentNames = []) {
+    const names = normalizeTreatmentNameList(treatmentNames);
+    if (!bedNo || !names.length) return;
+    const key = getTreatmentAlertKey(bedNo);
+    const current = suppressedAddedTreatmentAlertNames.get(key) || new Map();
+    const expiresAt = Date.now() + 10000;
+    names.forEach(name => current.set(name, expiresAt));
+    suppressedAddedTreatmentAlertNames.set(key, current);
+  }
+
+  function clearSuppressedAddedTreatmentAlertNames(bedNo, treatmentNames = []) {
+    const names = normalizeTreatmentNameList(treatmentNames);
+    if (!bedNo || !names.length) return;
+    const key = getTreatmentAlertKey(bedNo);
+    const current = suppressedAddedTreatmentAlertNames.get(key);
+    if (!current) return;
+    names.forEach(name => current.delete(name));
+    if (!current.size) suppressedAddedTreatmentAlertNames.delete(key);
+  }
+
+  function filterSuppressedAddedTreatmentAlertNames(bedNo, treatmentNames = []) {
+    const names = normalizeTreatmentNameList(treatmentNames);
+    const key = getTreatmentAlertKey(bedNo);
+    const current = suppressedAddedTreatmentAlertNames.get(key);
+    if (!current) return names;
+    const now = Date.now();
+    current.forEach((expiresAt, name) => {
+      if (Number(expiresAt || 0) <= now) current.delete(name);
+    });
+    if (!current.size) {
+      suppressedAddedTreatmentAlertNames.delete(key);
+      return names;
+    }
+    return names.filter(name => !current.has(name));
+  }
+
+  function setTransientTreatmentAlertTimer(key) {
+    if (transientAddedTreatmentAlertTimers.has(key)) {
+      clearTimeout(transientAddedTreatmentAlertTimers.get(key));
+      transientAddedTreatmentAlertTimers.delete(key);
+    }
+    const timer = setTimeout(() => {
+      const index = transientAddedTreatmentAlerts.findIndex(item => item.key === key);
+      if (index >= 0) transientAddedTreatmentAlerts.splice(index, 1);
+      transientAddedTreatmentAlertTimers.delete(key);
+      renderUpcomingAlerts();
+    }, 10000);
+    transientAddedTreatmentAlertTimers.set(key, timer);
+  }
+
+  function pushTransientAddedTreatmentAlert(bedNo, bed = {}, treatmentNames = []) {
+    const names = normalizeTreatmentNameList(treatmentNames);
+    if (!bedNo || !names.length) return;
+    clearSuppressedAddedTreatmentAlertNames(bedNo, names);
+    const key = getTreatmentAlertKey(bedNo);
+    const existingIndex = transientAddedTreatmentAlerts.findIndex(item => item.key === key);
+    const previous = existingIndex >= 0 ? transientAddedTreatmentAlerts.splice(existingIndex, 1)[0] : null;
+    const mergedNames = [...(previous?.treatments || []), ...names]
+      .map(name => String(name || '').trim())
+      .filter(Boolean);
+    const uniqueNames = [...new Set(mergedNames)];
+    const alert = {
+      key,
+      bedNo,
+      bedLabel: getBedLabel(bedNo),
+      treatment: uniqueNames.join(', '),
+      treatments: uniqueNames,
+      nurseName: bed.nurseName || previous?.nurseName || '',
+      timestamp: Date.now(),
+      alertPriority: -1
+    };
+    transientAddedTreatmentAlerts.unshift(alert);
+    while (transientAddedTreatmentAlerts.length > 8) {
+      const removed = transientAddedTreatmentAlerts.pop();
+      if (removed?.key) {
+        clearTimeout(transientAddedTreatmentAlertTimers.get(removed.key));
+        transientAddedTreatmentAlertTimers.delete(removed.key);
+      }
+    }
+    setTransientTreatmentAlertTimer(key);
+    renderUpcomingAlerts();
+  }
+
+  function removeNamesFromTransientAddedTreatmentAlert(bedNo, treatmentNames = []) {
+    const removeSet = new Set((Array.isArray(treatmentNames) ? treatmentNames : [treatmentNames])
+      .map(name => String(name || '').trim())
+      .filter(Boolean));
+    if (!bedNo || !removeSet.size) return [];
+    const key = getTreatmentAlertKey(bedNo);
+    const index = transientAddedTreatmentAlerts.findIndex(item => item.key === key);
+    if (index < 0) return [];
+    const item = transientAddedTreatmentAlerts[index];
+    const consumed = [];
+    const treatments = (item.treatments || []).filter(name => {
+      if (!removeSet.has(name)) return true;
+      consumed.push(name);
+      return false;
+    });
+    if (!consumed.length) return [];
+    suppressAddedTreatmentAlertNames(bedNo, consumed);
+    if (!treatments.length) {
+      transientAddedTreatmentAlerts.splice(index, 1);
+      clearTimeout(transientAddedTreatmentAlertTimers.get(key));
+      transientAddedTreatmentAlertTimers.delete(key);
+    } else {
+      item.treatments = treatments;
+      item.treatment = treatments.join(', ');
+      item.timestamp = Date.now();
+      setTransientTreatmentAlertTimer(key);
+    }
+    renderUpcomingAlerts();
+    return consumed;
+  }
+
+  function removeNamesFromAddedTreatmentAlertPayload(alert = {}, treatmentNames = []) {
+    const removeSet = new Set((Array.isArray(treatmentNames) ? treatmentNames : [treatmentNames])
+      .map(name => String(name || '').trim())
+      .filter(Boolean));
+    if (!alert?.id || !Array.isArray(alert.treatments) || !removeSet.size) return { alert, consumed: [] };
+    if (Date.now() - Number(alert.timestamp || 0) > 10000) return { alert, consumed: [] };
+    const consumed = [];
+    const treatments = alert.treatments
+      .map(name => String(name || '').trim())
+      .filter(name => {
+        if (!removeSet.has(name)) return true;
+        consumed.push(name);
+        return false;
+      });
+    if (!consumed.length) return { alert, consumed: [] };
+    if (!treatments.length) return { alert: null, consumed };
+    return {
+      alert: {
+        ...alert,
+        treatment: treatments.join(', '),
+        treatments,
+        timestamp: Date.now()
+      },
+      consumed
+    };
+  }
+
+  function createAddedTreatmentAlertPayload(bedNo, bed = {}, treatmentNames = []) {
+    const names = normalizeTreatmentNameList(treatmentNames);
+    if (!bedNo || !names.length) return null;
+    clearSuppressedAddedTreatmentAlertNames(bedNo, names);
+    const previous = bed?.addedTreatmentAlert || {};
+    const previousFresh = Date.now() - Number(previous.timestamp || 0) <= 10000;
+    const mergedNames = [
+      ...(previousFresh && Array.isArray(previous.treatments) ? previous.treatments : []),
+      ...names
+    ].map(name => String(name || '').trim()).filter(Boolean);
+    const uniqueNames = [...new Set(mergedNames)];
+    const timestamp = Date.now();
+    return {
+      id: getTreatmentAlertKey(bedNo),
+      bedNo,
+      bedLabel: getBedLabel(bedNo),
+      treatment: uniqueNames.join(', '),
+      treatments: uniqueNames,
+      nurseName: bed.nurseName || previous.nurseName || '',
+      timestamp
+    };
+  }
+
+  function getVisibleAddedTreatmentAlertItems() {
+    const now = Date.now();
+    const sharedItems = getAllBedEntries()
+      .map(({ bed, bedNo }) => ({ ...(bed?.addedTreatmentAlert || {}), bedNo }))
+      .filter(item => item.id && Array.isArray(item.treatments) && item.treatments.length)
+      .filter(item => now - Number(item.timestamp || 0) <= 10000)
+      .map(item => ({
+        key: item.id,
+        bedNo: item.bedNo,
+        bedLabel: item.bedLabel || getBedLabel(item.bedNo),
+        treatments: filterSuppressedAddedTreatmentAlertNames(item.bedNo, item.treatments),
+        nurseName: item.nurseName || '',
+        timestamp: Number(item.timestamp || 0),
+        alertPriority: -1
+      }))
+      .filter(item => item.treatments.length)
+      .map(item => ({
+        ...item,
+        treatment: item.treatments.join(', ')
+      }));
+    const merged = [...transientAddedTreatmentAlerts, ...sharedItems]
+      .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+    const seen = new Set();
+    return merged.filter(item => {
+      const key = getTreatmentAlertKey(item.bedNo);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   function swapAddedTreatmentIndexes(indexes = [], firstIndex, secondIndex, treatments = []) {
@@ -8731,10 +9216,11 @@
     const renderTreatmentAlertHtml = (item, options = {}) => {
       const main = options.main || `${item.bedLabel || ''}`.trim();
       const nurseBadge = renderNurseBadge(options.nurseName ?? item.nurseName);
-      const treatmentHtml = nurseBadge ? renderTreatmentBadges(item) : '';
+      const leadingBadge = options.leadingBadge || '';
+      const treatmentHtml = (nurseBadge || leadingBadge || options.inlineTreatments) ? renderTreatmentBadges(item) : '';
       return `
         <div class="upcoming-item assignment no-dismiss${options.hideBadge ? ' no-label' : ''}">
-          ${options.hideBadge ? '' : (nurseBadge || renderTreatmentBadges(item))}
+          ${options.hideBadge ? '' : (leadingBadge || nurseBadge || renderTreatmentBadges(item))}
           <div>
             <div class="upcoming-main alert-line-compact"><span class="upcoming-main-text">${escapeHtml(main)}</span>${treatmentHtml}</div>
             ${options.sub ? `<div class="upcoming-sub">${options.sub}</div>` : ''}
@@ -8894,10 +9380,22 @@
         };
       })
       : [];
+    const transientAddedTreatmentItems = (receiveModeForAlerts === 'notify' || receiveModeForAlerts === 'receive')
+      ? getVisibleAddedTreatmentAlertItems().map(item => ({
+        alertPriority: -1,
+        timestamp: Number(item.timestamp || 0),
+        html: renderTreatmentAlertHtml(item, {
+          main: `${item.bedLabel || ''}`.trim(),
+          leadingBadge: '<div class="upcoming-time">추가</div>',
+          nurseName: '',
+          sub: ''
+        })
+      }))
+      : [];
 
     const receiveTimerItems = (receiveModeForAlerts === 'notify' || receiveModeForAlerts === 'receive') ? timerAlertItems : [];
     const inputItems = [...inputCallItems, ...inputAssignmentItems, ...appointmentAlertItems];
-    const receiveItems = [...doctorProcedureItems, ...receiveTreatmentItems, ...doctorAssignmentItems, ...receiveCallItems, ...receiveAssignmentItems, ...receiveTimerItems];
+    const receiveItems = [...transientAddedTreatmentItems, ...doctorProcedureItems, ...receiveTreatmentItems, ...doctorAssignmentItems, ...receiveCallItems, ...receiveAssignmentItems, ...receiveTimerItems];
     const baseHasAlerts = inputItems.length > 0;
     const receiveHasAlerts = receiveItems.length > 0;
     const html = baseHasAlerts
@@ -8917,6 +9415,7 @@
     const receiveDoctorSplit = document.getElementById('receiveDoctorAlertSplit');
     if (receiveDoctorSplit) receiveDoctorSplit.innerHTML = doctorSplitHtml;
     renderBedDoctorAlertPanel();
+    syncFixedDoctorRoomAlertAudio();
     updateAlertListAudioState();
   }
 
@@ -9152,6 +9651,7 @@
     renderBedDetailInto(detail, selectedBedNo, true);
     updateBedRemainingChip();
     renderBedDoctorAlertPanel();
+    window.updateAlertListAudioState?.();
   }
 
   function renderReceiveBedDetail() {
@@ -9663,10 +10163,31 @@
       </div>`;
   }
 
+  function renderBedAlertCard(bedNo, bed, forceIdle = false) {
+    if (bed?.lastAlertId) {
+      return `<div class="bed-alert-card">
+        <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`)}</div>
+        <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
+      </div>`;
+    }
+    if (!forceIdle) return '';
+    return `<div class="bed-alert-card bed-alert-card--idle">
+      <div class="bed-alert-message">알림 없음</div>
+    </div>`;
+  }
+
   function renderBedDetailMarkup(bedNo, allowControls, context = 'bed') {
     const bed = getBedData(bedNo);
     const bedLabel = getBedLabel(bedNo);
     if (!bed) {
+      if (context === 'bed' && isFixedDoctorBedScreen() && getFixedDoctorBedNoFromUrl() === Number(bedNo)) {
+        return `
+          <div class="card bed-detail-card--bed">
+            <div class="bed-info-zone">
+              ${renderBedAlertCard(bedNo, null, true)}
+            </div>
+          </div>`;
+      }
       return `
         <div class="empty-state">
           <div class="empty-icon">⏱</div>
@@ -9676,6 +10197,7 @@
 
     const currentTreatment = bed.treatments?.[bed.currentIndex];
     if (context === 'bed') {
+      const doctorBedAlertOnly = isFixedDoctorBedScreen() && getFixedDoctorBedNoFromUrl() === Number(bedNo);
       return `
         <div class="card bed-detail-card--bed">
           <div class="bed-info-zone">
@@ -9693,6 +10215,7 @@
               <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`)}</div>
               <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
             </div>` : ''}
+            ${!bed.lastAlertId ? renderBedAlertCard(bedNo, bed, doctorBedAlertOnly) : ''}
           </div>
           ${renderBedPackageBalanceBox(bed)}
           <div class="bed-timer-zone">
@@ -9920,14 +10443,17 @@
     const bed = getBedData(bedNo);
     if (!(bed?.treatments || []).length) return;
     if (!bed || bed.running || bed.complete || getRemaining(bed) <= 0) return;
-    const total = getConcurrentTreatmentSeconds(bed.treatments || [], bed.currentIndex || 0);
     const remaining = getRemaining(bed);
+    const storedTotal = Number(bed.total || 0);
+    const fallbackTotal = getConcurrentTreatmentSeconds(bed.treatments || [], bed.currentIndex || 0);
+    const nextTotal = storedTotal || fallbackTotal || remaining;
+    const nextRemaining = remaining || nextTotal;
 
     await updateBedRecord(bedNo, {
       running: true,
       startedAt: Date.now(),
-      total: total || bed.total || remaining,
-      remaining: total && remaining >= Number(bed.total || 0) ? total : remaining
+      total: nextTotal,
+      remaining: nextRemaining
     });
     playTimerStartSound();
   };
@@ -10084,7 +10610,8 @@
   }
 
   async function autoSaveSelectFields(scope) {
-    const waitingPatientKey = (scope === 'desk' || scope === 'receive')
+    const editBedNo = scope === 'bed' ? selectedBedNo : formEditBedNoByScope[scope];
+    const waitingPatientKey = !editBedNo && (scope === 'desk' || scope === 'receive')
       ? formEditPatientKeyByScope[scope]
       : null;
     if (waitingPatientKey) {
@@ -10113,7 +10640,7 @@
       return;
     }
 
-    const bedNo = scope === 'bed' ? selectedBedNo : formEditBedNoByScope[scope];
+    const bedNo = editBedNo;
     if (!bedNo) return;
     const bed = getBedData(bedNo);
     if (!bed) return;
@@ -10125,6 +10652,24 @@
       form.treatments,
       bed.addedTreatmentIndexes || []
     );
+    const newlyAddedTreatmentNames = getNewlyAddedTreatmentIndexes(bed.treatments || [], form.treatments)
+      .map(index => form.treatments[index])
+      .filter(Boolean);
+    const newlyRemovedTreatmentNames = getRemovedTreatmentNames(bed.treatments || [], form.treatments);
+    let addedTreatmentAlert = createAddedTreatmentAlertPayload(bedNo, bed, newlyAddedTreatmentNames);
+    let shouldPatchAddedTreatmentAlert = Boolean(addedTreatmentAlert);
+    if (newlyRemovedTreatmentNames.length) {
+      removeNamesFromTransientAddedTreatmentAlert(bedNo, newlyRemovedTreatmentNames);
+      const { alert: adjustedAddedTreatmentAlert, consumed: consumedSharedAddedNames } = removeNamesFromAddedTreatmentAlertPayload(
+        addedTreatmentAlert || bed.addedTreatmentAlert,
+        newlyRemovedTreatmentNames
+      );
+      if (consumedSharedAddedNames.length) {
+        suppressAddedTreatmentAlertNames(bedNo, consumedSharedAddedNames);
+        addedTreatmentAlert = adjustedAddedTreatmentAlert;
+        shouldPatchAddedTreatmentAlert = true;
+      }
+    }
     const preCompletedTreatmentIndexes = getPreCompletedIndexesAfterEdit(
       bed.treatments || [],
       form.treatments,
@@ -10151,6 +10696,7 @@
       treatments: form.treatments,
       addedTreatmentIndexes,
       preCompletedTreatmentIndexes,
+      ...(shouldPatchAddedTreatmentAlert ? { addedTreatmentAlert } : {}),
       doctorId: form.doctor.id,
       doctorName: form.doctor.name,
       nurseId: form.nurse.id,
@@ -10177,9 +10723,13 @@
     try {
       await updateBedRecord(bedNo, { ...payload, ...timerUpdates });
       if (bed.patientKey) {
-        await updatePatient(bed.patientKey,payload);
+        const { addedTreatmentAlert: _addedTreatmentAlert, ...patientPayload } = payload;
+        await updatePatient(bed.patientKey,patientPayload);
       }
       if (treatmentChanged) clearLocalTimerAlertsForBed(bedNo);
+      if (newlyAddedTreatmentNames.length) {
+        pushTransientAddedTreatmentAlert(bedNo, { ...bed, ...payload }, newlyAddedTreatmentNames);
+      }
     } catch(e) {
       Object.assign(bed, previousBedState);
       renderBedDetailInto(document.getElementById('bedDetail'), bedNo, true);
@@ -10309,8 +10859,16 @@
     event?.stopPropagation();
     const bed = getBedData(bedNo);
     if (!bed || bed.complete || !(bed.treatments || []).length) return;
-    const currentTotal = Number(bed.total || getRemaining(bed) || 0);
-    await setTimerSeconds(bedNo, currentTotal + (Number(deltaMinutes || 0) * 60));
+    const currentRemaining = Number(getRemaining(bed) || bed.remaining || bed.total || 0);
+    const nextRemaining = Math.max(1, Math.min(120 * 60, Math.round(currentRemaining + (Number(deltaMinutes || 0) * 60))));
+    const nextTotal = Math.max(Number(bed.total || 0), nextRemaining);
+    await updateBedRecord(bedNo, {
+      running: Boolean(bed.running),
+      startedAt: bed.running ? Date.now() : null,
+      total: nextTotal,
+      remaining: nextRemaining
+    });
+    showToast(`${getBedLabel(bedNo)} ${formatTimer(nextRemaining)}으로 조정`);
   };
 
   async function editTimerClock(bedNo) {
@@ -10796,7 +11354,9 @@
     const preCompletedTreatmentIndexes = normalizePreCompletedTreatmentIndexes([...preCompletedSet], treatments);
     const completedLabel = formatTreatmentNames(treatments.slice(groupStart, groupEnd + 1)) || treatments[index] || '치료';
     const nextIndex = getNextPendingTreatmentIndex(treatments, currentIndex, preCompletedTreatmentIndexes);
-    const timerPatch = nextIndex < 0 || nextIndex >= treatments.length
+    const timerPatch = nextIndex === currentIndex
+      ? {}
+      : nextIndex < 0 || nextIndex >= treatments.length
       ? {
           currentIndex: Math.max(0, treatments.length - 1),
           total: 0,
@@ -10959,11 +11519,20 @@
       : (nextPendingIndex >= 0 ? nextPendingIndex : 0);
     const nextTotal = treatments[nextIndex] ? getConcurrentTreatmentSeconds(treatments, nextIndex) : 0;
     const preserveTimer = preservedRunningIndex >= 0;
+    const removedTreatmentNames = [removed].filter(Boolean);
+    removeNamesFromTransientAddedTreatmentAlert(bedNo, removedTreatmentNames);
+    const { alert: adjustedAddedTreatmentAlert, consumed: consumedSharedAddedNames } = removeNamesFromAddedTreatmentAlertPayload(
+      bed.addedTreatmentAlert,
+      removedTreatmentNames
+    );
+    const shouldPatchAddedTreatmentAlert = consumedSharedAddedNames.length > 0;
+    if (consumedSharedAddedNames.length) suppressAddedTreatmentAlertNames(bedNo, consumedSharedAddedNames);
     const resetPayload = {
       treatments,
       addedTreatmentIndexes,
       preCompletedTreatmentIndexes,
       currentIndex: nextIndex,
+      ...(shouldPatchAddedTreatmentAlert ? { addedTreatmentAlert: adjustedAddedTreatmentAlert } : {}),
       ...(preserveTimer
         ? {}
         : {
@@ -11512,12 +12081,14 @@
   }
 
   function shouldPlayAlertListAudio() {
-    if (window.currentMode !== 'receive') return false;
-    return getAllBedEntries().some(({ bed }) => Boolean(bed?.lastAlertId));
+    if (isFixedDoctorBedScreen()) {
+      return false;
+    }
+    return false;
   }
 
   function startAlertListBeeps() {
-    const intervalMs = window.currentMode === 'doctor' ? 20000 : 8000;
+    const intervalMs = window.currentMode === 'doctor' && !isFixedDoctorBedScreen() ? 20000 : 8000;
     if (alertListBeepTimer && alertListBeepIntervalMs === intervalMs) return;
     if (alertListBeepTimer) clearInterval(alertListBeepTimer);
     alertListBeepIntervalMs = intervalMs;
@@ -12058,8 +12629,8 @@
     const presets = treatmentPresets.filter(preset => Array.isArray(preset.treatments) && preset.treatments.length);
     const picked = randomItem(presets);
     if (picked) return [...picked.treatments];
-    if (Array.isArray(latestVisit.treatments) && latestVisit.treatments.length) return [...latestVisit.treatments];
-    if (Array.isArray(patient.treatments) && patient.treatments.length) return [...patient.treatments];
+    if (Array.isArray(latestVisit.treatments) && latestVisit.treatments.length) return normalizeTreatmentsForFormLoad('desk', latestVisit.treatments);
+    if (Array.isArray(patient.treatments) && patient.treatments.length) return normalizeTreatmentsForFormLoad('desk', patient.treatments);
     return ['침'];
   }
 
@@ -12222,6 +12793,14 @@
         console.error('예약 알림 저장 실패', e);
       }
     }
+    if (!hasAny) {
+      appointmentDeskAlertItems.delete(patientKey);
+      try {
+        await removeAppointmentDeskAlert(patientKey);
+      } catch (e) {
+        console.error('appointment desk alert delete failed', e);
+      }
+    }
     renderUpcomingAlerts();
     renderBedMonitors();
     return true;
@@ -12232,7 +12811,7 @@
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     const gridId = ids.treatmentGrid;
     if (!gridId) return;
-    treatmentSelections[gridId] = (treatmentNames || [])
+    treatmentSelections[gridId] = normalizeTreatmentsForFormLoad(scope, treatmentNames)
       .map(name => getTreatmentByName(name))
       .filter(Boolean)
       .map(createTreatmentSelectionItem);
@@ -12376,6 +12955,7 @@
       const colVisit  = detectColumn(headers, ['초재진','초진재진','초진/재진','초진','재진','진료구분','구분','초재진구분']);
       const colDoctor = detectColumn(headers, ['진료의사','진료의','담당의','담당원장']);
       const colPhone  = detectColumn(headers, ['연락처','전화번호','휴대폰','핸드폰','휴대전화','전화','Tel','TEL','Mobile','Phone']);
+      const colInsuranceType = detectColumn(headers, ['보험종별','보험종류','보험구분','보험유형','InsuranceType','Insurance Kind','InsuKind']);
 
       if (!colChart) { statusEl.textContent = '❌ 차트번호 컬럼을 찾을 수 없습니다. 컬럼명을 확인해주세요.'; return; }
       if (!colName)  { statusEl.textContent = '❌ 환자명 컬럼을 찾을 수 없습니다.'; return; }
@@ -12433,14 +13013,16 @@
         const visitText      = colVisit  ? String(row[colVisit]  || '').trim() : '';
         const visitType      = visitText.includes('초') ? '초진' : (visitText.includes('재') ? '재진' : '');
         const phone          = colPhone  ? String(row[colPhone]  || '').trim() : '';
+        const insuranceType  = colInsuranceType ? String(row[colInsuranceType] || '').trim() : '';
 
         const existingAgg = byChart.get(chartNameKey);
-        const agg = existingAgg || { chartNo, name, age: '', gender: '', phone: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
+        const agg = existingAgg || { chartNo, name, age: '', gender: '', phone: '', insuranceType: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
         // 마스터 정보는 최신(나중) 행 값으로 갱신, 빈 값은 기존 유지
         agg.name = name || agg.name;
         if (age) agg.age = Number(age);
         if (gender) agg.gender = gender;
         if (phone) agg.phone = phone;
+        if (insuranceType) agg.insuranceType = insuranceType;
         if (chiefComplaint) agg.chiefComplaint = chiefComplaint;
         if (doctorName) agg.doctorName = doctorName;
         if (visitType) agg.visitType = visitType;
@@ -12528,6 +13110,7 @@
           age: agg.age !== '' ? agg.age : (existing.age ?? ''),
           gender: agg.gender || existing.gender || '',
           phone: agg.phone || existing.phone || existing.phoneNumber || existing.tel || existing.mobile || existing.contact || '',
+          insuranceType: agg.insuranceType || existing.insuranceType || existing.insurance_type || existing['보험종별'] || '',
           visitType: agg.visitType || existing.visitType || '',
           doctorName: agg.doctorName || existing.doctorName || '',
           chiefComplaint: latestChiefComplaint || agg.chiefComplaint || existing.chiefComplaint || '',
@@ -12889,6 +13472,24 @@
     return 0;
   }
 
+  function isFixedBedScreen() {
+    return getAppView() === 'bed' && Boolean(getFixedBedNoFromUrl());
+  }
+
+  function isDoctorRoomBedNo(bedNo) {
+    const numericBedNo = Number(bedNo);
+    return numericBedNo === 101 || numericBedNo === 102;
+  }
+
+  function getFixedDoctorBedNoFromUrl() {
+    const bedNo = getFixedBedNoFromUrl();
+    return isDoctorRoomBedNo(bedNo) ? bedNo : 0;
+  }
+
+  function isFixedDoctorBedScreen() {
+    return getAppView() === 'bed' && Boolean(getFixedDoctorBedNoFromUrl());
+  }
+
   function getInitialMode() {
     return getModeFromView() || 'input';
   }
@@ -12902,6 +13503,10 @@
     document.body.classList.toggle(
       'app-fixed-bed',
       view === 'bed' && Boolean(getFixedBedNoFromUrl())
+    );
+    document.body.classList.toggle(
+      'app-fixed-doctor-bed',
+      view === 'bed' && Boolean(getFixedDoctorBedNoFromUrl())
     );
   }
 

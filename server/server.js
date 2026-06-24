@@ -17,10 +17,10 @@ const GOOGLE_SERVICE_ACCOUNT_FILE = process.env.GOOGLE_SERVICE_ACCOUNT_FILE || p
 const THIRD_VISIT_SPREADSHEET_ID = process.env.THIRD_VISIT_SPREADSHEET_ID || "15gFBhgjPRiQpno5Q-LmAlB1SbvyP_VNrYTLpD7lhuy4";
 const THIRD_VISIT_WORKSHEET_INDEX = Number(process.env.THIRD_VISIT_WORKSHEET_INDEX || 1);
 
-// Login password (gates every page and API) and the delete-all confirmation
-// password. Both are read from env so they are not hardcoded; defaults keep the
-// app working on first run but should be overridden in production.
-const LOGIN_PASSWORD = process.env.CLINIC_PASSWORD || "7677";
+// Device login is disabled by default so clinic tablets/desks can connect
+// directly. Set CLINIC_REQUIRE_LOGIN=1 and CLINIC_PASSWORD to re-enable it.
+const AUTH_ENABLED = process.env.CLINIC_REQUIRE_LOGIN === "1";
+const LOGIN_PASSWORD = process.env.CLINIC_PASSWORD || "";
 const DELETE_PASSWORD = process.env.CLINIC_DELETE_PASSWORD || "337758";
 const SLACK_TOKEN = process.env.SLACK_TOKEN || "";
 const ONLINE_MANAGEMENT_SLACK_CHANNEL = process.env.ONLINE_MANAGEMENT_SLACK_CHANNEL || "\uC628\uB77C\uC778\uAD00\uB9AC";
@@ -45,6 +45,7 @@ db.exec(`
     chart_no TEXT NOT NULL,
     name TEXT,
     phone TEXT,
+    insurance_type TEXT,
     data_json TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -115,6 +116,7 @@ function ensurePatientIdentitySchema() {
         chart_no TEXT NOT NULL,
         name TEXT,
         phone TEXT,
+        insurance_type TEXT,
         data_json TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -123,8 +125,8 @@ function ensurePatientIdentitySchema() {
     `);
     const legacyRows = db.prepare("SELECT chart_no, name, phone, data_json, updated_at FROM patients_legacy").all();
     const insert = db.prepare(`
-      INSERT INTO patients (patient_id, chart_no, name, phone, data_json, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO patients (patient_id, chart_no, name, phone, insurance_type, data_json, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     db.exec("BEGIN");
     try {
@@ -139,6 +141,7 @@ function ensurePatientIdentitySchema() {
           chartNo,
           normalizeSearchText(normalized.name || row.name),
           getPatientPhone(normalized) || normalizeSearchText(row.phone),
+          getPatientInsuranceType(normalized) || normalizeSearchText(row.insurance_type),
           encryptedJson(normalized),
           row.updated_at || new Date().toISOString()
         );
@@ -207,6 +210,7 @@ function ensurePatientSearchColumns() {
   if (!columns.has("chart_no")) db.exec("ALTER TABLE patients ADD COLUMN chart_no TEXT");
   if (!columns.has("name")) db.exec("ALTER TABLE patients ADD COLUMN name TEXT");
   if (!columns.has("phone")) db.exec("ALTER TABLE patients ADD COLUMN phone TEXT");
+  if (!columns.has("insurance_type")) db.exec("ALTER TABLE patients ADD COLUMN insurance_type TEXT");
 }
 
 ensurePatientSearchColumns();
@@ -219,6 +223,7 @@ const statements = {
     WHERE chart_no LIKE ? ESCAPE '\\'
        OR name LIKE ? ESCAPE '\\'
        OR phone LIKE ? ESCAPE '\\'
+       OR insurance_type LIKE ? ESCAPE '\\'
     ORDER BY chart_no COLLATE NOCASE, name COLLATE NOCASE, patient_id
     LIMIT ?
   `),
@@ -226,12 +231,13 @@ const statements = {
   listPatientsByChartNo: db.prepare("SELECT patient_id, data_json FROM patients WHERE chart_no = ? ORDER BY name COLLATE NOCASE, patient_id"),
   findPatientByChartName: db.prepare("SELECT patient_id, data_json FROM patients WHERE chart_no = ? AND name = ? ORDER BY patient_id LIMIT 1"),
   upsertPatient: db.prepare(`
-    INSERT INTO patients (patient_id, chart_no, name, phone, data_json, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO patients (patient_id, chart_no, name, phone, insurance_type, data_json, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(patient_id) DO UPDATE SET
       chart_no = excluded.chart_no,
       name = excluded.name,
       phone = excluded.phone,
+      insurance_type = excluded.insurance_type,
       data_json = excluded.data_json,
       updated_at = excluded.updated_at
   `),
@@ -322,15 +328,15 @@ function migrateEncryptAtRest() {
 migrateEncryptAtRest();
 
 function backfillPatientSearchColumns() {
-  const rows = db.prepare("SELECT patient_id, chart_no, name, phone, data_json FROM patients WHERE name IS NULL OR phone IS NULL").all();
+  const rows = db.prepare("SELECT patient_id, chart_no, name, phone, insurance_type, data_json FROM patients WHERE name IS NULL OR phone IS NULL OR insurance_type IS NULL").all();
   if (!rows.length) return;
-  const update = db.prepare("UPDATE patients SET name = ?, phone = ? WHERE patient_id = ?");
+  const update = db.prepare("UPDATE patients SET name = ?, phone = ?, insurance_type = ? WHERE patient_id = ?");
   let updated = 0;
   db.exec("BEGIN");
   try {
     for (const row of rows) {
       const record = JSON.parse(decrypt(row.data_json));
-      update.run(normalizeSearchText(record.name), getPatientPhone(record), row.patient_id);
+      update.run(normalizeSearchText(record.name), getPatientPhone(record), getPatientInsuranceType(record), row.patient_id);
       updated += 1;
     }
     db.exec("COMMIT");
@@ -355,6 +361,10 @@ function normalizeSearchText(value) {
 
 function getPatientPhone(record = {}) {
   return normalizeSearchText(record.phone || record.phoneNumber || record.tel || record.mobile || record.contact);
+}
+
+function getPatientInsuranceType(record = {}) {
+  return normalizeSearchText(record.insuranceType || record.insurance_type || record["보험종별"] || record.insuranceKind || record.insuKind || record.InsuKind);
 }
 
 function escapeLike(value) {
@@ -500,6 +510,7 @@ function searchPatients(query, limit = 50) {
       normalizeChartNo(record.chartNo).includes(q)
       || normalizeSearchText(record.name).includes(q)
       || getPatientPhone(record).includes(q)
+      || getPatientInsuranceType(record).includes(q)
     )
     .sort(patientSort)
     .slice(0, safeLimit);
@@ -938,6 +949,7 @@ function savePatient(record) {
     chartNo,
     normalizeSearchText(normalized.name),
     getPatientPhone(normalized),
+    getPatientInsuranceType(normalized),
     encrypt(JSON.stringify(normalized)),
     now
   );
@@ -1667,31 +1679,60 @@ function loginPageHtml() {
 // version check (compare-and-set) so conflicting writes can be retried.
 
 const sseClients = new Set();
+let sseNextClientId = 1;
+const sseTotals = {
+  opened: 0,
+  closed: 0,
+  bedsFrames: 0,
+  stateFrames: 0,
+  stateChildFrames: 0,
+  pingFrames: 0,
+  backpressureCloses: 0
+};
 
 function sseSend(res, event, payload) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+  return res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 
 function sseFrame(event, payload) {
   return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
 
-function sseSendFrame(res, frame) {
-  res.write(frame);
+function sseClientAllowsState(client, key) {
+  if (!client || client.role !== "fixed-bed") return true;
+  return key === "settings/treatmentMinutes" || key === "staff/doctors" || key === "staff/nurses" || key === "bedAssignmentAlerts";
+}
+
+function sseSendFrame(client, frame) {
+  if (!client?.res || client.res.destroyed || client.res.writableEnded) return false;
+  const ok = client.res.write(frame);
+  client.frames = (client.frames || 0) + 1;
+  client.lastWriteAt = Date.now();
+  if (!ok) {
+    sseTotals.backpressureCloses += 1;
+    try { client.res.destroy(); } catch {}
+    sseClients.delete(client);
+    return false;
+  }
+  return true;
 }
 
 // Push a generic app_state key change to all connected clients (staff, settings,
 // etc.). This is the local server equivalent of realtime state subscriptions.
 function sseBroadcastState(key, value) {
   const frame = sseFrame("state", { key, value });
+  sseTotals.stateFrames += 1;
   for (const client of sseClients) {
+    if (!sseClientAllowsState(client, key)) continue;
     try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
   }
 }
 
 function sseBroadcastStateChild(key, op, childKey, value) {
   const frame = sseFrame("state-child", { key, op, childKey, value });
+  sseTotals.stateChildFrames += 1;
   for (const client of sseClients) {
+    if (!sseClientAllowsState(client, key)) continue;
     try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
   }
 }
@@ -1711,6 +1752,7 @@ function commitBeds(beds) {
   const version = getBedsVersion() + 1;
   setStateValue("__bedsVersion", version);
   const frame = sseFrame("beds", { version, beds: next });
+  sseTotals.bedsFrames += 1;
   for (const client of sseClients) {
     try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
   }
@@ -1719,6 +1761,8 @@ function commitBeds(beds) {
 
 async function handleApi(req, res, pathname) {
   if (pathname === "/api/events" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const role = requestUrl.searchParams.get("role") === "fixed-bed" ? "fixed-bed" : "full";
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-store",
@@ -1727,11 +1771,51 @@ async function handleApi(req, res, pathname) {
     });
     res.write("retry: 3000\n\n");
     sseSend(res, "beds", { version: getBedsVersion(), beds: getBedsState() });
-    sseClients.add(res);
+    const client = {
+      id: sseNextClientId++,
+      role,
+      res,
+      connectedAt: Date.now(),
+      frames: 1,
+      lastWriteAt: Date.now()
+    };
+    sseClients.add(client);
+    sseTotals.opened += 1;
     const ping = setInterval(() => {
-      try { res.write(": ping\n\n"); } catch { /* closed */ }
+      try {
+        sseTotals.pingFrames += 1;
+        if (!res.write(": ping\n\n")) {
+          sseTotals.backpressureCloses += 1;
+          try { res.destroy(); } catch {}
+        }
+      } catch { /* closed */ }
     }, 25000);
-    req.on("close", () => { clearInterval(ping); sseClients.delete(res); });
+    req.on("close", () => {
+      clearInterval(ping);
+      if (sseClients.delete(client)) sseTotals.closed += 1;
+    });
+    return true;
+  }
+
+  if (pathname === "/api/sse-stats" && req.method === "GET") {
+    const now = Date.now();
+    const clients = [...sseClients].map(client => ({
+      id: client.id,
+      role: client.role,
+      connectedSeconds: Math.round((now - client.connectedAt) / 1000),
+      idleSeconds: Math.round((now - (client.lastWriteAt || client.connectedAt)) / 1000),
+      frames: client.frames || 0,
+      destroyed: Boolean(client.res?.destroyed || client.res?.writableEnded)
+    }));
+    jsonResponse(res, 200, {
+      clientCount: clients.length,
+      roleCounts: clients.reduce((acc, client) => {
+        acc[client.role] = (acc[client.role] || 0) + 1;
+        return acc;
+      }, {}),
+      totals: sseTotals,
+      clients
+    });
     return true;
   }
 
@@ -2205,7 +2289,13 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Login page is always reachable.
+    if (!AUTH_ENABLED && pathname === "/login" && (req.method === "GET" || req.method === "HEAD")) {
+      res.writeHead(302, { Location: "/" });
+      res.end();
+      return;
+    }
+
+    // Login page is reachable when device login is enabled.
     if (pathname === "/login" && (req.method === "GET" || req.method === "HEAD")) {
       const body = loginPageHtml();
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
@@ -2216,7 +2306,7 @@ const server = http.createServer(async (req, res) => {
     // Authentication gate. Login/logout endpoints stay open so a user can sign
     // in; everything else requires a valid session.
     const isAuthEndpoint = pathname === "/api/login" || pathname === "/api/logout";
-    if (!isAuthEndpoint && !isValidSession(getSid(req))) {
+    if (AUTH_ENABLED && !isAuthEndpoint && !isValidSession(getSid(req))) {
       if (pathname.startsWith("/api/")) {
         jsonResponse(res, 401, { error: "Unauthorized" });
         return;
@@ -2253,8 +2343,11 @@ server.listen(PORT, HOST, () => {
   console.log(`Network: http://<this-pc-ip>:${PORT}/`);
   console.log(`DB:      ${DB_PATH}`);
   console.log(`Key:     ${KEY_PATH} (encryption at rest enabled)`);
-  console.log(`Auth:    login required (set CLINIC_PASSWORD env to change)`);
-  if (!process.env.CLINIC_PASSWORD || !process.env.CLINIC_DELETE_PASSWORD) {
-    console.warn("[auth] WARNING: using default password(s). Set CLINIC_PASSWORD and CLINIC_DELETE_PASSWORD env vars for production.");
+  console.log(`Auth:    ${AUTH_ENABLED ? "login required" : "device login disabled"}`);
+  if (AUTH_ENABLED && !process.env.CLINIC_PASSWORD) {
+    console.warn("[auth] WARNING: CLINIC_REQUIRE_LOGIN=1 but CLINIC_PASSWORD is not set.");
+  }
+  if (!process.env.CLINIC_DELETE_PASSWORD) {
+    console.warn("[auth] WARNING: using default delete password. Set CLINIC_DELETE_PASSWORD env var for production.");
   }
 });
