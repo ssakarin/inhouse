@@ -2178,11 +2178,12 @@
   }
   .package-entry-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .7fr) auto minmax(0, .7fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px;
     margin-bottom: 8px;
     align-items: center;
   }
+  .package-entry-full { grid-column: 1 / -1; }
   .package-input {
     width: 100%;
     background: var(--surface2);
@@ -2333,8 +2334,7 @@
   }
   @media (max-width: 760px) {
     .package-balance-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .package-entry-grid { grid-template-columns: 1fr 1fr; }
-    .package-entry-grid .package-entry-btn { grid-column: span 1; }
+    .package-entry-grid { grid-template-columns: minmax(0, 1fr) auto; }
   }
   .bed-stage-badge {
     display: inline-flex;
@@ -5421,14 +5421,16 @@
       ${postTreatmentMessage ? `<div class="package-after-treatment">${escapeHtml(postTreatmentMessage)}</div>` : ''}
       <div class="package-card">
         <div class="package-entry-grid">
-          <select class="package-input" id="pkg-selected-key" onchange="selectPackageEntryType(this.value)" aria-label="패키지 종류">
+          <select class="package-input package-entry-full" id="pkg-selected-key" onchange="selectPackageEntryType(this.value)" aria-label="패키지 종류">
             ${PCREDIT_FIELDS.map(field => `<option value="${escapeHtml(field.key)}" ${field.key === activePackageKey ? 'selected' : ''}>${escapeHtml(field.label)}</option>`).join('')}
           </select>
-          <input class="package-input" id="pkg-selected-date" type="date" value="${activePackageDate || today}">
-          <input class="package-input" id="pkg-selected-purchase-qty" type="text" inputmode="numeric" maxlength="3" value="${escapeHtml((PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_FIELDS[0]).defaultPurchaseQty)}" aria-label="결제 수량">
+          <input class="package-input package-entry-full" id="pkg-selected-date" type="date" value="${activePackageDate || today}">
+          <input class="package-input" id="pkg-selected-purchase-qty" type="text" inputmode="decimal" maxlength="5" value="${escapeHtml((PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_FIELDS[0]).defaultPurchaseQty)}" aria-label="결제 수량">
           <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('purchase')">결제 추가</button>
           <input class="package-input" id="pkg-selected-bonus-qty" type="text" inputmode="decimal" maxlength="5" value="1" aria-label="보너스 수량">
           <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('bonus')">보너스 추가</button>
+          <input class="package-input" id="pkg-selected-usage-qty" type="text" inputmode="decimal" maxlength="5" value="1" aria-label="사용 수량">
+          <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('usage')">사용 추가</button>
         </div>
         <div class="package-calendar-head">
           <button class="package-entry-btn" type="button" onclick="changePackageMonth(-1)">이전</button>
@@ -5521,8 +5523,8 @@
       || document.getElementById('pkg-selected-date')?.value
       || toLocalDateInputValue();
     const selectedQtyId = type === 'purchase' ? 'pkg-selected-purchase-qty' : (type === 'bonus' ? 'pkg-selected-bonus-qty' : 'pkg-selected-usage-qty');
-    const allowDecimal = type === 'bonus';
-    const qty = document.getElementById(qtyId) ? getPackageQtyInputValue(qtyId, allowDecimal) : getPackageQtyInputValue(selectedQtyId, allowDecimal);
+    // 결제·보너스·사용 모두 소수 허용 (예: 2.5)
+    const qty = document.getElementById(qtyId) ? getPackageQtyInputValue(qtyId, true) : getPackageQtyInputValue(selectedQtyId, true);
     const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date, qty };
     if (isIncrease) pkg.purchases = [...normalizePackageEntries(pkg.purchases, 'purchase'), { ...entry, kind: type === 'bonus' ? 'bonus' : 'purchase' }];
     else pkg.usages = [...normalizePackageEntries(pkg.usages, 'usage'), entry];
