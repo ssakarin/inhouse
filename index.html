@@ -2005,6 +2005,12 @@
   .bed-meta-chip--fixed {
     flex-shrink: 0;
   }
+  .bed-meta-chip--insurance {
+    flex-shrink: 0;
+    background: rgba(167,139,250,0.18);
+    border-color: rgba(167,139,250,0.55);
+    color: rgb(196,181,253);
+  }
   .bed-meta-chip--flex {
     flex-shrink: 1;
     min-width: 0;
@@ -6547,10 +6553,11 @@
     // 동일 차트번호의 다른 사람이므로 그 환자의 patientId를 재사용하지 않는다.
     // (재사용하면 베드비우기 저장 시 기존 환자 레코드를 덮어써 한 명만 남는다)
     const selectedChartPatient = selectedChartPatientByScope[scope];
-    const patientId = (selectedChartPatient?.patientId &&
-      normalizePatientIdentity(selectedChartPatient.name) === normalizePatientIdentity(name))
-      ? selectedChartPatient.patientId
-      : '';
+    const isSameChartPatient = Boolean(selectedChartPatient &&
+      normalizePatientIdentity(selectedChartPatient.name) === normalizePatientIdentity(name));
+    const patientId = isSameChartPatient ? (selectedChartPatient.patientId || '') : '';
+    // 보험 정보는 동일 환자일 때만 차트 레코드에서 가져온다(다른 사람이면 그 사람 정보가 아니므로 제외).
+    const insuranceType = isSameChartPatient ? (selectedChartPatient.insuranceType || '') : '';
     const duplicatePatient = findRealtimeRegisteredPatient({ patientId, chartNo, name });
     if (duplicatePatient) {
       showToast(`${duplicatePatient.name || name} 이미 ${duplicatePatient.location || '등록'}에 있습니다`);
@@ -6574,6 +6581,7 @@
         date: now.toLocaleDateString('ko-KR'),
         bedStatus: 'waiting',
         patientId,
+        insuranceType,
         chartNo,
         visitType,
         chiefComplaint,
@@ -8555,6 +8563,7 @@
       timeStr: data.timeStr || '',
       timestamp: data.timestamp || Date.now(),
       patientId: data.patientId || '',
+      insuranceType: data.insuranceType || '',
       chartNo: normalizeChartNo(data.chartNo),
       visitType: data.visitType || '',
       chiefComplaint: data.chiefComplaint || '',
@@ -10014,6 +10023,18 @@
     if (value.includes('초')) return '초진';
     if (value.includes('재')) return '재진';
     return value;
+  }
+
+  // 보험종별 → 베드 칩 라벨. 미해당/일반 건강보험은 빈 문자열(칩 미표시).
+  function getInsuranceChipLabel(insuranceType) {
+    const value = String(insuranceType || '').trim();
+    if (!value) return '';
+    if (value.startsWith('자보')) return 'TA';
+    if (value.includes('2종')) return '2종';
+    if (value.includes('1종')) return '1종';
+    if (value.includes('비보험')) return '비보험';
+    if (value.includes('건강보험')) return value.includes('비') ? '비보험' : '';
+    return '';
   }
 
   function getBedNameMetaChips(bed) {
@@ -11646,6 +11667,7 @@
       timeStr: bed.timeStr || '',
       visitType: bed.visitType || '',
       gender: bed.gender || '',
+      insuranceType: bed.insuranceType || patient?.insuranceType || '',
       age: bed.age || '',
       appointmentDate,
       appointmentDateCount: appointmentDates.length,
@@ -11772,6 +11794,7 @@
     const contextHandler = canMoveBed ? ` oncontextmenu="purgeBedPatient(event, ${status.bedNo})"` : '';
     const infoChips = [
       status.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.gender)}</span>` : '',
+      getInsuranceChipLabel(status.insuranceType) ? `<span class="bed-meta-chip bed-meta-chip--insurance">${escapeHtml(getInsuranceChipLabel(status.insuranceType))}</span>` : '',
       status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
       status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : '',
       status.appointmentDate
