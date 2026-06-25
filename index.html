@@ -2229,6 +2229,56 @@
     min-width: 0;
   }
   .package-input:focus { border-color: rgb(74,222,128); }
+  .package-radio-group {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .package-radio {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 9px 1px;
+    text-align: center;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .package-radio input { position: absolute; opacity: 0; pointer-events: none; }
+  .package-radio.is-active {
+    border-color: rgb(74,222,128);
+    background: rgba(74,222,128,0.16);
+    color: rgb(74,222,128);
+  }
+  .package-toggle-group {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .package-toggle-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    padding: 9px 4px;
+  }
+  .package-toggle-btn.is-active {
+    border-color: rgb(74,222,128);
+    background: rgba(74,222,128,0.16);
+    color: rgb(74,222,128);
+  }
   .package-entry-btn {
     background: rgba(255,255,255,0.08);
     border: 1px solid var(--border);
@@ -2363,7 +2413,6 @@
     gap: 10px;
   }
   @media (max-width: 760px) {
-    .package-balance-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .package-entry-grid { grid-template-columns: minmax(0, 1fr) auto; }
   }
   .bed-stage-badge {
@@ -5074,11 +5123,27 @@
     return treatmentIds.filter(id => id === treatmentId).length;
   }
   const PCREDIT_FIELDS = [
-    { key: 'p6', label: 'p6', defaultPurchaseQty: 6 },
-    { key: 'p13', label: 'p13', defaultPurchaseQty: 13 },
-    { key: 'p자하거', label: 'p자하거', defaultPurchaseQty: 10 },
-    { key: 'p라인', label: 'p라인', defaultPurchaseQty: 10 }
+    { key: 'p6', label: '약침', mergeKeys: ['p6', 'p13'], purchaseOptions: [6, 13], defaultPurchaseQty: 6, fixedPurchaseQty: true },
+    { key: 'p13', label: '약침', defaultPurchaseQty: 13, fixedPurchaseQty: true, hidden: true },
+    { key: 'p초음파6', label: '초음파약침', mergeKeys: ['p초음파6', 'p초음파13'], purchaseOptions: [6, 13], defaultPurchaseQty: 6, fixedPurchaseQty: true },
+    { key: 'p초음파13', label: '초음파약침', defaultPurchaseQty: 13, fixedPurchaseQty: true, hidden: true },
+    { key: 'p자하거', label: '약침(자하거)', purchaseOptions: [10], defaultPurchaseQty: 10, fixedPurchaseQty: true },
+    { key: 'p라인', label: '약침(라인)', purchaseOptions: [10], defaultPurchaseQty: 10, fixedPurchaseQty: true }
   ];
+  // 저장/영속화는 PCREDIT_FIELDS 전체(숨김 포함), 화면 표시는 PCREDIT_DISPLAY_FIELDS만 사용
+  const PCREDIT_DISPLAY_FIELDS = PCREDIT_FIELDS.filter(field => !field.hidden);
+
+  // 병합 패키지(약침)는 mergeKeys 잔여량을 합산해서 표시 — 키별 0 클램프를 피하려고 합계 후 한 번만 클램프
+  function getRawPackageBalance(pkg = {}) {
+    const openingQty = Number(pkg.openingQty || 0);
+    const purchaseQty = normalizePackageEntries(pkg.purchases, 'purchase').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    const usageQty = normalizePackageEntries(pkg.usages, 'usage').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    return openingQty + purchaseQty - usageQty;
+  }
+  function getFieldBalance(field, packages = {}) {
+    const keys = field.mergeKeys || [field.key];
+    return Math.max(0, keys.reduce((sum, key) => sum + getRawPackageBalance(packages[key] || {}), 0));
+  }
   const pCreditValuesByGrid = {};
   const packageStatesByGrid = {};
   let activeCreditGridId = '';
@@ -5316,8 +5381,17 @@
       balances[key] = Math.max(0, currentBalance - usageQty);
     };
 
-    const targetKey = hasPackageRecord('p13') ? 'p13' : (hasPackageRecord('p6') ? 'p6' : '');
-    if (deduction && targetKey) addUsage(targetKey, deduction);
+    // 약침은 p13·p6 잔여량을 합쳐서 쓰므로, 차감도 두 키에 걸쳐(있는 잔여부터) 분배한다
+    const pharmaMergeKeys = (PCREDIT_FIELDS.find(field => Array.isArray(field.mergeKeys)) || {}).mergeKeys || ['p13', 'p6'];
+    let pharmaRemaining = deduction;
+    [...pharmaMergeKeys].reverse().forEach(key => {
+      if (pharmaRemaining <= 0) return;
+      const take = Math.min(Number(balances[key] || 0), pharmaRemaining);
+      if (take > 0) {
+        addUsage(key, take);
+        pharmaRemaining -= take;
+      }
+    });
 
     [
       { key: 'p자하거', treatment: '약침자' },
@@ -5470,25 +5544,30 @@
         </div>`).join('')
       : `<div class="package-history-row"><span>-</span><span>기록 없음</span><span></span></div>`;
 
+    const activeField = PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_DISPLAY_FIELDS[0];
+    const purchaseControlMarkup = Array.isArray(activeField.purchaseOptions)
+      ? `<div class="package-toggle-group" id="pkg-purchase-toggle">
+            ${activeField.purchaseOptions.map((opt, idx) => `<button type="button" class="package-toggle-btn ${idx === 0 ? 'is-active' : ''}" onclick="setPurchaseQtyOption(${opt})">${opt}</button>`).join('')}
+          </div>
+          <input type="hidden" id="pkg-selected-purchase-qty" value="${escapeHtml(activeField.purchaseOptions[0])}">`
+      : `<input class="package-input" id="pkg-selected-purchase-qty" type="text" inputmode="decimal" maxlength="5" value="${escapeHtml(activeField.defaultPurchaseQty)}" aria-label="결제 수량" ${activeField.fixedPurchaseQty ? 'readonly' : ''}>`;
+
     form.innerHTML = `
       <div class="package-balance-strip">
-        ${PCREDIT_FIELDS.map(({ key, label }) => {
-          const pkg = packages[key] || { balance: 0 };
-          return `
+        ${PCREDIT_DISPLAY_FIELDS.map(field => `
             <div class="package-balance-tile">
-              <div class="package-balance-name">${escapeHtml(label)}</div>
-              <div class="package-balance-value">${escapeHtml(pkg.balance || 0)}</div>
-            </div>`;
-        }).join('')}
+              <div class="package-balance-name">${escapeHtml(field.label)}</div>
+              <div class="package-balance-value">${escapeHtml(getFieldBalance(field, packages))}</div>
+            </div>`).join('')}
       </div>
       ${postTreatmentMessage ? `<div class="package-after-treatment">${escapeHtml(postTreatmentMessage)}</div>` : ''}
       <div class="package-card">
         <div class="package-entry-grid">
-          <select class="package-input package-entry-full" id="pkg-selected-key" onchange="selectPackageEntryType(this.value)" aria-label="패키지 종류">
-            ${PCREDIT_FIELDS.map(field => `<option value="${escapeHtml(field.key)}" ${field.key === activePackageKey ? 'selected' : ''}>${escapeHtml(field.label)}</option>`).join('')}
-          </select>
+          <div class="package-radio-group package-entry-full" id="pkg-selected-key" role="radiogroup" aria-label="패키지 종류">
+            ${PCREDIT_DISPLAY_FIELDS.map(field => `<label class="package-radio ${field.key === activePackageKey ? 'is-active' : ''}"><input type="radio" name="pkg-selected-key" value="${escapeHtml(field.key)}" ${field.key === activePackageKey ? 'checked' : ''} onchange="selectPackageEntryType(this.value)">${escapeHtml(field.label)}</label>`).join('')}
+          </div>
           <input class="package-input package-entry-full" id="pkg-selected-date" type="date" value="${activePackageDate || today}">
-          <input class="package-input" id="pkg-selected-purchase-qty" type="text" inputmode="decimal" maxlength="5" value="${escapeHtml((PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_FIELDS[0]).defaultPurchaseQty)}" aria-label="결제 수량">
+          ${purchaseControlMarkup}
           <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('purchase')">결제 추가</button>
           <input class="package-input" id="pkg-selected-bonus-qty" type="text" inputmode="decimal" maxlength="5" value="1" aria-label="보너스 수량">
           <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('bonus')">보너스 추가</button>
@@ -5524,15 +5603,22 @@
   }
 
   window.selectPackageEntryType = function(key) {
-    if (!PCREDIT_FIELDS.some(field => field.key === key)) return;
+    if (!PCREDIT_DISPLAY_FIELDS.some(field => field.key === key)) return;
     activePackageKey = key;
-    const field = PCREDIT_FIELDS.find(item => item.key === key);
-    const purchaseQty = document.getElementById('pkg-selected-purchase-qty');
-    if (purchaseQty && field) purchaseQty.value = field.defaultPurchaseQty;
+    // 결제 수량 입력칸(고정 입력 ↔ 6/13 토글)이 패키지별로 달라 팝업을 다시 그린다
+    renderPackagePopup();
+  };
+
+  window.setPurchaseQtyOption = function(qty) {
+    const input = document.getElementById('pkg-selected-purchase-qty');
+    if (input) input.value = qty;
+    document.querySelectorAll('#pkg-purchase-toggle .package-toggle-btn').forEach(btn => {
+      btn.classList.toggle('is-active', Number(btn.textContent) === Number(qty));
+    });
   };
 
   window.addSelectedPackageEntry = function(type) {
-    const key = document.getElementById('pkg-selected-key')?.value || activePackageKey || PCREDIT_FIELDS[0].key;
+    const key = document.querySelector('#pkg-selected-key input:checked')?.value || activePackageKey || PCREDIT_DISPLAY_FIELDS[0].key;
     return addPackageEntry(key, type);
   };
 
@@ -10241,10 +10327,12 @@
     };
 
     const messages = [];
-    const targetKey = hasPackageRecord('p13') ? 'p13' : (hasPackageRecord('p6') ? 'p6' : '');
-    if (deduction && targetKey) {
-      const afterBalance = Number(balances[targetKey] || 0) - deduction;
-      messages.push(`오늘 치료 후 ${targetKey} 잔여량은 ${afterBalance} 입니다`);
+    const pharmaField = PCREDIT_FIELDS.find(field => Array.isArray(field.mergeKeys));
+    const hasPharma = pharmaField && (pharmaField.mergeKeys || []).some(key => hasPackageRecord(key));
+    if (deduction && hasPharma) {
+      const currentBalance = getFieldBalance(pharmaField, packages);
+      const afterBalance = currentBalance - deduction;
+      messages.push(`${pharmaField.label} 현재 ${currentBalance}개, 오늘 사용 ${deduction}개, 오늘 치료 후 ${afterBalance}개 입니다`);
     }
 
     const specialDeductions = [
@@ -10255,8 +10343,10 @@
       const treatmentId = treatment.toLowerCase().includes('l') ? 'pharmacopuncture_L' : 'pharmacopuncture_ja';
       const treatmentCount = countTreatmentId(treatmentIds, treatmentId);
       if (!treatmentCount || !hasPackageRecord(key)) return;
-      const afterBalance = Number(balances[key] || 0) - treatmentCount;
-      messages.push(`오늘 치료 후 ${key} 잔여량은 ${afterBalance} 입니다`);
+      const label = (PCREDIT_FIELDS.find(field => field.key === key) || {}).label || key;
+      const currentBalance = Number(balances[key] || 0);
+      const afterBalance = currentBalance - treatmentCount;
+      messages.push(`${label} 현재 ${currentBalance}개, 오늘 사용 ${treatmentCount}개, 오늘 치료 후 ${afterBalance}개 입니다`);
     });
 
     return messages.join(' / ');
@@ -10271,10 +10361,10 @@
       <div class="bed-package-zone">
         <div class="bed-package-title">패키지 잔여량</div>
         <div class="bed-package-grid">
-          ${PCREDIT_FIELDS.map(({ key, label }) => `
+          ${PCREDIT_DISPLAY_FIELDS.map(field => `
             <div class="bed-package-chip">
-              <span class="bed-package-name">${escapeHtml(label)}</span>
-              <span class="bed-package-count">${escapeHtml(balances[key] || 0)}</span>
+              <span class="bed-package-name">${escapeHtml(field.label)}</span>
+              <span class="bed-package-count">${escapeHtml(getFieldBalance(field, packages))}</span>
             </div>`).join('')}
         </div>
         ${postTreatmentMessage ? `<div class="bed-package-after">${escapeHtml(postTreatmentMessage)}</div>` : ''}
