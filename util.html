@@ -80,6 +80,22 @@
     font-size: 13px;
     font-weight: 800;
   }
+  .alerttalk-input {
+    width: min(420px, 100%);
+    min-height: 96px;
+    border: 1px solid var(--line);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .alerttalk-preview { margin-top: 12px; overflow-x: auto; }
+  .alerttalk-preview table { min-width: 680px; }
   .status {
     color: var(--muted);
     font-size: 13px;
@@ -150,6 +166,20 @@
   </div>
 
   <div class="card">
+    <div class="card-title">알림톡 엑셀 생성</div>
+    <div class="tool-row">
+      <textarea class="alerttalk-input" id="alerttalkInput" placeholder="예:
+홍길동 11,33
+김영희님 22,44
+이단비님 99" autocomplete="off"></textarea>
+      <button class="good" id="alerttalkCreateBtn" type="button">엑셀 생성</button>
+    </div>
+    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. 번호가 1개면 첫번째 파일만, 2개면 첫번째/두번째 파일을 생성합니다.</div>
+    <div class="status" id="alerttalkStatus">대기 중</div>
+    <div class="alerttalk-preview" id="alerttalkPreview"></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">환자 연락처 검색</div>
     <div class="tool-row">
       <input class="search-input" id="patientNameInput" type="search" placeholder="성함 입력" autocomplete="off">
@@ -183,6 +213,10 @@
   const thirdVisitSyncBtn = document.getElementById("thirdVisitSyncBtn");
   const thirdVisitSyncStatus = document.getElementById("thirdVisitSyncStatus");
   const thirdVisitSyncResult = document.getElementById("thirdVisitSyncResult");
+  const alerttalkInput = document.getElementById("alerttalkInput");
+  const alerttalkCreateBtn = document.getElementById("alerttalkCreateBtn");
+  const alerttalkStatus = document.getElementById("alerttalkStatus");
+  const alerttalkPreview = document.getElementById("alerttalkPreview");
   const patientNameInput = document.getElementById("patientNameInput");
   const patientSearchBtn = document.getElementById("patientSearchBtn");
   const patientSearchStatus = document.getElementById("patientSearchStatus");
@@ -336,6 +370,586 @@
       setThirdVisitSyncStatus(error?.message || String(error), "error");
     } finally {
       thirdVisitSyncBtn.disabled = false;
+    }
+  }
+
+const EXERCISE = [
+  null, // index 0 unused
+  "지방간식사생활관리",
+  "담석증 식사생활관리",
+  "역류성식도염 생활관리",
+  "과민성 장증후군 식사생활관리",
+  "골다공증 식사생활관리",
+  "통풍 식사생활관리",
+  "전립선비대증 식사생활관리",
+  "불면증 식사생활관리",
+  "치매 예방 식사생활관리",
+  "류마티스관절염 식사생활관리",
+  "퇴행성관절염 운동법",
+  "심혈관 뇌혈관질환 생활관리",
+  "갑상선기능항진증 관리",
+  "다낭성난소증후군 개선 식사생활",
+  "자궁근종 식사생활관리",
+  "거북목증후군 운동법",
+  "짜게먹는 식단 식이관리",
+  "목디스크 예방 운동법",
+  "강직성척추염 관리 운동",
+  "구내염 식사생활",
+  "결막염 식사생활 관리",
+  "대상포진 식사생활 관리",
+  "당뇨병 예방관리 식사생활",
+  "당지수와 당부하지수 식품",
+  "탄수화물중독증 극복",
+  "라운드숄더 운동법",
+  "만성위염 식사생활",
+  "메니에르증후군 식사생활관리",
+  "발목염좌 후 재활 운동",
+  "섬유근육통 식사생활관리",
+  "안면신경마비 운동",
+  "바른 수면 좋은 나쁜 베개",
+  "허리를 삐었을 때 생활속 대처",
+  "오십견 운동",
+  "팔꿈치통증 운동",
+  "맥켄지 운동법",
+  "맥길 빅3운동",
+  "척추측만증",
+  "균형잡힌 골반",
+  "건강한 눈 운동 스트레칭",
+  "산후 골반교정 운동",
+  "손목터널증후군 운동",
+  "하지정맥류 예방",
+  "윌리엄 운동",
+  "스쿼트와 런지",
+  "플랭크",
+  "전립선 운동법",
+  "척추관협착증",
+  "손목건초염",
+  "발목염좌 후 대처요령",
+  "식품별 1일 권장량",
+  "100kcal음식과 활동",
+  "고지혈증 예방 관리",
+  "소아성장에 좋은 운동",
+  "턱관절장애예방 운동",
+  "생리통완화 스트레칭",
+  "변비개선 스트레칭",
+  "소화불량개선 운동",
+  "불면증개선 스트레칭 운동",
+  "스웨이백 운동",
+  "단것을 좋아하는 습관개선",
+  "갱년기증후군 식사생활관리",
+  "성공적인 금연 건강관리",
+  "눈건강관리 식이요법",
+  "만성변비 식사생활",
+  "빈혈 식사생활관리",
+  "소아비만 식사생활관리",
+  "소아성장 식사생활관리",
+  "건강한 음주 식사생활관리",
+  "체중감량 유산소 홈트",
+  "1200칼로리 식단",
+  "1200칼로리 식단2",
+  "1400칼로리 식단",
+  "1500칼로리 식단",
+  "한끼500kcal 이내 식단1",
+  "한끼500kcal 이내 식단2",
+  "1800칼로리 식단",
+  "식품교환표 식단짜기",
+  "식품교환표",
+  "심근경색 뇌줄증 응급상황 대처",
+  "퇴행성관절염 식사생활관리",
+  "콜레스테롤 및 당질함량이 높은 음식",
+  "올바른 걷기운동",
+  "장시간 앉아있는 사람에 좋은 운동",
+  "편평등 스트레칭 운동",
+  "요추전만 좋은 스트레칭 운동",
+  "척골신경마비에 좋은 운동",
+  "척추에 나쁜 습관 좋은 습관",
+  "화병에 좋은 스트레칭 운동",
+  "등산전 좋은 스트레칭",
+  "상쾌한 아침기상",
+  "무릎 수술 후 운동법",
+  "건강한 어깨관절 위한 스트레칭",
+  "건강한 어깨관절 위한 강화운동",
+  "건강한 여성 위한 케겔운동법",
+  "족저근막염 좋은 운동",
+  "골다공증 좋은 스트레칭 운동법",
+  "신부전증 예방 개선 건강관리",
+  "염증성 질환에 조심할 점",
+  "치료후 주의사항"
+];
+
+const DISEASE = [
+  null, // index 0 unused
+  "간질환들",
+  "담석증",
+  "역류성식도염",
+  "과민성장증후군",
+  "골다공증",
+  "통풍",
+  "전립선비대증",
+  "불면증",
+  "치매",
+  "류마티스관절염",
+  "무릎퇴행성관절염",
+  "협심증",
+  "갑상선기능저하항진증",
+  "다낭성난소증후군",
+  "자궁근종",
+  "거북목증후군",
+  "고혈압합병증",
+  "경추추간판탈출증",
+  "강직성척추염",
+  "구내염",
+  "결막염",
+  "대상포진",
+  "당뇨병성 말초신경병증",
+  "당뇨병성 족부병증",
+  "당뇨병성 망막병증",
+  "라운드숄더",
+  "만성위염",
+  "메니에르증후군",
+  "발목 염좌",
+  "섬유근육통",
+  "안면신경마비",
+  "여드름",
+  "여드름과 흉터",
+  "오십견",
+  "손목건초염",
+  "외내측상과염",
+  "알레르기비염",
+  "요추추간판탈출증",
+  "장누수증후군",
+  "요족",
+  "평발",
+  "이석증",
+  "중이염",
+  "척추관협착증",
+  "기관지염",
+  "천식",
+  "쿠싱증후군",
+  "파킨슨병",
+  "턱관절장애",
+  "하지정맥류",
+  "당뇨합병증",
+  "거위발건염",
+  "경추의 염좌",
+  "근시 원시 난시",
+  "기관지확장증",
+  "녹내장",
+  "뇌졸중",
+  "대퇴골두무혈성괴사",
+  "두통의 유형",
+  "디스크질환들",
+  "반월상연골파열",
+  "백내장",
+  "부비동염",
+  "부종",
+  "비만합병증",
+  "서있을때 나쁜 체형 좋은 체형",
+  "슬개건염",
+  "슬와낭종",
+  "요추의 염좌",
+  "척추에 나쁜 자세 좋은 자세",
+  "척추압박골절",
+  "척추측만증",
+  "편도염",
+  "피부의 노화",
+  "황반변성",
+  "요로결석",
+  "족저근막염",
+  "굳은살 티눈 사마귀",
+  "디스크내장증",
+  "석회화건염",
+  "무지외반증",
+  "후종인대 황색인대골화증",
+  "어깨충돌증후군",
+  "회전근개파열",
+  "장경인대증후군",
+  "가와사키병",
+  "크론병",
+  "궤양성대장염",
+  "수족구병",
+  "풍진",
+  "홍역",
+  "성홍열",
+  "전신홍반성루프스",
+  "쇼그렌증후군",
+  "자가면역질환들",
+  "류마티스 퇴행성 vs 관절염",
+  "베체트병",
+  "슬개골연골연화증",
+  "두드러기",
+  "방아쇠수지",
+  "비만1",
+  "비만2",
+  "비만3",
+  "인슐린저항성",
+  "갱년기증후군",
+  "담배가 인체 미치는 영향",
+  "안구건조증",
+  "빈혈",
+  "성장부진",
+  "술이 인체에 미치는 영향",
+  "난소낭종",
+  "습진",
+  "습진성 질환들",
+  "건선",
+  "무좀",
+  "백반증",
+  "백선증",
+  "사마귀",
+  "결절종",
+  "대장게실염",
+  "무릎인대파열",
+  "박리성 골연골염",
+  "상완이두근건 파열",
+  "어깨재발성탈구",
+  "오스굿 슐레터 병",
+  "척추분리증 전방전위증",
+  "천장관절증후군",
+  "퇴행성척추증",
+  "결핵",
+  "기흉",
+  "폐렴",
+  "폐색전증",
+  "만성폐쇄성폐질환",
+  "폐섬유증",
+  "성조숙증",
+  "치핵 치루 치열",
+  "여아성장곡선",
+  "남아성장곡선",
+  "후두와 성대질환",
+  "편도비대와 수면무호흡증",
+  "편도결석과 입냄새",
+  "신체의 통증부위",
+  "상부교차증후군",
+  "하부교차증후군",
+  "신부전증",
+  "신증후군",
+  "요로감염",
+  "빈뇨 야간뇨",
+  "레이노 증후군",
+  "뉴 생리주기",
+  "골프할 때 조심",
+  "농구할 때 조심",
+  "달리기할 때 조심",
+  "등산할 때 조심",
+  "배드민턴할 때 조심",
+  "볼링할 때 조심",
+  "수영할 때 조심",
+  "야구할 때 조심",
+  "축구할 때 조심",
+  "테니스할 때 조심",
+  "어린이들이 조심",
+  "수험생이 조심해야할 질환",
+  "봄철에 조심",
+  "여름철 조심",
+  "장마철에 조심",
+  "가을철에 조심",
+  "겨울철 조심",
+  "어르신이 조심",
+  "갱년기여성이 조심",
+  "전업주부가 조심",
+  "야식을 즐길 때",
+  "직장인이 조심",
+  "명절에 조심",
+  "하이힐 조심",
+  "스트레스 많이 받을 때",
+  "산후풍",
+  "갑상선종",
+  "경추척수증",
+  "골반염",
+  "공황장애",
+  "급체",
+  "기립성저혈압",
+  "난청",
+  "늑연골염",
+  "미주신경성실신",
+  "부주상골증후군",
+  "빈혈",
+  "액취증",
+  "의자병",
+  "이명",
+  "점액낭염",
+  "치은염 치주염",
+  "코로나 증상 후유증",
+  "화상",
+  "저혈당증",
+  "틱장애",
+  "adhd",
+  "탈모 종류",
+  "남성형탈모",
+  "여성형탈모"
+];
+
+// ?? ?뚯떛 ????????????????????????????????????????????????????
+
+  let xlsxModulePromise = null;
+
+  function loadXlsxModule() {
+    if (!xlsxModulePromise) xlsxModulePromise = import("./vendor/xlsx/0.18.5/xlsx.mjs");
+    return xlsxModulePromise;
+  }
+
+  function parseAlerttalkToken(token) {
+    const text = String(token || "").trim();
+    if (/^[dD]\d+$/.test(text)) return { isD: true, num: Number.parseInt(text.slice(1), 10) };
+    if (/^\d+$/.test(text)) return { isD: false, num: Number.parseInt(text, 10) };
+    return null;
+  }
+
+  function normalizeAlerttalkName(name) {
+    return String(name || "")
+      .replace(/\/+/g, " ")
+      .replace(/[,:;|]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/님$/g, "")
+      .trim();
+  }
+
+  function normalizeAlerttalkPhone(phone) {
+    const digits = String(phone || "").replace(/\D/g, "");
+    return digits.replace(/^(01[0-9])(\d{3,4})(\d{4})$/, "$1-$2-$3");
+  }
+
+  function parseAlerttalkTokens(text) {
+    return (String(text || "").match(/[dD]?\d+/g) || []).map(parseAlerttalkToken).filter(Boolean);
+  }
+
+  function lookupAlerttalkLabel(isD, num) {
+    const arr = isD ? DISEASE : EXERCISE;
+    return (num >= 1 && num < arr.length) ? arr[num] : `(없음:${isD ? "d" : ""}${num})`;
+  }
+
+  function parseAlerttalkInput(text) {
+    const firstToken = String(text || "").search(/[dD]?\d+/);
+    if (firstToken < 0) return { name: normalizeAlerttalkName(text), tokens: [] };
+    return {
+      name: normalizeAlerttalkName(String(text).slice(0, firstToken)),
+      tokens: parseAlerttalkTokens(String(text).slice(firstToken))
+    };
+  }
+
+  function parseAlerttalkLines(text) {
+    return String(text || "")
+      .split(/\n+/)
+      .map((line, index) => ({ line: line.trim(), lineNo: index + 1 }))
+      .filter(item => item.line)
+      .map(item => ({ ...parseAlerttalkInput(item.line), line: item.line, lineNo: item.lineNo }));
+  }
+
+  function buildAlerttalkRows(phone, tokens) {
+    const file1 = [];
+    const file2 = [];
+    if (!phone || !tokens.length) return { file1, file2 };
+
+    const t1 = tokens[0];
+    file1.push({
+      phone,
+      label: lookupAlerttalkLabel(t1.isD, t1.num),
+      code: t1.isD ? `e100,d${t1.num}` : `e100,e${t1.num}`
+    });
+
+    if (tokens.length >= 2) {
+      const t2 = tokens[1];
+      file2.push({
+        phone,
+        label: lookupAlerttalkLabel(t2.isD, t2.num),
+        code: t2.isD ? `d${t2.num}` : `e${t2.num}`
+      });
+    }
+
+    return { file1, file2 };
+  }
+
+  function makeAlerttalkWorkbook(XLSX, rows) {
+    const header = [["메시지 수신 휴대폰번호", "#{질환}", "#{자료코드}"]];
+    const data = rows.map(row => [row.phone, row.label, row.code]);
+    const ws = XLSX.utils.aoa_to_sheet([...header, ...data]);
+    ws["!cols"] = [{ wch: 20 }, { wch: 32 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "알림톡");
+    return wb;
+  }
+
+  function alerttalkTimestamp() {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${yyyy}${mm}${dd}_${hh}${mi}`;
+  }
+
+  function setAlerttalkStatus(text, type = "") {
+    alerttalkStatus.className = "status" + (type ? ` ${type}` : "");
+    alerttalkStatus.textContent = text;
+  }
+
+  function renderAlerttalkPreview(file1, file2) {
+    function tableHtml(rows) {
+      if (!rows.length) return `<div class="note">해당 데이터 없음</div>`;
+      return `
+        <table>
+          <thead><tr><th>메시지 수신 휴대폰번호</th><th>#{질환}</th><th>#{자료코드}</th></tr></thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr>
+                <td class="phone">${escapeHtml(row.phone)}</td>
+                <td>${escapeHtml(row.label)}</td>
+                <td>${escapeHtml(row.code)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+    alerttalkPreview.innerHTML = `
+      <div class="note">첫번째 파일 (${file1.length}건)</div>
+      ${tableHtml(file1)}
+      <div class="note">두번째 파일 (${file2.length}건)</div>
+      ${tableHtml(file2)}
+    `;
+  }
+
+  async function findSingleAlerttalkPatient(name) {
+    const res = await fetch(`/api/patients/search?q=${encodeURIComponent(name)}&limit=100`, { cache: "no-store" });
+    const data = await res.json().catch(() => []);
+    if (!res.ok) throw new Error(data.error || `환자 검색 실패 (${res.status})`);
+    const normalizedName = normalizeAlerttalkName(name);
+    const rows = Array.isArray(data) ? data : [];
+    if (rows.length < 100) return rows.filter(record => normalizeAlerttalkName(record.name) === normalizedName);
+
+    const allRes = await fetch("/api/patients", { cache: "no-store" });
+    const allData = await allRes.json().catch(() => []);
+    if (!allRes.ok) throw new Error(allData.error || `환자 DB 조회 실패 (${allRes.status})`);
+    return (Array.isArray(allData) ? allData : []).filter(record => normalizeAlerttalkName(record.name) === normalizedName);
+  }
+
+  function isAlerttalkFirstVisit(record = {}) {
+    return String(record.visitType || "").includes("초");
+  }
+
+  function latestAlerttalkFirstVisitDate(patient = {}) {
+    const byDate = patient.visitHistory || {};
+    const firstVisitDates = Object.entries(byDate)
+      .filter(([, record]) => isAlerttalkFirstVisit(record))
+      .map(([date]) => String(date || "").trim())
+      .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date))
+      .sort();
+    return firstVisitDates[firstVisitDates.length - 1] || "";
+  }
+
+  function alerttalkDateOnly(value) {
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+
+  function alerttalkDaysSince(dateText) {
+    const date = alerttalkDateOnly(dateText);
+    if (!date) return null;
+    const today = new Date();
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.floor((todayOnly - date) / 86400000);
+  }
+
+  function isRecentAlerttalkFirstVisit(dateText) {
+    const days = alerttalkDaysSince(dateText);
+    return days !== null && days >= 0 && days <= 7;
+  }
+
+  function selectAlerttalkPatient(matches) {
+    if (matches.length <= 1) return matches[0] || null;
+    return matches
+      .map(patient => ({ patient, firstVisitDate: latestAlerttalkFirstVisitDate(patient) }))
+      .filter(item => item.firstVisitDate)
+      .sort((a, b) => b.firstVisitDate.localeCompare(a.firstVisitDate) || String(b.patient.updatedAt || "").localeCompare(String(a.patient.updatedAt || "")))[0]?.patient || null;
+  }
+
+  async function createAlerttalkExcels() {
+    const entries = parseAlerttalkLines(alerttalkInput.value);
+    alerttalkPreview.innerHTML = "";
+
+    if (!entries.length) {
+      setAlerttalkStatus("환자 이름과 번호를 입력하세요. 예: 홍길동 11,33 또는 이단비님 99", "error");
+      alerttalkInput.focus();
+      return;
+    }
+    const invalidEntries = entries.filter(entry => !entry.name || entry.tokens.length < 1);
+    if (invalidEntries.length) {
+      alert(`입력 형식을 확인하세요.\n\n${invalidEntries.map(entry => `${entry.lineNo}줄: ${entry.line}`).join("\n")}`);
+      setAlerttalkStatus("입력 형식 오류: 한 줄에 환자 이름과 번호를 입력하세요.", "error");
+      alerttalkInput.focus();
+      return;
+    }
+
+    alerttalkCreateBtn.disabled = true;
+    setAlerttalkStatus(`환자 DB에서 ${entries.length.toLocaleString()}명 연락처 검색 중...`);
+    try {
+      const file1 = [];
+      const file2 = [];
+      const errors = [];
+
+      for (const entry of entries) {
+        const matches = await findSingleAlerttalkPatient(entry.name);
+        if (!matches.length) {
+          errors.push(`${entry.lineNo}줄 '${entry.name}': 연락처를 찾을 수 없습니다.`);
+          continue;
+        }
+        const patient = selectAlerttalkPatient(matches);
+        if (!patient) {
+          errors.push(`${entry.lineNo}줄 '${entry.name}': 같은 이름 환자가 ${matches.length}명 있지만 초진 기록을 찾을 수 없습니다.`);
+          continue;
+        }
+        const firstVisitDate = latestAlerttalkFirstVisitDate(patient);
+        if (!firstVisitDate) {
+          errors.push(`${entry.lineNo}줄 '${entry.name}': 초진 기록을 찾을 수 없습니다.`);
+          continue;
+        }
+        if (!isRecentAlerttalkFirstVisit(firstVisitDate)) {
+          errors.push(`${entry.lineNo}줄 '${entry.name}': 최신 초진일(${firstVisitDate})이 7일을 넘었습니다.`);
+          continue;
+        }
+        const phone = normalizeAlerttalkPhone(patientPhone(patient));
+        if (!phone) {
+          errors.push(`${entry.lineNo}줄 '${entry.name}': 환자 DB에 연락처가 없습니다.`);
+          continue;
+        }
+
+        const rows = buildAlerttalkRows(phone, entry.tokens);
+        file1.push(...rows.file1);
+        file2.push(...rows.file2);
+      }
+
+      if (errors.length) {
+        alert(`알림톡 엑셀을 생성할 수 없습니다.\n\n${errors.join("\n\n")}`);
+        setAlerttalkStatus(`확인 필요: ${errors.length.toLocaleString()}건`, "error");
+        return;
+      }
+
+      const XLSX = await loadXlsxModule();
+      const ts = alerttalkTimestamp();
+      const saved = [];
+
+      XLSX.writeFile(makeAlerttalkWorkbook(XLSX, file1), `첫번째_알림톡_${ts}.xlsx`);
+      saved.push(`첫번째_알림톡_${ts}.xlsx (${file1.length}건)`);
+
+      if (file2.length) {
+        window.setTimeout(() => {
+          XLSX.writeFile(makeAlerttalkWorkbook(XLSX, file2), `두번째_알림톡_${ts}.xlsx`);
+        }, 300);
+        saved.push(`두번째_알림톡_${ts}.xlsx (${file2.length}건)`);
+      }
+
+      renderAlerttalkPreview(file1, file2);
+      setAlerttalkStatus(saved.join("\n"), "good");
+    } catch (error) {
+      console.error(error);
+      setAlerttalkStatus(error?.message || String(error), "error");
+    } finally {
+      alerttalkCreateBtn.disabled = false;
     }
   }
 
@@ -598,6 +1212,10 @@
   thirdVisitSyncBtn.addEventListener("click", runThirdVisitTestSync);
   thirdVisitShareEmailInput.addEventListener("keydown", event => {
     if (event.key === "Enter") runThirdVisitTestSync();
+  });
+  alerttalkCreateBtn.addEventListener("click", createAlerttalkExcels);
+  alerttalkInput.addEventListener("keydown", event => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) createAlerttalkExcels();
   });
   patientSearchBtn.addEventListener("click", searchPatientContact);
   patientNameInput.addEventListener("keydown", event => {
