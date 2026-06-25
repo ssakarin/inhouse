@@ -2002,6 +2002,30 @@
     overflow: hidden;
     min-width: 0;
   }
+  .bed-status-info .bed-meta-chip {
+    text-overflow: clip;
+  }
+  .bed-status-info.tight-chips {
+    gap: 3px;
+  }
+  .bed-status-info.tight-chips .bed-meta-chip {
+    font-size: 9px;
+    padding: 2px 5px;
+  }
+  .bed-status-info.dense-chips {
+    gap: 2px;
+  }
+  .bed-status-info.dense-chips .bed-meta-chip {
+    font-size: 8px;
+    padding: 2px 4px;
+  }
+  .bed-status-info.ultra-dense-chips {
+    gap: 2px;
+  }
+  .bed-status-info.ultra-dense-chips .bed-meta-chip {
+    font-size: 7px;
+    padding: 2px 3px;
+  }
   .bed-meta-chip--fixed {
     flex-shrink: 0;
   }
@@ -2405,7 +2429,7 @@
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16);
   }
   .bed-treatment-chip .added-treatment-plus {
-    display: inline-flex;
+    display: none;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
@@ -4486,7 +4510,7 @@
 
   function shouldSubscribeLocalNode(key) {
     if (!isFixedBedScreen()) return true;
-    return key === 'settings/treatmentMinutes' || key === 'staff/doctors' || key === 'staff/nurses' || key === BED_ASSIGNMENT_ALERTS_PATH;
+    return key === 'settings/treatmentMinutes' || key === 'settings/treatmentPresets' || key === 'staff/doctors' || key === 'staff/nurses' || key === BED_ASSIGNMENT_ALERTS_PATH;
   }
 
   async function subscribeLocalNode(key, applyFn) {
@@ -4646,8 +4670,6 @@
   const TREATMENTS = [
     { id: 'consult',             name: '진찰',   icon: '📋' },
     { id: 'bed_consult',         name: '베드진찰', icon: '🩺' },
-    { id: 'chuna_simple',        name: '단추',   icon: '🤲' },
-    { id: 'chuna_complex',       name: '복추',   icon: '🤲' },
     { id: 'hotpack',             name: '핫팩',   icon: '🔥' },
     { id: 'physical_therapy',   name: '물리치료', icon: '＋' },
     { id: 'acupuncture',         name: '침',     icon: '🪡' },
@@ -4657,15 +4679,18 @@
     { id: 'moxibustion',         name: '왕뜸',   icon: '🌀' },
     { id: 'e_mox',               name: '전자뜸', icon: '💡' },
     { id: 'infrared',            name: '적외선', icon: '🔴' },
-    { id: 'spine',               name: '스파인', icon: '↕' },
     { id: 'pharmacopuncture_1',  name: '약침1',  icon: '①' },
     { id: 'pharmacopuncture_2',  name: '약침2',  icon: '②' },
     { id: 'pharmacopuncture_3',  name: '약침3',  icon: '③' },
     { id: 'pharmacopuncture_4',  name: '약침4',  icon: '④' },
     { id: 'pharmacopuncture_L',  name: '약침L',  icon: '🅛' },
     { id: 'pharmacopuncture_ja', name: '약침자', icon: '자' },
+    { id: 'taping',              name: '테이핑', icon: '테' },
     { id: 'sw',                  name: 'SW',     icon: 'SW' },
+    { id: 'chuna_simple',        name: '단추',   icon: '🤲' },
+    { id: 'chuna_complex',       name: '복추',   icon: '🤲' },
     { id: 'bench',               name: '벤치',   icon: '벤' },
+    { id: 'spine',               name: '스파인', icon: '↕' },
   ];
 
   function getTreatmentByName(name) {
@@ -4873,6 +4898,7 @@
   let draggedBedNo = null;
   let draggedTreatment = null; // { bedNo, fromIndex }
   let draggedWaitingPatientKey = null;
+  const ADDED_TREATMENT_ALERT_MS = 30000;
   const transientAddedTreatmentAlerts = [];
   const transientAddedTreatmentAlertTimers = new Map();
   const suppressedAddedTreatmentAlertNames = new Map();
@@ -4927,6 +4953,8 @@
   let receiveAlertBeepTimer = null;
   let alertListBeepTimer = null;
   let alertListBeepIntervalMs = 0;
+  const FIXED_DOCTOR_ROOM_ALERT_AUDIO_MS = 20000;
+  let fixedDoctorRoomAlertBeepTimer = null;
   let isTimerAlertOpen = false;
   let activeTimerAlert = null;
   let selectedDoctorAlertId = localStorage.getItem('selectedDoctorAlertId') || '';
@@ -6079,7 +6107,7 @@
   function getTreatmentBadgeClass(treatment) {
     const name = String(treatment || '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
-    if (name === '물리치료' || name === 'sw') return 'treatment-physical';
+    if (name === '물리치료' || name === 'sw' || name === '테이핑') return 'treatment-physical';
     if (name === '적외선') return 'treatment-infrared';
     if (name === '침' || name === '전침') return 'treatment-acu';
     if (name === '건부항' || name === '습부항') return 'treatment-cupping';
@@ -6139,6 +6167,7 @@
     if (!isFixedDoctorBedScreen()) {
       seenFixedDoctorRoomAlertIds.clear();
       fixedDoctorRoomAlertAudioInitialized = false;
+      stopFixedDoctorRoomAlertBeeps();
       return;
     }
     const doctorId = selectedDoctorAlertId || getActiveDoctors()[0]?.[0] || '';
@@ -6152,11 +6181,15 @@
     });
     const newIds = [...activeIds].filter(alertId => !seenFixedDoctorRoomAlertIds.has(alertId));
     activeIds.forEach(alertId => seenFixedDoctorRoomAlertIds.add(alertId));
+    if (activeIds.size) {
+      startFixedDoctorRoomAlertBeeps(fixedDoctorRoomAlertAudioInitialized && !markOnly && newIds.length > 0);
+    } else {
+      stopFixedDoctorRoomAlertBeeps();
+    }
     if (!fixedDoctorRoomAlertAudioInitialized || markOnly) {
       fixedDoctorRoomAlertAudioInitialized = true;
       return;
     }
-    if (newIds.length) playSoftTimerChime();
   }
 
   function getSelectedDoctorCallInfo() {
@@ -7155,6 +7188,7 @@
         form.treatments,
         bed.addedTreatmentIndexes || []
       );
+      const newlyAddedTreatmentIndexes = getNewlyAddedTreatmentIndexes(bed.treatments || [], form.treatments);
       const preCompletedTreatmentIndexes = getPreCompletedIndexesAfterEdit(
         bed.treatments || [],
         form.treatments,
@@ -7162,11 +7196,14 @@
       );
       const nextIndexBase = form.treatments.length ? Math.min(Number(bed.currentIndex || 0), form.treatments.length - 1) : 0;
       const preservedRunningIndex = bed.running ? findMatchingTreatmentGroupIndex(bed.treatments || [], form.treatments, bed.currentIndex || 0) : -1;
-      const nextIndex = preservedRunningIndex >= 0
+      const completedBedAddedIndex = bed.complete && newlyAddedTreatmentIndexes.length ? newlyAddedTreatmentIndexes[0] : -1;
+      const nextIndex = completedBedAddedIndex >= 0
+        ? completedBedAddedIndex
+        : preservedRunningIndex >= 0
         ? preservedRunningIndex
         : (form.treatments.length ? Math.max(0, getNextPendingTreatmentIndex(form.treatments, nextIndexBase, preCompletedTreatmentIndexes)) : 0);
       const nextTreatment = form.treatments[nextIndex] || '';
-      const currentTreatmentChanged = preservedRunningIndex < 0 && (nextTreatment !== (bed.treatments?.[nextIndex] || '') || !form.treatments.length);
+      const currentTreatmentChanged = completedBedAddedIndex >= 0 || (preservedRunningIndex < 0 && (nextTreatment !== (bed.treatments?.[nextIndex] || '') || !form.treatments.length));
       const nextTotal = nextTreatment ? getConcurrentTreatmentSeconds(form.treatments, nextIndex) : 0;
       const timerPatch = currentTreatmentChanged
         ? {
@@ -7395,6 +7432,7 @@
       form.treatments,
       bed.addedTreatmentIndexes || []
     );
+    const newlyAddedTreatmentIndexes = getNewlyAddedTreatmentIndexes(bed.treatments || [], form.treatments);
     const preCompletedTreatmentIndexes = getPreCompletedIndexesAfterEdit(
       bed.treatments || [],
       form.treatments,
@@ -7402,11 +7440,14 @@
     );
     const nextIndexBase = form.treatments.length ? Math.min(bed.currentIndex || 0, form.treatments.length - 1) : 0;
     const preservedRunningIndex = bed.running ? findMatchingTreatmentGroupIndex(bed.treatments || [], form.treatments, bed.currentIndex || 0) : -1;
-    const nextCurrentIndex = preservedRunningIndex >= 0
+    const completedBedAddedIndex = bed.complete && newlyAddedTreatmentIndexes.length ? newlyAddedTreatmentIndexes[0] : -1;
+    const nextCurrentIndex = completedBedAddedIndex >= 0
+      ? completedBedAddedIndex
+      : preservedRunningIndex >= 0
       ? preservedRunningIndex
       : (form.treatments.length ? Math.max(0, getNextPendingTreatmentIndex(form.treatments, nextIndexBase, preCompletedTreatmentIndexes)) : 0);
     const nextTreatment = form.treatments[nextCurrentIndex] || '';
-    const currentTreatmentChanged = preservedRunningIndex < 0 && (currentTreatment !== nextTreatment || !form.treatments.length);
+    const currentTreatmentChanged = completedBedAddedIndex >= 0 || (preservedRunningIndex < 0 && (currentTreatment !== nextTreatment || !form.treatments.length));
     const nextTotal = nextTreatment ? getConcurrentTreatmentSeconds(form.treatments, nextCurrentIndex) : 0;
     const timerUpdates = currentTreatmentChanged
       ? {
@@ -8182,7 +8223,7 @@
     if (!bedNo || !names.length) return;
     const key = getTreatmentAlertKey(bedNo);
     const current = suppressedAddedTreatmentAlertNames.get(key) || new Map();
-    const expiresAt = Date.now() + 10000;
+    const expiresAt = Date.now() + ADDED_TREATMENT_ALERT_MS;
     names.forEach(name => current.set(name, expiresAt));
     suppressedAddedTreatmentAlertNames.set(key, current);
   }
@@ -8223,7 +8264,7 @@
       if (index >= 0) transientAddedTreatmentAlerts.splice(index, 1);
       transientAddedTreatmentAlertTimers.delete(key);
       renderUpcomingAlerts();
-    }, 10000);
+    }, ADDED_TREATMENT_ALERT_MS);
     transientAddedTreatmentAlertTimers.set(key, timer);
   }
 
@@ -8296,7 +8337,7 @@
       .map(name => String(name || '').trim())
       .filter(Boolean));
     if (!alert?.id || !Array.isArray(alert.treatments) || !removeSet.size) return { alert, consumed: [] };
-    if (Date.now() - Number(alert.timestamp || 0) > 10000) return { alert, consumed: [] };
+    if (Date.now() - Number(alert.timestamp || 0) > ADDED_TREATMENT_ALERT_MS) return { alert, consumed: [] };
     const consumed = [];
     const treatments = alert.treatments
       .map(name => String(name || '').trim())
@@ -8323,7 +8364,7 @@
     if (!bedNo || !names.length) return null;
     clearSuppressedAddedTreatmentAlertNames(bedNo, names);
     const previous = bed?.addedTreatmentAlert || {};
-    const previousFresh = Date.now() - Number(previous.timestamp || 0) <= 10000;
+    const previousFresh = Date.now() - Number(previous.timestamp || 0) <= ADDED_TREATMENT_ALERT_MS;
     const mergedNames = [
       ...(previousFresh && Array.isArray(previous.treatments) ? previous.treatments : []),
       ...names
@@ -8346,7 +8387,7 @@
     const sharedItems = getAllBedEntries()
       .map(({ bed, bedNo }) => ({ ...(bed?.addedTreatmentAlert || {}), bedNo }))
       .filter(item => item.id && Array.isArray(item.treatments) && item.treatments.length)
-      .filter(item => now - Number(item.timestamp || 0) <= 10000)
+      .filter(item => now - Number(item.timestamp || 0) <= ADDED_TREATMENT_ALERT_MS)
       .map(item => ({
         key: item.id,
         bedNo: item.bedNo,
@@ -8623,8 +8664,8 @@
     return index >= 0 ? 101 + index : null;
   }
 
-  // 베드가 비워지거나 다른 환자로 바뀌면 그 베드의 배정 알림 제거
-  // (다른 베드로 이동 / 대기로 이동 / 베드 비우기 등 베드에서 빠질 때 알림 끄기)
+  // 베드가 비워지거나 다른 환자로 바뀌면 배정 알림을 정리한다.
+  // 단, 치료 시작 전 다른 일반 베드로 이동한 경우에는 알림도 환자를 따라 이동한다.
   function pruneStaleBedAssignmentAlerts() {
     [...bedAssignmentAlertItems.entries()].forEach(([key, data]) => {
       const bedNo = Number(data?.bedNo);
@@ -8632,6 +8673,31 @@
       const bed = getBedData(bedNo);
       const stillAssigned = Boolean(patientKey) && bed && String(bed.patientKey || '') === patientKey;
       if (stillAssigned) return;
+
+      const movedEntry = getAllBedEntries()
+        .find(entry => String(entry.bed?.patientKey || '') === patientKey);
+      if (movedEntry?.bed && Number(movedEntry.bedNo) < 101 && !hasBedTreatmentStarted(movedEntry.bed)) {
+        const patch = {
+          bedNo: Number(movedEntry.bedNo),
+          bedLabel: getBedLabel(movedEntry.bedNo),
+          patientName: movedEntry.bed.name || data.patientName || '',
+          doctorId: movedEntry.bed.doctorId || data.doctorId || '',
+          doctorName: movedEntry.bed.doctorName || data.doctorName || '',
+          nurseId: movedEntry.bed.nurseId || data.nurseId || '',
+          nurseName: movedEntry.bed.nurseName || data.nurseName || '',
+          message: `${getBedLabel(movedEntry.bedNo)} ${movedEntry.bed.name || data.patientName || '환자'} 배정`
+        };
+        if (bedNo) delete fixedBedArrivalAcknowledgedByBed[bedNo];
+        delete fixedBedArrivalAcknowledgedByBed[Number(movedEntry.bedNo)];
+        bedAssignmentAlertItems.set(key, { ...(data || {}), ...patch });
+        renderUpcomingAlerts();
+        renderBedMonitors();
+        syncFixedBedArrivalOverlay();
+        updateLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, key, patch)
+          .catch((e) => console.error('배정 알림 이동 실패', e));
+        return;
+      }
+
       bedAssignmentAlertItems.delete(key);
       removeBedAssignmentAlert(key).catch((e) => console.error('배정 알림 정리 실패', e));
     });
@@ -9229,7 +9295,7 @@
     const getTreatmentBadgeClass = (treatment) => {
     const name = String(treatment || '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
-    if (name === '물리치료' || name === 'sw') return 'treatment-physical';
+      if (name === '물리치료' || name === 'sw' || name === '테이핑') return 'treatment-physical';
     if (name === '적외선') return 'treatment-infrared';
     if (name === '침' || name === '전침') return 'treatment-acu';
       if (name === '건부항' || name === '습부항') return 'treatment-cupping';
@@ -10032,9 +10098,7 @@
       const runningClass = shouldBlinkTreatmentChip(treatments, currentIndex, index, bed.running) ? ' running' : '';
       const selectedClass = useClickTreatmentReorder() && selectedBedTreatmentChip?.bedNo === bedNo && selectedBedTreatmentChip.index === index ? ' selected' : '';
       const addedClass = addedIndexes.has(index) ? ' added' : '';
-      const content = addedIndexes.has(index)
-        ? `<span class="added-treatment-plus">+</span>${escapeHtml(treatment)}`
-        : escapeHtml(treatment);
+      const content = escapeHtml(treatment);
       return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${selectedClass}${addedClass}" ${bedTreatmentChipAttrs(bedNo, index)}>${content}</span>`;
     }).join('');
   }
@@ -10321,7 +10385,7 @@
   }
 
   // 타이머 불필요 치료 (시행완료 버튼만 표시)
-  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선']);
+  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선', '테이핑']);
   function isNoTimerTreatment(name) {
     if (!name) return false;
     if (NO_TIMER_TREATMENTS.has(name)) return true;
@@ -10713,7 +10777,8 @@
       form.treatments,
       bed.addedTreatmentIndexes || []
     );
-    const newlyAddedTreatmentNames = getNewlyAddedTreatmentIndexes(bed.treatments || [], form.treatments)
+    const newlyAddedTreatmentIndexes = getNewlyAddedTreatmentIndexes(bed.treatments || [], form.treatments);
+    const newlyAddedTreatmentNames = newlyAddedTreatmentIndexes
       .map(index => form.treatments[index])
       .filter(Boolean);
     const newlyRemovedTreatmentNames = getRemovedTreatmentNames(bed.treatments || [], form.treatments);
@@ -10738,11 +10803,14 @@
     );
     const nextIndexBase = form.treatments.length ? Math.min(bed.currentIndex || 0, form.treatments.length - 1) : 0;
     const preservedRunningIndex = bed.running ? findMatchingTreatmentGroupIndex(bed.treatments || [], form.treatments, bed.currentIndex || 0) : -1;
-    const nextIdx = preservedRunningIndex >= 0
+    const completedBedAddedIndex = bed.complete && newlyAddedTreatmentIndexes.length ? newlyAddedTreatmentIndexes[0] : -1;
+    const nextIdx = completedBedAddedIndex >= 0
+      ? completedBedAddedIndex
+      : preservedRunningIndex >= 0
       ? preservedRunningIndex
       : (form.treatments.length ? Math.max(0, getNextPendingTreatmentIndex(form.treatments, nextIndexBase, preCompletedTreatmentIndexes)) : 0);
     const nextTreatment = form.treatments[nextIdx] || '';
-    const treatmentChanged = preservedRunningIndex < 0 && (currentTreatment !== nextTreatment || !form.treatments.length);
+    const treatmentChanged = completedBedAddedIndex >= 0 || (preservedRunningIndex < 0 && (currentTreatment !== nextTreatment || !form.treatments.length));
     const nextTotal = nextTreatment ? getConcurrentTreatmentSeconds(form.treatments, nextIdx) : 0;
     const timerUpdates = treatmentChanged ? {
       currentIndex: nextIdx,
@@ -11115,11 +11183,60 @@
     });
   }
 
+  function hasBedTreatmentStarted(bed = {}) {
+    const preCompleted = normalizePreCompletedTreatmentIndexes(bed.preCompletedTreatmentIndexes || [], bed.treatments || []);
+    const currentIndex = Number(bed.currentIndex || 0);
+    const remaining = Number(bed.remaining || 0);
+    const total = Number(bed.total || 0);
+    return Boolean(
+      bed.running ||
+      bed.complete ||
+      currentIndex > 0 ||
+      preCompleted.length ||
+      (total > 0 && remaining > 0 && remaining < total)
+    );
+  }
+
+  function getBedAssignmentAlertForPatient(patientKey) {
+    if (!patientKey) return null;
+    return [...bedAssignmentAlertItems.entries()]
+      .map(([key, data]) => ({ key, ...(data || {}) }))
+      .filter(item => String(item.patientKey || '') === String(patientKey))
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))[0] || null;
+  }
+
+  async function remapBedAssignmentAlertForMovedPatient(patientKey, bed, toBedNo) {
+    if (!patientKey || !bed || !toBedNo || Number(toBedNo) >= 101) return;
+    if (hasBedTreatmentStarted(bed)) return;
+    const alert = getBedAssignmentAlertForPatient(patientKey);
+    if (!alert?.key) return;
+    const patch = {
+      bedNo: Number(toBedNo),
+      bedLabel: getBedLabel(toBedNo),
+      patientName: bed.name || alert.patientName || '',
+      doctorId: bed.doctorId || alert.doctorId || '',
+      doctorName: bed.doctorName || alert.doctorName || '',
+      nurseId: bed.nurseId || alert.nurseId || '',
+      nurseName: bed.nurseName || alert.nurseName || '',
+      message: `${getBedLabel(toBedNo)} ${bed.name || alert.patientName || '환자'} 배정`
+    };
+    if (alert.bedNo) delete fixedBedArrivalAcknowledgedByBed[Number(alert.bedNo)];
+    bedAssignmentAlertItems.set(alert.key, { ...alert, ...patch });
+    delete fixedBedArrivalAcknowledgedByBed[Number(toBedNo)];
+    renderUpcomingAlerts();
+    renderBedMonitors();
+    syncFixedBedArrivalOverlay();
+    await updateLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, alert.key, patch);
+  }
+
   window.moveOrSwapBed = async (fromBedNo, toBedNo) => {
     if (fromBedNo === toBedNo) return false;
 
     const fromBed = getBedData(fromBedNo);
     if (!fromBed) return false;
+    const targetBedBefore = getBedData(toBedNo);
+    const movingFromPatientKey = fromBed.patientKey || '';
+    const movingToPatientKey = targetBedBefore?.patientKey || '';
     const hadTargetBed = Boolean(getBedData(toBedNo));
 
     const result = await runBedsRecordTransaction((beds) => {
@@ -11162,6 +11279,22 @@
         ));
       }
       if (assignmentAlertPromises.length) await Promise.all(assignmentAlertPromises);
+      const remapAssignmentPromises = [];
+      if (movingFromPatientKey && Number(toBedNo) < 101) {
+        remapAssignmentPromises.push(remapBedAssignmentAlertForMovedPatient(
+          movingFromPatientKey,
+          movedBeds[String(toBedNo)],
+          Number(toBedNo)
+        ));
+      }
+      if (movingToPatientKey && Number(fromBedNo) < 101) {
+        remapAssignmentPromises.push(remapBedAssignmentAlertForMovedPatient(
+          movingToPatientKey,
+          movedBeds[String(fromBedNo)],
+          Number(fromBedNo)
+        ));
+      }
+      if (remapAssignmentPromises.length) await Promise.all(remapAssignmentPromises);
       remapLocalAlertBedNo(movedBeds[String(fromBedNo)]?.lastAlertId, fromBedNo);
       remapLocalAlertBedNo(movedBeds[String(toBedNo)]?.lastAlertId, toBedNo);
       showToast(hadTargetBed
@@ -11335,7 +11468,7 @@
   let selectedBedTreatmentChip = null;
 
   function bedTreatmentChipAttrs(bedNo, index) {
-    return `data-complete-click="true" onclick="handleBedTreatmentChipClick(event,${bedNo},${index})" title="클릭하면 이 치료를 완료 처리합니다"`;
+    return `data-complete-click="true" onclick="handleBedTreatmentChipClick(event,${bedNo},${index})" title="클릭하면 이 치료를 완료/미완료 처리합니다"`;
   }
 
   async function swapTreatmentInBed(bedNo, fromIndex, toIndex) {
@@ -11385,16 +11518,10 @@
       return;
     }
 
-    if (bed.complete) return;
-
     const treatments = [...(bed.treatments || [])];
     const currentIndex = Math.max(0, Math.min(treatments.length - 1, Number(bed.currentIndex || 0)));
     const groupStart = getConcurrentTreatmentStartIndex(treatments, index);
     const groupEnd = getConcurrentTreatmentEndIndex(treatments, groupStart);
-    if (groupEnd < currentIndex) {
-      showToast('이미 완료된 치료입니다');
-      return;
-    }
 
     const preCompletedSet = getPreCompletedTreatmentIndexSet(bed, treatments);
     let alreadyCompleted = true;
@@ -11405,6 +11532,50 @@
       }
     }
     if (alreadyCompleted) {
+      for (let groupIndex = groupStart; groupIndex <= groupEnd; groupIndex += 1) {
+        preCompletedSet.delete(groupIndex);
+      }
+      const preCompletedTreatmentIndexes = normalizePreCompletedTreatmentIndexes([...preCompletedSet], treatments);
+      const uncompletedLabel = formatTreatmentNames(treatments.slice(groupStart, groupEnd + 1)) || treatments[index] || '치료';
+      const shouldReturnToGroup = bed.complete || groupEnd < currentIndex;
+      const timerPatch = shouldReturnToGroup
+        ? {
+            currentIndex: groupStart,
+            total: getConcurrentTreatmentSeconds(treatments, groupStart),
+            remaining: getConcurrentTreatmentSeconds(treatments, groupStart),
+            running: false,
+            startedAt: null,
+            complete: false,
+            lastAlertId: null,
+            lastAlertMessage: null,
+            doctorProcedureAlert: null
+          }
+        : {
+            complete: false
+          };
+
+      try {
+        await updateBedRecord(bedNo, {
+          preCompletedTreatmentIndexes,
+          ...timerPatch
+        });
+        if (bed.patientKey) {
+          await updatePatient(bed.patientKey, { preCompletedTreatmentIndexes });
+        }
+        clearLocalTimerAlertsForBed(bedNo);
+        showToast(`${uncompletedLabel} 미완료 처리`);
+      } catch (e) {
+        console.error(e);
+        showToast('치료 미완료 처리 실패');
+      }
+      renderBedMonitors();
+      renderBedDetail();
+      renderReceiveBedDetail();
+      return;
+    }
+
+    if (bed.complete) return;
+    if (groupEnd < currentIndex) {
       showToast('이미 완료된 치료입니다');
       return;
     }
@@ -11727,9 +11898,7 @@
       const treatmentClass = getTreatmentBadgeClass(treatment);
       const runningClass = shouldBlinkTreatmentChip(status.treatments, status.currentIndex, index, status.stageState === 'running') ? ' running' : '';
       const addedClass = addedIndexes.has(index) ? ' added' : '';
-      const content = addedIndexes.has(index)
-        ? `<span class="added-treatment-plus">+</span>${escapeHtml(treatment)}`
-        : escapeHtml(treatment);
+      const content = escapeHtml(treatment);
       return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${addedClass}">${content}</span>`;
     }).join('') : '<span class="bed-treatment-chip waiting">치료 미선택</span>';
     const densityClass = status.treatments.length >= 9
@@ -11785,6 +11954,18 @@
   }
   window.renderBedMonitors = renderBedMonitors;
 
+  function getBedStatusInfoDensityClass(values = []) {
+    const totalLength = values.reduce((sum, value) => sum + String(value || '').length, 0);
+    if (totalLength >= 24) return ' ultra-dense-chips';
+    if (totalLength >= 19) return ' dense-chips';
+    if (totalLength >= 15) return ' tight-chips';
+    return '';
+  }
+
+  function bedStatusInfoChip(text, cls = '') {
+    return `<span class="bed-meta-chip${cls}">${escapeHtml(text)}</span>`;
+  }
+
   function renderBedStatusCard(status, context) {
     const isReceive = context === 'receive';
     const isInput = context === 'input';
@@ -11822,15 +12003,19 @@
       : '';
     // 우클릭 → 기록 없이 삭제(베드 비우기와 달리 patient DB에 남기지 않음)
     const contextHandler = canMoveBed ? ` oncontextmenu="purgeBedPatient(event, ${status.bedNo})"` : '';
-    const infoChips = [
-      status.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(status.gender)}</span>` : '',
-      getInsuranceChipLabel(status.insuranceType) ? `<span class="bed-meta-chip bed-meta-chip--insurance">${escapeHtml(getInsuranceChipLabel(status.insuranceType))}</span>` : '',
-      status.doctorName ? `<span class="bed-meta-chip">${escapeHtml(status.doctorName)}</span>` : '',
-      status.nurseName ? `<span class="bed-meta-chip">${escapeHtml(status.nurseName)}</span>` : '',
-      status.appointmentDate
-        ? `<span class="bed-meta-chip">${escapeHtml(formatAppointmentChipDate(status.appointmentDate, status.appointmentDateCount + (status.appointmentUndecided ? 1 : 0)))}</span>`
-        : (status.appointmentUndecided ? `<span class="bed-meta-chip">미정</span>` : ''),
-    ].filter(Boolean).join('');
+    const insuranceChipLabel = getInsuranceChipLabel(status.insuranceType);
+    const appointmentChipLabel = status.appointmentDate
+      ? formatAppointmentChipDate(status.appointmentDate, status.appointmentDateCount + (status.appointmentUndecided ? 1 : 0))
+      : (status.appointmentUndecided ? '미정' : '');
+    const infoChipItems = [
+      status.gender ? { text: status.gender, cls: ' bed-meta-chip--fixed' } : null,
+      insuranceChipLabel ? { text: insuranceChipLabel, cls: ' bed-meta-chip--insurance' } : null,
+      status.doctorName ? { text: status.doctorName, cls: '' } : null,
+      status.nurseName ? { text: status.nurseName, cls: '' } : null,
+      appointmentChipLabel ? { text: appointmentChipLabel, cls: '' } : null,
+    ].filter(Boolean);
+    const infoDensityClass = getBedStatusInfoDensityClass(infoChipItems.map(item => item.text));
+    const infoChips = infoChipItems.map(item => bedStatusInfoChip(item.text, item.cls)).join('');
     const staffHtml = [
       status.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">메모있음</span>` : ''
     ].filter(Boolean).join('');
@@ -11841,7 +12026,7 @@
           <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(monitorLabel)} ${escapeHtml(status.name)}`}</span>
           ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
-        ${compact ? '' : (infoChips ? `<div class="bed-status-info">${infoChips}</div>` : '')}
+        ${compact ? '' : (infoChips ? `<div class="bed-status-info${infoDensityClass}">${infoChips}</div>` : '')}
         ${compact ? '' : (staffHtml ? `<div class="bed-status-treatment">${staffHtml}</div>` : '')}
         ${compact ? '' : renderBedPopover(status)}
       </div>`;
@@ -12163,6 +12348,17 @@
     if (alertListBeepTimer) clearInterval(alertListBeepTimer);
     alertListBeepTimer = null;
     alertListBeepIntervalMs = 0;
+  }
+
+  function startFixedDoctorRoomAlertBeeps(playNow = false) {
+    if (playNow) playSoftTimerChime();
+    if (fixedDoctorRoomAlertBeepTimer) return;
+    fixedDoctorRoomAlertBeepTimer = setInterval(playSoftTimerChime, FIXED_DOCTOR_ROOM_ALERT_AUDIO_MS);
+  }
+
+  function stopFixedDoctorRoomAlertBeeps() {
+    if (fixedDoctorRoomAlertBeepTimer) clearInterval(fixedDoctorRoomAlertBeepTimer);
+    fixedDoctorRoomAlertBeepTimer = null;
   }
 
   function updateAlertListAudioState() {
@@ -13356,7 +13552,6 @@
     const assignmentAlert = getBedAssignmentAlertForBed(bedNo);
     const patientKey = String(assignmentAlert?.patientKey || bedPatientKey || assignmentAlert?.key || '');
     if (!assignmentAlert || !patientKey) {
-      if (overlay.classList.contains('show') && fixedBedArrivalVisibleAlertKey) return;
       delete fixedBedArrivalAcknowledgedByBed[bedNo];
       hideFixedBedArrivalOverlay();
       return;
