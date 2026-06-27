@@ -7292,7 +7292,6 @@
       gender: bed.gender || '',
       visitType: bed.visitType || '',
       chiefComplaint: bed.chiefComplaint || '',
-      memo: bed.memo || '',
       treatments: Array.isArray(bed.treatments) ? bed.treatments : [],
       bodyParts: normalizeBodyParts(bed.bodyParts)
     }, appointmentDates, isUndecided);
@@ -7555,7 +7554,6 @@
           gender: payload.gender || '',
           visitType: payload.visitType || '',
           chiefComplaint: payload.chiefComplaint || '',
-          memo: payload.memo || '',
           memo1: payload.memo1 || '',
           memo2: payload.memo2 || '',
           treatments: payload.treatments || [],
@@ -8840,7 +8838,6 @@
       chartNo: normalizeChartNo(data.chartNo),
       visitType: data.visitType || '',
       chiefComplaint: data.chiefComplaint || '',
-      memo: data.memo || '',
       memo1: data.memo1 || '',
       memo2: data.memo2 || '',
       memo1Original: data.memo1 || '',
@@ -9251,7 +9248,6 @@
         gender: patient.gender || '',
         visitType: patient.visitType || '',
         chiefComplaint: patient.chiefComplaint || '',
-        memo: patient.memo || '',
         memo1: assignedBed?.memo1 || patient.memo1 || '',
         memo2: assignedBed?.memo2 || patient.memo2 || '',
         treatments: assignedBed?.treatments || patient.treatments || [],
@@ -11289,7 +11285,6 @@
         gender: bed.gender || '',
         visitType: bed.visitType || '',
         chiefComplaint: bed.chiefComplaint || '',
-        memo: patient?.memo || bed.memo || '',
         memo1: bed.memo1 || '',
         memo2: bed.memo2 || '',
         treatments: bed.treatments || [],
@@ -12116,7 +12111,7 @@
       appointmentDateCount: appointmentDates.length,
       appointmentUndecided: Boolean(patient?.appointmentUndecided),
       chiefComplaint: bed.chiefComplaint || '',
-      memo: bed.memo || '',
+      memo2: bed.memo2 || '',
       bodyParts: normalizeBodyParts(bed.bodyParts),
       pCredits: getPCreditsFromPatient(bed.patientKey ? patientsByKey.get(bed.patientKey) : {})
     };
@@ -12259,7 +12254,7 @@
     const infoDensityClass = getBedStatusInfoDensityClass(infoChipItems.map(item => item.text));
     const infoChips = infoChipItems.map(item => bedStatusInfoChip(item.text, item.cls)).join('');
     const staffHtml = [
-      status.memo ? `<span class="bed-meta-chip bed-meta-chip--flex">메모있음</span>` : ''
+      status.memo2 ? `<span class="bed-meta-chip bed-meta-chip--flex">메모2있음</span>` : ''
     ].filter(Boolean).join('');
     const compactName = `${getCompactBedMarker(status.bedNo)} ${status.name}`;
     return `
@@ -13163,7 +13158,6 @@
       chartNo: normalizeChartNo(patient.chartNo),
       visitType: latestVisit.visitType || patient.visitType || '재진',
       chiefComplaint: latestVisit.chiefComplaint || patient.chiefComplaint || '',
-      memo: '',
       age: patient.age || '',
       gender: patient.gender || '',
       bodyParts: getRandomBodyPartsForRandomTest(),
@@ -13600,7 +13594,6 @@
         const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
         const record = {
           visitType: '',
-          memo: '',
           treatments: [],
           bodyParts: normalizeBodyParts(),
           doctorName: '',
