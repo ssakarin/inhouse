@@ -585,6 +585,10 @@
               <label>최근 치료부위<input class="text-input" id="editBodyPartsText" type="text" readonly></label>
             </div>
             <label>과거 주상병명<input class="text-input" id="editPastChiefComplaints" type="text" placeholder="과거 진료 기록의 다른 주상병명" readonly></label>
+            <div class="info-third-row">
+              <label>메모1<input class="text-input" id="editMemo1" type="text"></label>
+              <label>메모2<input class="text-input" id="editMemo2" type="text"></label>
+            </div>
             <div class="memo-row">
               <label class="memo-field">메모<textarea id="editMemo"></textarea></label>
               <div class="memo-actions">
@@ -1439,6 +1443,8 @@
     $("editPhone").value = getPatientPhone(patient);
     $("editAppointmentDate").value = formatAppointmentDates(patient);
     $("editMemo").value = patient.memo || "";
+    $("editMemo1").value = patient.memo1 || "";
+    $("editMemo2").value = patient.memo2 || "";
     activeVisitDates = visitDatesFromRecord(patient);
     activeVisitHistory = patient.visitHistory && typeof patient.visitHistory === "object" ? { ...patient.visitHistory } : {};
     selectedVisitDate = activeVisitDates[activeVisitDates.length - 1] || "";
@@ -1478,7 +1484,7 @@
   function clearEditor() {
     selectedChartNo = "";
     selectedPatientId = "";
-    ["editChartNo", "editName", "editAge", "editGender", "editInsuranceType", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editTreatmentsText", "editBodyPartsText"].forEach(id => { $(id).value = ""; });
+    ["editChartNo", "editName", "editAge", "editGender", "editInsuranceType", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo", "editMemo1", "editMemo2", "editTreatmentsText", "editBodyPartsText"].forEach(id => { $(id).value = ""; });
     activeVisitDates = [];
     activeVisitHistory = {};
     activeVisitMonth = new Date().toISOString().slice(0, 7);
@@ -1521,6 +1527,8 @@
       phone: $("editPhone").value.trim(),
       insuranceType: $("editInsuranceType").value.trim(),
       memo: $("editMemo").value.trim(),
+      memo1: $("editMemo1").value.trim(),
+      memo2: $("editMemo2").value.trim(),
       visitType: latestRecord.visitType || visitType || existing.visitType || "",
       visitDates,
       visitHistory,

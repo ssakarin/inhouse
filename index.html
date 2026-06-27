@@ -370,11 +370,12 @@
     align-content: flex-start;
   }
   #inputUpcomingAlerts {
-    max-height: 96px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-gutter: stable;
   }
+  .input-monitor-doctor-alert-card { display: none; }
+  .input-panel.input-form-open .input-monitor-doctor-alert-card { display: block; }
   .alert-card-title {
     display: flex;
     align-items: center;
@@ -976,6 +977,41 @@
   .doctor-alert-box-list .upcoming-main {
     font-size: 13px;
   }
+  .doctor-alert-box-list .doctor-room-alert-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+  .doctor-alert-box-list .doctor-room-alert-bed-chip,
+  .doctor-alert-box-list .doctor-room-alert-treatment-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .doctor-alert-box-list .doctor-room-alert-bed-chip {
+    background: rgba(255,202,106,0.16);
+    border: 1px solid rgba(255,202,106,0.68);
+    color: var(--gold);
+  }
+  .doctor-alert-box-list .doctor-room-alert-treatment-chip.upcoming-time.treatment-badge {
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    padding: 2px 8px;
+    overflow: visible;
+    text-overflow: clip;
+    font-size: 12px;
+  }
   body.app-mode-doctor .doctor-alert-split {
     display: none;
   }
@@ -1153,10 +1189,6 @@
   }
   .bed-edit-visible-grid .bed-memo-field {
     display: none;
-    min-height: 78px;
-    resize: vertical;
-    line-height: 1.45;
-    text-align: left;
   }
   .bed-memo-wrap.open .bed-memo-field { display: block; }
   .bed-edit-visible-grid .bed-submit-btn {
@@ -1317,9 +1349,33 @@
     color: var(--accent);
     background: rgba(57,169,245,0.12);
   }
-  body.app-mode-receive .nurse-quick-btn {
+  body.app-mode-receive .nurse-quick-btn,
+  body.app-mode-input .nurse-quick-btn.nurse-quick-btn-desk {
     display: inline-flex;
     align-items: center;
+  }
+  label.desk-auto-bed-toggle {
+    box-sizing: border-box;
+    margin-top: 0;
+    height: 32px;
+    padding: 0 12px;
+    gap: 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .desk-auto-bed-toggle .rr-setting-text {
+    font-size: 12px;
+  }
+  .desk-auto-bed-toggle .rr-switch {
+    width: 38px;
+    height: 20px;
+  }
+  .desk-auto-bed-toggle .rr-slider::before {
+    width: 16px;
+    height: 16px;
+  }
+  .desk-auto-bed-toggle .rr-switch input:checked + .rr-slider::before {
+    transform: translateX(18px);
   }
   .nurse-quick-popover {
     display: none;
@@ -1840,9 +1896,7 @@
     }
     body.app-mode-notify .doctor-alert-box-list {
       min-height: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
-      scrollbar-gutter: stable;
+      overflow: hidden;
     }
     body.app-mode-notify #receiveBedMonitor {
       height: 100%;
@@ -2896,6 +2950,11 @@
     background: rgba(167,139,250,0.18);
     border-color: rgba(167,139,250,0.55);
     color: rgb(196,181,253);
+  }
+  .bed-patient-summary-chip--memo-edited {
+    background: rgba(255,202,106,0.16);
+    border-color: rgba(255,202,106,0.55);
+    color: var(--gold);
   }
   .bed-time { font-size: 12px; color: var(--text3); }
   .bed-detail-info {
@@ -3957,6 +4016,14 @@
         <button type="button" class="desk-excel-add-btn" onclick="document.getElementById('deskChartImportInput').click()">엑셀추가</button>
         <input id="deskChartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
           onchange="importChartFileFromDesk(this.files?.[0]); this.value='';">
+        <button class="nurse-quick-btn nurse-quick-btn-desk" id="nurseQuickBtnDesk" type="button" onclick="toggleNurseQuickPopover(event)">간호사</button>
+        <label class="rr-setting desk-auto-bed-toggle">
+          <span class="rr-setting-text">자동배정</span>
+          <span class="rr-switch">
+            <input id="autoBedAssignEnabledDesk" type="checkbox" onchange="saveAutoBedAssignEnabled(this.checked)">
+            <span class="rr-slider"></span>
+          </span>
+        </label>
         <span class="header-wait-chip bed-count-chip" id="deskBedPatientCount">0/13</span>
         <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
         <span class="header-current-time" id="deskCurrentTime"></span>
@@ -4029,8 +4096,8 @@
                   <label class="segment-item"><input type="radio" name="gender" value="여"><span>여</span></label>
                 </div>
               </div>
-              <input class="name-input wide" id="chiefComplaint" type="text" placeholder="메모" maxlength="60" autocomplete="off">
-              <textarea class="name-input wide" id="memoInput" placeholder="메모" maxlength="120" rows="3" autocomplete="off"></textarea>
+              <input class="name-input wide" id="chiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
+              <textarea class="name-input wide" id="memoInput" placeholder="메모2" maxlength="120" rows="3" autocomplete="off"></textarea>
               <button class="submit-btn desk-submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
             </div>
           </div>
@@ -4062,13 +4129,15 @@
             <button type="button" class="alert-card-action" onclick="openDischargedPatientsPopup()">퇴실환자</button>
           </div>
           <div class="upcoming-list" id="inputUpcomingAlerts"></div>
-          <div class="doctor-alert-split" id="inputDoctorAlertSplit"></div>
         </div>
       </div>
 
       <div class="input-monitor-column">
         <div class="card">
           <div class="bed-monitor" id="inputBedMonitor"></div>
+        </div>
+        <div class="card input-monitor-doctor-alert-card">
+          <div class="doctor-alert-split" id="inputDoctorAlertSplit"></div>
         </div>
       </div>
     </div>
@@ -4105,8 +4174,8 @@
                     <label class="segment-item"><input type="radio" name="receiveGender" value="여"><span>여</span></label>
                   </div>
                 </div>
-                <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="메모" maxlength="60" autocomplete="off">
-                <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모" maxlength="120" rows="3" autocomplete="off"></textarea>
+                <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
+                <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모2" maxlength="120" rows="3" autocomplete="off"></textarea>
                 <button class="submit-btn receive-submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
               </div>
             </div>
@@ -4172,10 +4241,10 @@
                     </div>
                   </div>
                   <div class="bed-edit-visible-grid">
-                    <input class="name-input bed-chief-field" id="bedChiefComplaint" type="text" placeholder="메모" maxlength="60" autocomplete="off">
+                    <input class="name-input bed-chief-field" id="bedChiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
                     <div class="bed-memo-wrap" id="bedMemoWrap">
-                      <button class="bed-memo-toggle" id="bedMemoToggle" type="button" onclick="toggleBedMemoInput()">메모</button>
-                      <textarea class="name-input bed-memo-field" id="bedMemoInput" placeholder="메모" maxlength="300" rows="3" autocomplete="off"></textarea>
+                      <button class="bed-memo-toggle" id="bedMemoToggle" type="button" onclick="toggleBedMemoInput()">메모2</button>
+                      <input class="name-input bed-memo-field" id="bedMemoInput" type="text" placeholder="메모2" maxlength="300" autocomplete="off">
                     </div>
                     <button class="submit-btn bed-submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">확인</button>
                   </div>
@@ -4734,6 +4803,7 @@
     { id: 'pharmacopuncture_4',  name: '약침4',  icon: '④' },
     { id: 'pharmacopuncture_L',  name: '약침L',  icon: '🅛' },
     { id: 'pharmacopuncture_ja', name: '약침자', icon: '자' },
+    { id: 'icepack',             name: '아이스팩', icon: '🧊' },
     { id: 'taping',              name: '테이핑', icon: '테' },
     { id: 'sw',                  name: 'SW',     icon: 'SW' },
     { id: 'chuna_simple',        name: '단추',   icon: '🤲' },
@@ -6046,6 +6116,13 @@
     });
   }
 
+  function syncAutoBedAssignInputs() {
+    ['autoBedAssignEnabled', 'autoBedAssignEnabledDesk'].forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.checked = autoBedAssignEnabled;
+    });
+  }
+
   function getSortedStaff(type) {
     return [...staffByType[type].entries()]
       .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
@@ -6193,7 +6270,7 @@
   function getTreatmentBadgeClass(treatment) {
     const name = String(treatment || '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
-    if (name === '물리치료' || name === 'sw' || name === '테이핑') return 'treatment-physical';
+    if (name === '물리치료' || name === 'sw' || name === '아이스팩' || name === '테이핑') return 'treatment-physical';
     if (name === '적외선') return 'treatment-infrared';
     if (name === '침' || name === '전침') return 'treatment-acu';
     if (name === '건부항' || name === '습부항') return 'treatment-cupping';
@@ -6443,10 +6520,10 @@
 
   window.openNurseQuickPopover = () => {
     const popover = document.getElementById('nurseQuickPopover');
-    const button = document.getElementById('nurseQuickBtn');
     if (!popover) return;
     popover.classList.add('open');
-    button?.classList.add('active');
+    document.getElementById('nurseQuickBtn')?.classList.add('active');
+    document.getElementById('nurseQuickBtnDesk')?.classList.add('active');
     renderStaffControls();
     setTimeout(() => document.getElementById('nurseQuickNameInput')?.focus(), 0);
   };
@@ -6454,6 +6531,7 @@
   window.closeNurseQuickPopover = () => {
     document.getElementById('nurseQuickPopover')?.classList.remove('open');
     document.getElementById('nurseQuickBtn')?.classList.remove('active');
+    document.getElementById('nurseQuickBtnDesk')?.classList.remove('active');
   };
 
   window.toggleNurseQuickPopover = (event) => {
@@ -6523,8 +6601,7 @@
 
   migrateNode('settings/autoBedAssignEnabled', (value) => {
     autoBedAssignEnabled = Boolean(value);
-    const input = document.getElementById('autoBedAssignEnabled');
-    if (input) input.checked = autoBedAssignEnabled;
+    syncAutoBedAssignInputs();
     if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
   });
 
@@ -6607,6 +6684,7 @@
 
   window.saveAutoBedAssignEnabled = async (enabled) => {
     autoBedAssignEnabled = Boolean(enabled);
+    syncAutoBedAssignInputs();
     await setLocalNode('settings/autoBedAssignEnabled', autoBedAssignEnabled);
     if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
     showToast(enabled ? '베드 자동배정 켜짐' : '베드 자동배정 꺼짐');
@@ -6684,8 +6762,8 @@
     if (scope === 'desk') syncInitialVisitTreatment('desk');
     const name = document.getElementById(ids.name).value.trim();
     const chartNo = normalizeChartNo(document.getElementById(ids.chartNo).value);
-    const chiefComplaint = document.getElementById(ids.chiefComplaint).value.trim();
-    const memo = document.getElementById(ids.memo).value.trim();
+    const memo1 = document.getElementById(ids.chiefComplaint).value.trim();
+    const memo2 = document.getElementById(ids.memo).value.trim();
     const age = document.getElementById(ids.age).value.trim();
     const visitType = document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진';
     const gender = document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남';
@@ -6711,6 +6789,7 @@
       showToast(`${duplicatePatient.name || name} 이미 ${duplicatePatient.location || '등록'}에 있습니다`);
       return;
     }
+    const lastVisitDate = isSameChartPatient ? getPatientLatestVisitDate(selectedChartPatient) : '';
     if (!doctor.id && selectedChartPatientByScope[scope]?.doctorName) {
       doctor = getFirstActiveDoctor();
     }
@@ -6732,8 +6811,6 @@
         insuranceType,
         chartNo,
         visitType,
-        chiefComplaint,
-        memo,
         age: age ? Number(age) : '',
         gender,
         bodyParts: normalizeBodyParts(formBodyPartsByScope[scope]),
@@ -6741,6 +6818,9 @@
         doctorName: doctor.name,
         nurseId: nurse.id,
         nurseName: nurse.name,
+        lastVisitDate,
+        memo1,
+        memo2,
         ...packagePayload
       });
 
@@ -6800,8 +6880,8 @@
       ids,
       name: document.getElementById(ids.name).value.trim(),
       chartNo: normalizeChartNo(document.getElementById(ids.chartNo).value),
-      chiefComplaint: document.getElementById(ids.chiefComplaint).value.trim(),
-      memo: document.getElementById(ids.memo).value.trim(),
+      memo1: document.getElementById(ids.chiefComplaint).value.trim(),
+      memo2: document.getElementById(ids.memo).value.trim(),
       age: document.getElementById(ids.age).value.trim(),
       visitType: document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진',
       gender: document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남',
@@ -6835,8 +6915,8 @@
     setSelectedChartPatient(scope, bed?.patientId ? bed : null);
     document.getElementById(ids.name).value = bed?.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
-    document.getElementById(ids.chiefComplaint).value = bed?.chiefComplaint || '';
-    document.getElementById(ids.memo).value = bed?.memo || '';
+    document.getElementById(ids.chiefComplaint).value = bed?.memo1 || '';
+    document.getElementById(ids.memo).value = bed?.memo2 || '';
     document.getElementById(ids.age).value = bed?.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed?.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed?.gender || '남'}"]`)?.click();
@@ -6927,8 +7007,8 @@
     setIdentityFieldsLocked('bed', true);
     document.getElementById(ids.name).value = bed.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed.chartNo);
-    document.getElementById(ids.chiefComplaint).value = bed.chiefComplaint || '';
-    document.getElementById(ids.memo).value = bed.memo || '';
+    document.getElementById(ids.chiefComplaint).value = bed.memo1 || '';
+    document.getElementById(ids.memo).value = bed.memo2 || '';
     document.getElementById(ids.age).value = bed.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed.gender || '남'}"]`)?.click();
@@ -6951,7 +7031,7 @@
     if (wrap) wrap.classList.toggle('open', Boolean(open));
     if (toggle) {
       toggle.classList.toggle('has-memo', Boolean(memo));
-      toggle.textContent = open ? '메모 닫기' : (memo ? '메모있음' : '메모');
+      toggle.textContent = open ? '메모2 닫기' : (memo ? '메모2있음' : '메모2');
     }
   }
 
@@ -7312,8 +7392,8 @@
         preCompletedTreatmentIndexes,
         chartNo: form.chartNo,
         visitType: form.visitType,
-        chiefComplaint: form.chiefComplaint,
-        memo: form.memo,
+        memo1: form.memo1,
+        memo2: form.memo2,
         age: form.age ? Number(form.age) : '',
         gender: form.gender,
         bodyParts: form.bodyParts,
@@ -7399,8 +7479,8 @@
       name: form.name,
       chartNo: form.chartNo,
       visitType: form.visitType,
-      chiefComplaint: form.chiefComplaint,
-      memo: form.memo,
+      memo1: form.memo1,
+      memo2: form.memo2,
       age: form.age ? Number(form.age) : '',
       gender: form.gender,
       bodyParts: form.bodyParts,
@@ -7448,8 +7528,8 @@
       name: form.name,
       chartNo: form.chartNo,
       visitType: form.visitType,
-      chiefComplaint: form.chiefComplaint,
-      memo: form.memo,
+      memo1: form.memo1,
+      memo2: form.memo2,
       age: form.age ? Number(form.age) : '',
       gender: form.gender,
       bodyParts: form.bodyParts,
@@ -7476,6 +7556,8 @@
           visitType: payload.visitType || '',
           chiefComplaint: payload.chiefComplaint || '',
           memo: payload.memo || '',
+          memo1: payload.memo1 || '',
+          memo2: payload.memo2 || '',
           treatments: payload.treatments || [],
           bodyParts: normalizeBodyParts(payload.bodyParts),
           doctorName: payload.doctorName || '',
@@ -7556,8 +7638,8 @@
         name: form.name,
         chartNo: form.chartNo,
         visitType: form.visitType,
-        chiefComplaint: form.chiefComplaint,
-        memo: form.memo,
+        memo1: form.memo1,
+        memo2: form.memo2,
         age: form.age ? Number(form.age) : '',
         gender: form.gender,
         bodyParts: form.bodyParts,
@@ -7580,6 +7662,7 @@
         await updatePatient(bed.patientKey,payload);
       }
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(bedNo);
+      await recordManualNurseAssignment(form.nurse.id, bed.nurseId);
       showToast(`${getBedLabel(bedNo)} 정보 저장 완료`);
       return true;
     } catch (e) {
@@ -8687,8 +8770,39 @@
     }
   }
 
+  async function recordManualNurseAssignment(newNurseId, previousNurseId) {
+    newNurseId = String(newNurseId || '');
+    previousNurseId = String(previousNurseId || '');
+    if (newNurseId === previousNurseId) return;
+    try {
+      const dateKey = getTodayKey();
+      const current = await localStateGet('settings/nurseRoundRobinState');
+      const baseState = current && typeof current === 'object' ? current : {};
+      const sameDate = String(baseState.lastDate || '') === dateKey;
+      const todayAssignments = sameDate && baseState.todayAssignments && typeof baseState.todayAssignments === 'object'
+        ? { ...baseState.todayAssignments }
+        : {};
+      if (previousNurseId) {
+        todayAssignments[previousNurseId] = Math.max(0, Number(todayAssignments[previousNurseId] || 0) - 1);
+      }
+      if (newNurseId) {
+        todayAssignments[newNurseId] = Number(todayAssignments[newNurseId] || 0) + 1;
+      }
+      const count = Object.values(todayAssignments).reduce((sum, value) => sum + Number(value || 0), 0);
+      await localStatePut('settings/nurseRoundRobinState', {
+        ...baseState,
+        lastDate: dateKey,
+        count,
+        todayAssignments,
+        updatedAt: Date.now()
+      });
+    } catch (e) {
+      console.error('간호사 수동배정 공정배정 카운터 갱신 실패', e);
+    }
+  }
+
   async function applyRoundRobinNurse(patientKey, data, bedNo) {
-    if (!nurseAutoAssignEnabled) {
+    if (!nurseAutoAssignEnabled || Number(bedNo) >= 101 || Number(bedNo) === 15) {
       const assignedData = { ...data, nurseId: '', nurseName: '' };
       await updateBedRecord(bedNo, {
         nurseId: '',
@@ -8708,12 +8822,15 @@
   }
 
   function createBedAssignment(patientKey, data, bedNo = null) {
-    const firstTreatment = data.treatments?.[0];
-    const total = firstTreatment ? getConcurrentTreatmentSeconds(data.treatments || [], 0) : 0;
+    const treatments = (data.treatments && data.treatments.length)
+      ? data.treatments
+      : (Number(bedNo) >= 101 ? ['진찰'] : (data.treatments || []));
+    const firstTreatment = treatments[0];
+    const total = firstTreatment ? getConcurrentTreatmentSeconds(treatments, 0) : 0;
     return {
       patientKey,
       name: data.name,
-      treatments: data.treatments || [],
+      treatments,
       addedTreatmentIndexes: [],
       preCompletedTreatmentIndexes: [],
       timeStr: data.timeStr || '',
@@ -8724,12 +8841,17 @@
       visitType: data.visitType || '',
       chiefComplaint: data.chiefComplaint || '',
       memo: data.memo || '',
+      memo1: data.memo1 || '',
+      memo2: data.memo2 || '',
+      memo1Original: data.memo1 || '',
+      memo2Original: data.memo2 || '',
       age: data.age || '',
       gender: data.gender || '',
       doctorId: data.doctorId || '',
       doctorName: data.doctorName || '',
       nurseId: '',
       nurseName: '',
+      lastVisitDate: data.lastVisitDate || '',
       bodyParts: data.bodyParts || { front: [], back: [] },
       currentIndex: 0,
       total,
@@ -9130,6 +9252,8 @@
         visitType: patient.visitType || '',
         chiefComplaint: patient.chiefComplaint || '',
         memo: patient.memo || '',
+        memo1: assignedBed?.memo1 || patient.memo1 || '',
+        memo2: assignedBed?.memo2 || patient.memo2 || '',
         treatments: assignedBed?.treatments || patient.treatments || [],
         bodyParts: normalizeBodyParts(assignedBed?.bodyParts || patient.bodyParts),
         doctorName: assignedBed?.doctorName || patient.doctorName || '',
@@ -9381,7 +9505,7 @@
     const getTreatmentBadgeClass = (treatment) => {
     const name = String(treatment || '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
-      if (name === '물리치료' || name === 'sw' || name === '테이핑') return 'treatment-physical';
+      if (name === '물리치료' || name === 'sw' || name === '아이스팩' || name === '테이핑') return 'treatment-physical';
     if (name === '적외선') return 'treatment-infrared';
     if (name === '침' || name === '전침') return 'treatment-acu';
       if (name === '건부항' || name === '습부항') return 'treatment-cupping';
@@ -9429,7 +9553,10 @@
     };
     const renderDoctorProcedureAlertHtml = (item) => `
       ${renderTreatmentAlertHtml(item)}`;
-    const renderSimpleDoctorProcedureAlertHtml = (item) => renderTreatmentAlertHtml(item, { main: item.bedLabel || '', nurseName: '' });
+    const renderSimpleDoctorProcedureAlertHtml = (item) => `
+      <div class="upcoming-item assignment no-dismiss doctor-alert-simple-item">
+        ${renderDoctorRoomAlertChips(item)}
+      </div>`;
     const renderDoctorAlertSplitHtml = () => {
       const doctors = getActiveDoctors().slice(0, 2);
       return Array.from({ length: 2 }, (_, index) => {
@@ -10241,8 +10368,10 @@
       if (insuranceLabel) chips.push(chip(insuranceLabel, ' bed-patient-summary-chip--insurance'));
       if (bed.age) chips.push(chip(`${bed.age}세`));
     }
-    if (bed.chiefComplaint) chips.push(chip(bed.chiefComplaint));
-    if (bed.memo) chips.push(chip('메모있음'));
+    const memo1Edited = bed.memo1 && bed.memo1 !== (bed.memo1Original || '');
+    const memo2Edited = bed.memo2 && bed.memo2 !== (bed.memo2Original || '');
+    if (bed.memo1) chips.push(chip(bed.memo1, memo1Edited ? ' bed-patient-summary-chip--memo-edited' : ''));
+    if (bed.memo2) chips.push(chip('메모2있음', memo2Edited ? ' bed-patient-summary-chip--memo-edited' : ''));
     return chips.join('');
   }
 
@@ -10274,11 +10403,24 @@
       </div>`;
   }
 
+  function formatRecentVisitDate(dateStr) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
+    if (!match) return '';
+    const [, yyyy, mm, dd] = match;
+    const month = Number(mm);
+    const day = Number(dd);
+    const currentYear = new Date().getFullYear();
+    if (Number(yyyy) === currentYear) return `${month}/${day}`;
+    return `${String(yyyy).slice(2)}/${month}/${day}`;
+  }
+
   function renderBedDetailPatientInfo(bed, bedNo, showClearButton = false, options = {}) {
     const patientSummary = getBedDetailPatientSummaryChips(bed, options.includeIdentity !== false);
+    const recentVisitLabel = formatRecentVisitDate(bed.lastVisitDate);
     const infoChips = [
       bed.doctorName || '-',
-      bed.nurseName || '-'
+      bed.nurseName || '-',
+      ...(recentVisitLabel ? [`최근 ${recentVisitLabel}`] : [])
     ].map(value => `<span class="bed-meta-chip">${escapeHtml(value)}</span>`).join('');
     const showMovePanel = showClearButton && contextIsBedMoveTarget(bedNo);
     const actionButtons = showClearButton ? `
@@ -10475,7 +10617,7 @@
   }
 
   // 타이머 불필요 치료 (시행완료 버튼만 표시)
-  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선', '테이핑']);
+  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선', '아이스팩', '테이핑']);
   function isNoTimerTreatment(name) {
     if (!name) return false;
     if (NO_TIMER_TREATMENTS.has(name)) return true;
@@ -11148,6 +11290,8 @@
         visitType: bed.visitType || '',
         chiefComplaint: bed.chiefComplaint || '',
         memo: patient?.memo || bed.memo || '',
+        memo1: bed.memo1 || '',
+        memo2: bed.memo2 || '',
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
         doctorName: bed.doctorName || '',
@@ -11227,6 +11371,7 @@
       await removePatient(bed.patientKey);
     }
     await removeBedRecord(bedNo);
+    await recordManualNurseAssignment('', bed.nurseId);
     renderWaitingLists();
     renderBedMonitors();
     renderBedDetail();
@@ -11353,6 +11498,13 @@
         updatePatientBedNoForBed(fromBedNo, movedBeds[String(fromBedNo)]),
         updatePatientBedNoForBed(toBedNo, movedBeds[String(toBedNo)])
       ]);
+      const movedToTargetBed = movedBeds[String(toBedNo)];
+      if (nurseAutoAssignEnabled && Number(fromBedNo) >= 101 && Number(toBedNo) < 101 && movedToTargetBed?.patientKey && !movedToTargetBed.nurseId) {
+        const assignedData = await applyRoundRobinNurse(movedToTargetBed.patientKey, movedToTargetBed, Number(toBedNo));
+        if (assignedData.nurseId) {
+          await updatePatient(movedToTargetBed.patientKey, { nurseId: assignedData.nurseId, nurseName: assignedData.nurseName });
+        }
+      }
       const assignmentAlertPromises = [];
       if (Number(fromBedNo) >= 101 && movedBeds[String(fromBedNo)]?.patientKey) {
         assignmentAlertPromises.push(createBedAssignmentAlert(
@@ -12815,8 +12967,8 @@
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     document.getElementById(ids.name).value = patient.name || '';
     document.getElementById(ids.age).value = patient.age || '';
-    document.getElementById(ids.chiefComplaint).value = patient.chiefComplaint || '';
-    document.getElementById(ids.memo).value = patient.memo || '';
+    document.getElementById(ids.chiefComplaint).value = patient.memo1 || '';
+    document.getElementById(ids.memo).value = patient.memo2 || '';
     document.querySelector(`input[name="${ids.visitType}"][value="재진"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${patient.gender || '남'}"]`)?.click();
     setSelectedStaffByStoredValue('doctors', scope, patient);
@@ -13766,8 +13918,8 @@
     if (patient) {
       document.getElementById('patientName').value = patient.name || '';
       document.getElementById('ageInput').value = patient.age || '';
-      document.getElementById('chiefComplaint').value = patient.chiefComplaint || '';
-      document.getElementById('memoInput').value = patient.memo || '';
+      document.getElementById('chiefComplaint').value = patient.memo1 || '';
+      document.getElementById('memoInput').value = patient.memo2 || '';
       document.querySelector('input[name="visitType"][value="재진"]')?.click();
       document.querySelector(`input[name="gender"][value="${patient.gender || '남'}"]`)?.click();
       setSelectedStaffByStoredValue?.('doctors', 'desk', patient);
@@ -13878,7 +14030,7 @@
     }
     window.updateBedHeaderBedChip?.();
     window.updateBedRemainingChip?.();
-    if (mode !== 'receive') window.closeNurseQuickPopover?.();
+    if (mode !== 'receive' && mode !== 'input') window.closeNurseQuickPopover?.();
     if (mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
     window.updateReceiveAlertAudioState?.();
     if (mode === 'settings') { window.updateChartDbCount?.(); }
@@ -14037,8 +14189,7 @@
     setMode(getInitialMode(), false);
     setInputFormOpen(false);
     setReceiveFormOpen(false);
-    const autoBedAssignInput = document.getElementById('autoBedAssignEnabled');
-    if (autoBedAssignInput) autoBedAssignInput.checked = autoBedAssignEnabled;
+    syncAutoBedAssignInputs();
     syncNurseAutoAssignInputs();
     updateChartDbCount();
     document.querySelectorAll('input[name="visitType"]').forEach(input => {
@@ -14077,7 +14228,7 @@
     });
     document.addEventListener('click', event => {
       if (!document.getElementById('nurseQuickPopover')?.classList.contains('open')) return;
-      if (event.target.closest?.('#nurseQuickPopover, #nurseQuickBtn')) return;
+      if (event.target.closest?.('#nurseQuickPopover, #nurseQuickBtn, #nurseQuickBtnDesk')) return;
       closeNurseQuickPopover();
     });
   });
