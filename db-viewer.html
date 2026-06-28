@@ -585,6 +585,7 @@
               <label>최근 치료부위<input class="text-input" id="editBodyPartsText" type="text" readonly></label>
             </div>
             <label>과거 주상병명<input class="text-input" id="editPastChiefComplaints" type="text" placeholder="과거 진료 기록의 다른 주상병명" readonly></label>
+            <label>스파인 설정<input class="text-input" id="editSpineSettingsText" type="text" readonly></label>
             <div class="memo-row">
               <div class="memo-stack">
                 <label>메모1<input class="text-input" id="editMemo1" type="text"></label>
@@ -676,6 +677,20 @@
 
   function formatAppointmentDates(patient = {}) {
     return normalizeAppointmentDates(patient).join(", ");
+  }
+
+  function formatSpineSettingsText(patient = {}) {
+    const s = patient.spineSettings;
+    if (!s || typeof s !== "object") return "";
+    const parts = [];
+    if (Array.isArray(s.cervicalLevels) && s.cervicalLevels.length) parts.push(`경추 ${s.cervicalLevels.join("/")}`);
+    if (Array.isArray(s.lumbarLevels) && s.lumbarLevels.length) parts.push(`요추 ${s.lumbarLevels.join("/")}`);
+    if (s.cervicalForce != null && s.cervicalForce !== "") parts.push(`경추Force ${s.cervicalForce}`);
+    if (s.lumbarForce != null && s.lumbarForce !== "") parts.push(`요추Force ${s.lumbarForce}`);
+    if (s.condition === "ddd") parts.push("협착증(DDD)");
+    else if (s.condition === "hnp") parts.push("디스크(HNP)");
+    if (s.rotation != null && s.rotation !== "") parts.push(`회전 ${s.rotation}`);
+    return parts.join(" / ");
   }
 
   function disableAutocomplete(root = document) {
@@ -1443,6 +1458,7 @@
     $("editAppointmentDate").value = formatAppointmentDates(patient);
     $("editMemo1").value = patient.memo1 || "";
     $("editMemo2").value = patient.memo2 || "";
+    $("editSpineSettingsText").value = formatSpineSettingsText(patient);
     activeVisitDates = visitDatesFromRecord(patient);
     activeVisitHistory = patient.visitHistory && typeof patient.visitHistory === "object" ? { ...patient.visitHistory } : {};
     selectedVisitDate = activeVisitDates[activeVisitDates.length - 1] || "";
@@ -1482,7 +1498,7 @@
   function clearEditor() {
     selectedChartNo = "";
     selectedPatientId = "";
-    ["editChartNo", "editName", "editAge", "editGender", "editInsuranceType", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo1", "editMemo2", "editTreatmentsText", "editBodyPartsText"].forEach(id => { $(id).value = ""; });
+    ["editChartNo", "editName", "editAge", "editGender", "editInsuranceType", "editPhone", "editDoctorName", "editVisitType", "editChiefComplaint", "editPastChiefComplaints", "editAppointmentDate", "editMemo1", "editMemo2", "editSpineSettingsText", "editTreatmentsText", "editBodyPartsText"].forEach(id => { $(id).value = ""; });
     activeVisitDates = [];
     activeVisitHistory = {};
     activeVisitMonth = new Date().toISOString().slice(0, 7);

@@ -701,6 +701,15 @@
     opacity: 0.55;
     cursor: grabbing;
   }
+  .waiting-item.waiting-item--held {
+    cursor: pointer;
+    background: rgba(255,202,106,0.12);
+    border-color: rgba(255,202,106,0.5);
+  }
+  .waiting-item.waiting-item--held .waiting-rank {
+    background: rgba(255,202,106,0.22);
+    color: var(--gold);
+  }
   .waiting-rank {
     width: 24px;
     height: 24px;
@@ -2220,6 +2229,70 @@
     gap: 14px;
     margin: 6px 0 18px;
   }
+  .notif-popup.spine-settings-popup {
+    width: min(560px, calc(100vw - 32px));
+    max-width: min(560px, calc(100vw - 32px));
+    max-height: min(86vh, 720px);
+    overflow: auto;
+  }
+  .spine-settings-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin: 6px 0 18px;
+    text-align: left;
+  }
+  .spine-settings-section { display: grid; gap: 8px; }
+  .spine-settings-label {
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .spine-settings-toggle-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .spine-toggle-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    padding: 9px 12px;
+  }
+  .spine-toggle-btn.is-active {
+    border-color: rgb(74,222,128);
+    background: rgba(74,222,128,0.16);
+    color: rgb(74,222,128);
+  }
+  .spine-settings-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .spine-settings-field {
+    display: grid;
+    gap: 5px;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .spine-settings-field input[type="number"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    padding: 9px 8px;
+    text-align: center;
+  }
   .package-balance-strip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3087,15 +3160,18 @@
     padding: 10px 8px;
   }
   body.app-fixed-doctor-bed #bedPanel,
-  body.app-fixed-doctor-bed .bed-layout,
-  body.app-fixed-doctor-bed .bed-doctor-alert-panel {
+  body.app-fixed-doctor-bed .bed-layout {
     min-height: calc(100dvh - 76px);
   }
   body.app-fixed-doctor-bed .bed-layout {
     display: block;
     gap: 0;
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-panel.show {
+  /* 환자가 없을 때만 원장실 알림판이 전체 화면을 차지(두번째 화면) */
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-panel {
+    min-height: calc(100dvh - 76px);
+  }
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-panel.show {
     display: flex;
     flex-direction: column;
     gap: clamp(18px, 3vw, 32px);
@@ -3106,34 +3182,36 @@
     border-radius: 16px;
     background: var(--surface);
   }
-  body.app-fixed-doctor-bed #bodyMap,
-  body.app-fixed-doctor-bed #bedEditSection,
-  body.app-fixed-doctor-bed .bed-arrival-overlay,
-  body.app-fixed-doctor-bed .bed-workspace,
-  body.app-fixed-doctor-bed .bed-summary,
-  body.app-fixed-doctor-bed .bed-detail-info,
-  body.app-fixed-doctor-bed .bed-package-zone,
-  body.app-fixed-doctor-bed .bed-timer-zone,
-  body.app-fixed-doctor-bed .bed-schedule-zone {
+  /* 환자가 있을 때: 일반 베드 상세(첫번째 화면)를 보여주고, 원장실 알림판은 베드탭 드롭다운 형식 그대로(기본 크기) 유지 */
+  /* 환자가 없을 때: 원장실 알림판(두번째 화면)만 보여주고 일반 베드 상세는 숨김 */
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) #bodyMap,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) #bedEditSection,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-arrival-overlay,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-workspace,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-summary,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-detail-info,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-package-zone,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-timer-zone,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-schedule-zone {
     display: none !important;
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-head {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-head {
     flex: 0 0 auto;
     align-items: center;
     gap: clamp(14px, 3vw, 28px);
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-title {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-title {
     font-size: clamp(30px, 6vw, 64px);
     line-height: 1.1;
   }
-  body.app-fixed-doctor-bed .doctor-alert-btn {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .doctor-alert-btn {
     min-height: clamp(58px, 10vw, 92px);
     min-width: clamp(150px, 30vw, 280px);
     padding: 0 clamp(20px, 4vw, 44px);
     border-radius: 16px;
     font-size: clamp(24px, 5vw, 48px);
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-list {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-list {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
@@ -3141,25 +3219,25 @@
     min-height: 0;
     overflow-y: auto;
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-list .upcoming-item {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-list .upcoming-item {
     flex: 1 1 0;
     grid-template-columns: minmax(0, 1fr);
     min-height: clamp(110px, 18vh, 220px);
     padding: clamp(22px, 5vw, 54px);
     border-radius: 18px;
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-list .upcoming-item > div:not(.doctor-room-alert-chips) {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-list .upcoming-item > div:not(.doctor-room-alert-chips) {
     display: none;
   }
-  body.app-fixed-doctor-bed .doctor-room-alert-chips {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .doctor-room-alert-chips {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     gap: clamp(12px, 3vw, 28px);
   }
-  body.app-fixed-doctor-bed .doctor-room-alert-bed-chip,
-  body.app-fixed-doctor-bed .doctor-room-alert-treatment-chip {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .doctor-room-alert-bed-chip,
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .doctor-room-alert-treatment-chip {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3171,12 +3249,12 @@
     line-height: 1;
     white-space: nowrap;
   }
-  body.app-fixed-doctor-bed .doctor-room-alert-bed-chip {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .doctor-room-alert-bed-chip {
     background: rgba(255,202,106,0.18);
     border: 1.5px solid rgba(255,202,106,0.72);
     color: var(--gold);
   }
-  body.app-fixed-doctor-bed .doctor-room-alert-treatment-chip.upcoming-time.treatment-badge {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .doctor-room-alert-treatment-chip.upcoming-time.treatment-badge {
     width: auto;
     max-width: none;
     min-width: clamp(110px, 20vw, 240px);
@@ -3188,14 +3266,14 @@
     overflow: visible;
     text-overflow: clip;
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-list .empty-state {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-list .empty-state {
     flex: 1 1 auto;
     min-height: 70dvh;
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-list .empty-icon {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-list .empty-icon {
     font-size: clamp(42px, 9vw, 92px);
   }
-  body.app-fixed-doctor-bed .bed-doctor-alert-list .empty-text {
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-list .empty-text {
     font-size: clamp(30px, 6vw, 64px);
   }
   .timer-card {
@@ -4378,6 +4456,17 @@
   </div>
 </div>
 
+<!-- 스파인 설정 -->
+<div class="notif-overlay" id="spineSettingsOverlay" onclick="closeSpineSettingsPopup()">
+  <div class="notif-popup spine-settings-popup" onclick="event.stopPropagation()">
+    <div class="popup-name">스파인 설정</div>
+    <div class="spine-settings-form" id="spineSettingsForm"></div>
+    <div class="credit-popup-actions">
+      <button class="popup-close" type="button" onclick="closeSpineSettingsPopup()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <div class="notif-overlay" id="dischargedPatientsOverlay" onclick="closeDischargedPatientsPopup()">
   <div class="notif-popup discharged-popup" onclick="event.stopPropagation()">
     <div class="popup-name">오늘 퇴실환자</div>
@@ -4915,11 +5004,13 @@
   };
 
   function getBedLabel(bedNo) {
+    if (HOLD_BED_NUMBERS.includes(Number(bedNo))) return '다음 치료 대기';
     if (bedNo >= 101) return `원장실${bedNo - 100}`;
     return SPECIAL_BED_LABELS[bedNo] || `${bedNo}번`;
   }
 
   function getBedHeaderLabel(bedNo) {
+    if (HOLD_BED_NUMBERS.includes(Number(bedNo))) return '다음 치료 대기';
     if (bedNo >= 101) return `원장실${bedNo - 100}`;
     return SPECIAL_BED_LABELS[bedNo] || `${bedNo}번`;
   }
@@ -4944,6 +5035,10 @@
   }
   let bedAssignments = Array(BED_COUNT).fill(null);
   let doctorBedMap = {};  // key: 101~110, value: bed data
+  // 원장실/스파인실이 차있을 때 환자를 임시로 보관하는 비공개 베드(베드탭/그리드에 노출 안 됨).
+  // 목적지가 비워지면 자동으로 그쪽으로 옮긴다. (key: 901~920)
+  let holdBedMap = {};
+  const HOLD_BED_NUMBERS = Array.from({ length: 20 }, (_, i) => 901 + i);
 
   function getDoctorBedNumbers() {
     const count = Math.min(staffByType.doctors.size, 10);
@@ -4951,14 +5046,28 @@
   }
 
   function getBedData(bedNo) {
+    bedNo = Number(bedNo);
+    if (HOLD_BED_NUMBERS.includes(bedNo)) return holdBedMap[bedNo] || null;
     return bedNo >= 101 ? (doctorBedMap[bedNo] || null) : bedAssignments[bedNo - 1];
   }
 
-  // 일반 베드(1~15) + 원장실 베드(101~) 전체를 {bed, bedNo}로 반환
+  function findEmptyHoldBedNo() {
+    return HOLD_BED_NUMBERS.find(n => !holdBedMap[n]) || null;
+  }
+
+  function getHoldBedEntries() {
+    return Object.entries(holdBedMap)
+      .filter(([, bed]) => bed)
+      .map(([bedNo, bed]) => ({ bedNo: Number(bedNo), bed }))
+      .sort((a, b) => Number(a.bed.timestamp || 0) - Number(b.bed.timestamp || 0));
+  }
+
+  // 일반 베드(1~15) + 원장실 베드(101~) + 임시 보관 베드(901~) 전체를 {bed, bedNo}로 반환
   function getAllBedEntries() {
     return [
       ...bedAssignments.map((bed, index) => ({ bed, bedNo: index + 1 })).filter(e => e.bed),
-      ...Object.entries(doctorBedMap).map(([bedNo, bed]) => ({ bed, bedNo: Number(bedNo) })).filter(e => e.bed)
+      ...Object.entries(doctorBedMap).map(([bedNo, bed]) => ({ bed, bedNo: Number(bedNo) })).filter(e => e.bed),
+      ...getHoldBedEntries()
     ];
   }
 
@@ -5169,7 +5278,10 @@
     'pharmacopuncture_3',
     'pharmacopuncture_4',
     'pharmacopuncture_L',
-    'pharmacopuncture_ja'
+    'pharmacopuncture_ja',
+    'hotpack',
+    'physical_therapy',
+    'acupuncture'
   ]);
   let treatmentSelectionUid = 0;
 
@@ -5328,6 +5440,13 @@
     chip.innerHTML = `<span class="credit-chip-label">패키지</span>`;
     grid.appendChild(chip);
 
+    const spineChip = document.createElement('span');
+    spineChip.id = `spine-chip-${gridId}`;
+    spineChip.className = 'credit-chip';
+    spineChip.onclick = () => openSpineSettingsPopup(gridId);
+    spineChip.innerHTML = `<span class="credit-chip-label">스파인설정</span>`;
+    grid.appendChild(spineChip);
+
     // 칩 영역 삽입 (그리드 다음에)
     placeTreatmentChips(gridId);
     syncTreatBtnStates(gridId);
@@ -5411,6 +5530,182 @@
   function getPCreditsFromPatient(data = {}) {
     return getPCreditsFromPackages(getPackageStateFromPatient(data));
   }
+
+  // ── 스파인 설정 (환자별 저장, 패키지와 동일한 방식) ──────────────────
+  const SPINE_CERVICAL_LEVELS = ['C1-3', 'C2-4', 'C3-5', 'C4-6', 'C5-7', 'C6-T1'];
+  const SPINE_LUMBAR_LEVELS = ['L5-S1', 'L4-S1', 'L3-5', 'L2-5', 'L1-4', 'T12-L3'];
+  const SPINE_ROTATION_OPTIONS = [0, 2, 4, 6, 8];
+  const SPINE_CONDITION_OPTIONS = [
+    { key: 'ddd', label: '협착증(DDD)' },
+    { key: 'hnp', label: '디스크(HNP)' }
+  ];
+  const spineSettingsByGrid = {};
+  let activeSpineGridId = '';
+
+  function createEmptySpineSettings() {
+    return { cervicalLevels: [], lumbarLevels: [], cervicalForce: null, lumbarForce: null, condition: '', rotation: null };
+  }
+
+  function clampSpineForce(value, min, max) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return Math.round(Math.max(min, Math.min(max, num)) * 2) / 2;
+  }
+
+  function normalizeSpineSettings(value) {
+    const v = value && typeof value === 'object' ? value : {};
+    return {
+      cervicalLevels: Array.isArray(v.cervicalLevels) ? v.cervicalLevels.filter(x => SPINE_CERVICAL_LEVELS.includes(x)) : [],
+      lumbarLevels: Array.isArray(v.lumbarLevels) ? v.lumbarLevels.filter(x => SPINE_LUMBAR_LEVELS.includes(x)) : [],
+      cervicalForce: (v.cervicalForce === '' || v.cervicalForce == null) ? null : clampSpineForce(v.cervicalForce, 0.5, 16),
+      lumbarForce: (v.lumbarForce === '' || v.lumbarForce == null) ? null : clampSpineForce(v.lumbarForce, 0.5, 50),
+      condition: SPINE_CONDITION_OPTIONS.some(o => o.key === v.condition) ? v.condition : '',
+      rotation: (v.rotation === '' || v.rotation == null) ? null : (SPINE_ROTATION_OPTIONS.includes(Number(v.rotation)) ? Number(v.rotation) : null)
+    };
+  }
+
+  function getSpineSettingsFromPatient(data = {}) {
+    return normalizeSpineSettings(data?.spineSettings);
+  }
+
+  function getSpineSettingsForGrid(gridId) {
+    if (!spineSettingsByGrid[gridId]) spineSettingsByGrid[gridId] = createEmptySpineSettings();
+    return normalizeSpineSettings(spineSettingsByGrid[gridId]);
+  }
+
+  function hasAnySpineSetting(s) {
+    return Boolean(s.cervicalLevels.length || s.lumbarLevels.length || s.cervicalForce != null || s.lumbarForce != null || s.condition || s.rotation != null);
+  }
+
+  window.updateSpineChip = function(gridId, values = null) {
+    if (values !== null && values !== undefined) {
+      const popupOpenForGrid = activeSpineGridId === gridId && document.getElementById('spineSettingsOverlay')?.classList.contains('show');
+      if (!popupOpenForGrid) spineSettingsByGrid[gridId] = getSpineSettingsFromPatient(values);
+    }
+    const settings = getSpineSettingsForGrid(gridId);
+    const chip = document.getElementById(`spine-chip-${gridId}`);
+    if (chip) chip.classList.toggle('has-balance', hasAnySpineSetting(settings));
+    return settings;
+  };
+
+  function setSpineSettingsForGrid(gridId, value) {
+    const normalized = normalizeSpineSettings(value);
+    spineSettingsByGrid[gridId] = normalized;
+    window.updateSpineChip(gridId);
+    return normalized;
+  }
+
+  function resetSpineSettings(gridId) {
+    spineSettingsByGrid[gridId] = createEmptySpineSettings();
+    window.updateSpineChip(gridId);
+  }
+
+  async function persistSpineSettings(gridId) {
+    const spineSettings = getSpineSettingsForGrid(gridId);
+    const patientKey = getPatientKeyForCreditGrid(gridId);
+    if (patientKey) {
+      await updatePatient(patientKey, { spineSettings });
+      patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), spineSettings });
+      renderBedMonitors();
+    }
+    window.updateSpineChip(gridId);
+  }
+
+  window.openSpineSettingsPopup = function(gridId) {
+    activeSpineGridId = gridId;
+    const overlay = document.getElementById('spineSettingsOverlay');
+    if (!overlay) return;
+    renderSpineSettingsPopup();
+    overlay.classList.add('show');
+  };
+
+  window.closeSpineSettingsPopup = function() {
+    document.getElementById('spineSettingsOverlay')?.classList.remove('show');
+    activeSpineGridId = '';
+  };
+
+  function renderSpineSettingsPopup() {
+    const form = document.getElementById('spineSettingsForm');
+    if (!form || !activeSpineGridId) return;
+    const s = getSpineSettingsForGrid(activeSpineGridId);
+    form.innerHTML = `
+      <div class="spine-settings-section">
+        <div class="spine-settings-label">경추 6부위</div>
+        <div class="spine-settings-toggle-group">
+          ${SPINE_CERVICAL_LEVELS.map(level => `<button type="button" class="spine-toggle-btn${s.cervicalLevels.includes(level) ? ' is-active' : ''}" onclick="toggleSpineLevel('cervicalLevels','${level}')">${escapeHtml(level)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="spine-settings-section">
+        <div class="spine-settings-label">요추 6부위</div>
+        <div class="spine-settings-toggle-group">
+          ${SPINE_LUMBAR_LEVELS.map(level => `<button type="button" class="spine-toggle-btn${s.lumbarLevels.includes(level) ? ' is-active' : ''}" onclick="toggleSpineLevel('lumbarLevels','${level}')">${escapeHtml(level)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="spine-settings-row">
+        <label class="spine-settings-field">
+          <span>경추 Force</span>
+          <input type="number" id="spineCervicalForce" inputmode="decimal" step="0.5" min="0.5" max="16" value="${s.cervicalForce ?? ''}" onchange="setSpineForce('cervicalForce', this.value)">
+        </label>
+        <label class="spine-settings-field">
+          <span>요추 Force</span>
+          <input type="number" id="spineLumbarForce" inputmode="decimal" step="0.5" min="0.5" max="50" value="${s.lumbarForce ?? ''}" onchange="setSpineForce('lumbarForce', this.value)">
+        </label>
+      </div>
+      <div class="spine-settings-section">
+        <div class="spine-settings-label">협착증 / 디스크</div>
+        <div class="spine-settings-toggle-group">
+          ${SPINE_CONDITION_OPTIONS.map(opt => `<button type="button" class="spine-toggle-btn${s.condition === opt.key ? ' is-active' : ''}" onclick="toggleSpineCondition('${opt.key}')">${escapeHtml(opt.label)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="spine-settings-section">
+        <div class="spine-settings-label">회전</div>
+        <div class="spine-settings-toggle-group">
+          ${SPINE_ROTATION_OPTIONS.map(value => `<button type="button" class="spine-toggle-btn${s.rotation === value ? ' is-active' : ''}" onclick="toggleSpineRotation(${value})">${value}</button>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  window.toggleSpineLevel = async function(group, level) {
+    const gridId = activeSpineGridId;
+    if (!gridId) return;
+    const s = getSpineSettingsForGrid(gridId);
+    const list = new Set(s[group]);
+    if (list.has(level)) list.delete(level); else list.add(level);
+    setSpineSettingsForGrid(gridId, { ...s, [group]: [...list] });
+    await persistSpineSettings(gridId);
+    renderSpineSettingsPopup();
+  };
+
+  window.setSpineForce = async function(field, rawValue) {
+    const gridId = activeSpineGridId;
+    if (!gridId) return;
+    const s = getSpineSettingsForGrid(gridId);
+    const max = field === 'cervicalForce' ? 16 : 50;
+    const next = rawValue === '' ? null : clampSpineForce(rawValue, 0.5, max);
+    setSpineSettingsForGrid(gridId, { ...s, [field]: next });
+    await persistSpineSettings(gridId);
+    renderSpineSettingsPopup();
+  };
+
+  window.toggleSpineCondition = async function(key) {
+    const gridId = activeSpineGridId;
+    if (!gridId) return;
+    const s = getSpineSettingsForGrid(gridId);
+    const next = s.condition === key ? '' : key;
+    setSpineSettingsForGrid(gridId, { ...s, condition: next });
+    await persistSpineSettings(gridId);
+    renderSpineSettingsPopup();
+  };
+
+  window.toggleSpineRotation = async function(value) {
+    const gridId = activeSpineGridId;
+    if (!gridId) return;
+    const s = getSpineSettingsForGrid(gridId);
+    const next = s.rotation === value ? null : value;
+    setSpineSettingsForGrid(gridId, { ...s, rotation: next });
+    await persistSpineSettings(gridId);
+    renderSpineSettingsPopup();
+  };
 
   function applyPostTreatmentPackageBalances(packages = {}, bed = {}, usageDate = '') {
     const next = normalizePackageState(packages);
@@ -6305,6 +6600,10 @@
     if (!panel || !list) return;
 
     const isDoctorBed = Number(selectedBedNo) >= 101;
+    if (window.isFixedDoctorBedScreen?.()) {
+      const occupied = Boolean(getBedData(window.getFixedDoctorBedNoFromUrl?.()));
+      document.body.classList.toggle('app-fixed-doctor-bed-occupied', occupied);
+    }
     panel.classList.toggle('show', isDoctorBed);
     if (!isDoctorBed) {
       list.innerHTML = '';
@@ -6344,7 +6643,8 @@
     });
     const newIds = [...activeIds].filter(alertId => !seenFixedDoctorRoomAlertIds.has(alertId));
     activeIds.forEach(alertId => seenFixedDoctorRoomAlertIds.add(alertId));
-    if (activeIds.size) {
+    const roomOccupied = Boolean(getBedData(window.getFixedDoctorBedNoFromUrl?.()));
+    if (activeIds.size && !roomOccupied) {
       startFixedDoctorRoomAlertBeeps(fixedDoctorRoomAlertAudioInitialized && !markOnly && newIds.length > 0);
     } else {
       stopFixedDoctorRoomAlertBeeps();
@@ -6771,6 +7071,7 @@
     let nurse = getSelectedStaff('nurses', scope);
     let treatments = (treatmentSelections[ids.treatmentGrid] || []).map(s => s.name);
     const packagePayload = getPackagePayload(ids.treatmentGrid);
+    const spineSettings = getSpineSettingsForGrid(ids.treatmentGrid);
 
     if (!name) { showToast('❗ 성함을 입력해주세요'); return; }
     if (scope !== 'desk' && treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
@@ -6821,6 +7122,7 @@
         lastVisitDate,
         memo1,
         memo2,
+        spineSettings,
         ...packagePayload
       });
 
@@ -6843,6 +7145,7 @@
       if (scope === 'desk') window.clearChartLookupBadge?.();
       setSelectedChartPatient(scope, null);
       resetPCredits(ids.treatmentGrid);
+      resetSpineSettings(ids.treatmentGrid);
 
       showToast(`✅ ${name} 알림 전송 완료`);
       if (scope === 'desk') {
@@ -6888,6 +7191,7 @@
       bodyParts: normalizeBodyParts(formBodyPartsByScope[scope]),
       treatments,
       packagePayload: getPackagePayload(ids.treatmentGrid),
+      spineSettings: getSpineSettingsForGrid(ids.treatmentGrid),
       doctor,
       nurse
     };
@@ -6929,6 +7233,7 @@
     renderFormBodyPartSelector(scope);
     const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
     window.updateCreditChip?.(ids.treatmentGrid, patient || bed || {});
+    window.updateSpineChip?.(ids.treatmentGrid, patient || bed || {});
   }
   window.populatePatientForm = populatePatientForm;
 
@@ -7000,6 +7305,7 @@
       formBodyPartsByScope.bed = { front: [], back: [] };
       renderFormBodyPartSelector('bed');
       resetPCredits('bedTreatmentGrid');
+      resetSpineSettings('bedTreatmentGrid');
       setBedMemoOpen(false);
       return;
     }
@@ -7019,6 +7325,7 @@
     renderFormBodyPartSelector('bed');
     const bedPatient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
     window.updateCreditChip?.('bedTreatmentGrid', bedPatient || {});
+    window.updateSpineChip?.('bedTreatmentGrid', bedPatient || {});
     setBedMemoOpen(false);
   }
 
@@ -7393,6 +7700,7 @@
         visitType: form.visitType,
         memo1: form.memo1,
         memo2: form.memo2,
+        spineSettings: form.spineSettings,
         age: form.age ? Number(form.age) : '',
         gender: form.gender,
         bodyParts: form.bodyParts,
@@ -7403,7 +7711,7 @@
         ...form.packagePayload,
         credit: null
       };
-      const { credit, packages, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPatch } = patientPatch;
+      const { credit, packages, spineSettings, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPatch } = patientPatch;
 
       await updateBedRecord(selectedBedNo, {
         ...bedPatch,
@@ -7480,6 +7788,7 @@
       visitType: form.visitType,
       memo1: form.memo1,
       memo2: form.memo2,
+      spineSettings: form.spineSettings,
       age: form.age ? Number(form.age) : '',
       gender: form.gender,
       bodyParts: form.bodyParts,
@@ -7529,6 +7838,7 @@
       visitType: form.visitType,
       memo1: form.memo1,
       memo2: form.memo2,
+      spineSettings: form.spineSettings,
       age: form.age ? Number(form.age) : '',
       gender: form.gender,
       bodyParts: form.bodyParts,
@@ -7556,6 +7866,7 @@
           chiefComplaint: payload.chiefComplaint || '',
           memo1: payload.memo1 || '',
           memo2: payload.memo2 || '',
+          spineSettings: payload.spineSettings || {},
           treatments: payload.treatments || [],
           bodyParts: normalizeBodyParts(payload.bodyParts),
           doctorName: payload.doctorName || '',
@@ -7638,6 +7949,7 @@
         visitType: form.visitType,
         memo1: form.memo1,
         memo2: form.memo2,
+        spineSettings: form.spineSettings,
         age: form.age ? Number(form.age) : '',
         gender: form.gender,
         bodyParts: form.bodyParts,
@@ -7651,7 +7963,7 @@
         ...form.packagePayload,
         credit: null
       };
-      const { credit, packages, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPayload } = payload;
+      const { credit, packages, spineSettings, p6, p13, 'p자하거': pJahageo, 'p라인': pLine, ...bedPayload } = payload;
       await updateBedRecord(bedNo, {
         ...bedPayload,
         ...timerUpdates
@@ -8026,6 +8338,7 @@
     if (isClearingPatientDatabase) {
       bedAssignments = Array(BED_COUNT).fill(null);
       doctorBedMap = {};
+      holdBedMap = {};
       requestFullBoardRender();
       return;
     }
@@ -8042,6 +8355,10 @@
     for (let i = 1; i <= 10; i++) {
       if (beds[String(100 + i)]) doctorBedMap[100 + i] = beds[String(100 + i)];
     }
+    holdBedMap = {};
+    HOLD_BED_NUMBERS.forEach(n => {
+      if (beds[String(n)]) holdBedMap[n] = beds[String(n)];
+    });
     const autoAssignBedSignature = getAutoAssignBedSignatureFromBeds(beds);
     const autoAssignRelevantChange = !lastAutoAssignBedSignature || autoAssignBedSignature !== lastAutoAssignBedSignature;
     lastAutoAssignBedSignature = autoAssignBedSignature;
@@ -8055,6 +8372,7 @@
     syncDoctorProcedureAlerts();
     hasLoadedBedsOnce = true;
     if (allowAutoAssign && !migratedCount && autoAssignRelevantChange) await assignWaitingPatientsToBeds();
+    processHoldBedReleases();
     requestFullBoardRender();
     renderUpcomingAlerts();
     ensureBedTicker();
@@ -8159,7 +8477,7 @@
     return Math.max(0, Number(procedureMinutes || 0)) * 60;
   }
 
-  const SIMULTANEOUS_TREATMENTS = new Set(['침', '전침', '왕뜸', '전자뜸', '적외선']);
+  const SIMULTANEOUS_TREATMENTS = new Set(['침', '전침', '왕뜸', '전자뜸', '적외선', '핫팩', '물리치료']);
 
   function isSimultaneousTreatment(treatment) {
     return SIMULTANEOUS_TREATMENTS.has(String(treatment || '').trim());
@@ -8869,6 +9187,73 @@
     return index >= 0 ? 101 + index : null;
   }
 
+  // 치료가 끝나고 다음 치료로 넘어갈 때, 특정 치료 조합이면 전용 베드로 자동 이동.
+  // - 스파인, 또는 복추/단추 + 벤치 조합 → 스파인실(15번)이 비어 있으면 이동
+  // - 복추 또는 단추(벤치 없이) → 담당 원장의 원장실(첫 원장=101, 둘째 원장=102 ...)로 이동
+  async function maybeAutoMoveBedForNextTreatment(bedNo, nextBed) {
+    bedNo = Number(bedNo);
+    if (!nextBed || nextBed.complete || bedNo >= 101 || bedNo === 15) return;
+    const treatments = nextBed.treatments || [];
+    const idx = Number(nextBed.currentIndex || 0);
+    // 복추/단추/벤치/스파인은 SIMULTANEOUS_TREATMENTS에 없어 동시치료로 묶이지 않으므로,
+    // 동시치료 엔진(getConcurrentTreatmentNames) 대신 바로 앞뒤 항목까지 직접 확인한다.
+    const names = [treatments[idx - 1], treatments[idx], treatments[idx + 1]]
+      .filter(Boolean)
+      .map(name => String(name || '').trim());
+    const has = (name) => names.includes(name);
+    const hasBench = has('벤치');
+    const hasSpine = has('스파인');
+    const hasChunaTreatment = has('복추') || has('단추');
+
+    if (hasSpine || (hasChunaTreatment && hasBench)) {
+      if (!getBedData(15)) {
+        await window.moveOrSwapBed(bedNo, 15);
+      } else {
+        await moveToHoldBed(bedNo, 15);
+      }
+      return;
+    }
+
+    if (hasChunaTreatment && !hasBench) {
+      const docBedNo = getDoctorBedNoForPatient(nextBed.doctorId);
+      if (docBedNo) {
+        if (!getBedData(docBedNo)) {
+          await window.moveOrSwapBed(bedNo, docBedNo);
+        } else {
+          await moveToHoldBed(bedNo, docBedNo);
+        }
+      }
+    }
+  }
+
+  // 목적지(원장실/스파인실)가 차있어서 못 옮기는 경우, 빈 임시 베드에 잠시 보관해둔다.
+  async function moveToHoldBed(bedNo, pendingTargetBedNo) {
+    const holdBedNo = findEmptyHoldBedNo();
+    if (!holdBedNo) return; // 임시 베드도 다 찼으면 그냥 현재 자리에 둔다
+    const moved = await window.moveOrSwapBed(bedNo, holdBedNo);
+    if (moved) await updateBedRecord(holdBedNo, { pendingTargetBedNo });
+  }
+
+  // 베드 상태가 바뀔 때마다(applyBedsState) 호출 — 임시 베드에 있는 환자 중
+  // 목표 원장실/스파인실이 비어 있으면 그쪽으로 옮긴다. 같은 목적지를 기다리는 환자가
+  // 여럿이면 먼저 들어온(timestamp가 빠른) 환자부터 처리한다.
+  let isProcessingHoldBedReleases = false;
+  async function processHoldBedReleases() {
+    if (isProcessingHoldBedReleases) return;
+    isProcessingHoldBedReleases = true;
+    try {
+      for (const { bedNo, bed } of getHoldBedEntries()) {
+        const targetBedNo = Number(bed?.pendingTargetBedNo);
+        if (!targetBedNo) continue;
+        if (getBedData(targetBedNo)) continue;
+        const moved = await window.moveOrSwapBed(bedNo, targetBedNo);
+        if (moved) await updateBedRecord(targetBedNo, { pendingTargetBedNo: null });
+      }
+    } finally {
+      isProcessingHoldBedReleases = false;
+    }
+  }
+
   // 베드가 비워지거나 다른 환자로 바뀌면 배정 알림을 정리한다.
   // 단, 치료 시작 전 다른 일반 베드로 이동한 경우에는 알림도 환자를 따라 이동한다.
   function pruneStaleBedAssignmentAlerts() {
@@ -9019,7 +9404,8 @@
     let assignedCount = 0;
     const assignedPatientKeys = [
       ...bedAssignments.filter(Boolean).map(bed => bed.patientKey),
-      ...Object.values(doctorBedMap).map(bed => bed.patientKey)
+      ...Object.values(doctorBedMap).map(bed => bed.patientKey),
+      ...getHoldBedEntries().map(({ bed }) => bed.patientKey)
     ].filter(Boolean);
 
     const waitingPatients = getWaitingPatients(assignedPatientKeys);
@@ -9121,7 +9507,8 @@
   function getWaitingPatients(assignedPatientKeys = null) {
     const assignedKeys = assignedPatientKeys || [
       ...bedAssignments.filter(Boolean).map(bed => bed.patientKey),
-      ...Object.values(doctorBedMap).map(bed => bed.patientKey)
+      ...Object.values(doctorBedMap).map(bed => bed.patientKey),
+      ...getHoldBedEntries().map(({ bed }) => bed.patientKey)
     ];
 
     return [...patientsByKey.entries()]
@@ -9133,24 +9520,46 @@
     countDebugCounter('render-call', 'waitingLists');
     const waitingPatients = getWaitingPatients();
     updateDeskWaitChip(waitingPatients);
-    const html = waitingPatients.length
-      ? waitingPatients.map(([key, data], index) => {
-        const infoChips = [
-          data.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(data.gender)}</span>` : '',
-          data.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(data.age))}세</span>` : '',
-          data.doctorName ? `<span class="bed-meta-chip">${escapeHtml(data.doctorName)}</span>` : '',
-          data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : '',
+    const heldEntries = getHoldBedEntries();
+    const heldHtml = heldEntries
+      .map(({ bedNo, bed }) => {
+        // 복추/단추/벤치/스파인은 동시치료 엔진에 묶이지 않으므로 앞뒤 항목까지 같이 보여준다.
+        const heldTreatments = bed?.treatments || [];
+        const heldIdx = Number(bed?.currentIndex || 0);
+        const nextTreatmentNames = [...new Set([heldTreatments[heldIdx - 1], heldTreatments[heldIdx], heldTreatments[heldIdx + 1]]
+          .filter(Boolean)
+          .filter(name => ['복추', '단추', '벤치', '스파인'].includes(String(name).trim())))];
+        const nextTreatmentLabel = formatTreatmentNames(nextTreatmentNames.length ? nextTreatmentNames : [heldTreatments[heldIdx]]) || '다음 치료';
+        const heldChips = [
+          `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(nextTreatmentLabel)}</span>`,
+          bed?.doctorName ? `<span class="bed-meta-chip">${escapeHtml(bed.doctorName)}</span>` : ''
         ].filter(Boolean).join('');
         return `
-          <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" oncontextmenu="confirmPurgeWaitingPatient(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)">
-            <div class="waiting-rank">${index + 1}</div>
-            <div>
-              <div class="waiting-name">${escapeHtml(data.name)}</div>
-              ${infoChips ? `<div class="waiting-info">${infoChips}</div>` : ''}
-            </div>
-          </div>`;
-      }).join('')
-      : `<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">대기가 없습니다</div></div>`;
+        <div class="waiting-item waiting-item--held" id="held-${bedNo}" onclick="handleInputBedClick(${bedNo})">
+          <div class="waiting-rank">⏸</div>
+          <div>
+            <div class="waiting-name">${escapeHtml(bed?.name || '')}</div>
+            <div class="waiting-info">${heldChips}</div>
+          </div>
+        </div>`;
+      }).join('');
+    const waitingHtml = waitingPatients.map(([key, data], index) => {
+      const infoChips = [
+        data.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(data.gender)}</span>` : '',
+        data.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(data.age))}세</span>` : '',
+        data.doctorName ? `<span class="bed-meta-chip">${escapeHtml(data.doctorName)}</span>` : '',
+        data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : '',
+      ].filter(Boolean).join('');
+      return `
+        <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" oncontextmenu="confirmPurgeWaitingPatient(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)">
+          <div class="waiting-rank">${index + 1}</div>
+          <div>
+            <div class="waiting-name">${escapeHtml(data.name)}</div>
+            ${infoChips ? `<div class="waiting-info">${infoChips}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+    const html = (heldHtml + waitingHtml) || `<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">대기가 없습니다</div></div>`;
 
     ['inputWaitingList', 'receiveWaitingList'].forEach(id => {
       const list = document.getElementById(id);
@@ -9250,6 +9659,7 @@
         chiefComplaint: patient.chiefComplaint || '',
         memo1: assignedBed?.memo1 || patient.memo1 || '',
         memo2: assignedBed?.memo2 || patient.memo2 || '',
+        spineSettings: patient.spineSettings || {},
         treatments: assignedBed?.treatments || patient.treatments || [],
         bodyParts: normalizeBodyParts(assignedBed?.bodyParts || patient.bodyParts),
         doctorName: assignedBed?.doctorName || patient.doctorName || '',
@@ -9912,6 +10322,7 @@
     document.querySelector('input[name="gender"][value="남"]')?.click();
     window.clearChartLookupBadge?.();
     resetPCredits('treatmentGrid');
+    resetSpineSettings('treatmentGrid');
   }
 
   window.openDeskInputForm = () => {
@@ -10516,16 +10927,11 @@
       </div>`;
   }
 
-  function renderBedAlertCard(bedNo, bed, forceIdle = false) {
-    if (bed?.lastAlertId) {
-      return `<div class="bed-alert-card">
-        <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`)}</div>
-        <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
-      </div>`;
-    }
-    if (!forceIdle) return '';
-    return `<div class="bed-alert-card bed-alert-card--idle">
-      <div class="bed-alert-message">알림 없음</div>
+  function renderBedAlertCard(bedNo, bed) {
+    if (!bed?.lastAlertId) return '';
+    return `<div class="bed-alert-card">
+      <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`)}</div>
+      <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
     </div>`;
   }
 
@@ -10536,9 +10942,7 @@
       if (context === 'bed' && isFixedDoctorBedScreen() && getFixedDoctorBedNoFromUrl() === Number(bedNo)) {
         return `
           <div class="card bed-detail-card--bed">
-            <div class="bed-info-zone">
-              ${renderBedAlertCard(bedNo, null, true)}
-            </div>
+            <div class="bed-info-zone"></div>
           </div>`;
       }
       return `
@@ -10550,7 +10954,6 @@
 
     const currentTreatment = bed.treatments?.[bed.currentIndex];
     if (context === 'bed') {
-      const doctorBedAlertOnly = isFixedDoctorBedScreen() && getFixedDoctorBedNoFromUrl() === Number(bedNo);
       return `
         <div class="card bed-detail-card--bed">
           <div class="bed-info-zone">
@@ -10564,11 +10967,7 @@
               <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
             </div>
             ${renderBedDetailPatientInfo(bed, bedNo, allowControls, { includeIdentity: false })}
-            ${bed.lastAlertId ? `<div class="bed-alert-card">
-              <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`)}</div>
-              <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
-            </div>` : ''}
-            ${!bed.lastAlertId ? renderBedAlertCard(bedNo, bed, doctorBedAlertOnly) : ''}
+            ${renderBedAlertCard(bedNo, bed)}
           </div>
           ${renderBedPackageBalanceBox(bed)}
           <div class="bed-timer-zone">
@@ -10613,7 +11012,7 @@
   }
 
   // 타이머 불필요 치료 (시행완료 버튼만 표시)
-  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선', '아이스팩', '테이핑']);
+  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선', '아이스팩', '테이핑', '벤치']);
   function isNoTimerTreatment(name) {
     if (!name) return false;
     if (NO_TIMER_TREATMENTS.has(name)) return true;
@@ -11168,7 +11567,7 @@
     } else {
       // 다음 치료로 이동
       const nextTotal = getConcurrentTreatmentSeconds(treatments, nextIndex);
-      await updateBedRecord(bedNo, {
+      const nextBedPatch = {
         currentIndex: nextIndex,
         running: false,
         startedAt: null,
@@ -11178,7 +11577,9 @@
         lastAlertId: null,
         lastAlertMessage: null,
         doctorProcedureAlert: null
-      });
+      };
+      await updateBedRecord(bedNo, nextBedPatch);
+      await maybeAutoMoveBedForNextTreatment(bedNo, { ...bed, ...nextBedPatch });
     }
     clearLocalTimerAlertsForBed(bedNo);
   };
@@ -11287,6 +11688,7 @@
         chiefComplaint: bed.chiefComplaint || '',
         memo1: bed.memo1 || '',
         memo2: bed.memo2 || '',
+        spineSettings: patient?.spineSettings || {},
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
         doctorName: bed.doctorName || '',
@@ -11859,6 +12261,9 @@
       }
       clearLocalTimerAlertsForBed(bedNo);
       showToast(`${completedLabel} 완료 처리`);
+      if (timerPatch.currentIndex !== undefined && timerPatch.complete === false) {
+        await maybeAutoMoveBedForNextTreatment(bedNo, { ...bed, preCompletedTreatmentIndexes, ...timerPatch });
+      }
     } catch (e) {
       console.error(e);
       showToast('치료 완료 처리 실패');
@@ -12321,6 +12726,7 @@
 
   function getCurrentDoctorProcedureAlertId(bedNo, bed) {
     if (!bed || bed.complete) return '';
+    if (bed.lastAlertId) return ''; // 직전 치료 완료 알림을 베드에서 확인하기 전엔 다음 치료 알림을 띄우지 않음
     const treatment = bed.treatments?.[bed.currentIndex || 0] || '';
     if (!isDoctorProcedureTreatment(treatment)) return '';
     return getDoctorProcedureAlertId(bedNo, bed, treatment);
@@ -12342,6 +12748,7 @@
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
       .filter(({ bed }) => {
         if (!bed || bed.complete || bed.running) return false;
+        if (bed.lastAlertId) return false;
         if (bed.doctorId !== doctorId) return false;
         const treatment = bed.treatments?.[bed.currentIndex || 0];
         return isDoctorProcedureTreatment(treatment);
@@ -12729,6 +13136,7 @@
         lastAlertMessage: null
       };
     });
+    await maybeAutoMoveBedForNextTreatment(alert.bedNo, getBedData(alert.bedNo));
   }
 
   window.acknowledgeBedAlert = async (bedNo) => {
@@ -12748,6 +13156,7 @@
     queuedTimerAlerts.delete(alertId);
     seenTimerAlerts.delete(alertId);
     clearLocalTimerAlertsForBed(bedNo);
+    await maybeAutoMoveBedForNextTreatment(bedNo, getBedData(bedNo));
     renderBedDetail();
     renderBedMonitors();
   };
@@ -12970,6 +13379,7 @@
     window.applyTreatmentsToForm?.(scope, patient.treatments || []);
     window.applyBodyPartsToForm?.(scope, patient.bodyParts);
     window.updateCreditChip?.(ids.treatmentGrid, patient);
+    window.updateSpineChip?.(ids.treatmentGrid, patient);
   }
 
   function clearChartPatientFormForNew(scope) {
@@ -12983,6 +13393,7 @@
     if (scope === 'desk') syncInitialVisitTreatment('desk');
     window.applyBodyPartsToForm?.(scope, null);
     resetPCredits(ids.treatmentGrid);
+    resetSpineSettings(ids.treatmentGrid);
   }
 
   window.saveChartPatient = async function(data) {
@@ -14078,6 +14489,7 @@
     syncInitialVisitTreatment('desk');
     window.clearChartLookupBadge?.();
     resetPCredits('treatmentGrid');
+    resetSpineSettings('treatmentGrid');
   }
 
   window.openDeskInputForm = () => {
