@@ -6148,8 +6148,11 @@
     if (scope) scheduleSelectFieldSave(scope, 0);
   }
 
+  let selectedTreatmentChip = null;
+
   function treatmentSelectionChipAttrs(gridId, index) {
     return `draggable="true"
+        onclick="handleTreatmentChipClick(event,'${gridId}',${index})"
         ondragstart="chipDragStart(event,'${gridId}',${index})"
         ondragover="chipDragOver(event,'${gridId}',${index})"
         ondragleave="chipDragLeave(event)"
@@ -6164,13 +6167,48 @@
     if (scope) scheduleSelectFieldSave(scope, 0);
   }
 
+  // 클릭-클릭 재정렬: 첫 번째 클릭한 칩을 두 번째 클릭한 칩의 "앞"으로 옮긴다(자리 교환 아님).
+  window.handleTreatmentChipClick = (event, gridId, index) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const sel = treatmentSelections[gridId] || [];
+    if (!sel[index]) {
+      selectedTreatmentChip = null;
+      renderTreatmentChips(gridId);
+      return;
+    }
+
+    if (!selectedTreatmentChip || selectedTreatmentChip.gridId !== gridId) {
+      selectedTreatmentChip = { gridId, index };
+      renderTreatmentChips(gridId);
+      return;
+    }
+
+    const fromIndex = selectedTreatmentChip.index;
+    selectedTreatmentChip = null;
+    if (fromIndex === index) {
+      // 같은 칩을 또 클릭 — 삭제
+      removeChip(gridId, index);
+      return;
+    }
+    if (sel[fromIndex] && sel[index]) {
+      const [moved] = sel.splice(fromIndex, 1);
+      const insertAt = fromIndex < index ? index - 1 : index;
+      sel.splice(insertAt, 0, moved);
+    }
+    treatmentSelections[gridId] = sel;
+    saveTreatmentSelectionChange(gridId);
+  };
+
   function renderTreatmentChips(gridId) {
     countDebugCounter('render-call', `treatmentChips:${gridId || ''}`);
     const chipsWrap = document.getElementById(getTreatmentChipsId(gridId));
     if (!chipsWrap) return;
     const sel = treatmentSelections[gridId] || [];
+    if (selectedTreatmentChip?.gridId === gridId && !sel[selectedTreatmentChip.index]) selectedTreatmentChip = null;
     const html = sel.map((s, i) => {
-      const className = ['treat-chip', getTreatmentBadgeClass(s.name)].filter(Boolean).join(' ');
+      const selectedClass = selectedTreatmentChip?.gridId === gridId && selectedTreatmentChip.index === i ? 'selected' : '';
+      const className = ['treat-chip', getTreatmentBadgeClass(s.name), selectedClass].filter(Boolean).join(' ');
       return `
       <span class="${className}" data-grid="${gridId}" data-index="${i}" ${treatmentSelectionChipAttrs(gridId, i)}>${escapeHtml(s.name)}</span>`;
     }).join('');
