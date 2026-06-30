@@ -710,9 +710,10 @@ function collectStatsDoctors() {
   `).all().map(row => row.doctorName);
 }
 
-function noFollowupNewPatientsFromRecords(records, docFilter = "") {
+function noFollowupNewPatientsFromRecords(records, docFilter = "", maxDaysAgo = 20) {
   const todayStr = ymd(new Date());
-  const targetDates = new Map(Array.from({ length: 14 }, (_, index) => 20 - index).map(daysAgo => [addDays(todayStr, -daysAgo), daysAgo]));
+  const safeMaxDaysAgo = Math.max(7, Math.min(365, Number.parseInt(maxDaysAgo, 10) || 20));
+  const targetDates = new Map(Array.from({ length: safeMaxDaysAgo - 6 }, (_, index) => safeMaxDaysAgo - index).map(daysAgo => [addDays(todayStr, -daysAgo), daysAgo]));
   const rows = [];
   for (const record of records) {
     const dates = visitDatesOf(record).filter(date => date <= todayStr);
@@ -732,11 +733,48 @@ function noFollowupNewPatientsFromRecords(records, docFilter = "") {
         doctorName,
         age: record.age || "",
         gender: record.gender || "",
-        phone: record.phone || record.phoneNumber || record.tel || ""
+        phone: getPatientPhone(record)
       });
     }
   }
   return rows.sort((a, b) => b.daysAgo - a.daysAgo || String(a.chartNo).localeCompare(String(b.chartNo), "ko", { numeric: true }));
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function attachOnlineManagementMatches(rows = [], messages = []) {
+  const texts = messages.map(message => String(message?.text || "")).filter(Boolean);
+  return rows.map(row => {
+    const name = normalizeSearchText(row.name);
+    if (!name) return row;
+    const pattern = new RegExp(`${escapeRegExp(name)}([^\\n]{0,100})`, "g");
+    const matches = [];
+    for (const text of texts) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const tokens = String(match[1] || "").match(/\d+(?:-\d+)?/g) || [];
+        if (tokens.length >= 2) matches.push(tokens.slice(0, 2).join(" "));
+      }
+    }
+    return { ...row, onlineManagementMatches: [...new Set(matches)] };
+  });
+}
+
+async function noFollowupNewPatientsReport({ days = 20, includeSlack = true } = {}) {
+  const safeDays = Math.max(7, Math.min(365, Number.parseInt(days, 10) || 20));
+  let rows = noFollowupNewPatientsFromRecords(listPatients(), "", safeDays);
+  let slackError = "";
+  if (includeSlack) {
+    try {
+      const slack = await readOnlineManagementSlackMessages(Math.min(30, safeDays));
+      rows = attachOnlineManagementMatches(rows, slack.messages || []);
+    } catch (error) {
+      slackError = error?.message || String(error);
+    }
+  }
+  return { ok: true, days: safeDays, rows, slackError };
 }
 
 function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) {
@@ -1999,6 +2037,15 @@ async function handleApi(req, res, pathname) {
     const docFilter = requestUrl.searchParams.get("doctor") || "";
     const chartUnit = requestUrl.searchParams.get("unit") || "week";
     jsonResponse(res, 200, computeClinicStats({ start, end, docFilter, chartUnit }));
+    return true;
+  }
+
+  if (pathname === "/api/stats/no-followup" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, await noFollowupNewPatientsReport({
+      days: requestUrl.searchParams.get("days") || 20,
+      includeSlack: requestUrl.searchParams.get("slack") !== "0"
+    }));
     return true;
   }
 

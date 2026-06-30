@@ -200,6 +200,17 @@
     <div class="note">DB 저장 없이 현재 beds / patients만 비웁니다. 환자 차트 DB, 설정, 원장/간호사, 치료시간은 유지됩니다.</div>
     <div class="status" id="randomTestStatus">대기 중</div>
   </div>
+
+  <div class="card">
+    <div class="card-title">초진 후 미재방문 검색</div>
+    <div class="tool-row">
+      <input class="search-input" id="noFollowupDaysInput" type="number" min="7" max="365" step="1" value="20" autocomplete="off" aria-label="시작 일수">
+      <button class="good" id="noFollowupSearchBtn" type="button">검색</button>
+    </div>
+    <div class="note">숫자를 입력하고 검색하면 입력값~7일 전 초진 후 미재방문 환자를 표시합니다. 온라인관리 Slack에서 환자 이름 뒤 숫자 2개가 보이면 함께 표시합니다.</div>
+    <div class="status" id="noFollowupStatus">검색 전</div>
+    <div class="result-table" id="noFollowupResult"></div>
+  </div>
 </div>
 
 <script>
@@ -225,6 +236,10 @@
   const randomTestCreateBtn = document.getElementById("randomTestCreateBtn");
   const clearPatientDbBtn = document.getElementById("clearPatientDbBtn");
   const randomTestStatus = document.getElementById("randomTestStatus");
+  const noFollowupDaysInput = document.getElementById("noFollowupDaysInput");
+  const noFollowupSearchBtn = document.getElementById("noFollowupSearchBtn");
+  const noFollowupStatus = document.getElementById("noFollowupStatus");
+  const noFollowupResult = document.getElementById("noFollowupResult");
 
   function setStatus(text, type = "") {
     statusEl.className = "status" + (type ? ` ${type}` : "");
@@ -309,6 +324,72 @@
       setOnlineSlackStatus(error?.message || String(error), "error");
     } finally {
       onlineSlackBtn.disabled = false;
+    }
+  }
+
+  function setNoFollowupStatus(text, type = "") {
+    noFollowupStatus.className = "status" + (type ? ` ${type}` : "");
+    noFollowupStatus.textContent = text;
+  }
+
+  function renderNoFollowupRows(rows) {
+    if (!rows.length) {
+      noFollowupResult.innerHTML = "";
+      setNoFollowupStatus("대상자가 없습니다.", "good");
+      return;
+    }
+    noFollowupResult.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>경과</th>
+            <th>이름</th>
+            <th>연락처</th>
+            <th>초진일</th>
+            <th>정보</th>
+            <th>원장</th>
+            <th>차트</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => {
+            const info = Array.isArray(row.onlineManagementMatches) && row.onlineManagementMatches.length
+              ? row.onlineManagementMatches.join(", ")
+              : "";
+            const meta = [row.gender, row.age ? `${row.age}세` : ""].filter(Boolean).join(" · ");
+            return `
+              <tr>
+                <td>${escapeHtml(String(row.daysAgo || ""))}일</td>
+                <td>${escapeHtml(row.name || "-")}${meta ? `<div class="note" style="margin-top:2px">${escapeHtml(meta)}</div>` : ""}</td>
+                <td class="phone">${escapeHtml(row.phone || "-")}</td>
+                <td>${escapeHtml(row.firstDate || "-")}</td>
+                <td>${escapeHtml(info || "-")}</td>
+                <td>${escapeHtml(row.doctorName || "-")}</td>
+                <td>${escapeHtml(row.chartNo || "-")}</td>
+              </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
+  }
+
+  async function searchNoFollowupPatients() {
+    const days = Math.max(7, Math.min(365, Number.parseInt(noFollowupDaysInput.value, 10) || 20));
+    noFollowupDaysInput.value = String(days);
+    noFollowupSearchBtn.disabled = true;
+    noFollowupResult.innerHTML = "";
+    setNoFollowupStatus(`${days}~7일 전 초진 후 미재방문 조회 중...`);
+    try {
+      const res = await fetch(`/api/stats/no-followup?days=${encodeURIComponent(days)}&slack=1`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `조회 실패 (${res.status})`);
+      const rows = Array.isArray(data.rows) ? data.rows : [];
+      renderNoFollowupRows(rows);
+      const slackText = data.slackError ? ` / Slack: ${data.slackError}` : "";
+      setNoFollowupStatus(`${days}~7일 전 대상 ${rows.length.toLocaleString()}명${slackText}`, data.slackError ? "" : "good");
+    } catch (error) {
+      setNoFollowupStatus(error?.message || String(error), "error");
+    } finally {
+      noFollowupSearchBtn.disabled = false;
     }
   }
 
@@ -1267,6 +1348,10 @@ const DISEASE = [
   onlineSlackBtn.addEventListener("click", loadOnlineSlackMessages);
   onlineSlackDaysInput.addEventListener("keydown", event => {
     if (event.key === "Enter") loadOnlineSlackMessages();
+  });
+  noFollowupSearchBtn.addEventListener("click", searchNoFollowupPatients);
+  noFollowupDaysInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") searchNoFollowupPatients();
   });
   thirdVisitSyncBtn.addEventListener("click", runThirdVisitTestSync);
   thirdVisitShareEmailInput.addEventListener("keydown", event => {

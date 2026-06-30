@@ -3362,6 +3362,7 @@
     flex-direction: column;
     gap: 2px;
     min-width: 0;
+    container-type: inline-size;
     padding: 6px 12px;
     border-radius: 10px;
     background: rgba(255,202,106,0.12);
@@ -3369,14 +3370,18 @@
   }
   .timer-next-label { font-size: 11px; font-weight: 700; color: var(--text3); white-space: nowrap; }
   .timer-next-value {
-    font-size: 16px;
+    font-size: 12px;
+    font-size: clamp(10px, 16cqw, 16px);
     font-weight: 900;
     color: var(--gold);
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: clip;
   }
-  body.app-role-bed .timer-next-value { font-size: 19px; }
+  body.app-role-bed .timer-next-value {
+    font-size: 13px;
+    font-size: clamp(11px, 17cqw, 19px);
+  }
   .timer-clock {
     font-size: clamp(44px, 10vw, 72px);
     font-weight: 900;
@@ -5237,6 +5242,7 @@
   let fixedBedArrivalVisiblePatientKey = '';
   let fixedBedArrivalVisibleAlertKey = '';
   const fixedBedArrivalAcknowledgedByBed = {};
+  const fixedBedArrivalShownByBed = {};
   const formEditBedNoByScope = {
     desk: null,
     receive: null
@@ -9447,6 +9453,8 @@
     const hasBench = has('벤치');
     const hasSpine = has('스파인');
     const hasChunaTreatment = has('복추') || has('단추');
+    const hasDoctorRoomTreatment = hasChunaTreatment || has('SW');
+    const hasPharmacopuncture4 = has('약침4');
 
     if (hasSpine || (hasChunaTreatment && hasBench)) {
       if (!getBedData(15)) {
@@ -9457,8 +9465,19 @@
       return;
     }
 
+    if (hasPharmacopuncture4) {
+      const targetBedNo = 101;
+      if (bedNo === targetBedNo) return;
+      if (!getBedData(targetBedNo)) {
+        await window.moveOrSwapBed(bedNo, targetBedNo);
+      } else {
+        await moveToHoldBed(bedNo, targetBedNo);
+      }
+      return;
+    }
+
     if (bedNo >= 101) return; // 이미 원장실에 있고 추나 단독이면 그대로 유지
-    if (hasChunaTreatment && !hasBench) {
+    if (hasDoctorRoomTreatment && !hasBench) {
       const docBedNo = getDoctorBedNoForPatient(nextBed.doctorId);
       if (docBedNo) {
         if (!getBedData(docBedNo)) {
@@ -9524,7 +9543,7 @@
         const targetBedNo = Number(bed?.pendingTargetBedNo);
         if (!targetBedNo) continue;
         if (getBedData(targetBedNo)) continue;
-        const moved = await window.moveOrSwapBed(bedNo, targetBedNo);
+        const moved = await window.moveOrSwapBed(bedNo, targetBedNo, { silent: true });
         if (moved) await updateBedRecord(targetBedNo, { pendingTargetBedNo: null });
       }
     } finally {
@@ -9555,8 +9574,12 @@
           nurseName: movedEntry.bed.nurseName || data.nurseName || '',
           message: `${getBedLabel(movedEntry.bedNo)} ${movedEntry.bed.name || data.patientName || '환자'} 배정`
         };
-        if (bedNo) delete fixedBedArrivalAcknowledgedByBed[bedNo];
+        if (bedNo) {
+          delete fixedBedArrivalAcknowledgedByBed[bedNo];
+          delete fixedBedArrivalShownByBed[bedNo];
+        }
         delete fixedBedArrivalAcknowledgedByBed[Number(movedEntry.bedNo)];
+        delete fixedBedArrivalShownByBed[Number(movedEntry.bedNo)];
         bedAssignmentAlertItems.set(key, { ...(data || {}), ...patch });
         renderUpcomingAlerts();
         renderBedMonitors();
@@ -12232,16 +12255,20 @@
       nurseName: bed.nurseName || alert.nurseName || '',
       message: `${getBedLabel(toBedNo)} ${bed.name || alert.patientName || '환자'} 배정`
     };
-    if (alert.bedNo) delete fixedBedArrivalAcknowledgedByBed[Number(alert.bedNo)];
+    if (alert.bedNo) {
+      delete fixedBedArrivalAcknowledgedByBed[Number(alert.bedNo)];
+      delete fixedBedArrivalShownByBed[Number(alert.bedNo)];
+    }
     bedAssignmentAlertItems.set(alert.key, { ...alert, ...patch });
     delete fixedBedArrivalAcknowledgedByBed[Number(toBedNo)];
+    delete fixedBedArrivalShownByBed[Number(toBedNo)];
     renderUpcomingAlerts();
     renderBedMonitors();
     syncFixedBedArrivalOverlay();
     await updateLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, alert.key, patch);
   }
 
-  window.moveOrSwapBed = async (fromBedNo, toBedNo) => {
+  window.moveOrSwapBed = async (fromBedNo, toBedNo, options = {}) => {
     if (fromBedNo === toBedNo) return false;
 
     const fromBed = getBedData(fromBedNo);
@@ -12316,13 +12343,13 @@
       if (remapAssignmentPromises.length) await Promise.all(remapAssignmentPromises);
       remapLocalAlertBedNo(movedBeds[String(fromBedNo)]?.lastAlertId, fromBedNo);
       remapLocalAlertBedNo(movedBeds[String(toBedNo)]?.lastAlertId, toBedNo);
-      showToast(hadTargetBed
+      if (!options.silent) showToast(hadTargetBed
         ? `${getBedLabel(fromBedNo)} ${getBedLabel(toBedNo)} 교환`
         : `${getBedLabel(fromBedNo)} → ${getBedLabel(toBedNo)} 이동 완료`);
       return true;
     }
 
-    showToast('베드 이동 실패');
+    if (!options.silent) showToast('베드 이동 실패');
     return false;
   };
 
@@ -13126,8 +13153,9 @@
     if (!doctorId) return [];
     return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS]
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
-      .filter(({ bed }) => {
+      .filter(({ bedNo, bed }) => {
         if (!bed || bed.complete || bed.running) return false;
+        if (isFixedBedArrivalPending(bedNo, bed)) return false;
         if (bed.lastAlertId) return false;
         if (bed.doctorId !== doctorId) return false;
         const treatment = bed.treatments?.[bed.currentIndex || 0];
@@ -13173,8 +13201,9 @@
   function getReceiveTreatmentAlertItems() {
     return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS]
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
-      .filter(({ bed }) => {
+      .filter(({ bedNo, bed }) => {
         if (!bed || bed.complete || bed.running || bed.lastAlertId) return false;
+        if (isFixedBedArrivalPending(bedNo, bed)) return false;
         const treatments = getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
         return treatments.length > 1 || treatments.some(isReceiveTreatmentAlertTreatment);
       })
@@ -14569,10 +14598,22 @@
       .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))[0] || null;
   }
 
+  function isFixedBedArrivalPending(bedNo, bed = getBedData(bedNo)) {
+    if (!bedNo) return false;
+    const assignmentAlert = getBedAssignmentAlertForBed(bedNo);
+    if (!assignmentAlert?.key) return false;
+    const alertPatientKey = String(assignmentAlert.patientKey || '');
+    const bedPatientKey = String(bed?.patientKey || '');
+    if (alertPatientKey && bedPatientKey && alertPatientKey !== bedPatientKey) return false;
+    if (fixedBedArrivalShownByBed[bedNo] !== assignmentAlert.key) return false;
+    return fixedBedArrivalAcknowledgedByBed[bedNo] !== assignmentAlert.key;
+  }
+
   async function removeBedAssignmentAlertForBedPatient(bedNo, patientKey) {
     const alert = getBedAssignmentAlertForBedPatient(bedNo, patientKey) || getBedAssignmentAlertForBed(bedNo);
     if (!alert?.key) return;
     bedAssignmentAlertItems.delete(alert.key);
+    delete fixedBedArrivalShownByBed[bedNo];
     renderUpcomingAlerts();
     renderBedMonitors();
     syncFixedBedArrivalOverlay();
@@ -14606,6 +14647,7 @@
     const patientKey = String(assignmentAlert?.patientKey || bedPatientKey || assignmentAlert?.key || '');
     if (!assignmentAlert || !patientKey) {
       delete fixedBedArrivalAcknowledgedByBed[bedNo];
+      delete fixedBedArrivalShownByBed[bedNo];
       hideFixedBedArrivalOverlay();
       return;
     }
@@ -14620,13 +14662,14 @@
     nameEl.textContent = assignmentAlert.patientName || bed?.name || '';
     requestBedScreenWakeLock('bed-assignment-overlay');
     overlay.classList.add('show');
+    fixedBedArrivalShownByBed[bedNo] = assignmentAlert.key;
   }
   window.syncFixedBedArrivalOverlay = syncFixedBedArrivalOverlay;
   // 일반 스크립트(블록2)의 setMode 등에서 호출할 수 있도록 모듈 함수 노출
   window.syncDoctorProcedureAlerts = syncDoctorProcedureAlerts;
   window.renderUpcomingAlerts = renderUpcomingAlerts;
 
-  window.openFixedBedArrival = () => {
+  window.openFixedBedArrival = async () => {
     const bedNo = getFixedBedArrivalBedNo();
     if (!bedNo) {
       hideFixedBedArrivalOverlay();
@@ -14640,7 +14683,10 @@
     renderBedDetail();
     updateBedHeaderBedChip();
     updateBedRemainingChip();
-    removeBedAssignmentAlertForBedPatient(bedNo, patientKey);
+    await removeBedAssignmentAlertForBedPatient(bedNo, patientKey);
+    syncDoctorProcedureAlerts();
+    renderUpcomingAlerts();
+    renderBedMonitors();
   };
 </script>
 
