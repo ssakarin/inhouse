@@ -4834,6 +4834,7 @@
   const removeCallAlert = (key) => removeLocalNodeChild(CALL_ALERTS_PATH, key);
   const saveAppointmentDeskAlert = (key, data) => updateLocalNodeChild(APPOINTMENT_DESK_ALERTS_PATH, key, data);
   const removeAppointmentDeskAlert = (key) => removeLocalNodeChild(APPOINTMENT_DESK_ALERTS_PATH, key);
+  const clearAppointmentDeskAlerts = (value = {}) => setLocalNode(APPOINTMENT_DESK_ALERTS_PATH, value);
   const pushBedAssignmentAlert = (data) => pushLocalNode(BED_ASSIGNMENT_ALERTS_PATH, data);
   const removeBedAssignmentAlert = (key) => removeLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, key);
   const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {});
@@ -6871,6 +6872,44 @@
     return `${y}-${m}-${d}`;
   }
 
+  function getDateKeyFromDate(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function isTimestampOnDate(timestamp, dateKey = getTodayKey()) {
+    const value = Number(timestamp || 0);
+    if (!value) return false;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    return getDateKeyFromDate(date) === dateKey;
+  }
+
+  let lastAppointmentDeskAlertDate = getTodayKey();
+  async function cleanupStaleAppointmentDeskAlerts(dateKey = getTodayKey()) {
+    const keptEntries = [...appointmentDeskAlertItems.entries()]
+      .filter(([, data]) => isTimestampOnDate(data?.timestamp, dateKey));
+    if (keptEntries.length === appointmentDeskAlertItems.size) return;
+    const next = Object.fromEntries(keptEntries);
+    appointmentDeskAlertItems.clear();
+    keptEntries.forEach(([key, data]) => appointmentDeskAlertItems.set(key, data));
+    renderUpcomingAlerts();
+    try {
+      await clearAppointmentDeskAlerts(next);
+    } catch (e) {
+      console.error('appointment desk alert cleanup failed', e);
+    }
+  }
+
+  function syncAppointmentDeskAlertsForCurrentDate() {
+    const today = getTodayKey();
+    if (today === lastAppointmentDeskAlertDate) return;
+    lastAppointmentDeskAlertDate = today;
+    cleanupStaleAppointmentDeskAlerts(today);
+  }
+
   function getDailyStartOffset(count) {
     if (!count) return 0;
     const date = new Date();
@@ -7063,6 +7102,7 @@
     Object.entries(value || {}).forEach(([key, data]) => {
       if (data) appointmentDeskAlertItems.set(key, data);
     });
+    cleanupStaleAppointmentDeskAlerts(getTodayKey());
     renderUpcomingAlerts();
   });
 
@@ -10628,7 +10668,10 @@
     });
   }
   updateHeaderCurrentTime();
-  setInterval(updateHeaderCurrentTime, 1000);
+  setInterval(() => {
+    updateHeaderCurrentTime();
+    syncAppointmentDeskAlertsForCurrentDate();
+  }, 1000);
 
   function setDeskInputFormOpen(open) {
     const panel = document.getElementById('inputPanel');
