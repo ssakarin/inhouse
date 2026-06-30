@@ -981,6 +981,26 @@
     return latestDate ? (visitHistory?.[latestDate] || null) : null;
   }
 
+  function normalizeMemo2History(record = {}) {
+    const source = record.memo2History || record.memo2ByDate || {};
+    if (!source || typeof source !== "object" || Array.isArray(source)) return {};
+    return Object.fromEntries(Object.entries(source)
+      .filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(String(date || "")))
+      .map(([date, memo]) => [String(date), String(memo || "")]));
+  }
+
+  function getMemo2ForDate(record = {}, date = "") {
+    const history = normalizeMemo2History(record);
+    if (date && Object.prototype.hasOwnProperty.call(history, date)) return history[date] || "";
+    return Object.keys(history).length ? "" : (record.memo2 || "");
+  }
+
+  function setMemo2ForDate(record = {}, date = "", memo2 = "") {
+    const history = normalizeMemo2History(record);
+    if (date) history[date] = String(memo2 || "").trim();
+    return history;
+  }
+
   function upsertLatestIndexedRecord(record) {
     if (!record?.chartNo) return;
     const key = patientIdentity(record);
@@ -1077,6 +1097,10 @@
       return;
     }
     const record = activeVisitHistory?.[date] || {};
+    const selectedPatient = getSelectedPatient() || {};
+    const memo2Value = Object.prototype.hasOwnProperty.call(record, "memo2")
+      ? (record.memo2 || "")
+      : getMemo2ForDate(selectedPatient, date);
     const packages = normalizePackages(activePackages);
     const packageSections = PACKAGE_KEYS.map(key => {
       const rows = getPackageDayEntries(packages[key] || {}, date);
@@ -1110,6 +1134,7 @@
           <div class="visit-detail-label">치료목록</div><div>${visitDetailInput("visitDetailTreatments", formatTreatmentsText(record.treatments))}</div>
           <div class="visit-detail-label">치료부위</div><div>${visitDetailInput("visitDetailBodyParts", formatBodyPartsText(record.bodyParts))}</div>
           <div class="visit-detail-label">주상병명</div><div>${visitDetailInput("visitDetailChiefComplaint", record.chiefComplaint || "")}</div>
+          <div class="visit-detail-label">Memo2</div><div>${visitDetailInput("visitDetailMemo2", memo2Value)}</div>
         </div>
         <div class="memo-buttons" style="margin-top:10px">
           <button class="good" type="button" data-save-visit-date="${escapeHtml(date)}">이 날짜 수정</button>
@@ -1143,6 +1168,9 @@
     $("editDoctorName").value = latestRecord.doctorName || "";
     $("editTreatmentsText").value = formatTreatmentsText(Array.isArray(latestRecord.treatments) ? latestRecord.treatments : []);
     $("editBodyPartsText").value = formatBodyPartsText(latestRecord.bodyParts || { front: [], back: [] });
+    $("editMemo2").value = Object.prototype.hasOwnProperty.call(latestRecord, "memo2")
+      ? (latestRecord.memo2 || "")
+      : getMemo2ForDate(getSelectedPatient() || {}, latestDate);
     const pastChiefComplaints = dates
       .slice()
       .reverse()
@@ -1345,7 +1373,8 @@
       doctorName: $("visitDetailDoctorName")?.value?.trim() || "",
       treatments: parseCommaText($("visitDetailTreatments")?.value || ""),
       bodyParts: parseBodyPartsText($("visitDetailBodyParts")?.value || "", activeVisitHistory?.[date]?.bodyParts || {}),
-      chiefComplaint: $("visitDetailChiefComplaint")?.value?.trim() || ""
+      chiefComplaint: $("visitDetailChiefComplaint")?.value?.trim() || "",
+      memo2: $("visitDetailMemo2")?.value?.trim() || ""
     };
     activeVisitDates = [...new Set([...(activeVisitDates || []), date].map(String).filter(Boolean))].sort();
     selectedVisitDate = date;
@@ -1457,11 +1486,11 @@
     $("editPhone").value = getPatientPhone(patient);
     $("editAppointmentDate").value = formatAppointmentDates(patient);
     $("editMemo1").value = patient.memo1 || "";
-    $("editMemo2").value = patient.memo2 || "";
     $("editSpineSettingsText").value = formatSpineSettingsText(patient);
     activeVisitDates = visitDatesFromRecord(patient);
     activeVisitHistory = patient.visitHistory && typeof patient.visitHistory === "object" ? { ...patient.visitHistory } : {};
     selectedVisitDate = activeVisitDates[activeVisitDates.length - 1] || "";
+    $("editMemo2").value = getMemo2ForDate(patient, selectedVisitDate);
     activeVisitMonth = selectedVisitDate ? selectedVisitDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
     activePackages = normalizePackages(patient.packages, patient);
     activePackageDate = selectedVisitDate || new Date().toISOString().slice(0, 10);
@@ -1524,13 +1553,21 @@
     // 주상병명 수정 → 최신 진료일 기록의 주상병명을 갱신하고, 상단 주상병명도 그 값으로 맞춤
     const chiefComplaint = $("editChiefComplaint").value.trim();
     const visitType = $("editVisitType").value.trim();
+    const memo2 = $("editMemo2").value.trim();
     const visitHistory = activeVisitHistory && typeof activeVisitHistory === "object" ? { ...activeVisitHistory } : {};
     const visitDates = [...new Set((Array.isArray(activeVisitDates) ? activeVisitDates : Object.keys(visitHistory || {})).map(String).filter(Boolean))].sort();
     const latestDate = visitDates[visitDates.length - 1] || "";
     if (latestDate) {
-      visitHistory[latestDate] = { ...(visitHistory[latestDate] || {}), visitType, chiefComplaint };
+      visitHistory[latestDate] = { ...(visitHistory[latestDate] || {}), visitType, chiefComplaint, memo2 };
     }
     const latestRecord = latestDate ? (visitHistory[latestDate] || {}) : {};
+    const memo2History = setMemo2ForDate(existing, latestDate, memo2);
+    Object.entries(visitHistory).forEach(([date, visit]) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return;
+      if (visit && typeof visit === "object" && Object.prototype.hasOwnProperty.call(visit, "memo2")) {
+        memo2History[date] = String(visit.memo2 || "");
+      }
+    });
 
     return withPackageBalances({
       ...existing,
@@ -1541,7 +1578,8 @@
       phone: $("editPhone").value.trim(),
       insuranceType: $("editInsuranceType").value.trim(),
       memo1: $("editMemo1").value.trim(),
-      memo2: $("editMemo2").value.trim(),
+      memo2,
+      memo2History,
       visitType: latestRecord.visitType || visitType || existing.visitType || "",
       visitDates,
       visitHistory,

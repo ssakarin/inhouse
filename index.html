@@ -688,6 +688,14 @@
     position: absolute;
     top: 5px; right: 6px;
   }
+  .waiting-list--compact .waiting-hold-target {
+    min-width: 28px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10px;
+    position: absolute;
+    top: 5px; right: 6px;
+  }
   .waiting-list--compact .waiting-item { position: relative; }
   .waiting-list--compact .waiting-name {
     font-size: 13px;
@@ -708,6 +716,39 @@
   }
   .waiting-item.waiting-item--held .waiting-rank {
     background: rgba(255,202,106,0.22);
+    color: var(--gold);
+  }
+  .waiting-hold-target {
+    min-width: 34px;
+    height: 24px;
+    padding: 0 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 900;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .waiting-hold-target--doctor {
+    background: rgba(57,169,245,0.2);
+    border: 1px solid rgba(57,169,245,0.65);
+    color: var(--accent);
+  }
+  .waiting-hold-target--doctor-alt {
+    background: rgba(74,222,128,0.18);
+    border: 1px solid rgba(74,222,128,0.6);
+    color: var(--success);
+  }
+  .waiting-hold-target--spine {
+    background: rgba(251,113,133,0.18);
+    border: 1px solid rgba(251,113,133,0.65);
+    color: var(--danger);
+  }
+  .waiting-hold-target--next {
+    background: rgba(255,202,106,0.18);
+    border: 1px solid rgba(255,202,106,0.6);
     color: var(--gold);
   }
   .waiting-rank {
@@ -5059,7 +5100,7 @@
     return Object.entries(holdBedMap)
       .filter(([, bed]) => bed)
       .map(([bedNo, bed]) => ({ bedNo: Number(bedNo), bed }))
-      .sort((a, b) => Number(a.bed.timestamp || 0) - Number(b.bed.timestamp || 0));
+      .sort((a, b) => Number(a.bed.holdQueuedAt || a.bed.timestamp || 0) - Number(b.bed.holdQueuedAt || b.bed.timestamp || 0));
   }
 
   // 일반 베드(1~15) + 원장실 베드(101~) + 임시 보관 베드(901~) 전체를 {bed, bedNo}로 반환
@@ -7121,6 +7162,7 @@
     const chartNo = normalizeChartNo(document.getElementById(ids.chartNo).value);
     const memo1 = document.getElementById(ids.chiefComplaint).value.trim();
     const memo2 = document.getElementById(ids.memo).value.trim();
+    const memo2Patch = withMemo2ForDate({}, memo2, toLocalDateInputValue());
     const age = document.getElementById(ids.age).value.trim();
     const visitType = document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진';
     const gender = document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남';
@@ -7179,6 +7221,7 @@
         lastVisitDate,
         memo1,
         memo2,
+        memo2History: memo2Patch.memo2History,
         spineSettings,
         ...packagePayload
       });
@@ -7277,7 +7320,7 @@
     document.getElementById(ids.name).value = bed?.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed?.memo1 || '';
-    document.getElementById(ids.memo).value = bed?.memo2 || '';
+    document.getElementById(ids.memo).value = getMemo2ForDate(bed || {}, getMemo2HistoryDate(bed || {}));
     document.getElementById(ids.age).value = bed?.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed?.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed?.gender || '남'}"]`)?.click();
@@ -7371,7 +7414,7 @@
     document.getElementById(ids.name).value = bed.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed.memo1 || '';
-    document.getElementById(ids.memo).value = bed.memo2 || '';
+    document.getElementById(ids.memo).value = getMemo2ForDate(bed || {}, getMemo2HistoryDate(bed || {}));
     document.getElementById(ids.age).value = bed.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed.gender || '남'}"]`)?.click();
@@ -7438,6 +7481,37 @@
     return toLocalDateInputValue(value ? new Date(value) : new Date());
   }
 
+  function normalizeMemo2History(record = {}) {
+    const source = record.memo2History || record.memo2ByDate || {};
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return {};
+    return Object.fromEntries(Object.entries(source)
+      .filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')))
+      .map(([date, memo]) => [String(date), String(memo || '')]));
+  }
+
+  function getMemo2HistoryDate(source = {}) {
+    const candidates = [
+      source.visitDate,
+      source.visitEntry?.date,
+      source.dischargeDate,
+      source.date
+    ];
+    const isoDate = candidates.map(value => String(value || '').trim()).find(value => /^\d{4}-\d{2}-\d{2}$/.test(value));
+    return isoDate || getVisitDateFromTimestamp(source.timestamp);
+  }
+
+  function getMemo2ForDate(record = {}, date = toLocalDateInputValue()) {
+    const history = normalizeMemo2History(record);
+    if (Object.prototype.hasOwnProperty.call(history, date)) return history[date] || '';
+    return Object.keys(history).length ? '' : (record.memo2 || '');
+  }
+
+  function withMemo2ForDate(record = {}, memo2 = '', date = toLocalDateInputValue()) {
+    const history = normalizeMemo2History(record);
+    history[date] = String(memo2 || '').trim();
+    return { memo2: history[date], memo2History: history };
+  }
+
   function createChartVisitEntry(source = {}) {
     const date = source.visitDate || getVisitDateFromTimestamp(source.timestamp);
     return {
@@ -7446,7 +7520,8 @@
       treatments: Array.isArray(source.treatments) ? source.treatments : [],
       bodyParts: normalizeBodyParts(source.bodyParts),
       doctorName: source.doctorName || '',
-      chiefComplaint: source.chiefComplaint || ''
+      chiefComplaint: source.chiefComplaint || '',
+      memo2: source.memo2 || ''
     };
   }
 
@@ -7454,13 +7529,15 @@
     const entries = [];
     const pushEntry = (entry) => {
       if (!entry?.date) return;
+      const hasMemo2 = Object.prototype.hasOwnProperty.call(entry, 'memo2');
       entries.push({
         date: String(entry.date),
         treatments: Array.isArray(entry.treatments) ? entry.treatments : [],
         bodyParts: normalizeBodyParts(entry.bodyParts),
         doctorName: entry.doctorName || '',
         visitType: entry.visitType || '',
-        chiefComplaint: entry.chiefComplaint || ''
+        chiefComplaint: entry.chiefComplaint || '',
+        ...(hasMemo2 ? { memo2: entry.memo2 || '' } : {})
       });
     };
 
@@ -7482,14 +7559,21 @@
         bodyParts: entry.bodyParts,
         doctorName: entry.doctorName,
         visitType: entry.visitType,
-        chiefComplaint: entry.chiefComplaint
+        chiefComplaint: entry.chiefComplaint,
+        ...(Object.prototype.hasOwnProperty.call(entry, 'memo2') ? { memo2: entry.memo2 || '' } : {})
       };
     });
     const visitDates = Object.keys(byDate).sort();
     const latestDate = visitDates[visitDates.length - 1] || '';
     const latestVisit = latestDate ? (byDate[latestDate] || null) : null;
     const latestChiefComplaint = latestVisit?.chiefComplaint || '';
-    return { visitDates, visitHistory: byDate, latestVisit, latestChiefComplaint };
+    const memo2History = {
+      ...normalizeMemo2History(existing),
+      ...Object.fromEntries(Object.entries(byDate)
+        .filter(([, entry]) => Object.prototype.hasOwnProperty.call(entry, 'memo2'))
+        .map(([date, entry]) => [date, entry.memo2 || '']))
+    };
+    return { visitDates, visitHistory: byDate, memo2History, latestDate, latestVisit, latestChiefComplaint };
   }
 
   function addLocalDays(date, days) {
@@ -7757,6 +7841,7 @@
         visitType: form.visitType,
         memo1: form.memo1,
         memo2: form.memo2,
+        ...withMemo2ForDate(bed, form.memo2, getMemo2HistoryDate(bed)),
         spineSettings: form.spineSettings,
         age: form.age ? Number(form.age) : '',
         gender: form.gender,
@@ -7839,12 +7924,14 @@
     const form = getFormValues(scope);
     if (!form.name) { showToast('❗ 성함을 입력해주세요'); return false; }
 
+    const memo2Date = getMemo2HistoryDate(patient);
     const payload = {
       name: form.name,
       chartNo: form.chartNo,
       visitType: form.visitType,
       memo1: form.memo1,
       memo2: form.memo2,
+      ...withMemo2ForDate(patient, form.memo2, memo2Date),
       spineSettings: form.spineSettings,
       age: form.age ? Number(form.age) : '',
       gender: form.gender,
@@ -7888,6 +7975,7 @@
     const form = getFormValues(scope);
     if (!form.name) { showToast('❗ 성함을 입력해주세요'); return false; }
 
+    const memo2Date = getMemo2HistoryDate(patient);
     const payload = {
       ...patient,
       name: form.name,
@@ -7895,6 +7983,7 @@
       visitType: form.visitType,
       memo1: form.memo1,
       memo2: form.memo2,
+      ...withMemo2ForDate(patient, form.memo2, memo2Date),
       spineSettings: form.spineSettings,
       age: form.age ? Number(form.age) : '',
       gender: form.gender,
@@ -7923,6 +8012,7 @@
           chiefComplaint: payload.chiefComplaint || '',
           memo1: payload.memo1 || '',
           memo2: payload.memo2 || '',
+          memo2History: payload.memo2History || {},
           spineSettings: payload.spineSettings || {},
           treatments: payload.treatments || [],
           bodyParts: normalizeBodyParts(payload.bodyParts),
@@ -8006,6 +8096,7 @@
         visitType: form.visitType,
         memo1: form.memo1,
         memo2: form.memo2,
+        ...withMemo2ForDate(bed, form.memo2, getMemo2HistoryDate(bed)),
         spineSettings: form.spineSettings,
         age: form.age ? Number(form.age) : '',
         gender: form.gender,
@@ -9227,6 +9318,7 @@
       chiefComplaint: data.chiefComplaint || '',
       memo1: data.memo1 || '',
       memo2: data.memo2 || '',
+      memo2History: normalizeMemo2History(data),
       memo1Original: data.memo1 || '',
       memo2Original: data.memo2 || '',
       age: data.age || '',
@@ -9301,7 +9393,41 @@
     const holdBedNo = findEmptyHoldBedNo();
     if (!holdBedNo) return; // 임시 베드도 다 찼으면 그냥 현재 자리에 둔다
     const moved = await window.moveOrSwapBed(bedNo, holdBedNo);
-    if (moved) await updateBedRecord(holdBedNo, { pendingTargetBedNo });
+    if (moved) await updateBedRecord(holdBedNo, { pendingTargetBedNo, holdQueuedAt: Date.now() });
+  }
+
+  async function assignWaitingPatientToHoldBed(patientKey, data, pendingTargetBedNo) {
+    const holdBedNo = findEmptyHoldBedNo();
+    if (!holdBedNo) {
+      showToast('대기 큐가 가득 찼습니다');
+      return false;
+    }
+
+    const queuedAt = Date.now();
+    const assignment = {
+      ...createBedAssignment(patientKey, data, pendingTargetBedNo),
+      pendingTargetBedNo: Number(pendingTargetBedNo),
+      holdQueuedAt: queuedAt,
+      timestamp: queuedAt
+    };
+
+    const result = await runBedsRecordTransaction((beds) => {
+      beds = beds || {};
+      const existingBedNo = Object.keys(beds).find(no => beds[no]?.patientKey === patientKey);
+      if (existingBedNo || beds[String(holdBedNo)]) return beds;
+      beds[String(holdBedNo)] = assignment;
+      return beds;
+    });
+
+    const beds = result.snapshot.val() || {};
+    if (!result.committed || beds[String(holdBedNo)]?.patientKey !== patientKey) return false;
+
+    patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: holdBedNo });
+    await updatePatient(patientKey, {
+      bedStatus: 'assigned',
+      bedNo: holdBedNo
+    });
+    return holdBedNo;
   }
 
   // 베드 상태가 바뀔 때마다(applyBedsState) 호출 — 임시 베드에 있는 환자 중
@@ -9533,6 +9659,7 @@
   async function assignWaitingPatientToSpecificBed(patientKey, bedNo) {
     bedNo = Number(bedNo);
     const isDocBed = bedNo >= 101;
+    const canQueueIfOccupied = isDocBed || bedNo === 15;
     if (!isDocBed && !ACTIVE_BED_NUMBERS.includes(bedNo)) {
       showToast('배정할 수 없는 베드입니다');
       return false;
@@ -9545,6 +9672,15 @@
     const data = patientsByKey.get(patientKey);
     if (!data || data.bedStatus === 'discharged') {
       showToast('대기환자 정보를 찾을 수 없습니다');
+      return false;
+    }
+    if (canQueueIfOccupied && getBedData(bedNo)) {
+      const holdBedNo = await assignWaitingPatientToHoldBed(patientKey, data, bedNo);
+      if (holdBedNo) {
+        showToast(`${data.name || '대기환자'} ${getBedLabel(bedNo)} 대기 큐 등록`);
+        return true;
+      }
+      showToast('대기 큐 등록 실패');
       return false;
     }
     const result = await runBedsRecordTransaction((beds) => {
@@ -9586,6 +9722,19 @@
       .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
   }
 
+  function getHoldTargetBadge(targetBedNo) {
+    const target = Number(targetBedNo);
+    if (target >= 101) {
+      const doctorIndex = target - 100;
+      return {
+        label: `원${doctorIndex}`,
+        className: doctorIndex % 2 ? 'waiting-hold-target--doctor' : 'waiting-hold-target--doctor-alt'
+      };
+    }
+    if (target === 15) return { label: '스파인', className: 'waiting-hold-target--spine' };
+    return { label: '대기', className: 'waiting-hold-target--next' };
+  }
+
   function renderWaitingLists() {
     countDebugCounter('render-call', 'waitingLists');
     const waitingPatients = getWaitingPatients();
@@ -9596,17 +9745,15 @@
         const heldTreatments = bed?.treatments || [];
         const heldIdx = Number(bed?.currentIndex || 0);
         const heldNames = getConcurrentTreatmentNames(heldTreatments, heldIdx).map(name => String(name || '').trim());
-        const heldHasBench = heldNames.includes('벤치');
-        const heldHasSpine = heldNames.includes('스파인');
-        const heldHasChuna = heldNames.includes('복추') || heldNames.includes('단추');
-        const nextTreatmentLabel = heldHasSpine ? '스파인' : (heldHasChuna && heldHasBench) ? '벤치' : heldHasChuna ? '추나' : '다음 치료';
+        const nextTreatmentLabel = formatTreatmentNames(heldNames) || bed?.treatments?.[heldIdx] || getBedLabel(bed?.pendingTargetBedNo) || '대기';
+        const targetBadge = getHoldTargetBadge(bed?.pendingTargetBedNo);
         const heldChips = [
           `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(nextTreatmentLabel)}</span>`,
           bed?.doctorName ? `<span class="bed-meta-chip">${escapeHtml(bed.doctorName)}</span>` : ''
         ].filter(Boolean).join('');
         return `
         <div class="waiting-item waiting-item--held" id="held-${bedNo}" draggable="true" onclick="handleInputBedClick(${bedNo})" oncontextmenu="purgeBedPatient(event, ${bedNo})" ondragstart="handleBedDragStart(event, ${bedNo})" ondragend="handleBedDragEnd()">
-          <div class="waiting-rank">⏸</div>
+          <div class="waiting-hold-target ${targetBadge.className}">${escapeHtml(targetBadge.label)}</div>
           <div>
             <div class="waiting-name">${escapeHtml(bed?.name || '')}</div>
             <div class="waiting-info">${heldChips}</div>
@@ -9729,6 +9876,7 @@
         chiefComplaint: patient.chiefComplaint || '',
         memo1: assignedBed?.memo1 || patient.memo1 || '',
         memo2: assignedBed?.memo2 || patient.memo2 || '',
+        memo2History: normalizeMemo2History(assignedBed || patient),
         spineSettings: patient.spineSettings || {},
         treatments: assignedBed?.treatments || patient.treatments || [],
         bodyParts: normalizeBodyParts(assignedBed?.bodyParts || patient.bodyParts),
@@ -9739,7 +9887,8 @@
           treatments: assignedBed?.treatments || patient.treatments || [],
           bodyParts: assignedBed?.bodyParts || patient.bodyParts,
           doctorName: assignedBed?.doctorName || patient.doctorName || '',
-          chiefComplaint: assignedBed?.chiefComplaint || patient.chiefComplaint || ''
+          chiefComplaint: assignedBed?.chiefComplaint || patient.chiefComplaint || '',
+          memo2: assignedBed?.memo2 || patient.memo2 || ''
         }),
         appointmentDates: normalizeAppointmentDates(patient || {}),
         appointmentDate: normalizeAppointmentDates(patient || {})[0] || '',
@@ -11757,6 +11906,7 @@
         chiefComplaint: bed.chiefComplaint || '',
         memo1: bed.memo1 || '',
         memo2: bed.memo2 || '',
+        memo2History: normalizeMemo2History(bed),
         spineSettings: patient?.spineSettings || {},
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
@@ -13441,7 +13591,7 @@
     document.getElementById(ids.name).value = patient.name || '';
     document.getElementById(ids.age).value = patient.age || '';
     document.getElementById(ids.chiefComplaint).value = patient.memo1 || '';
-    document.getElementById(ids.memo).value = patient.memo2 || '';
+    document.getElementById(ids.memo).value = getMemo2ForDate(patient, toLocalDateInputValue());
     document.querySelector(`input[name="${ids.visitType}"][value="재진"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${patient.gender || '남'}"]`)?.click();
     setSelectedStaffByStoredValue('doctors', scope, patient);
@@ -13477,13 +13627,14 @@
         const baseRecord = existing?.patientId ? existing : {};
         const { visitEntry, visitEntries, ...plainData } = data;
         const visitPatch = mergeChartVisitHistory(baseRecord, { visitEntry, visitEntries });
-        const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
+        const { latestVisit, latestChiefComplaint, latestDate, ...visitFields } = visitPatch;
         const next = { ...baseRecord, ...plainData, ...visitFields };
         if (latestVisit) {
           next.treatments = latestVisit.treatments || [];
           next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
           next.doctorName = latestVisit.doctorName || '';
           next.visitType = latestVisit.visitType || next.visitType || '';
+          next.memo2 = latestVisit.memo2 || getMemo2ForDate(next, latestDate || getMemo2HistoryDate(data));
         }
         if (latestChiefComplaint) next.chiefComplaint = latestChiefComplaint;
         if (data.appointmentDate === null) delete next.appointmentDate;
@@ -13507,13 +13658,14 @@
           const existing = getReq.result || {};
           const { visitEntry, visitEntries, ...plainData } = data;
           const visitPatch = mergeChartVisitHistory(existing, { visitEntry, visitEntries });
-          const { latestVisit, latestChiefComplaint, ...visitFields } = visitPatch;
+          const { latestVisit, latestChiefComplaint, latestDate, ...visitFields } = visitPatch;
           const next = { ...existing, ...plainData, ...visitFields };
           if (latestVisit) {
             next.treatments = latestVisit.treatments || [];
             next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
             next.doctorName = latestVisit.doctorName || '';
             next.visitType = latestVisit.visitType || next.visitType || '';
+            next.memo2 = latestVisit.memo2 || getMemo2ForDate(next, latestDate || getMemo2HistoryDate(data));
           }
           if (latestChiefComplaint) next.chiefComplaint = latestChiefComplaint;
           if (data.appointmentDate === null) delete next.appointmentDate;
@@ -13622,11 +13774,24 @@
     });
   }
 
+  function getRandomTestInsuranceType(patient = {}) {
+    return patient.insuranceType || patient.insurance_type || patient['보험종별'] || patient.insuranceKind || patient.insuKind || patient.InsuKind || '';
+  }
+
+  function getRandomTestBodyParts(patient = {}, latestVisit = {}) {
+    const saved = normalizeBodyParts(latestVisit.bodyParts || patient.bodyParts);
+    if (saved.front.length || saved.back.length) return saved;
+    return getRandomBodyPartsForRandomTest();
+  }
+
   function buildRandomTestPatientPayload(patient = {}) {
     const latestVisit = getLatestChartVisit(patient);
     const treatments = getRandomPresetTreatmentsForRandomTest(patient, latestVisit);
     const doctor = getRandomDoctorForRandomTest();
     const now = new Date();
+    const packages = getPackageStateFromPatient(patient);
+    const chiefComplaint = latestVisit.chiefComplaint || patient.chiefComplaint || patient.memo1 || '';
+    const memo2 = getMemo2ForDate(patient, toLocalDateInputValue());
     return {
       name: patient.name || '',
       treatments,
@@ -13635,16 +13800,28 @@
       date: now.toLocaleDateString('ko-KR'),
       bedStatus: 'waiting',
       patientId: patient.patientId || '',
+      insuranceType: getRandomTestInsuranceType(patient),
       chartNo: normalizeChartNo(patient.chartNo),
       visitType: latestVisit.visitType || patient.visitType || '재진',
-      chiefComplaint: latestVisit.chiefComplaint || patient.chiefComplaint || '',
+      chiefComplaint,
+      memo1: chiefComplaint,
+      memo2,
+      ...withMemo2ForDate(patient, memo2, toLocalDateInputValue()),
       age: patient.age || '',
       gender: patient.gender || '',
-      bodyParts: getRandomBodyPartsForRandomTest(),
+      phone: patient.phone || patient.phoneNumber || patient.tel || patient.mobile || patient.contact || '',
+      bodyParts: getRandomTestBodyParts(patient, latestVisit),
+      spineSettings: patient.spineSettings || {},
+      appointmentDates: normalizeAppointmentDates(patient),
+      appointmentDate: normalizeAppointmentDates(patient)[0] || '',
+      appointmentUndecided: Boolean(patient.appointmentUndecided),
+      packages,
+      ...getPCreditsFromPackages(packages),
       doctorId: doctor.id,
       doctorName: doctor.name,
       nurseId: '',
-      nurseName: ''
+      nurseName: '',
+      credit: null
     };
   }
 
@@ -14392,7 +14569,7 @@
       document.getElementById('patientName').value = patient.name || '';
       document.getElementById('ageInput').value = patient.age || '';
       document.getElementById('chiefComplaint').value = patient.memo1 || '';
-      document.getElementById('memoInput').value = patient.memo2 || '';
+      document.getElementById('memoInput').value = getMemo2ForDate(patient, toLocalDateInputValue());
       document.querySelector('input[name="visitType"][value="재진"]')?.click();
       document.querySelector(`input[name="gender"][value="${patient.gender || '남'}"]`)?.click();
       setSelectedStaffByStoredValue?.('doctors', 'desk', patient);

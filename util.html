@@ -1107,10 +1107,58 @@ const DISEASE = [
     return ["치료"];
   }
 
+  function getPatientInsuranceType(patient = {}) {
+    return patient.insuranceType || patient.insurance_type || patient["보험종별"] || patient.insuranceKind || patient.insuKind || patient.InsuKind || "";
+  }
+
+  function getRandomTestBodyParts(patient = {}, latestVisit = {}) {
+    const source = latestVisit.bodyParts || patient.bodyParts || {};
+    return {
+      front: Array.isArray(source.front) ? [...source.front] : [],
+      back: Array.isArray(source.back) ? [...source.back] : []
+    };
+  }
+
+  function todayIsoDate() {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function normalizeMemo2History(record = {}) {
+    const source = record.memo2History || record.memo2ByDate || {};
+    if (!source || typeof source !== "object" || Array.isArray(source)) return {};
+    return Object.fromEntries(Object.entries(source)
+      .filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(String(date || "")))
+      .map(([date, memo]) => [String(date), String(memo || "")]));
+  }
+
+  function getMemo2ForDate(record = {}, date = todayIsoDate()) {
+    const history = normalizeMemo2History(record);
+    if (Object.prototype.hasOwnProperty.call(history, date)) return history[date] || "";
+    return Object.keys(history).length ? "" : (record.memo2 || "");
+  }
+
+  function getPackageBalances(patient = {}) {
+    const packages = patient.packages || {};
+    return {
+      packages,
+      p6: Number(patient.p6 ?? packages.p6?.balance ?? 0) || 0,
+      p13: Number(patient.p13 ?? packages.p13?.balance ?? 0) || 0,
+      p자하거: Number(patient.p자하거 ?? packages.p자하거?.balance ?? 0) || 0,
+      p라인: Number(patient.p라인 ?? packages.p라인?.balance ?? 0) || 0
+    };
+  }
+
   function buildRandomTestPatientPayload(patient = {}, doctors = [], presets = []) {
     const latestVisit = getLatestChartVisit(patient);
     const doctor = randomItem(doctors);
     const now = new Date();
+    const chiefComplaint = latestVisit.chiefComplaint || patient.chiefComplaint || patient.memo1 || "";
+    const packagePayload = getPackageBalances(patient);
+    const memo2 = getMemo2ForDate(patient);
     return {
       name: patient.name || "",
       treatments: getRandomTreatments(patient, latestVisit, presets),
@@ -1119,17 +1167,28 @@ const DISEASE = [
       date: now.toLocaleDateString("ko-KR"),
       bedStatus: "waiting",
       patientId: patient.patientId || "",
+      insuranceType: getPatientInsuranceType(patient),
       chartNo: normalizeChartNo(patient.chartNo),
       visitType: latestVisit.visitType || patient.visitType || "재진",
-      chiefComplaint: latestVisit.chiefComplaint || patient.chiefComplaint || "",
-      memo: "",
+      chiefComplaint,
+      memo1: chiefComplaint,
+      memo2,
+      memo2History: { ...normalizeMemo2History(patient), [todayIsoDate()]: memo2 },
+      memo: patient.memo || "",
       age: patient.age || "",
       gender: patient.gender || "",
-      bodyParts: { front: [], back: [] },
+      phone: patient.phone || patient.phoneNumber || patient.tel || patient.mobile || patient.contact || "",
+      bodyParts: getRandomTestBodyParts(patient, latestVisit),
+      spineSettings: patient.spineSettings || {},
+      appointmentDates: Array.isArray(patient.appointmentDates) ? [...patient.appointmentDates] : [],
+      appointmentDate: patient.appointmentDate || "",
+      appointmentUndecided: Boolean(patient.appointmentUndecided),
       doctorId: doctor?.[0] || "",
       doctorName: doctor?.[1]?.name || "",
       nurseId: "",
-      nurseName: ""
+      nurseName: "",
+      ...packagePayload,
+      credit: null
     };
   }
 

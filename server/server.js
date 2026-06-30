@@ -1567,6 +1567,18 @@ function patchObject(base, patch) {
   return { ...base, ...(patch && typeof patch === "object" && !Array.isArray(patch) ? patch : {}) };
 }
 
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function stateEquals(a, b) {
+  return stableJson(a ?? null) === stableJson(b ?? null);
+}
+
 // --- Authentication (shared password + HttpOnly session cookie) ---------------
 
 // Constant-time string compare to avoid leaking the password via timing.
@@ -1684,6 +1696,7 @@ const sseTotals = {
   opened: 0,
   closed: 0,
   bedsFrames: 0,
+  bedsNoopWrites: 0,
   stateFrames: 0,
   stateChildFrames: 0,
   pingFrames: 0,
@@ -1828,7 +1841,14 @@ async function handleApi(req, res, pathname) {
     const { bedNo, patch } = (await readJson(req)) || {};
     const beds = getBedsState();
     const key = String(bedNo);
-    beds[key] = { ...(beds[key] || {}), ...(patch || {}) };
+    const previous = beds[key] || {};
+    const nextBed = { ...previous, ...(patch || {}) };
+    if (!Object.keys(patch || {}).length || stateEquals(previous, nextBed)) {
+      sseTotals.bedsNoopWrites += 1;
+      jsonResponse(res, 200, { ok: true, noop: true, version: getBedsVersion() });
+      return true;
+    }
+    beds[key] = nextBed;
     jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
     return true;
   }
@@ -1838,7 +1858,14 @@ async function handleApi(req, res, pathname) {
     const beds = getBedsState();
     const key = String(bedNo);
     if (!beds[key]) { jsonResponse(res, 200, { ok: false, reason: "no-bed" }); return true; }
-    beds[key][childKey] = { ...(beds[key][childKey] || {}), ...(patch || {}) };
+    const previous = beds[key][childKey] || {};
+    const nextChild = { ...previous, ...(patch || {}) };
+    if (!Object.keys(patch || {}).length || stateEquals(previous, nextChild)) {
+      sseTotals.bedsNoopWrites += 1;
+      jsonResponse(res, 200, { ok: true, noop: true, version: getBedsVersion() });
+      return true;
+    }
+    beds[key][childKey] = nextChild;
     jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
     return true;
   }
@@ -1846,6 +1873,11 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/beds/remove" && req.method === "POST") {
     const { bedNo } = (await readJson(req)) || {};
     const beds = getBedsState();
+    if (!Object.prototype.hasOwnProperty.call(beds, String(bedNo))) {
+      sseTotals.bedsNoopWrites += 1;
+      jsonResponse(res, 200, { ok: true, noop: true, version: getBedsVersion() });
+      return true;
+    }
     delete beds[String(bedNo)];
     jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
     return true;
@@ -1861,7 +1893,13 @@ async function handleApi(req, res, pathname) {
       jsonResponse(res, 409, { ok: false, conflict: true, version: current, beds: getBedsState() });
       return true;
     }
-    jsonResponse(res, 200, { ok: true, version: commitBeds(beds || {}) });
+    const nextBeds = beds || {};
+    if (stateEquals(getBedsState(), nextBeds)) {
+      sseTotals.bedsNoopWrites += 1;
+      jsonResponse(res, 200, { ok: true, noop: true, version: current });
+      return true;
+    }
+    jsonResponse(res, 200, { ok: true, version: commitBeds(nextBeds) });
     return true;
   }
 
