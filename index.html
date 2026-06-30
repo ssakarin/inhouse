@@ -1025,13 +1025,37 @@
     padding: 10px;
   }
   .doctor-alert-box-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     color: var(--gold);
     font-size: 13px;
     font-weight: 900;
     margin-bottom: 8px;
+  }
+  .doctor-alert-box-name {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .doctor-chuna-delay-toggle {
+    flex: 0 0 auto;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    color: var(--muted);
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .doctor-chuna-delay-toggle.is-on {
+    border-color: rgba(255,202,106,0.75);
+    background: rgba(255,202,106,0.16);
+    color: var(--gold);
   }
   .doctor-alert-box-list {
     display: flex;
@@ -5278,6 +5302,22 @@
   let selectedDoctorAlertId = localStorage.getItem('selectedDoctorAlertId') || ''; // 데스크 원장 호출용 (방과 무관, 전역)
   const selectedDoctorAlertIdByBed = {}; // 원장실 알림 토글 선택값 — 베드(원장실)별로 독립적으로 보관
 
+  function getDoctorChunaDelayStorageKey(doctorId) {
+    return `doctorChunaDelay:${doctorId || ''}`;
+  }
+
+  function isDoctorChunaDelayEnabled(doctorId) {
+    return Boolean(doctorId && localStorage.getItem(getDoctorChunaDelayStorageKey(doctorId)) === '1');
+  }
+
+  window.toggleDoctorChunaDelay = (doctorId) => {
+    if (!doctorId) return;
+    const next = !isDoctorChunaDelayEnabled(doctorId);
+    if (next) localStorage.setItem(getDoctorChunaDelayStorageKey(doctorId), '1');
+    else localStorage.removeItem(getDoctorChunaDelayStorageKey(doctorId));
+    renderUpcomingAlerts();
+  };
+
   function getDoctorAlertStorageKeyForBed(bedNo) {
     return `selectedDoctorAlertId:${bedNo}`;
   }
@@ -6759,7 +6799,6 @@
     const items = bedDoctorAlertId ? getDoctorProcedureAlertItems(bedDoctorAlertId) : [];
     list.innerHTML = items.length
       ? items
-        .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
         .map(item => `
         <div class="upcoming-item assignment no-dismiss">
           ${renderDoctorRoomAlertChips(item)}
@@ -10369,8 +10408,10 @@
         const doctor = doctors[index];
         const doctorId = doctor?.[0] || '';
         const doctorName = doctor?.[1]?.name || '';
+        const chunaDelayEnabled = isDoctorChunaDelayEnabled(doctorId);
         const items = doctorId
           ? getDoctorProcedureAlertItems(doctorId).map(item => ({
+            alertPriority: item.alertPriority,
             timestamp: Number(item.timestamp || 0),
             html: renderSimpleDoctorProcedureAlertHtml(item)
           }))
@@ -10380,7 +10421,10 @@
           : `<div class="empty-state"><div class="empty-icon">-</div><div class="empty-text">알림 없음</div></div>`;
         return `
         <div class="doctor-alert-box">
-          <div class="doctor-alert-box-title">${doctorName ? escapeHtml(doctorName) : '원장 없음'}</div>
+          <div class="doctor-alert-box-title">
+            <span class="doctor-alert-box-name">${doctorName ? escapeHtml(doctorName) : '원장 없음'}</span>
+            ${doctorId ? `<button type="button" class="doctor-chuna-delay-toggle${chunaDelayEnabled ? ' is-on' : ''}" onclick="toggleDoctorChunaDelay('${escapeHtml(doctorId)}')" aria-pressed="${chunaDelayEnabled ? 'true' : 'false'}">추나 연기 ${chunaDelayEnabled ? 'ON' : 'OFF'}</button>` : ''}
+          </div>
           <div class="doctor-alert-box-list">${listHtml}</div>
         </div>`;
       }).join('');
@@ -10500,6 +10544,7 @@
     const doctorProcedureItems = shouldShowDoctorProcedureAlerts()
       ? getDoctorProcedureAlertItems()
         .map(item => ({
+          alertPriority: item.alertPriority,
           timestamp: Number(item.timestamp || 0),
           html: renderDoctorProcedureAlertHtml(item)
         }))
@@ -11434,8 +11479,7 @@
 
     // 보드에 떠 있는 동일 원장의 남은 시술 알림 목록
     const items = getDoctorProcedureAlertItems(doctorId)
-      .filter(it => it.bedNo !== currentBedNo)
-      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+      .filter(it => it.bedNo !== currentBedNo);
 
     if (!items.length) return null;
     const next = items[0];
@@ -13149,8 +13193,14 @@
     return false;
   }
 
+  function isChunaDelayTreatment(treatment) {
+    const name = String(treatment || '').trim();
+    return name === '단추' || name === '복추' || name === '추나';
+  }
+
   function getDoctorProcedureAlertItems(doctorId = selectedDoctorAlertId) {
     if (!doctorId) return [];
+    const chunaDelayEnabled = isDoctorChunaDelayEnabled(doctorId);
     return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS]
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
       .filter(({ bedNo, bed }) => {
@@ -13167,6 +13217,7 @@
         const treatment = formatTreatmentNames(treatments) || '침';
         const alertId = getDoctorProcedureAlertId(bedNo, bed, currentTreatment);
         if (isDoctorProcedureAlertDismissed(bedNo, bed)) return null;
+        const shouldDelayChuna = chunaDelayEnabled && treatments.some(isChunaDelayTreatment);
         return {
           alertId,
           bedNo,
@@ -13176,11 +13227,17 @@
           nurseName: bed.nurseName || '',
           treatment,
           treatments,
+          alertPriority: shouldDelayChuna ? 2 : 1,
           timestamp: Number(bed.doctorProcedureAlert?.dismissedAt || bed.startedAt || bed.timestamp || 0),
           message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${treatment}`
         };
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .sort((a, b) => {
+        const priorityDiff = Number(a.alertPriority ?? 1) - Number(b.alertPriority ?? 1);
+        if (priorityDiff) return priorityDiff;
+        return Number(a.timestamp || 0) - Number(b.timestamp || 0);
+      });
   }
 
   // ── 치료실/치료실알림 치료 시작 알림 (핫팩·물리치료·적외선) ──
