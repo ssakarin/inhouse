@@ -693,13 +693,20 @@
     height: 18px;
     padding: 0 5px;
     font-size: 10px;
+    position: static;
+  }
+  .waiting-list--compact .waiting-hold-badges {
     position: absolute;
-    top: 5px; right: 6px;
+    top: 5px;
+    right: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
   }
   .waiting-list--compact .waiting-item { position: relative; }
   .waiting-list--compact .waiting-name {
     font-size: 13px;
-    padding-right: 22px;
+    padding-right: 54px;
   }
   .waiting-list--compact .waiting-info {
     margin-top: 2px;
@@ -750,6 +757,21 @@
     background: rgba(255,202,106,0.18);
     border: 1px solid rgba(255,202,106,0.6);
     color: var(--gold);
+  }
+  .waiting-hold-order {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: var(--text2);
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1;
   }
   .waiting-rank {
     width: 24px;
@@ -5096,11 +5118,31 @@
     return HOLD_BED_NUMBERS.find(n => !holdBedMap[n]) || null;
   }
 
+  function getHoldTargetSortValue(targetBedNo) {
+    const target = Number(targetBedNo);
+    if (target >= 101) return target - 100;
+    if (target === 15) return 1000;
+    return 2000 + (Number.isFinite(target) ? target : 0);
+  }
+
+  function getHoldTargetKey(bed) {
+    const target = Number(bed?.pendingTargetBedNo);
+    return Number.isFinite(target) && target > 0 ? String(target) : '';
+  }
+
+  function compareHoldBedEntries(a, b) {
+    const targetDelta = getHoldTargetSortValue(a.bed?.pendingTargetBedNo) - getHoldTargetSortValue(b.bed?.pendingTargetBedNo);
+    if (targetDelta) return targetDelta;
+    const timeDelta = Number(a.bed.holdQueuedAt || a.bed.timestamp || 0) - Number(b.bed.holdQueuedAt || b.bed.timestamp || 0);
+    if (timeDelta) return timeDelta;
+    return Number(a.bedNo) - Number(b.bedNo);
+  }
+
   function getHoldBedEntries() {
     return Object.entries(holdBedMap)
       .filter(([, bed]) => bed)
       .map(([bedNo, bed]) => ({ bedNo: Number(bedNo), bed }))
-      .sort((a, b) => Number(a.bed.holdQueuedAt || a.bed.timestamp || 0) - Number(b.bed.holdQueuedAt || b.bed.timestamp || 0));
+      .sort(compareHoldBedEntries);
   }
 
   // 일반 베드(1~15) + 원장실 베드(101~) + 임시 보관 베드(901~) 전체를 {bed, bedNo}로 반환
@@ -9740,6 +9782,7 @@
     const waitingPatients = getWaitingPatients();
     updateDeskWaitChip(waitingPatients);
     const heldEntries = getHoldBedEntries();
+    const holdTargetCounts = new Map();
     const heldHtml = heldEntries
       .map(({ bedNo, bed }) => {
         const heldTreatments = bed?.treatments || [];
@@ -9747,13 +9790,19 @@
         const heldNames = getConcurrentTreatmentNames(heldTreatments, heldIdx).map(name => String(name || '').trim());
         const nextTreatmentLabel = formatTreatmentNames(heldNames) || bed?.treatments?.[heldIdx] || getBedLabel(bed?.pendingTargetBedNo) || '대기';
         const targetBadge = getHoldTargetBadge(bed?.pendingTargetBedNo);
+        const targetKey = getHoldTargetKey(bed);
+        const holdOrder = (holdTargetCounts.get(targetKey) || 0) + 1;
+        holdTargetCounts.set(targetKey, holdOrder);
         const heldChips = [
           `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(nextTreatmentLabel)}</span>`,
           bed?.doctorName ? `<span class="bed-meta-chip">${escapeHtml(bed.doctorName)}</span>` : ''
         ].filter(Boolean).join('');
         return `
-        <div class="waiting-item waiting-item--held" id="held-${bedNo}" draggable="true" onclick="handleInputBedClick(${bedNo})" oncontextmenu="purgeBedPatient(event, ${bedNo})" ondragstart="handleBedDragStart(event, ${bedNo})" ondragend="handleBedDragEnd()">
-          <div class="waiting-hold-target ${targetBadge.className}">${escapeHtml(targetBadge.label)}</div>
+        <div class="waiting-item waiting-item--held" id="held-${bedNo}" draggable="true" onclick="handleInputBedClick(${bedNo})" oncontextmenu="purgeBedPatient(event, ${bedNo})" ondragstart="handleBedDragStart(event, ${bedNo})" ondragover="handleHoldQueueDragOver(event, ${bedNo})" ondrop="handleHoldQueueDrop(event, ${bedNo})" ondragend="handleBedDragEnd()">
+          <div class="waiting-hold-badges">
+            <div class="waiting-hold-target ${targetBadge.className}">${escapeHtml(targetBadge.label)}</div>
+            <div class="waiting-hold-order">${holdOrder}</div>
+          </div>
           <div>
             <div class="waiting-name">${escapeHtml(bed?.name || '')}</div>
             <div class="waiting-info">${heldChips}</div>
@@ -9963,6 +10012,75 @@
     await moveBedToWaiting(bedNo);
     renderWaitingLists();
     renderBedMonitors();
+  };
+
+  async function reorderHoldQueue(fromBedNo, toBedNo, insertAfter = false) {
+    fromBedNo = Number(fromBedNo);
+    toBedNo = Number(toBedNo);
+    if (!HOLD_BED_NUMBERS.includes(fromBedNo) || !HOLD_BED_NUMBERS.includes(toBedNo) || fromBedNo === toBedNo) return false;
+
+    const fromBed = getBedData(fromBedNo);
+    const toBed = getBedData(toBedNo);
+    const targetKey = getHoldTargetKey(fromBed);
+    if (!fromBed || !toBed || !targetKey || targetKey !== getHoldTargetKey(toBed)) return false;
+
+    const result = await runBedsRecordTransaction((beds) => {
+      beds = beds || {};
+      const entries = Object.entries(beds)
+        .filter(([bedNo, bed]) => HOLD_BED_NUMBERS.includes(Number(bedNo)) && getHoldTargetKey(bed) === targetKey)
+        .map(([bedNo, bed]) => ({ bedNo: Number(bedNo), bed }))
+        .sort(compareHoldBedEntries);
+      const order = entries.map(entry => entry.bedNo);
+      const fromIndex = order.indexOf(fromBedNo);
+      const toIndex = order.indexOf(toBedNo);
+      if (fromIndex < 0 || toIndex < 0) return undefined;
+
+      order.splice(fromIndex, 1);
+      let insertIndex = order.indexOf(toBedNo);
+      if (insertIndex < 0) return undefined;
+      if (insertAfter) insertIndex += 1;
+      order.splice(insertIndex, 0, fromBedNo);
+      if (order.every((bedNo, index) => bedNo === entries[index]?.bedNo)) return undefined;
+
+      const baseQueuedAt = Date.now();
+      order.forEach((bedNo, index) => {
+        const key = String(bedNo);
+        beds[key] = { ...(beds[key] || {}), holdQueuedAt: baseQueuedAt + index };
+      });
+      return beds;
+    });
+
+    if (result.committed) {
+      suppressBedClickUntil = Date.now() + 350;
+      renderWaitingLists();
+      return true;
+    }
+    return false;
+  }
+
+  window.handleHoldQueueDragOver = (event, overBedNo) => {
+    const fromBedNo = draggedBedNo || Number(event.dataTransfer?.getData('text/plain'));
+    const fromBed = getBedData(fromBedNo);
+    const overBed = getBedData(overBedNo);
+    if (!HOLD_BED_NUMBERS.includes(Number(fromBedNo)) || !HOLD_BED_NUMBERS.includes(Number(overBedNo))) return;
+    if (!fromBed || !overBed || getHoldTargetKey(fromBed) !== getHoldTargetKey(overBed)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  };
+
+  window.handleHoldQueueDrop = async (event, overBedNo) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const fromBedNo = draggedBedNo || Number(event.dataTransfer?.getData('text/plain'));
+    draggedBedNo = null;
+    selectedMoveBedNo = null;
+    suppressBedClickUntil = Date.now() + 350;
+    const rect = event.currentTarget?.getBoundingClientRect?.();
+    const insertAfter = rect
+      ? (event.clientY > rect.top + rect.height / 2 || event.clientX > rect.left + rect.width / 2)
+      : false;
+    const moved = await reorderHoldQueue(fromBedNo, overBedNo, insertAfter);
+    if (!moved) showToast('같은 대기 목적지 안에서만 순번 변경 가능합니다');
   };
 
   function getEstimatedWaitMinutesList(waitingPatients) {
