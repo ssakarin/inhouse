@@ -1751,7 +1751,7 @@ function sseFrame(event, payload) {
 
 function sseClientAllowsState(client, key) {
   if (!client || client.role !== "fixed-bed") return true;
-  return key === "settings/treatmentMinutes" || key === "staff/doctors" || key === "staff/nurses" || key === "bedAssignmentAlerts";
+  return key === "settings/treatmentMinutes" || key === "settings/doctorChunaDelay" || key === "staff/doctors" || key === "staff/nurses" || key === "bedAssignmentAlerts";
 }
 
 function sseSendFrame(client, frame) {

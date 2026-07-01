@@ -3436,10 +3436,12 @@
     width: auto;
     max-width: none;
     min-width: 0;
-    padding: 2px 8px;
+    min-height: 26px;
+    padding: 4px 10px;
     overflow: visible;
     text-overflow: clip;
-    font-size: 12px;
+    font-size: 13px;
+    line-height: 1.15;
   }
   .timer-clock {
     font-size: clamp(44px, 10vw, 72px);
@@ -5343,6 +5345,10 @@
   }
 
   function refreshDoctorChunaDelayViews() {
+    if (isFixedBedScreen()) {
+      const fixedBedNo = Number(getFixedDoctorBedNoFromUrl?.() || 0);
+      if (fixedBedNo) selectedBedNo = fixedBedNo;
+    }
     syncDoctorProcedureAlerts();
     renderUpcomingAlerts();
     renderBedDoctorAlertPanel();
@@ -7788,7 +7794,8 @@
     pendingBedScheduleDates = normalizeAppointmentDates(selectedDates);
     const bed = getBedData(selectedBedNo);
     const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
-    const undecided = Boolean(patient?.appointmentUndecided);
+    const appointmentSource = patient || bed || {};
+    const undecided = Boolean(appointmentSource.appointmentUndecided);
     const today = addLocalDays(new Date(), 0);
     const presetDateItems = getBedSchedulePresetDateItems(today);
     calendar.innerHTML = presetDateItems.map(({ date, dateValue, offset }) => {
@@ -7870,7 +7877,7 @@
   async function populateBedSchedulePanel() {
     const bed = getBedData(selectedBedNo);
     const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
-    renderBedScheduleCalendar(normalizeAppointmentDates(patient || {}));
+    renderBedScheduleCalendar(normalizeAppointmentDates(patient || bed || {}));
   }
   window.populateBedSchedulePanel = populateBedSchedulePanel;
 
@@ -7922,6 +7929,22 @@
       bodyParts: normalizeBodyParts(bed.bodyParts)
     }, appointmentDates, isUndecided);
     if (ok) {
+      const patient = patientsByKey.get(bed.patientKey) || {};
+      const bedAppointmentPatch = {
+        appointmentDates: normalizeAppointmentDates(patient || {}),
+        appointmentDate: normalizeAppointmentDates(patient || {})[0] || '',
+        appointmentAlerts: patient.appointmentAlerts || {},
+        appointmentAlert: patient.appointmentAlert || null,
+        appointmentUndecided: Boolean(patient.appointmentUndecided),
+        appointmentUndecidedAlert: patient.appointmentUndecidedAlert || null
+      };
+      Object.assign(bed, bedAppointmentPatch);
+      try {
+        await updateBedRecord(selectedBedNo, bedAppointmentPatch);
+      } catch (e) {
+        console.error('베드 예약 정보 저장 실패', e);
+        showToast('베드 예약 표시 저장 실패');
+      }
       const total = appointmentDates.length + (isUndecided ? 1 : 0);
       if (!total) {
         showToast(`${bed.name || '환자'}님 예약 삭제`);
@@ -7945,17 +7968,19 @@
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
     const bed = getBedData(selectedBedNo);
     const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
-    const current = normalizeAppointmentDates(patient || {});
+    const appointmentSource = patient || bed || {};
+    const current = normalizeAppointmentDates(appointmentSource);
     const next = current.includes(date) ? current.filter(item => item !== date) : [...current, date];
-    commitBedSchedule(next, Boolean(patient?.appointmentUndecided));
+    commitBedSchedule(next, Boolean(appointmentSource.appointmentUndecided));
   };
 
   // "기타" = 미정 (no calendar). Toggles the undecided marker, keeping any dates.
   window.toggleBedScheduleUndecided = () => {
     const bed = getBedData(selectedBedNo);
     const patient = bed?.patientKey ? (patientsByKey.get(bed.patientKey) || null) : null;
-    const current = normalizeAppointmentDates(patient || {});
-    const isUndecided = Boolean(patient?.appointmentUndecided);
+    const appointmentSource = patient || bed || {};
+    const current = normalizeAppointmentDates(appointmentSource);
+    const isUndecided = Boolean(appointmentSource.appointmentUndecided);
     commitBedSchedule(current, !isUndecided);
   };
 
@@ -12965,7 +12990,8 @@
     const treatments = bed.treatments || [];
     const assignmentAlert = getBedAssignmentAlertForBed(bedNo);
     const patient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
-    const appointmentDates = normalizeAppointmentDates(patient || {});
+    const appointmentSource = patient || bed || {};
+    const appointmentDates = normalizeAppointmentDates(appointmentSource);
     const appointmentDate = appointmentDates[0] || '';
     const hasTreatment = treatments.length > 0;
     const currentIndex = Number(bed.currentIndex || 0);
@@ -13015,7 +13041,7 @@
       age: bed.age || '',
       appointmentDate,
       appointmentDateCount: appointmentDates.length,
-      appointmentUndecided: Boolean(patient?.appointmentUndecided),
+      appointmentUndecided: Boolean(appointmentSource.appointmentUndecided),
       chiefComplaint: bed.chiefComplaint || '',
       memo2: bed.memo2 || '',
       bodyParts: normalizeBodyParts(bed.bodyParts),
