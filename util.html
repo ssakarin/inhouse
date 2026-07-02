@@ -167,10 +167,9 @@
   <div class="card">
     <div class="card-title">3차 내원 체크 테스트</div>
     <div class="tool-row">
-      <input class="search-input" id="thirdVisitShareEmailInput" type="email" placeholder="공유할 이메일(선택)" autocomplete="off">
-      <button class="good" id="thirdVisitSyncBtn" type="button">테스트 시트 생성 후 반영</button>
+      <button class="good" id="thirdVisitSyncBtn" type="button">원본 시트 반영</button>
     </div>
-    <div class="note">원본 구글시트는 수정하지 않고 복사본을 만든 뒤 환자 DB의 진료 기록으로 초진/재진 칸을 채웁니다.</div>
+    <div class="note">원본 구글시트에 환자 DB의 진료 기록으로 계산한 초진/재진 칸을 바로 반영합니다.</div>
     <div class="status" id="thirdVisitSyncStatus">대기 중</div>
     <div class="sync-result" id="thirdVisitSyncResult"></div>
   </div>
@@ -233,7 +232,6 @@
   const onlineSlackBtn = document.getElementById("onlineSlackBtn");
   const onlineSlackStatus = document.getElementById("onlineSlackStatus");
   const onlineSlackResult = document.getElementById("onlineSlackResult");
-  const thirdVisitShareEmailInput = document.getElementById("thirdVisitShareEmailInput");
   const thirdVisitSyncBtn = document.getElementById("thirdVisitSyncBtn");
   const thirdVisitSyncStatus = document.getElementById("thirdVisitSyncStatus");
   const thirdVisitSyncResult = document.getElementById("thirdVisitSyncResult");
@@ -468,8 +466,8 @@
       <table>
         <tbody>
           <tr>
-            <th>테스트 시트</th>
-            <td><a class="sheet-link" href="${escapeHtml(data.testSpreadsheetUrl || "#")}" target="_blank" rel="noopener">${escapeHtml(data.testSpreadsheetUrl || "-")}</a></td>
+            <th>원본 시트</th>
+            <td><a class="sheet-link" href="${escapeHtml(data.sourceSpreadsheetUrl || "#")}" target="_blank" rel="noopener">${escapeHtml(data.sourceSpreadsheetUrl || "-")}</a></td>
           </tr>
           <tr>
             <th>워크시트</th>
@@ -499,18 +497,17 @@
   async function runThirdVisitTestSync() {
     thirdVisitSyncBtn.disabled = true;
     thirdVisitSyncResult.innerHTML = "";
-    setThirdVisitSyncStatus("테스트 구글시트 생성 및 반영 중...");
+    setThirdVisitSyncStatus("원본 구글시트 반영 중...");
     try {
       const res = await fetch("/api/google/third-visit-test-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        cache: "no-store",
-        body: JSON.stringify({ shareEmail: thirdVisitShareEmailInput.value.trim() })
+        cache: "no-store"
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error(data.error || `작업 실패 (${res.status})`);
+      if (!res.ok || !data.ok) throw new Error(data.error || `원본 반영 실패 (${res.status})`);
       renderThirdVisitSyncResult(data);
-      setThirdVisitSyncStatus("테스트 시트 생성 및 반영 완료", "good");
+      setThirdVisitSyncStatus("원본 구글시트 반영 완료", "good");
     } catch (error) {
       setThirdVisitSyncStatus(error?.message || String(error), "error");
     } finally {
@@ -1420,9 +1417,6 @@ const DISEASE = [
     if (event.key === "Enter") searchNoFollowupPatients();
   });
   thirdVisitSyncBtn.addEventListener("click", runThirdVisitTestSync);
-  thirdVisitShareEmailInput.addEventListener("keydown", event => {
-    if (event.key === "Enter") runThirdVisitTestSync();
-  });
   alerttalkCreateBtn.addEventListener("click", createAlerttalkExcels);
   alerttalkInput.addEventListener("keydown", event => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) createAlerttalkExcels();
@@ -1439,3 +1433,4 @@ const DISEASE = [
 </script>
 </body>
 </html>
+

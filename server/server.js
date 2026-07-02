@@ -1360,14 +1360,15 @@ function isThirdVisitPrescription(value) {
 
 function buildThirdVisitUpdates(sheetValues, visits) {
   if (!sheetValues.length) throw new Error("선택한 워크시트가 비어 있습니다.");
-  const headers = sheetValues[0] || [];
-  if (headers.length <= 20) throw new Error("시트의 컬럼 수가 부족합니다. 최소 21개 컬럼이 필요합니다.");
+  const headers = [...(sheetValues[0] || [])];
+  while (headers.length <= 20) headers.push("");
 
   const rows = sheetValues.slice(1).map(row => {
     const next = [...row];
     while (next.length < headers.length) next.push("");
     return next;
   });
+  const originalRows = rows.map(row => [...row]);
   const existingFirstDates = rows.map(row => String(row[18] || "").trim()).filter(Boolean);
   if (!existingFirstDates.length) throw new Error("기존 시트의 19번째 컬럼에서 마지막 진료일을 찾지 못했습니다.");
   const lastDate = parseThirdVisitSheetDate(existingFirstDates[existingFirstDates.length - 1]);
@@ -1449,6 +1450,8 @@ function buildThirdVisitUpdates(sheetValues, visits) {
         rowIndex,
         colIndex,
         range: cellA1(rowIndex, colIndex),
+        previousValue: originalRows[rowIndex]?.[colIndex] || "",
+        nextValue: rows[rowIndex][colIndex] || "",
         values: [[rows[rowIndex][colIndex] || ""]]
       });
     }
@@ -1461,34 +1464,18 @@ function buildThirdVisitUpdates(sheetValues, visits) {
     revisitPatients: revisitRows.length,
     missingRevisitNames,
     changedRows: [...changedRows].sort((a, b) => a - b),
-    updates
+    updates,
+    sheetValues: [headers, ...rows]
   };
 }
 
-async function copyThirdVisitSpreadsheet(shareEmail = "") {
-  const name = `3차 내원 체크 테스트 ${new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`;
-  const file = await googleApi(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(THIRD_VISIT_SPREADSHEET_ID)}/copy?supportsAllDrives=true`, {
-    method: "POST",
-    body: JSON.stringify({ name })
-  });
-  const email = normalizeSearchText(shareEmail);
-  if (email) {
-    await googleApi(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}/permissions?sendNotificationEmail=false&supportsAllDrives=true`, {
-      method: "POST",
-      body: JSON.stringify({ type: "user", role: "writer", emailAddress: email })
-    });
-  }
-  return file;
-}
-
-async function runThirdVisitGoogleSheetTest(shareEmail = "") {
-  const copied = await copyThirdVisitSpreadsheet(shareEmail);
-  const spreadsheet = await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(copied.id)}?fields=spreadsheetId,spreadsheetUrl,properties.title,sheets.properties`);
+async function runThirdVisitGoogleSheetSync() {
+  const spreadsheet = await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(THIRD_VISIT_SPREADSHEET_ID)}?fields=spreadsheetId,spreadsheetUrl,properties.title,sheets.properties`);
   const sheet = spreadsheet.sheets?.[THIRD_VISIT_WORKSHEET_INDEX]?.properties;
   if (!sheet?.title) throw new Error(`구글 시트에 ${THIRD_VISIT_WORKSHEET_INDEX + 1}번째 워크시트가 없습니다.`);
 
   const range = `${quoteSheetName(sheet.title)}!A:ZZ`;
-  const valueData = await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(copied.id)}/values/${encodeURIComponent(range)}?majorDimension=ROWS`);
+  const valueData = await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(THIRD_VISIT_SPREADSHEET_ID)}/values/${encodeURIComponent(range)}?majorDimension=ROWS`);
   const lastCol19Values = (valueData.values || []).slice(1).map(row => row?.[18]).filter(Boolean);
   const lastDate = parseThirdVisitSheetDate(lastCol19Values[lastCol19Values.length - 1]);
   if (!lastDate) throw new Error("기존 시트의 마지막 진료일을 읽지 못했습니다.");
@@ -1502,7 +1489,7 @@ async function runThirdVisitGoogleSheetTest(shareEmail = "") {
   }));
   const result = buildThirdVisitUpdates(valueData.values || [], visits);
   if (result.updates.length) {
-    await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(copied.id)}/values:batchUpdate`, {
+    await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(THIRD_VISIT_SPREADSHEET_ID)}/values:batchUpdate`, {
       method: "POST",
       body: JSON.stringify({
         valueInputOption: "USER_ENTERED",
@@ -1517,12 +1504,12 @@ async function runThirdVisitGoogleSheetTest(shareEmail = "") {
   return {
     ok: true,
     sourceSpreadsheetId: THIRD_VISIT_SPREADSHEET_ID,
-    testSpreadsheetId: copied.id,
-    testSpreadsheetUrl: spreadsheet.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${copied.id}/edit`,
+    sourceSpreadsheetUrl: spreadsheet.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${THIRD_VISIT_SPREADSHEET_ID}/edit`,
     worksheetTitle: sheet.title,
     worksheetIndex: THIRD_VISIT_WORKSHEET_INDEX,
-    savedToSource: false,
+    savedToSource: true,
     updatedCells: result.updates.length,
+    generatedAt: new Date().toISOString(),
     ...result
   };
 }
@@ -2275,8 +2262,7 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname === "/api/google/third-visit-test-sync" && req.method === "POST") {
-    const payload = await readJson(req);
-    jsonResponse(res, 200, await runThirdVisitGoogleSheetTest(payload?.shareEmail || ""));
+    jsonResponse(res, 200, await runThirdVisitGoogleSheetSync());
     return true;
   }
 
