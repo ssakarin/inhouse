@@ -290,6 +290,11 @@
     padding: 7px 10px;
     white-space: nowrap;
   }
+  .header-wait-chip.today-treated-chip {
+    background: rgba(57,169,245,0.18);
+    border-color: rgba(57,169,245,0.64);
+    color: #9edcff;
+  }
   .desk-excel-add-btn {
     background: rgba(74,222,128,0.14);
     border: 1px solid rgba(74,222,128,0.55);
@@ -2063,6 +2068,14 @@
     background: rgba(148,163,184,0.10);
     border-color: rgba(148,163,184,0.20);
   }
+  .bed-status.cleaning {
+    border-color: rgba(148,163,184,0.58);
+    background: linear-gradient(180deg, rgba(148,163,184,0.14), rgba(30,41,59,0.28));
+  }
+  .bed-status.cleaning .bed-status-no,
+  .bed-status.cleaning .bed-status-time {
+    color: #cbd5e1;
+  }
   .bed-status.compact {
     min-height: 48px;
     padding: 9px 10px;
@@ -2644,6 +2657,7 @@
   .bed-stage-badge.paused { background: rgba(200,214,230,0.12); border: 1px solid rgba(200,214,230,0.32); color: var(--text2); }
   .bed-stage-badge.complete { background: rgba(255,202,106,0.18); border: 1px solid rgba(255,202,106,0.65); color: var(--gold); }
   .bed-stage-badge.empty { background: rgba(155,173,191,0.12); border: 1px solid rgba(155,173,191,0.28); color: var(--text3); }
+  .bed-stage-badge.cleaning { background: rgba(148,163,184,0.16); border: 1px solid rgba(148,163,184,0.48); color: #cbd5e1; }
   .bed-popover {
     display: block;
     position: static;
@@ -3153,6 +3167,39 @@
   .bed-detail-info .bed-move-btn {
     border-color: rgba(57,169,245,0.45);
     color: var(--accent);
+  }
+  .bed-cleaning-card {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid rgba(148,163,184,0.38);
+    border-radius: var(--radius);
+    background: rgba(148,163,184,0.10);
+  }
+  .bed-cleaning-title {
+    color: #cbd5e1;
+    font-size: 24px;
+    font-weight: 900;
+  }
+  .bed-cleaning-sub {
+    color: var(--text2);
+    font-size: 14px;
+    font-weight: 800;
+  }
+  .bed-cleaning-complete-btn {
+    border: 1px solid rgba(57,169,245,0.62);
+    border-radius: 10px;
+    background: rgba(57,169,245,0.18);
+    color: var(--accent);
+    padding: 12px 16px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 15px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .bed-cleaning-complete-btn:hover {
+    border-color: var(--accent);
+    background: rgba(57,169,245,0.26);
   }
   .bed-move-panel {
     grid-column: 1 / -1;
@@ -4231,18 +4278,21 @@
             <span class="rr-slider"></span>
           </span>
         </label>
+        <span class="header-wait-chip today-treated-chip" id="deskTodayTreatedCount">오늘 0명</span>
         <span class="header-wait-chip bed-count-chip" id="deskBedPatientCount">0/13</span>
         <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
         <span class="header-current-time" id="deskCurrentTime"></span>
       </div>
       <div class="header-notify-controls">
         <button class="nurse-quick-btn" id="nurseQuickBtn" type="button" onclick="toggleNurseQuickPopover(event)">간호사</button>
+        <span class="header-wait-chip today-treated-chip" id="receiveTodayTreatedCount">오늘 0명</span>
         <span class="header-wait-chip bed-count-chip" id="receiveBedPatientCount">0/13</span>
         <span class="header-wait-chip" id="notifyWaitChip">예상대기시간 0분</span>
         <div class="doctor-alert-btns" id="doctorAlertBtns"></div>
         <span class="header-current-time" id="notifyCurrentTime"></span>
       </div>
       <div class="header-bed-controls">
+        <span class="header-wait-chip today-treated-chip" id="bedTodayTreatedCount">오늘 0명</span>
         <span class="header-wait-chip bed-count-chip" id="bedPatientCount">0/13</span>
         <span class="header-wait-chip" id="bedRemainingChip">남은 진료 시간 0분</span>
         <span class="header-current-time" id="bedCurrentTime"></span>
@@ -5181,6 +5231,24 @@
     return bedNo >= 101 ? (doctorBedMap[bedNo] || null) : bedAssignments[bedNo - 1];
   }
 
+  function isCleaningBed(bed) {
+    return Boolean(bed?.bedCleaning);
+  }
+
+  function createBedCleaningRecord(fromBedNo, movedBed, toBedNo) {
+    const startedAt = Date.now();
+    return {
+      bedCleaning: true,
+      cleaningStartedAt: startedAt,
+      previousPatientName: movedBed?.name || '',
+      previousPatientKey: movedBed?.patientKey || '',
+      movedToBedNo: Number(toBedNo) || null,
+      timeStr: new Date(startedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: startedAt,
+      bedNo: Number(fromBedNo)
+    };
+  }
+
   function findEmptyHoldBedNo() {
     return HOLD_BED_NUMBERS.find(n => !holdBedMap[n]) || null;
   }
@@ -5413,7 +5481,10 @@
       ...REGULAR_BED_NUMBERS,
       ...getDoctorBedNumbers()
     ]
-      .map(bedNo => `${bedNo}:${beds[String(bedNo)]?.patientKey || ''}`)
+      .map(bedNo => {
+        const bed = beds[String(bedNo)];
+        return `${bedNo}:${bed?.patientKey || (isCleaningBed(bed) ? '__cleaning__' : '')}`;
+      })
       .join('|');
   }
 
@@ -7214,6 +7285,7 @@
       if (data) dischargedPatientsByKey.set(key, data);
     });
     renderDischargedPatientsList();
+    updateCount();
   });
   cleanupOldDischargedPatients(getTodayKey());
 
@@ -8228,6 +8300,7 @@
       await saveDischargedPatientRecord(payload.dischargeDate || getTodayKey(), dischargedKey, payload);
       dischargedPatientsByKey.set(dischargedKey, payload);
       renderDischargedPatientsList();
+      updateCount();
       showToast(`${form.name} 퇴실환자 수정 완료`);
       return true;
     } catch (e) {
@@ -8758,6 +8831,11 @@
   function updateCount() {
     const todayCount = document.getElementById('todayCount');
     if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
+    const treatedCount = dischargedPatientsByKey.size;
+    ['deskTodayTreatedCount', 'receiveTodayTreatedCount', 'bedTodayTreatedCount'].forEach(id => {
+      const chip = document.getElementById(id);
+      if (chip) chip.textContent = `오늘 ${treatedCount}명`;
+    });
     const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1])).length;
     ['bedPatientCount', 'deskBedPatientCount', 'receiveBedPatientCount'].forEach(id => {
       const chip = document.getElementById(id);
@@ -9894,6 +9972,10 @@
       showToast('대기환자 정보를 찾을 수 없습니다');
       return false;
     }
+    if (isCleaningBed(getBedData(bedNo))) {
+      showToast('베드 정리 중입니다');
+      return false;
+    }
     if (canQueueIfOccupied && getBedData(bedNo)) {
       const holdBedNo = await assignWaitingPatientToHoldBed(patientKey, data, bedNo);
       if (holdBedNo) {
@@ -10882,7 +10964,7 @@
     selector.innerHTML = allBedNums.map((bedNo) => {
       const bed = getBedData(bedNo);
       const bedLabel = getBedLabel(bedNo);
-      const label = bed ? `${bedLabel} - ${bed.name}` : `${bedLabel} - 비어 있음`;
+      const label = isCleaningBed(bed) ? `${bedLabel} - 정리 중` : (bed ? `${bedLabel} - ${bed.name}` : `${bedLabel} - 비어 있음`);
       return `<option value="${bedNo}">${escapeHtml(label)}</option>`;
     }).join('');
     const validNums = allBedNums;
@@ -11337,11 +11419,16 @@
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
     if (!match) return '';
     const [, yyyy, mm, dd] = match;
-    const month = Number(mm);
-    const day = Number(dd);
-    const currentYear = new Date().getFullYear();
-    if (Number(yyyy) === currentYear) return `${month}/${day}`;
-    return `${String(yyyy).slice(2)}/${month}/${day}`;
+    const visitDate = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    if (Number.isNaN(visitDate.getTime())) return '';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    visitDate.setHours(0, 0, 0, 0);
+    const elapsedDays = Math.floor((today - visitDate) / 86400000);
+    if (elapsedDays < 0) return '';
+    if (elapsedDays === 0) return '오늘';
+    if (elapsedDays <= 90) return `${elapsedDays}일 전`;
+    return '초진';
   }
 
   function renderBedDetailPatientInfo(bed, bedNo, showClearButton = false, options = {}) {
@@ -11350,7 +11437,7 @@
     const infoChips = [
       bed.doctorName || '-',
       bed.nurseName || '-',
-      ...(recentVisitLabel ? [`최근 ${recentVisitLabel}`] : [])
+      ...(recentVisitLabel ? [recentVisitLabel] : [])
     ].map(value => `<span class="bed-meta-chip">${escapeHtml(value)}</span>`).join('');
     const showMovePanel = showClearButton && contextIsBedMoveTarget(bedNo);
     const actionButtons = showClearButton ? `
@@ -11458,6 +11545,21 @@
     </div>`;
   }
 
+  function renderBedCleaningMarkup(bedNo, bed) {
+    const movedTo = bed?.movedToBedNo ? `${getBedLabel(bed.movedToBedNo)}로 이동됨` : '환자 이동 후 정리 중';
+    const previous = bed?.previousPatientName ? `${bed.previousPatientName}님 ` : '';
+    const started = bed?.timeStr ? `정리 시작 ${bed.timeStr}` : '';
+    return `
+      <div class="card">
+        <div class="bed-cleaning-card">
+          <div class="bed-cleaning-title">${escapeHtml(getBedLabel(bedNo))} 베드 정리 중</div>
+          <div class="bed-cleaning-sub">${escapeHtml(`${previous}${movedTo}`)}</div>
+          ${started ? `<div class="bed-cleaning-sub">${escapeHtml(started)}</div>` : ''}
+          <button class="bed-cleaning-complete-btn" type="button" onclick="completeBedCleaning(${bedNo})">정리 완료</button>
+        </div>
+      </div>`;
+  }
+
   function renderBedDetailMarkup(bedNo, allowControls, context = 'bed') {
     const bed = getBedData(bedNo);
     const bedLabel = getBedLabel(bedNo);
@@ -11474,6 +11576,7 @@
           <div class="empty-text">${escapeHtml(bedLabel)} 현재 비어 있습니다</div>
         </div>`;
     }
+    if (isCleaningBed(bed)) return renderBedCleaningMarkup(bedNo, bed);
 
     const currentTreatment = bed.treatments?.[bed.currentIndex];
     if (context === 'bed') {
@@ -12243,6 +12346,7 @@
         await saveDischargedPatientRecord(dischargeDate, dischargedKey, dischargedRecord);
         dischargedPatientsByKey.set(dischargedKey, dischargedRecord);
         renderDischargedPatientsList();
+        updateCount();
       } catch (e) {
         console.error('퇴실환자 저장 실패', e);
       }
@@ -12265,14 +12369,26 @@
   window.confirmClearBedNumber = async (bedNo) => {
     const bed = getBedData(bedNo);
     if (!bed) return;
-
-    if (confirm(`${getBedLabel(bedNo)} ${bed.name} 삭제하시겠습니까?`)) {
-      await clearBed(bedNo, toLocalDateInputValue());
-    }
+    await clearBed(bedNo, toLocalDateInputValue());
   };
 
   window.confirmClearSelectedBed = async () => {
     await confirmClearBedNumber(selectedBedNo);
+  };
+
+  window.completeBedCleaning = async (bedNo) => {
+    const bed = getBedData(bedNo);
+    if (!isCleaningBed(bed)) return;
+    try {
+      await removeBedRecord(bedNo);
+      showToast(`${getBedLabel(bedNo)} 정리 완료`);
+      renderBedMonitors();
+      renderBedDetail();
+      renderReceiveBedDetail();
+    } catch (e) {
+      console.error('베드 정리 완료 실패', e);
+      showToast('정리 완료 실패');
+    }
   };
 
   // 우클릭 삭제: 베드 비우기(clearBed)와 달리 chart DB에 기록하지 않고 베드만 비운다.
@@ -12281,6 +12397,10 @@
     event?.stopPropagation();
     const bed = getBedData(bedNo);
     if (!bed) return;
+    if (isCleaningBed(bed)) {
+      await completeBedCleaning(bedNo);
+      return;
+    }
     if (!confirm(`${getBedLabel(bedNo)} ${bed.name || ''} 삭제하시겠습니까?`)) return;
 
     clearLocalTimerAlertsForBed(bedNo);
@@ -12392,7 +12512,15 @@
 
     const fromBed = getBedData(fromBedNo);
     if (!fromBed) return false;
+    if (isCleaningBed(fromBed)) {
+      if (!options.silent) showToast('정리 중인 베드는 이동할 수 없습니다');
+      return false;
+    }
     const targetBedBefore = getBedData(toBedNo);
+    if (isCleaningBed(targetBedBefore)) {
+      if (!options.silent) showToast('정리 중인 베드에는 이동할 수 없습니다');
+      return false;
+    }
     const movingFromPatientKey = fromBed.patientKey || '';
     const movingToPatientKey = targetBedBefore?.patientKey || '';
     const hadTargetBed = Boolean(getBedData(toBedNo));
@@ -12410,7 +12538,8 @@
         beds[toKey] = movingBed;
       } else {
         beds[toKey] = movingBed;
-        delete beds[fromKey];
+        if (HOLD_BED_NUMBERS.includes(Number(fromBedNo)) || Number(fromBedNo) >= 101 || Number(fromBedNo) === 15) delete beds[fromKey];
+        else beds[fromKey] = createBedCleaningRecord(fromBedNo, movingBed, toBedNo);
       }
       return beds;
     });
@@ -12529,6 +12658,14 @@
       showToast('현재 베드가 비어 있습니다');
       return;
     }
+    if (isCleaningBed(bed)) {
+      selectedBedNo = Number(bedNo);
+      selectedReceiveBedNo = Number(bedNo);
+      renderBedDetail();
+      renderReceiveBedDetail();
+      showToast(`${getBedLabel(bedNo)} 정리 중`);
+      return;
+    }
 
     // 이미 같은 베드가 열려있으면 닫기
     const panel = scope === 'receive' ? document.getElementById('receivePanel') : document.getElementById('inputPanel');
@@ -12567,7 +12704,7 @@
       return;
     }
     const bed = getBedData(bedNo);
-    if (!bed) {
+    if (!bed || isCleaningBed(bed)) {
       event.preventDefault();
       return;
     }
@@ -12986,6 +13123,21 @@
     if (!bed) {
       return { bedNo, bedLabel, empty: true, stageState: 'empty', stageLabel: '비어 있음' };
     }
+    if (isCleaningBed(bed)) {
+      return {
+        bedNo,
+        bedLabel,
+        cleaning: true,
+        empty: false,
+        name: '베드 정리 중',
+        statusLabel: bed.movedToBedNo ? `${getBedLabel(bed.movedToBedNo)} 이동 후 정리` : '환자 이동 후 정리',
+        stageState: 'cleaning',
+        stageLabel: '정리 중',
+        remaining: '',
+        timeStr: bed.timeStr || '',
+        previousPatientName: bed.previousPatientName || ''
+      };
+    }
 
     const treatments = bed.treatments || [];
     const assignmentAlert = getBedAssignmentAlertForBed(bedNo);
@@ -13163,6 +13315,21 @@
           </div>
           ${compact ? '' : '<div class="bed-status-treatment"><span class="bed-stage-badge empty">비어 있음</span></div>'}
           ${compact ? '' : renderBedPopover(status)}
+        </div>`;
+    }
+
+    if (status.cleaning) {
+      const compactLabel = `${getCompactBedMarker(status.bedNo)} 정리 중`;
+      const clickAction = canMoveBed ? `handleInputBedClick(${status.bedNo})` : `selectReceiveBed(${status.bedNo})`;
+      const contextHandler = canMoveBed ? ` oncontextmenu="purgeBedPatient(event, ${status.bedNo})"` : '';
+      return `
+        <div class="bed-status cleaning${compact ? ' compact' : ''}${activeClass}" tabindex="0" onclick="${clickAction}"${contextHandler}>
+          <div class="bed-status-top">
+            <span class="bed-status-no">${compact ? escapeHtml(compactLabel) : `${escapeHtml(monitorLabel)} 베드 정리 중`}</span>
+            ${compact ? '' : '<span class="bed-status-time">-</span>'}
+          </div>
+          ${compact ? '' : `<div class="bed-status-info"><span class="bed-meta-chip">${escapeHtml(status.statusLabel)}</span></div>`}
+          ${compact ? '' : '<div class="bed-status-treatment"><span class="bed-stage-badge cleaning">정리 중</span></div>'}
         </div>`;
     }
 
