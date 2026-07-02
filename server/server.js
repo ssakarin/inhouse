@@ -24,6 +24,7 @@ const LOGIN_PASSWORD = process.env.CLINIC_PASSWORD || "";
 const DELETE_PASSWORD = process.env.CLINIC_DELETE_PASSWORD || "337758";
 const SLACK_TOKEN = process.env.SLACK_TOKEN || "";
 const ONLINE_MANAGEMENT_SLACK_CHANNEL = process.env.ONLINE_MANAGEMENT_SLACK_CHANNEL || "\uC628\uB77C\uC778\uAD00\uB9AC";
+const DOCTOR1_SLACK_CHANNEL = process.env.DOCTOR1_SLACK_CHANNEL || "\uC9C4\uB8CC\uC6D0\uC7A51";
 const SESSION_COOKIE = "sid";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 365; // 1 year — enter once per device
 
@@ -1172,6 +1173,62 @@ async function readOnlineManagementSlackMessages(days = 2) {
   };
 }
 
+function parseSlackMonth(value) {
+  const month = String(value || "").trim();
+  const match = month.match(/^(\d{4})-(\d{2})$/);
+  if (!match) throw new Error("month는 YYYY-MM 형식이어야 합니다.");
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  if (year < 2000 || monthIndex < 0 || monthIndex > 11) throw new Error("month 값이 올바르지 않습니다.");
+  const start = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+  const end = new Date(year, monthIndex + 1, 1, 0, 0, 0, 0);
+  return { month, start, end };
+}
+
+async function readSlackChannelMonthText(channelName, monthValue) {
+  const safeChannelName = String(channelName || DOCTOR1_SLACK_CHANNEL).trim() || DOCTOR1_SLACK_CHANNEL;
+  const { month, start, end } = parseSlackMonth(monthValue);
+  const channel = await findSlackChannelByName(safeChannelName);
+  if (!channel) throw new Error(`Slack channel not found: #${safeChannelName}`);
+  if (!channel.is_member && !channel.is_archived) {
+    try {
+      await slackApi("conversations.join", { channel: channel.id });
+    } catch {
+      // Private channels cannot be joined through this API. conversations.history
+      // will return the Slack error if the token has no access.
+    }
+  }
+
+  const messages = await readSlackChannelMessages(channel.id, {
+    oldest: String(Math.floor(start.getTime() / 1000)),
+    latest: String(Math.floor(end.getTime() / 1000)),
+    inclusive: true
+  });
+  const rows = [...messages].reverse();
+  const lines = [
+    `=== Slack Channel Export: #${channel.name || safeChannelName} ===`,
+    `Month: ${month}`,
+    `Range: ${ymd(start)} 00:00:00 ~ ${ymd(new Date(end.getTime() - 1))} 23:59:59`,
+    `Messages: ${rows.length}`,
+    `Exported: ${new Date().toLocaleString("ko-KR")}`,
+    ""
+  ];
+  if (!rows.length) {
+    lines.push("(조회된 메시지가 없습니다.)");
+  } else {
+    for (const message of rows) {
+      lines.push(`[${formatSlackTimestamp(message.ts)}] ${slackMessageUser(message)}: ${slackMessageText(message)}`);
+    }
+  }
+  return {
+    ok: true,
+    channel: channel.name || safeChannelName,
+    month,
+    messages: rows.length,
+    text: lines.join("\r\n")
+  };
+}
+
 function base64UrlJson(value) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
@@ -2199,6 +2256,21 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/slack/online-management" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     jsonResponse(res, 200, await readOnlineManagementSlackMessages(requestUrl.searchParams.get("days")));
+    return true;
+  }
+
+  if (pathname === "/api/slack/channel-month-text" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const result = await readSlackChannelMonthText(DOCTOR1_SLACK_CHANNEL, requestUrl.searchParams.get("month"));
+    const filename = `slack-${result.channel}-${result.month}.txt`;
+    const fallbackFilename = filename.replace(/[^\x20-\x7E]+/g, "_");
+    res.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Length": Buffer.byteLength(result.text),
+      "Cache-Control": "no-store",
+      "Content-Disposition": `attachment; filename="${fallbackFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    });
+    res.end(result.text);
     return true;
   }
 

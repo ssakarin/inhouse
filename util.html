@@ -144,6 +144,16 @@
   </div>
 
   <div class="card">
+    <div class="card-title">진료원장1 월별 채팅 저장</div>
+    <div class="tool-row">
+      <select class="search-input" id="doctor1SlackMonthSelect" aria-label="저장할 달"></select>
+      <button class="good" id="doctor1SlackDownloadBtn" type="button">진료원장1 txt 저장</button>
+    </div>
+    <div class="note">Slack 채널 <strong>#진료원장1</strong>의 선택한 달 전체 채팅을 txt 파일로 저장합니다.</div>
+    <div class="status" id="doctor1SlackStatus">대기 중</div>
+  </div>
+
+  <div class="card">
     <div class="card-title">온라인관리 최근 채팅</div>
     <div class="tool-row">
       <input class="search-input" id="onlineSlackDaysInput" type="number" min="1" max="30" step="1" value="2" aria-label="최근 일수">
@@ -216,6 +226,9 @@
 <script>
   const backupBtn = document.getElementById("slackBackupBtn");
   const statusEl = document.getElementById("slackBackupStatus");
+  const doctor1SlackMonthSelect = document.getElementById("doctor1SlackMonthSelect");
+  const doctor1SlackDownloadBtn = document.getElementById("doctor1SlackDownloadBtn");
+  const doctor1SlackStatus = document.getElementById("doctor1SlackStatus");
   const onlineSlackDaysInput = document.getElementById("onlineSlackDaysInput");
   const onlineSlackBtn = document.getElementById("onlineSlackBtn");
   const onlineSlackStatus = document.getElementById("onlineSlackStatus");
@@ -267,6 +280,57 @@
       setStatus(error?.message || String(error), "error");
     } finally {
       backupBtn.disabled = false;
+    }
+  }
+
+  function setDoctor1SlackStatus(text, type = "") {
+    doctor1SlackStatus.className = "status" + (type ? ` ${type}` : "");
+    doctor1SlackStatus.textContent = text;
+  }
+
+  function formatMonthValue(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  }
+
+  function renderDoctor1SlackMonthOptions() {
+    if (!doctor1SlackMonthSelect) return;
+    const now = new Date();
+    const options = [];
+    for (let offset = 0; offset <= 3; offset += 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const value = formatMonthValue(date);
+      options.push(`<option value="${value}">${date.getFullYear()}년 ${date.getMonth() + 1}월</option>`);
+    }
+    doctor1SlackMonthSelect.innerHTML = options.join("");
+  }
+
+  async function downloadDoctor1SlackMonthText() {
+    const month = doctor1SlackMonthSelect.value;
+    if (!month) return;
+    doctor1SlackDownloadBtn.disabled = true;
+    setDoctor1SlackStatus(`#진료원장1 ${month} 채팅 txt 생성 중...`);
+    try {
+      const url = `/api/slack/channel-month-text?month=${encodeURIComponent(month)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || `다운로드 실패 (${res.status})`);
+      }
+      const blob = await res.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `slack-진료원장1-${month}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+      setDoctor1SlackStatus(`#진료원장1 ${month} txt 저장 완료`, "good");
+    } catch (error) {
+      setDoctor1SlackStatus(error?.message || String(error), "error");
+    } finally {
+      doctor1SlackDownloadBtn.disabled = false;
     }
   }
 
@@ -1344,7 +1408,9 @@ const DISEASE = [
     }
   }
 
+  renderDoctor1SlackMonthOptions();
   backupBtn.addEventListener("click", runSlackBackup);
+  doctor1SlackDownloadBtn.addEventListener("click", downloadDoctor1SlackMonthText);
   onlineSlackBtn.addEventListener("click", loadOnlineSlackMessages);
   onlineSlackDaysInput.addEventListener("keydown", event => {
     if (event.key === "Enter") loadOnlineSlackMessages();

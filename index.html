@@ -2330,8 +2330,8 @@
     margin: 6px 0 18px;
   }
   .notif-popup.spine-settings-popup {
-    width: min(560px, calc(100vw - 32px));
-    max-width: min(560px, calc(100vw - 32px));
+    width: min(760px, calc(100vw - 32px));
+    max-width: min(760px, calc(100vw - 32px));
     max-height: min(86vh, 720px);
     overflow: auto;
   }
@@ -2343,6 +2343,35 @@
     text-align: left;
   }
   .spine-settings-section { display: grid; gap: 8px; }
+  .spine-settings-updated {
+    justify-self: start;
+    border: 1px solid rgba(57,169,245,0.45);
+    border-radius: 999px;
+    background: rgba(57,169,245,0.14);
+    color: #9edcff;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 5px 9px;
+  }
+  .spine-settings-split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .spine-settings-panel {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    padding: 12px;
+  }
+  .spine-settings-panel-title {
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 900;
+  }
   .spine-settings-label {
     color: var(--text2);
     font-size: 12px;
@@ -5820,7 +5849,17 @@
   let activeSpineGridId = '';
 
   function createEmptySpineSettings() {
-    return { cervicalLevels: [], lumbarLevels: [], cervicalForce: null, lumbarForce: null, condition: '', rotation: null };
+    return {
+      cervicalLevels: [],
+      lumbarLevels: [],
+      cervicalForce: null,
+      lumbarForce: null,
+      cervicalCondition: '',
+      lumbarCondition: '',
+      cervicalRotation: null,
+      lumbarRotation: null,
+      updatedAt: null
+    };
   }
 
   function clampSpineForce(value, min, max) {
@@ -5831,13 +5870,20 @@
 
   function normalizeSpineSettings(value) {
     const v = value && typeof value === 'object' ? value : {};
+    const legacyCondition = SPINE_CONDITION_OPTIONS.some(o => o.key === v.condition) ? v.condition : '';
+    const legacyRotation = (v.rotation === '' || v.rotation == null) ? null : (SPINE_ROTATION_OPTIONS.includes(Number(v.rotation)) ? Number(v.rotation) : null);
+    const validCondition = (condition) => SPINE_CONDITION_OPTIONS.some(o => o.key === condition) ? condition : '';
+    const validRotation = (rotation) => (rotation === '' || rotation == null) ? null : (SPINE_ROTATION_OPTIONS.includes(Number(rotation)) ? Number(rotation) : null);
     return {
       cervicalLevels: Array.isArray(v.cervicalLevels) ? v.cervicalLevels.filter(x => SPINE_CERVICAL_LEVELS.includes(x)) : [],
       lumbarLevels: Array.isArray(v.lumbarLevels) ? v.lumbarLevels.filter(x => SPINE_LUMBAR_LEVELS.includes(x)) : [],
       cervicalForce: (v.cervicalForce === '' || v.cervicalForce == null) ? null : clampSpineForce(v.cervicalForce, 0.5, 16),
       lumbarForce: (v.lumbarForce === '' || v.lumbarForce == null) ? null : clampSpineForce(v.lumbarForce, 0.5, 50),
-      condition: SPINE_CONDITION_OPTIONS.some(o => o.key === v.condition) ? v.condition : '',
-      rotation: (v.rotation === '' || v.rotation == null) ? null : (SPINE_ROTATION_OPTIONS.includes(Number(v.rotation)) ? Number(v.rotation) : null)
+      cervicalCondition: validCondition(v.cervicalCondition) || legacyCondition,
+      lumbarCondition: validCondition(v.lumbarCondition) || legacyCondition,
+      cervicalRotation: validRotation(v.cervicalRotation) ?? legacyRotation,
+      lumbarRotation: validRotation(v.lumbarRotation) ?? legacyRotation,
+      updatedAt: Number(v.updatedAt || 0) || null
     };
   }
 
@@ -5851,7 +5897,16 @@
   }
 
   function hasAnySpineSetting(s) {
-    return Boolean(s.cervicalLevels.length || s.lumbarLevels.length || s.cervicalForce != null || s.lumbarForce != null || s.condition || s.rotation != null);
+    return Boolean(
+      s.cervicalLevels.length ||
+      s.lumbarLevels.length ||
+      s.cervicalForce != null ||
+      s.lumbarForce != null ||
+      s.cervicalCondition ||
+      s.lumbarCondition ||
+      s.cervicalRotation != null ||
+      s.lumbarRotation != null
+    );
   }
 
   window.updateSpineChip = function(gridId, values = null) {
@@ -5866,7 +5921,7 @@
   };
 
   function setSpineSettingsForGrid(gridId, value) {
-    const normalized = normalizeSpineSettings(value);
+    const normalized = normalizeSpineSettings({ ...value, updatedAt: Date.now() });
     spineSettingsByGrid[gridId] = normalized;
     window.updateSpineChip(gridId);
     return normalized;
@@ -5901,44 +5956,57 @@
     activeSpineGridId = '';
   };
 
+  function formatSpineUpdatedAgo(updatedAt) {
+    const ts = Number(updatedAt || 0);
+    if (!ts) return '수정 기록 없음';
+    const updated = new Date(ts);
+    if (Number.isNaN(updated.getTime())) return '수정 기록 없음';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    updated.setHours(0, 0, 0, 0);
+    const days = Math.max(0, Math.floor((today - updated) / 86400000));
+    if (days === 0) return '오늘 수정';
+    return `${days}일 전 수정`;
+  }
+
+  function renderSpineSidePanel(title, levelGroup, levels, forceField, forceMax, conditionField, rotationField, settings) {
+    return `
+      <div class="spine-settings-panel">
+        <div class="spine-settings-panel-title">${escapeHtml(title)}</div>
+        <div class="spine-settings-section">
+          <div class="spine-settings-label">${escapeHtml(title)} 6부위</div>
+          <div class="spine-settings-toggle-group">
+            ${levels.map(level => `<button type="button" class="spine-toggle-btn${settings[levelGroup].includes(level) ? ' is-active' : ''}" onclick="toggleSpineLevel('${levelGroup}','${level}')">${escapeHtml(level)}</button>`).join('')}
+          </div>
+        </div>
+        <label class="spine-settings-field">
+          <span>${escapeHtml(title)} Force</span>
+          <input type="number" inputmode="decimal" step="0.5" min="0.5" max="${forceMax}" value="${settings[forceField] ?? ''}" onchange="setSpineForce('${forceField}', this.value)">
+        </label>
+        <div class="spine-settings-section">
+          <div class="spine-settings-label">협착증 / 디스크</div>
+          <div class="spine-settings-toggle-group">
+            ${SPINE_CONDITION_OPTIONS.map(opt => `<button type="button" class="spine-toggle-btn${settings[conditionField] === opt.key ? ' is-active' : ''}" onclick="toggleSpineCondition('${conditionField}', '${opt.key}')">${escapeHtml(opt.label)}</button>`).join('')}
+          </div>
+        </div>
+        <div class="spine-settings-section">
+          <div class="spine-settings-label">회전</div>
+          <div class="spine-settings-toggle-group">
+            ${SPINE_ROTATION_OPTIONS.map(value => `<button type="button" class="spine-toggle-btn${settings[rotationField] === value ? ' is-active' : ''}" onclick="toggleSpineRotation('${rotationField}', ${value})">${value}</button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  }
+
   function renderSpineSettingsPopup() {
     const form = document.getElementById('spineSettingsForm');
     if (!form || !activeSpineGridId) return;
     const s = getSpineSettingsForGrid(activeSpineGridId);
     form.innerHTML = `
-      <div class="spine-settings-section">
-        <div class="spine-settings-label">경추 6부위</div>
-        <div class="spine-settings-toggle-group">
-          ${SPINE_CERVICAL_LEVELS.map(level => `<button type="button" class="spine-toggle-btn${s.cervicalLevels.includes(level) ? ' is-active' : ''}" onclick="toggleSpineLevel('cervicalLevels','${level}')">${escapeHtml(level)}</button>`).join('')}
-        </div>
-      </div>
-      <div class="spine-settings-section">
-        <div class="spine-settings-label">요추 6부위</div>
-        <div class="spine-settings-toggle-group">
-          ${SPINE_LUMBAR_LEVELS.map(level => `<button type="button" class="spine-toggle-btn${s.lumbarLevels.includes(level) ? ' is-active' : ''}" onclick="toggleSpineLevel('lumbarLevels','${level}')">${escapeHtml(level)}</button>`).join('')}
-        </div>
-      </div>
-      <div class="spine-settings-row">
-        <label class="spine-settings-field">
-          <span>경추 Force</span>
-          <input type="number" id="spineCervicalForce" inputmode="decimal" step="0.5" min="0.5" max="16" value="${s.cervicalForce ?? ''}" onchange="setSpineForce('cervicalForce', this.value)">
-        </label>
-        <label class="spine-settings-field">
-          <span>요추 Force</span>
-          <input type="number" id="spineLumbarForce" inputmode="decimal" step="0.5" min="0.5" max="50" value="${s.lumbarForce ?? ''}" onchange="setSpineForce('lumbarForce', this.value)">
-        </label>
-      </div>
-      <div class="spine-settings-section">
-        <div class="spine-settings-label">협착증 / 디스크</div>
-        <div class="spine-settings-toggle-group">
-          ${SPINE_CONDITION_OPTIONS.map(opt => `<button type="button" class="spine-toggle-btn${s.condition === opt.key ? ' is-active' : ''}" onclick="toggleSpineCondition('${opt.key}')">${escapeHtml(opt.label)}</button>`).join('')}
-        </div>
-      </div>
-      <div class="spine-settings-section">
-        <div class="spine-settings-label">회전</div>
-        <div class="spine-settings-toggle-group">
-          ${SPINE_ROTATION_OPTIONS.map(value => `<button type="button" class="spine-toggle-btn${s.rotation === value ? ' is-active' : ''}" onclick="toggleSpineRotation(${value})">${value}</button>`).join('')}
-        </div>
+      <div class="spine-settings-updated">${escapeHtml(formatSpineUpdatedAgo(s.updatedAt))}</div>
+      <div class="spine-settings-split">
+        ${renderSpineSidePanel('경추', 'cervicalLevels', SPINE_CERVICAL_LEVELS, 'cervicalForce', 16, 'cervicalCondition', 'cervicalRotation', s)}
+        ${renderSpineSidePanel('요추', 'lumbarLevels', SPINE_LUMBAR_LEVELS, 'lumbarForce', 50, 'lumbarCondition', 'lumbarRotation', s)}
       </div>`;
   }
 
@@ -5964,22 +6032,24 @@
     renderSpineSettingsPopup();
   };
 
-  window.toggleSpineCondition = async function(key) {
+  window.toggleSpineCondition = async function(field, key) {
     const gridId = activeSpineGridId;
     if (!gridId) return;
     const s = getSpineSettingsForGrid(gridId);
-    const next = s.condition === key ? '' : key;
-    setSpineSettingsForGrid(gridId, { ...s, condition: next });
+    if (!['cervicalCondition', 'lumbarCondition'].includes(field)) return;
+    const next = s[field] === key ? '' : key;
+    setSpineSettingsForGrid(gridId, { ...s, [field]: next });
     await persistSpineSettings(gridId);
     renderSpineSettingsPopup();
   };
 
-  window.toggleSpineRotation = async function(value) {
+  window.toggleSpineRotation = async function(field, value) {
     const gridId = activeSpineGridId;
     if (!gridId) return;
     const s = getSpineSettingsForGrid(gridId);
-    const next = s.rotation === value ? null : value;
-    setSpineSettingsForGrid(gridId, { ...s, rotation: next });
+    if (!['cervicalRotation', 'lumbarRotation'].includes(field)) return;
+    const next = s[field] === value ? null : value;
+    setSpineSettingsForGrid(gridId, { ...s, [field]: next });
     await persistSpineSettings(gridId);
     renderSpineSettingsPopup();
   };
@@ -14023,8 +14093,14 @@
   }
 
   function getPatientLatestVisitDate(patient = {}) {
-    const dates = Array.isArray(patient.visitDates) ? patient.visitDates : [];
-    return dates[dates.length - 1] || patient.appointmentDate || '';
+    const today = toLocalDateInputValue();
+    const dates = [
+      ...(Array.isArray(patient.visitDates) ? patient.visitDates : []),
+      patient.appointmentDate || ''
+    ].map(date => String(date || '').trim())
+      .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date) && date < today)
+      .sort();
+    return dates[dates.length - 1] || '';
   }
 
   function patientChoiceMeta(patient = {}) {
