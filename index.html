@@ -4896,7 +4896,13 @@
 
   function shouldSubscribeLocalNode(key) {
     if (!isFixedBedScreen()) return true;
-    return key === 'settings/treatmentMinutes' || key === 'settings/treatmentPresets' || key === 'settings/doctorChunaDelay' || key === 'staff/doctors' || key === 'staff/nurses' || key === BED_ASSIGNMENT_ALERTS_PATH;
+    return key === 'settings/treatmentMinutes'
+      || key === 'settings/treatmentPresets'
+      || key === 'settings/doctorChunaDelay'
+      || key === getDischargedPatientsPath()
+      || key === 'staff/doctors'
+      || key === 'staff/nurses'
+      || key === BED_ASSIGNMENT_ALERTS_PATH;
   }
 
   async function subscribeLocalNode(key, applyFn) {
