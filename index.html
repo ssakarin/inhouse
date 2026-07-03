@@ -5111,6 +5111,11 @@
   };
 
   let lastLocalBedsSignature = '';
+  function isRegularFixedBedScreen() {
+    const bedNo = getFixedBedNoFromUrl();
+    return isFixedBedScreen() && bedNo >= 1 && bedNo <= 15 && bedNo !== 7;
+  }
+
   function applyBedsFromLocal(beds, version) {
     const signature = JSON.stringify({ version, beds: beds || {} });
     if (signature === lastLocalBedsSignature) return;
@@ -5118,14 +5123,89 @@
     if (typeof version === 'number') latestLocalBedsVersion = version;
     bedsLocalLive = true;
     updateConnectionStatusLabel();
-    applyBedsState(beds || {}, { allowMigration: true, allowAutoAssign: true, fromLocalFallback: false });
+    const isRegularFixed = isRegularFixedBedScreen();
+    applyBedsState(beds || {}, {
+      allowMigration: !isRegularFixed,
+      allowAutoAssign: !isFixedBedScreen(),
+      fromLocalFallback: false
+    });
+  }
+
+  function getCurrentBedsMapFromLocalState() {
+    const beds = {};
+    bedAssignments.forEach((bed, index) => {
+      if (bed) beds[String(index + 1)] = bed;
+    });
+    Object.entries(doctorBedMap).forEach(([bedNo, bed]) => {
+      if (bed) beds[String(bedNo)] = bed;
+    });
+    Object.entries(holdBedMap).forEach(([bedNo, bed]) => {
+      if (bed) beds[String(bedNo)] = bed;
+    });
+    return beds;
+  }
+
+  function setLocalBedState(bedNo, bed) {
+    const numericBedNo = Number(bedNo);
+    if (HOLD_BED_NUMBERS.includes(numericBedNo)) {
+      if (bed) holdBedMap[numericBedNo] = bed;
+      else delete holdBedMap[numericBedNo];
+      return;
+    }
+    if (numericBedNo >= 101) {
+      if (bed) doctorBedMap[numericBedNo] = bed;
+      else delete doctorBedMap[numericBedNo];
+      return;
+    }
+    if (numericBedNo >= 1 && numericBedNo <= BED_COUNT) {
+      bedAssignments[numericBedNo - 1] = bed || null;
+    }
+  }
+
+  async function applyBedDeltaFromLocal(bedNo, bed, version, op = 'update') {
+    if (typeof version === 'number' && version < latestLocalBedsVersion) return;
+    if (typeof version === 'number') latestLocalBedsVersion = version;
+    bedsLocalLive = true;
+    updateConnectionStatusLabel();
+
+    const numericBedNo = Number(bedNo);
+    if (isRegularFixedBedScreen() && numericBedNo !== getFixedBedNoFromUrl()) return;
+    setLocalBedState(numericBedNo, op === 'remove' ? null : (bed || null));
+
+    const beds = getCurrentBedsMapFromLocalState();
+    const autoAssignBedSignature = getAutoAssignBedSignatureFromBeds(beds);
+    const autoAssignRelevantChange = !lastAutoAssignBedSignature || autoAssignBedSignature !== lastAutoAssignBedSignature;
+    lastAutoAssignBedSignature = autoAssignBedSignature;
+
+    if (!isRegularFixedBedScreen()) pruneStaleBedAssignmentAlerts();
+    if (selectedMoveBedNo && (DISABLED_BED_NUMBERS.has(selectedMoveBedNo) || !getBedData(selectedMoveBedNo))) selectedMoveBedNo = null;
+    syncAssignedPatientKeys(hasLoadedBedsOnce);
+    syncTimerAlertsWithBeds();
+    handleRemoteTimerAlerts(false);
+    syncDoctorProcedureAlerts();
+    if (!isFixedBedScreen() && autoAssignRelevantChange) await assignWaitingPatientsToBeds();
+    if (!isRegularFixedBedScreen()) processHoldBedReleases();
+
+    requestAppRender({
+      bedSelector: true,
+      bedDetail: numericBedNo === selectedBedNo,
+      receiveBedDetail: numericBedNo === selectedReceiveBedNo,
+      bedMonitors: true,
+      upcomingAlerts: true,
+      count: true,
+      fixedBedArrival: true
+    });
+    ensureBedTicker();
   }
 
   function startBedsSSE() {
     if (!BEDS_LOCAL_PRIMARY || bedsSSE) return;
     try {
       const role = isFixedBedScreen() ? 'fixed-bed' : 'full';
-      bedsSSE = new EventSource(`/api/events?role=${encodeURIComponent(role)}`);
+      const params = new URLSearchParams({ role });
+      const fixedBedNo = getFixedBedNoFromUrl();
+      if (fixedBedNo) params.set('bed', String(fixedBedNo));
+      bedsSSE = new EventSource(`/api/events?${params.toString()}`);
       bedsSSE.addEventListener('beds', (event) => {
         countDebugCounter('sse', 'beds');
         try {
@@ -5133,6 +5213,24 @@
           applyBedsFromLocal(data.beds, data.version);
         } catch (error) {
           console.warn('beds SSE 파싱 실패', error);
+        }
+      });
+      bedsSSE.addEventListener('bed-update', (event) => {
+        countDebugCounter('sse', 'bed-update');
+        try {
+          const data = JSON.parse(event.data);
+          applyBedDeltaFromLocal(data.bedNo, data.bed, data.version, 'update');
+        } catch (error) {
+          console.warn('bed-update SSE parse failed', error);
+        }
+      });
+      bedsSSE.addEventListener('bed-remove', (event) => {
+        countDebugCounter('sse', 'bed-remove');
+        try {
+          const data = JSON.parse(event.data);
+          applyBedDeltaFromLocal(data.bedNo, null, data.version, 'remove');
+        } catch (error) {
+          console.warn('bed-remove SSE parse failed', error);
         }
       });
       bedsSSE.addEventListener('state', (event) => {
@@ -5576,6 +5674,29 @@
 
   function findEmptyHoldBedNo() {
     return HOLD_BED_NUMBERS.find(n => !holdBedMap[n]) || null;
+  }
+
+  async function getBedsSnapshotForRouting() {
+    if (!isRegularFixedBedScreen() || !SERVER_MODE) return null;
+    try {
+      const res = await fetch('/api/beds', { cache: 'no-store' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.beds || {};
+    } catch (e) {
+      console.warn('beds routing snapshot failed', e);
+      return null;
+    }
+  }
+
+  function getBedDataForRouting(bedNo, bedsSnapshot = null) {
+    if (bedsSnapshot) return bedsSnapshot[String(bedNo)] || null;
+    return getBedData(bedNo);
+  }
+
+  function findEmptyHoldBedNoForRouting(bedsSnapshot = null) {
+    if (bedsSnapshot) return HOLD_BED_NUMBERS.find(n => !bedsSnapshot[String(n)]) || null;
+    return findEmptyHoldBedNo();
   }
 
   function getHoldTargetSortValue(targetBedNo) {
@@ -9302,7 +9423,7 @@
     const autoAssignBedSignature = getAutoAssignBedSignatureFromBeds(beds);
     const autoAssignRelevantChange = !lastAutoAssignBedSignature || autoAssignBedSignature !== lastAutoAssignBedSignature;
     lastAutoAssignBedSignature = autoAssignBedSignature;
-    pruneStaleBedAssignmentAlerts();
+    if (!isRegularFixedBedScreen()) pruneStaleBedAssignmentAlerts();
     if (DISABLED_BED_NUMBERS.has(selectedBedNo)) selectedBedNo = getUrlBedNo();
     if (DISABLED_BED_NUMBERS.has(selectedReceiveBedNo)) selectedReceiveBedNo = getUrlBedNo();
     if (selectedMoveBedNo && (DISABLED_BED_NUMBERS.has(selectedMoveBedNo) || !getBedData(selectedMoveBedNo))) selectedMoveBedNo = null;
@@ -9312,7 +9433,7 @@
     syncDoctorProcedureAlerts();
     hasLoadedBedsOnce = true;
     if (allowAutoAssign && !migratedCount && autoAssignRelevantChange) await assignWaitingPatientsToBeds();
-    processHoldBedReleases();
+    if (!isRegularFixedBedScreen()) processHoldBedReleases();
     requestFullBoardRender();
     renderUpcomingAlerts();
     ensureBedTicker();
@@ -10162,6 +10283,7 @@
   async function maybeAutoMoveBedForNextTreatment(bedNo, nextBed) {
     bedNo = Number(bedNo);
     if (!nextBed || nextBed.complete || bedNo === 15) return;
+    const routingBeds = await getBedsSnapshotForRouting();
     const treatments = nextBed.treatments || [];
     const idx = Number(nextBed.currentIndex || 0);
     // 단추/복추/벤치는 SIMULTANEOUS_TREATMENTS_3로 묶여 있으므로 동시치료 엔진이 정확한
@@ -10175,10 +10297,10 @@
     const hasPharmacopuncture4 = has('약침4');
 
     if (hasSpine || (hasChunaTreatment && hasBench)) {
-      if (!getBedData(15)) {
+      if (!getBedDataForRouting(15, routingBeds)) {
         await window.moveOrSwapBed(bedNo, 15);
       } else {
-        await moveToHoldBed(bedNo, 15);
+        await moveToHoldBed(bedNo, 15, routingBeds);
       }
       return;
     }
@@ -10186,10 +10308,10 @@
     if (hasPharmacopuncture4) {
       const targetBedNo = 101;
       if (bedNo === targetBedNo) return;
-      if (!getBedData(targetBedNo)) {
+      if (!getBedDataForRouting(targetBedNo, routingBeds)) {
         await window.moveOrSwapBed(bedNo, targetBedNo);
       } else {
-        await moveToHoldBed(bedNo, targetBedNo);
+        await moveToHoldBed(bedNo, targetBedNo, routingBeds);
       }
       return;
     }
@@ -10198,18 +10320,18 @@
     if (hasDoctorRoomTreatment && !hasBench) {
       const docBedNo = getDoctorBedNoForPatient(nextBed.doctorId);
       if (docBedNo) {
-        if (!getBedData(docBedNo)) {
+        if (!getBedDataForRouting(docBedNo, routingBeds)) {
           await window.moveOrSwapBed(bedNo, docBedNo);
         } else {
-          await moveToHoldBed(bedNo, docBedNo);
+          await moveToHoldBed(bedNo, docBedNo, routingBeds);
         }
       }
     }
   }
 
   // 목적지(원장실/스파인실)가 차있어서 못 옮기는 경우, 빈 임시 베드에 잠시 보관해둔다.
-  async function moveToHoldBed(bedNo, pendingTargetBedNo) {
-    const holdBedNo = findEmptyHoldBedNo();
+  async function moveToHoldBed(bedNo, pendingTargetBedNo, bedsSnapshot = null) {
+    const holdBedNo = findEmptyHoldBedNoForRouting(bedsSnapshot);
     if (!holdBedNo) return; // 임시 베드도 다 찼으면 그냥 현재 자리에 둔다
     const moved = await window.moveOrSwapBed(bedNo, holdBedNo);
     if (moved) await updateBedRecord(holdBedNo, { pendingTargetBedNo, holdQueuedAt: Date.now() });
@@ -11936,12 +12058,13 @@
 
   function renderBedMovePanel(bedNo) {
     const targets = getBedMoveTargetNumbers();
+    const limitedBedState = isRegularFixedBedScreen();
     const buttons = targets.map(targetNo => {
       const targetBed = getBedData(targetNo);
       const isCurrent = Number(targetNo) === Number(bedNo);
       const occupied = Boolean(targetBed);
-      const status = isCurrent ? '현재' : (occupied ? '교환' : '이동');
-      const detail = occupied ? (targetBed.name || '환자') : '비어 있음';
+      const status = isCurrent ? '현재' : (limitedBedState ? '선택' : (occupied ? '교환' : '이동'));
+      const detail = limitedBedState && !isCurrent ? '서버 확인' : (occupied ? (targetBed.name || '환자') : '비어 있음');
       return `
         <button class="bed-move-target ${occupied ? 'occupied' : 'empty'}" type="button"
           ${isCurrent ? 'disabled' : `onclick="selectBedMoveTarget(${bedNo}, ${targetNo})"`}>
@@ -11952,7 +12075,7 @@
       <div class="bed-move-panel">
         <div class="bed-move-panel-head">
           <span>이동/교환할 베드 선택</span>
-          <span>${targets.length}개</span>
+          <span>${limitedBedState ? '서버 확인 후 이동' : `${targets.length}개`}</span>
         </div>
         <div class="bed-move-grid">${buttons}</div>
       </div>`;
@@ -13059,14 +13182,15 @@
       if (!options.silent) showToast('정리 중인 베드는 이동할 수 없습니다');
       return false;
     }
-    const targetBedBefore = getBedData(toBedNo);
+    const routingBeds = await getBedsSnapshotForRouting();
+    const targetBedBefore = getBedDataForRouting(toBedNo, routingBeds);
     if (isCleaningBed(targetBedBefore)) {
       if (!options.silent) showToast('정리 중인 베드에는 이동할 수 없습니다');
       return false;
     }
     const movingFromPatientKey = fromBed.patientKey || '';
     const movingToPatientKey = targetBedBefore?.patientKey || '';
-    const hadTargetBed = Boolean(getBedData(toBedNo));
+    const hadTargetBed = Boolean(targetBedBefore);
 
     const result = await runBedsRecordTransaction((beds) => {
       beds = beds || {};

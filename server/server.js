@@ -1661,6 +1661,11 @@ function stateEquals(a, b) {
   return stableJson(a ?? null) === stableJson(b ?? null);
 }
 
+function cloneJson(value) {
+  if (value === null || value === undefined) return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
 // --- Authentication (shared password + HttpOnly session cookie) ---------------
 
 // Constant-time string compare to avoid leaking the password via timing.
@@ -1778,6 +1783,8 @@ const sseTotals = {
   opened: 0,
   closed: 0,
   bedsFrames: 0,
+  bedUpdateFrames: 0,
+  bedRemoveFrames: 0,
   bedsNoopWrites: 0,
   stateFrames: 0,
   stateChildFrames: 0,
@@ -1791,6 +1798,21 @@ function sseSend(res, event, payload) {
 
 function sseFrame(event, payload) {
   return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+}
+
+function isRegularFixedBedNo(bedNo) {
+  return Number.isInteger(bedNo) && bedNo >= 1 && bedNo <= 15 && bedNo !== 7;
+}
+
+function getBedsPayloadForClient(client, beds = getBedsState()) {
+  if (!client || client.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return beds || {};
+  const key = String(client.bedNo);
+  return Object.prototype.hasOwnProperty.call(beds || {}, key) ? { [key]: beds[key] } : {};
+}
+
+function sseClientAllowsBed(client, bedNo) {
+  if (!client || client.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return true;
+  return Number(client.bedNo) === Number(bedNo);
 }
 
 function sseClientAllowsState(client, key) {
@@ -1846,16 +1868,53 @@ function getBedsVersion() {
   return typeof v === "number" ? v : 0;
 }
 
-function commitBeds(beds) {
+function diffBeds(previousBeds = {}, nextBeds = {}) {
+  const updates = [];
+  const removes = [];
+  const keys = new Set([...Object.keys(previousBeds || {}), ...Object.keys(nextBeds || {})]);
+  for (const key of keys) {
+    const had = Object.prototype.hasOwnProperty.call(previousBeds || {}, key);
+    const has = Object.prototype.hasOwnProperty.call(nextBeds || {}, key);
+    if (had && !has) {
+      removes.push(Number(key));
+    } else if (has && (!had || !stateEquals(previousBeds[key], nextBeds[key]))) {
+      updates.push({ bedNo: Number(key), bed: nextBeds[key] });
+    }
+  }
+  return { updates, removes };
+}
+
+function sseBroadcastBedsDelta(version, updates = [], removes = []) {
+  const updateFrames = new Map(updates.map(item => [
+    String(item.bedNo),
+    sseFrame("bed-update", { version, bedNo: item.bedNo, bed: item.bed })
+  ]));
+  const removeFrames = new Map(removes.map(bedNo => [
+    String(bedNo),
+    sseFrame("bed-remove", { version, bedNo })
+  ]));
+  sseTotals.bedUpdateFrames += updates.length;
+  sseTotals.bedRemoveFrames += removes.length;
+  for (const client of sseClients) {
+    try {
+      for (const item of updates) {
+        if (sseClientAllowsBed(client, item.bedNo)) sseSendFrame(client, updateFrames.get(String(item.bedNo)));
+      }
+      for (const bedNo of removes) {
+        if (sseClientAllowsBed(client, bedNo)) sseSendFrame(client, removeFrames.get(String(bedNo)));
+      }
+    } catch { sseClients.delete(client); }
+  }
+}
+
+function commitBeds(beds, previousBeds = null) {
+  const previous = previousBeds ? cloneJson(previousBeds) : cloneJson(getBedsState());
   const next = beds || {};
   setStateValue("beds", next);
   const version = getBedsVersion() + 1;
   setStateValue("__bedsVersion", version);
-  const frame = sseFrame("beds", { version, beds: next });
-  sseTotals.bedsFrames += 1;
-  for (const client of sseClients) {
-    try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
-  }
+  const { updates, removes } = diffBeds(previous || {}, next);
+  sseBroadcastBedsDelta(version, updates, removes);
   return version;
 }
 
@@ -1863,6 +1922,16 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/events" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const role = requestUrl.searchParams.get("role") === "fixed-bed" ? "fixed-bed" : "full";
+    const bedNo = Number(requestUrl.searchParams.get("bed") || 0);
+    const client = {
+      id: sseNextClientId++,
+      role,
+      bedNo: Number.isInteger(bedNo) ? bedNo : 0,
+      res,
+      connectedAt: Date.now(),
+      frames: 1,
+      lastWriteAt: Date.now()
+    };
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-store",
@@ -1870,15 +1939,7 @@ async function handleApi(req, res, pathname) {
       "X-Accel-Buffering": "no"
     });
     res.write("retry: 3000\n\n");
-    sseSend(res, "beds", { version: getBedsVersion(), beds: getBedsState() });
-    const client = {
-      id: sseNextClientId++,
-      role,
-      res,
-      connectedAt: Date.now(),
-      frames: 1,
-      lastWriteAt: Date.now()
-    };
+    sseSend(res, "beds", { version: getBedsVersion(), beds: getBedsPayloadForClient(client) });
     sseClients.add(client);
     sseTotals.opened += 1;
     const ping = setInterval(() => {
@@ -1902,6 +1963,7 @@ async function handleApi(req, res, pathname) {
     const clients = [...sseClients].map(client => ({
       id: client.id,
       role: client.role,
+      bedNo: client.bedNo || 0,
       connectedSeconds: Math.round((now - client.connectedAt) / 1000),
       idleSeconds: Math.round((now - (client.lastWriteAt || client.connectedAt)) / 1000),
       frames: client.frames || 0,
@@ -1926,7 +1988,8 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/beds/update" && req.method === "POST") {
     const { bedNo, patch } = (await readJson(req)) || {};
-    const beds = getBedsState();
+    const previousBeds = cloneJson(getBedsState());
+    const beds = cloneJson(previousBeds) || {};
     const key = String(bedNo);
     const previous = beds[key] || {};
     const nextBed = { ...previous, ...(patch || {}) };
@@ -1936,13 +1999,14 @@ async function handleApi(req, res, pathname) {
       return true;
     }
     beds[key] = nextBed;
-    jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
+    jsonResponse(res, 200, { ok: true, version: commitBeds(beds, previousBeds) });
     return true;
   }
 
   if (pathname === "/api/beds/update-child" && req.method === "POST") {
     const { bedNo, childKey, patch } = (await readJson(req)) || {};
-    const beds = getBedsState();
+    const previousBeds = cloneJson(getBedsState());
+    const beds = cloneJson(previousBeds) || {};
     const key = String(bedNo);
     if (!beds[key]) { jsonResponse(res, 200, { ok: false, reason: "no-bed" }); return true; }
     const previous = beds[key][childKey] || {};
@@ -1953,20 +2017,21 @@ async function handleApi(req, res, pathname) {
       return true;
     }
     beds[key][childKey] = nextChild;
-    jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
+    jsonResponse(res, 200, { ok: true, version: commitBeds(beds, previousBeds) });
     return true;
   }
 
   if (pathname === "/api/beds/remove" && req.method === "POST") {
     const { bedNo } = (await readJson(req)) || {};
-    const beds = getBedsState();
+    const previousBeds = cloneJson(getBedsState());
+    const beds = cloneJson(previousBeds) || {};
     if (!Object.prototype.hasOwnProperty.call(beds, String(bedNo))) {
       sseTotals.bedsNoopWrites += 1;
       jsonResponse(res, 200, { ok: true, noop: true, version: getBedsVersion() });
       return true;
     }
     delete beds[String(bedNo)];
-    jsonResponse(res, 200, { ok: true, version: commitBeds(beds) });
+    jsonResponse(res, 200, { ok: true, version: commitBeds(beds, previousBeds) });
     return true;
   }
 
@@ -1981,12 +2046,13 @@ async function handleApi(req, res, pathname) {
       return true;
     }
     const nextBeds = beds || {};
-    if (stateEquals(getBedsState(), nextBeds)) {
+    const previousBeds = cloneJson(getBedsState());
+    if (stateEquals(previousBeds, nextBeds)) {
       sseTotals.bedsNoopWrites += 1;
       jsonResponse(res, 200, { ok: true, noop: true, version: current });
       return true;
     }
-    jsonResponse(res, 200, { ok: true, version: commitBeds(nextBeds) });
+    jsonResponse(res, 200, { ok: true, version: commitBeds(nextBeds, previousBeds) });
     return true;
   }
 
