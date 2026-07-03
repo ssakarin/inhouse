@@ -5144,6 +5144,23 @@
     return isFixedBedScreen() && bedNo >= 1 && bedNo <= 15 && bedNo !== 7;
   }
 
+  function isFixedDoctorAlertOnlyScreen() {
+    if (!isFixedDoctorBedScreen()) return false;
+    const fixedDoctorBedNo = Number(getFixedDoctorBedNoFromUrl?.() || 0);
+    return Boolean(fixedDoctorBedNo && !getBedData(fixedDoctorBedNo));
+  }
+
+  function shouldRefreshSelectedBedNextStaffTask(changedBedNo, previousBed = null, nextBed = null) {
+    if (Number(changedBedNo) === Number(selectedBedNo)) return false;
+    const selectedBed = getBedData(selectedBedNo);
+    if (!selectedBed) return false;
+    const currentTreatment = selectedBed.treatments?.[selectedBed.currentIndex || 0] || '';
+    if (!isDoctorProcedureTreatment(currentTreatment)) return false;
+    const doctorId = selectedBed.doctorId || '';
+    if (!doctorId) return false;
+    return [previousBed, nextBed].some(candidate => candidate && candidate.doctorId === doctorId);
+  }
+
   function applyBedsFromLocal(beds, version) {
     const signature = JSON.stringify({ version, beds: beds || {} });
     if (signature === lastLocalBedsSignature) return;
@@ -5198,7 +5215,13 @@
 
     const numericBedNo = Number(bedNo);
     if (isRegularFixedBedScreen() && numericBedNo !== getFixedBedNoFromUrl()) return;
+    const previousChangedBed = getBedData(numericBedNo);
     setLocalBedState(numericBedNo, op === 'remove' ? null : (bed || null));
+    const selectedBedNextTaskChanged = shouldRefreshSelectedBedNextStaffTask(
+      numericBedNo,
+      previousChangedBed,
+      op === 'remove' ? null : (bed || null)
+    );
 
     const beds = getCurrentBedsMapFromLocalState();
     const autoAssignBedSignature = getAutoAssignBedSignatureFromBeds(beds);
@@ -5214,14 +5237,16 @@
     if (!isFixedBedScreen() && autoAssignRelevantChange) await assignWaitingPatientsToBeds();
     if (!isRegularFixedBedScreen()) processHoldBedReleases();
 
+    const fixedDoctorAlertOnly = isFixedDoctorAlertOnlyScreen();
     requestAppRender({
-      bedSelector: true,
-      bedDetail: numericBedNo === selectedBedNo,
-      receiveBedDetail: numericBedNo === selectedReceiveBedNo,
-      bedMonitors: true,
-      upcomingAlerts: true,
-      count: true,
-      fixedBedArrival: true
+      bedSelector: !fixedDoctorAlertOnly,
+      bedDetail: numericBedNo === selectedBedNo || selectedBedNextTaskChanged,
+      doctorAlertPanel: fixedDoctorAlertOnly && numericBedNo !== selectedBedNo,
+      receiveBedDetail: !fixedDoctorAlertOnly && numericBedNo === selectedReceiveBedNo,
+      bedMonitors: !fixedDoctorAlertOnly,
+      upcomingAlerts: !fixedDoctorAlertOnly,
+      count: !fixedDoctorAlertOnly,
+      fixedBedArrival: !fixedDoctorAlertOnly
     });
     ensureBedTicker();
   }
@@ -6006,6 +6031,7 @@
   const pendingAppRender = {
     bedSelector: false,
     bedDetail: false,
+    doctorAlertPanel: false,
     receiveBedDetail: false,
     bedMonitors: false,
     waitingLists: false,
@@ -6029,6 +6055,11 @@
 
       if (render.bedSelector) { countDebugCounter('render-run', 'bedSelector'); renderBedSelector(); }
       if (render.bedDetail) { countDebugCounter('render-run', 'bedDetail'); renderBedDetail(); }
+      if (render.doctorAlertPanel) {
+        countDebugCounter('render-run', 'doctorAlertPanel');
+        renderBedDoctorAlertPanel();
+        syncFixedDoctorRoomAlertAudio();
+      }
       if (render.receiveBedDetail) { countDebugCounter('render-run', 'receiveBedDetail'); renderReceiveBedDetail(); }
       if (render.bedMonitors) { countDebugCounter('render-run', 'bedMonitors'); renderBedMonitors(); }
       if (render.waitingLists) { countDebugCounter('render-run', 'waitingLists'); renderWaitingLists(); }
