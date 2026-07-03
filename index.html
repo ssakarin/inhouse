@@ -3564,33 +3564,9 @@
     border-radius: 16px;
     background: var(--surface);
   }
-  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied).doctor-room-alert-count-1 .bed-doctor-alert-panel.show {
-    --doctor-room-alert-card-min-height: min(58vh, 520px);
-    --doctor-room-alert-card-padding: clamp(30px, 7vw, 72px);
-    --doctor-room-alert-card-gap: clamp(18px, 4vw, 40px);
-    --doctor-room-alert-chip-height: clamp(86px, 15vw, 150px);
-    --doctor-room-alert-chip-padding: 0 clamp(28px, 6vw, 70px);
-    --doctor-room-alert-chip-radius: 22px;
-    --doctor-room-alert-chip-font: clamp(42px, 9vw, 96px);
-    --doctor-room-alert-patient-max: min(26vw, 320px);
-    --doctor-room-alert-arrow-width: clamp(74px, 12vw, 120px);
-    --doctor-room-alert-arrow-height: clamp(66px, 10vw, 104px);
-    --doctor-room-alert-arrow-font: clamp(34px, 6vw, 62px);
-  }
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied).doctor-room-alert-count-1 .bed-doctor-alert-panel.show,
   body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied).doctor-room-alert-count-2 .bed-doctor-alert-panel.show,
-  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied).doctor-room-alert-count-3 .bed-doctor-alert-panel.show {
-    --doctor-room-alert-card-min-height: clamp(160px, 24vh, 260px);
-    --doctor-room-alert-card-padding: clamp(22px, 5vw, 48px);
-    --doctor-room-alert-card-gap: clamp(14px, 3vw, 28px);
-    --doctor-room-alert-chip-height: clamp(66px, 11vw, 112px);
-    --doctor-room-alert-chip-padding: 0 clamp(22px, 5vw, 52px);
-    --doctor-room-alert-chip-radius: 18px;
-    --doctor-room-alert-chip-font: clamp(32px, 6.5vw, 72px);
-    --doctor-room-alert-patient-max: min(24vw, 280px);
-    --doctor-room-alert-arrow-width: clamp(60px, 10vw, 96px);
-    --doctor-room-alert-arrow-height: clamp(54px, 8vw, 82px);
-    --doctor-room-alert-arrow-font: clamp(28px, 5vw, 48px);
-  }
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied).doctor-room-alert-count-3 .bed-doctor-alert-panel.show,
   body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied).doctor-room-alert-count-4 .bed-doctor-alert-panel.show,
   body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied).doctor-room-alert-count-5 .bed-doctor-alert-panel.show,
   body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied).doctor-room-alert-count-6 .bed-doctor-alert-panel.show {
@@ -14778,10 +14754,8 @@
 
   function getPatientLatestVisitDate(patient = {}) {
     const today = toLocalDateInputValue();
-    const dates = [
-      ...(Array.isArray(patient.visitDates) ? patient.visitDates : []),
-      patient.appointmentDate || ''
-    ].map(date => String(date || '').trim())
+    const dates = (Array.isArray(patient.visitDates) ? patient.visitDates : [])
+      .map(date => String(date || '').trim())
       .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date) && date < today)
       .sort();
     return dates[dates.length - 1] || '';
