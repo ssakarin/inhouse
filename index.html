@@ -1317,7 +1317,7 @@
   .bed-doctor-alert-list .doctor-alert-simple-row .doctor-room-alert-chips {
     flex: 1 1 0;
     flex-wrap: nowrap;
-    overflow-x: auto;
+    overflow-x: hidden;
   }
   .bed-doctor-alert-list .doctor-room-alert-chips .doctor-alert-order-tools {
     flex: 0 0 auto;
@@ -3665,10 +3665,11 @@
     justify-content: flex-start;
     gap: var(--doctor-room-alert-card-gap);
     min-width: 0;
-    overflow-x: auto;
+    overflow: hidden;
   }
   body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .bed-doctor-alert-list .doctor-alert-patient-chip {
     max-width: var(--doctor-room-alert-patient-max);
+    min-width: 0;
     min-height: var(--doctor-room-alert-chip-height);
     padding: var(--doctor-room-alert-chip-padding);
     border-radius: var(--doctor-room-alert-chip-radius);
@@ -3771,7 +3772,7 @@
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
     min-width: 0;
     white-space: nowrap;
     overflow: visible;
@@ -3804,6 +3805,47 @@
     text-overflow: clip;
     font-size: 14px;
     line-height: 1.15;
+  }
+  .doctor-room-alert-treatment-text.upcoming-time.treatment-badge {
+    display: inline;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    min-height: 0;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent !important;
+    box-shadow: none;
+    line-height: 1.15;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+  .doctor-alert-box-list .doctor-room-alert-treatment-text,
+  .receive-doctor-alert-editor-list .doctor-room-alert-treatment-text {
+    flex: 0 1 auto;
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .bed-doctor-alert-list .doctor-room-alert-treatment-text,
+  .timer-next .doctor-room-alert-treatment-text {
+    flex: 0 0 auto;
+    font-size: 14px;
+    font-weight: 900;
+  }
+  .timer-next .doctor-room-alert-treatment-text {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .doctor-room-alert-treatment-text.doctor-room-alert-treatment-purple {
+    color: #c084fc;
+  }
+  body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .doctor-room-alert-treatment-text {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: var(--doctor-room-alert-chip-font);
+    font-weight: 900;
   }
   .timer-clock {
     font-size: clamp(44px, 10vw, 72px);
@@ -7438,13 +7480,18 @@
     const treatmentNames = (Array.isArray(item?.treatments) && item.treatments.length ? item.treatments : [item?.treatment])
       .map(name => String(name || '').trim())
       .filter(Boolean);
+    const doctorRoomTreatmentTextClass = (name) => (
+      name === '단추' || name === '복추'
+        ? `${getTreatmentBadgeClass(name)} doctor-room-alert-treatment-purple`
+        : getTreatmentBadgeClass(name)
+    );
     const bedLabel = item?.bedLabel || (item?.bedNo ? String(item.bedNo) : '');
     const patientName = options.includePatientName ? String(item?.name || '').trim() : '';
     const orderControlsHtml = options.orderControlsHtml || '';
     return `
       <div class="doctor-room-alert-chips">
         <span class="doctor-room-alert-bed-chip">${escapeHtml(bedLabel)}</span>
-        ${treatmentNames.map(name => `<span class="upcoming-time treatment-badge doctor-room-alert-treatment-chip ${getTreatmentBadgeClass(name)}">${escapeHtml(name)}</span>`).join('')}
+        ${treatmentNames.map(name => `<span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${doctorRoomTreatmentTextClass(name)}">${escapeHtml(name)}</span>`).join('')}
         ${patientName ? `<span class="doctor-alert-patient-chip">${escapeHtml(patientName)}</span>` : ''}
         ${orderControlsHtml}
       </div>`;
