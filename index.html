@@ -5977,21 +5977,15 @@
     await saveDoctorAlertManualOrder(next);
   };
 
-  function getDoctorAlertStorageKeyForBed(bedNo) {
-    return `selectedDoctorAlertId:${bedNo}`;
-  }
-
   function getSelectedDoctorAlertIdForBed(bedNo) {
     if (selectedDoctorAlertIdByBed[bedNo] === undefined) {
-      selectedDoctorAlertIdByBed[bedNo] = localStorage.getItem(getDoctorAlertStorageKeyForBed(bedNo)) || '';
+      selectedDoctorAlertIdByBed[bedNo] = '';
     }
     return selectedDoctorAlertIdByBed[bedNo];
   }
 
   function setSelectedDoctorAlertIdForBed(bedNo, doctorId) {
     selectedDoctorAlertIdByBed[bedNo] = doctorId || '';
-    if (doctorId) localStorage.setItem(getDoctorAlertStorageKeyForBed(bedNo), doctorId);
-    else localStorage.removeItem(getDoctorAlertStorageKeyForBed(bedNo));
   }
   let doctorAlertSelectInitialized = false;
   let activeDoctorProcedureAlert = null;
@@ -7403,16 +7397,14 @@
         if (bedDoctorId && !doctors.some(([id]) => id === bedDoctorId)) {
           bedDoctorId = '';
         }
-        if (!bedDoctorId) {
-          const roomIndex = roomBedNo >= 101 ? roomBedNo - 101 : 0;
-          bedDoctorId = (doctors[roomIndex] || doctors[0])[0];
-        }
         setSelectedDoctorAlertIdForBed(roomBedNo, bedDoctorId);
-        const name = staffByType.doctors.get(bedDoctorId)?.name || doctors[0][1]?.name || '원장';
-        const hasManualOrder = getDoctorAlertManualOrder(bedDoctorId).length > 0;
-        bedContainer.innerHTML = '<button type="button" class="doctor-alert-btn doctor-alert-toggle active" onclick="cycleBedDoctorAlertFilter()">' + escapeHtml(name) + '</button>';
+        const name = bedDoctorId ? (staffByType.doctors.get(bedDoctorId)?.name || '원장') : '원장선택';
+        const hasManualOrder = bedDoctorId && getDoctorAlertManualOrder(bedDoctorId).length > 0;
+        bedContainer.innerHTML = '<button type="button" class="doctor-alert-btn doctor-alert-toggle' + (bedDoctorId ? ' active' : '') + '" onclick="cycleBedDoctorAlertFilter()">' + escapeHtml(name) + '</button>';
         if (bedResetContainer) {
-          bedResetContainer.innerHTML = '<button type="button" class="doctor-alert-order-btn" onclick="resetDoctorProcedureAlertOrder(' + escapeHtmlJsString(bedDoctorId) + ')" ' + (hasManualOrder ? '' : 'disabled') + ' title="자동복귀">자동복귀</button>';
+          bedResetContainer.innerHTML = bedDoctorId
+            ? '<button type="button" class="doctor-alert-order-btn" onclick="resetDoctorProcedureAlertOrder(' + escapeHtmlJsString(bedDoctorId) + ')" ' + (hasManualOrder ? '' : 'disabled') + ' title="자동복귀">자동복귀</button>'
+            : '';
         }
       }
     }
@@ -7458,7 +7450,8 @@
     queuedDoctorProcedureAlerts.clear();
     renderDoctorAlertSelect();
     syncDoctorProcedureAlerts();
-    syncFixedDoctorRoomAlertAudio(true);
+    fixedDoctorRoomAlertAudioInitialized = true;
+    syncFixedDoctorRoomAlertAudio(false);
     renderUpcomingAlerts();
   };
 
@@ -7599,15 +7592,19 @@
     const bedDoctorAlertId = getSelectedDoctorAlertIdForBed(roomBedNo);
     const bedButtonContainer = document.getElementById('bedDoctorAlertBtns');
     const bedResetContainer = document.getElementById('bedDoctorAlertReset');
-    if (bedButtonContainer && bedDoctorAlertId) {
-      const doctorName = staffByType.doctors.get(bedDoctorAlertId)?.name || '원장';
-      const hasManualOrder = getDoctorAlertManualOrder(bedDoctorAlertId).length > 0;
-      bedButtonContainer.innerHTML = '<button type="button" class="doctor-alert-btn doctor-alert-toggle active" onclick="cycleBedDoctorAlertFilter()">' + escapeHtml(doctorName) + '</button>';
+    const activeDoctorsForBedAlert = getActiveDoctors();
+    if (bedButtonContainer && !activeDoctorsForBedAlert.length) {
+      bedButtonContainer.innerHTML = '<span class="doctor-alert-empty">원장 없음</span>';
+      if (bedResetContainer) bedResetContainer.innerHTML = '';
+    } else if (bedButtonContainer) {
+      const doctorName = bedDoctorAlertId ? (staffByType.doctors.get(bedDoctorAlertId)?.name || '원장') : '원장선택';
+      const hasManualOrder = bedDoctorAlertId && getDoctorAlertManualOrder(bedDoctorAlertId).length > 0;
+      bedButtonContainer.innerHTML = '<button type="button" class="doctor-alert-btn doctor-alert-toggle' + (bedDoctorAlertId ? ' active' : '') + '" onclick="cycleBedDoctorAlertFilter()">' + escapeHtml(doctorName) + '</button>';
       if (bedResetContainer) {
-        bedResetContainer.innerHTML = '<button type="button" class="doctor-alert-order-btn" onclick="resetDoctorProcedureAlertOrder(' + escapeHtmlJsString(bedDoctorAlertId) + ')" ' + (hasManualOrder ? '' : 'disabled') + ' title="자동복귀">자동복귀</button>';
+        bedResetContainer.innerHTML = bedDoctorAlertId
+          ? '<button type="button" class="doctor-alert-order-btn" onclick="resetDoctorProcedureAlertOrder(' + escapeHtmlJsString(bedDoctorAlertId) + ')" ' + (hasManualOrder ? '' : 'disabled') + ' title="자동복귀">자동복귀</button>'
+          : '';
       }
-    } else if (bedResetContainer) {
-      bedResetContainer.innerHTML = '';
     }
     const items = bedDoctorAlertId ? getDoctorProcedureAlertItems(bedDoctorAlertId) : [];
     if (window.isFixedDoctorBedScreen?.() && !getBedData(fixedDoctorBedNo)) {
@@ -7642,7 +7639,7 @@
       return;
     }
     const fixedBedNo = Number(getFixedDoctorBedNoFromUrl());
-    const doctorId = getSelectedDoctorAlertIdForBed(fixedBedNo) || getActiveDoctors()[0]?.[0] || '';
+    const doctorId = getSelectedDoctorAlertIdForBed(fixedBedNo) || '';
     const activeIds = new Set(
       (doctorId ? getDoctorProcedureAlertItems(doctorId) : [])
         .map(item => item.alertId)
