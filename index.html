@@ -3357,6 +3357,16 @@
     border-color: rgba(255,202,106,0.55);
     color: var(--gold);
   }
+  .memo-edited-field {
+    border-color: rgba(255,202,106,0.78) !important;
+    box-shadow: 0 0 0 2px rgba(255,202,106,0.18);
+    color: var(--gold) !important;
+  }
+  .name-input.memo-edited-field,
+  .bed-memo-field.memo-edited-field {
+    color: var(--gold) !important;
+    -webkit-text-fill-color: var(--gold);
+  }
   .bed-time { font-size: 12px; color: var(--text3); }
   .bed-detail-info {
     background: rgba(16, 27, 45, 0.62);
@@ -3785,7 +3795,7 @@
     min-height: 25px;
     padding: 3px 10px;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 18px;
     font-weight: 900;
     line-height: 1.1;
     white-space: nowrap;
@@ -3831,7 +3841,7 @@
   .bed-doctor-alert-list .doctor-room-alert-treatment-text,
   .timer-next .doctor-room-alert-treatment-text {
     flex: 0 0 auto;
-    font-size: 14px;
+    font-size: 22px;
     font-weight: 900;
   }
   .timer-next .doctor-room-alert-treatment-text {
@@ -8075,6 +8085,42 @@
     }
   };
   const selectedChartPatientByScope = { desk: null, receive: null, bed: null };
+  const formMemoOriginalByScope = {
+    desk: { memo1: '', memo2: '', active: false },
+    receive: { memo1: '', memo2: '', active: false },
+    bed: { memo1: '', memo2: '', active: false }
+  };
+
+  function getMemoOriginalsFromRecord(record = {}) {
+    if (!record) return { memo1: '', memo2: '' };
+    const memo2Date = getMemo2HistoryDate(record || {});
+    const currentMemo2 = getMemo2ForDate(record || {}, memo2Date);
+    return {
+      memo1: String(Object.prototype.hasOwnProperty.call(record, 'memo1Original') ? record.memo1Original : (record.memo1 || record.chiefComplaint || '')).trim(),
+      memo2: String(Object.prototype.hasOwnProperty.call(record, 'memo2Original') ? record.memo2Original : currentMemo2).trim()
+    };
+  }
+
+  function setFormMemoOriginals(scope, record = null) {
+    const originals = record ? getMemoOriginalsFromRecord(record) : { memo1: '', memo2: '' };
+    formMemoOriginalByScope[scope] = { ...originals, active: Boolean(record) };
+    updateFormMemoEditedState(scope);
+  }
+
+  function updateFormMemoEditedState(scope) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const originals = formMemoOriginalByScope[scope] || { memo1: '', memo2: '', active: false };
+    const memo1El = document.getElementById(ids.chiefComplaint);
+    const memo2El = document.getElementById(ids.memo);
+    if (memo1El) {
+      const edited = originals.active && memo1El.value.trim() !== originals.memo1;
+      memo1El.classList.toggle('memo-edited-field', edited);
+    }
+    if (memo2El) {
+      const edited = originals.active && memo2El.value.trim() !== originals.memo2;
+      memo2El.classList.toggle('memo-edited-field', edited);
+    }
+  }
 
   function setSelectedChartPatient(scope, patient = null) {
     selectedChartPatientByScope[scope] = patient?.patientId ? patient : null;
@@ -8172,6 +8218,7 @@
       document.getElementById(ids.chiefComplaint).value = '';
       document.getElementById(ids.memo).value = '';
       document.getElementById(ids.age).value = '';
+      setFormMemoOriginals(scope, null);
       const visitDefault = document.querySelector(`input[name="${ids.visitType}"]`);
       const genderDefault = document.querySelector(`input[name="${ids.gender}"]`);
       if (visitDefault) visitDefault.checked = true;
@@ -8261,6 +8308,7 @@
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed?.memo1 || '';
     document.getElementById(ids.memo).value = getMemo2ForDate(bed || {}, getMemo2HistoryDate(bed || {}));
+    setFormMemoOriginals(scope, bed);
     document.getElementById(ids.age).value = bed?.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed?.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed?.gender || '남'}"]`)?.click();
@@ -8336,6 +8384,7 @@
       document.getElementById(ids.chartNo).value = '';
       document.getElementById(ids.chiefComplaint).value = '';
       document.getElementById(ids.memo).value = '';
+      setFormMemoOriginals('bed', null);
       document.getElementById(ids.age).value = '';
       document.querySelector(`input[name="${ids.visitType}"][value="초진"]`).checked = true;
       document.querySelector(`input[name="${ids.gender}"][value="남"]`).checked = true;
@@ -8355,6 +8404,7 @@
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed.memo1 || '';
     document.getElementById(ids.memo).value = getMemo2ForDate(bed || {}, getMemo2HistoryDate(bed || {}));
+    setFormMemoOriginals('bed', bed);
     document.getElementById(ids.age).value = bed.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed.gender || '남'}"]`)?.click();
@@ -8374,10 +8424,12 @@
   function setBedMemoOpen(open) {
     const wrap = document.getElementById('bedMemoWrap');
     const toggle = document.getElementById('bedMemoToggle');
-    const memo = document.getElementById('bedMemoInput')?.value?.trim() || '';
+    const memoInput = document.getElementById('bedMemoInput');
+    const memo = memoInput?.value?.trim() || '';
     if (wrap) wrap.classList.toggle('open', Boolean(open));
     if (toggle) {
       toggle.classList.toggle('has-memo', Boolean(memo));
+      toggle.classList.toggle('memo-edited-field', Boolean(memoInput?.classList.contains('memo-edited-field')));
       toggle.textContent = open ? '메모2 닫기' : (memo ? '메모2있음' : '메모2');
     }
   }
@@ -14796,6 +14848,7 @@
     document.getElementById(ids.age).value = patient.age || '';
     document.getElementById(ids.chiefComplaint).value = patient.memo1 || '';
     document.getElementById(ids.memo).value = getMemo2ForDate(patient, toLocalDateInputValue());
+    setFormMemoOriginals(scope, patient);
     document.querySelector(`input[name="${ids.visitType}"][value="재진"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${patient.gender || '남'}"]`)?.click();
     setSelectedStaffByStoredValue('doctors', scope, patient);
@@ -14811,6 +14864,7 @@
     document.getElementById(ids.age).value = '';
     document.getElementById(ids.chiefComplaint).value = '';
     document.getElementById(ids.memo).value = '';
+    setFormMemoOriginals(scope, null);
     document.querySelector(`input[name="${ids.visitType}"][value="초진"]`)?.click();
     window.applyTreatmentsToForm?.(scope, []);
     if (scope === 'desk') syncInitialVisitTreatment('desk');
@@ -15791,6 +15845,7 @@
       document.getElementById('ageInput').value = patient.age || '';
       document.getElementById('chiefComplaint').value = patient.memo1 || '';
       document.getElementById('memoInput').value = getMemo2ForDate(patient, toLocalDateInputValue());
+      setFormMemoOriginals('desk', patient);
       document.querySelector('input[name="visitType"][value="재진"]')?.click();
       document.querySelector(`input[name="gender"][value="${patient.gender || '남'}"]`)?.click();
       setSelectedStaffByStoredValue?.('doctors', 'desk', patient);
@@ -15805,6 +15860,7 @@
       document.getElementById('ageInput').value = '';
       document.getElementById('chiefComplaint').value = '';
       document.getElementById('memoInput').value = '';
+      setFormMemoOriginals('desk', null);
       document.querySelector('input[name="visitType"][value="초진"]')?.click();
       window.applyTreatmentsToForm?.('desk', []);
       syncInitialVisitTreatment('desk');
@@ -16086,8 +16142,15 @@
       if (e.key === 'Enter') document.getElementById('bedSubmitBtn').click();
     });
     document.getElementById('bedMemoInput')?.addEventListener('input', () => {
+      updateFormMemoEditedState('bed');
       const open = document.getElementById('bedMemoWrap')?.classList.contains('open');
       setBedMemoOpen(open);
+    });
+    Object.keys(PATIENT_FORM_IDS).forEach(scope => {
+      const ids = PATIENT_FORM_IDS[scope];
+      [ids.chiefComplaint, ids.memo].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', () => updateFormMemoEditedState(scope));
+      });
     });
     document.getElementById('doctorNameInput')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') addStaff('doctors');
