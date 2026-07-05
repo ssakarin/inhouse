@@ -1825,6 +1825,26 @@ function sseClientAllowsState(client, key) {
     || /^dischargedPatients\/\d{4}-\d{2}-\d{2}$/.test(key);
 }
 
+function filterBedAssignmentAlertsForBed(value, bedNo) {
+  if (!isRegularFixedBedNo(bedNo) || !value || typeof value !== "object") return value || {};
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => Number(item?.bedNo) === Number(bedNo))
+  );
+}
+
+function stateValueForClient(client, key, value) {
+  if (key === "bedAssignmentAlerts" && client?.role === "fixed-bed" && isRegularFixedBedNo(client.bedNo)) {
+    return filterBedAssignmentAlertsForBed(value, client.bedNo);
+  }
+  return value;
+}
+
+function stateChildAllowsClient(client, key, value) {
+  if (key !== "bedAssignmentAlerts" || client?.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return true;
+  const values = Array.isArray(value) ? value : [value];
+  return values.some(item => Number(item?.bedNo) === Number(client.bedNo));
+}
+
 function sseSendFrame(client, frame) {
   if (!client?.res || client.res.destroyed || client.res.writableEnded) return false;
   const ok = client.res.write(frame);
@@ -1842,19 +1862,24 @@ function sseSendFrame(client, frame) {
 // Push a generic app_state key change to all connected clients (staff, settings,
 // etc.). This is the local server equivalent of realtime state subscriptions.
 function sseBroadcastState(key, value) {
-  const frame = sseFrame("state", { key, value });
+  const sharedFrame = sseFrame("state", { key, value });
   sseTotals.stateFrames += 1;
   for (const client of sseClients) {
     if (!sseClientAllowsState(client, key)) continue;
-    try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
+    try {
+      const clientValue = stateValueForClient(client, key, value);
+      const frame = clientValue === value ? sharedFrame : sseFrame("state", { key, value: clientValue });
+      sseSendFrame(client, frame);
+    } catch { sseClients.delete(client); }
   }
 }
 
-function sseBroadcastStateChild(key, op, childKey, value) {
+function sseBroadcastStateChild(key, op, childKey, value, filterValue = value) {
   const frame = sseFrame("state-child", { key, op, childKey, value });
   sseTotals.stateChildFrames += 1;
   for (const client of sseClients) {
     if (!sseClientAllowsState(client, key)) continue;
+    if (!stateChildAllowsClient(client, key, filterValue)) continue;
     try { sseSendFrame(client, frame); } catch { sseClients.delete(client); }
   }
 }
@@ -2068,6 +2093,7 @@ async function handleApi(req, res, pathname) {
     if (!key || key.startsWith("__")) { jsonResponse(res, 400, { error: "bad key" }); return true; }
     const map = getStateValue(key) || {};
     let childKey = body.childKey;
+    let previousChild = childKey ? map[childKey] : null;
     if (op === "merge") {
       const patch = { ...(body.patch || {}) };
       if (key === "patients" && (patch.credit === null || patch.credit === undefined)) delete patch.credit;
@@ -2080,12 +2106,19 @@ async function handleApi(req, res, pathname) {
       map[childKey] = next;
     } else if (op === "push") {
       childKey = `loc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      previousChild = null;
       map[childKey] = body.value ?? null;
     } else if (op === "delete") {
       delete map[childKey];
     }
     setStateValue(key, map);
-    sseBroadcastStateChild(key, op, childKey, op === "delete" ? null : map[childKey]);
+    sseBroadcastStateChild(
+      key,
+      op,
+      childKey,
+      op === "delete" ? null : map[childKey],
+      op === "merge" ? [previousChild, map[childKey]] : (op === "delete" ? previousChild : map[childKey])
+    );
     jsonResponse(res, 200, { ok: true, key, childKey });
     return true;
   }
@@ -2342,7 +2375,13 @@ async function handleApi(req, res, pathname) {
       return true;
     }
     if (req.method === "GET") {
-      jsonResponse(res, 200, { key: normalizeStateKey(key), value: getStateValue(key) });
+      const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const client = {
+        role: requestUrl.searchParams.get("role") === "fixed-bed" ? "fixed-bed" : "full",
+        bedNo: Number(requestUrl.searchParams.get("bed") || 0)
+      };
+      const stateKey = normalizeStateKey(key);
+      jsonResponse(res, 200, { key: stateKey, value: stateValueForClient(client, stateKey, getStateValue(key)) });
       return true;
     }
     if (req.method === "PUT") {

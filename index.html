@@ -5469,7 +5469,14 @@
 
   async function localStateGet(key) {
     if (!SERVER_MODE) return null;
-    const res = await fetch(`/api/state/${encodeURIComponent(key)}`, { cache: 'no-store' });
+    const params = new URLSearchParams();
+    if (isFixedBedScreen()) {
+      params.set('role', 'fixed-bed');
+      const fixedBedNo = getFixedBedNoFromUrl();
+      if (fixedBedNo) params.set('bed', String(fixedBedNo));
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`/api/state/${encodeURIComponent(key)}${suffix}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`로컬 상태 조회 실패: ${key}`);
     return (await res.json()).value;
   }
@@ -6035,8 +6042,19 @@
   };
 
   function requestAppRender(parts = {}) {
+    const nextParts = isRegularFixedBedScreen()
+      ? {
+          ...parts,
+          doctorAlertPanel: false,
+          receiveBedDetail: false,
+          bedMonitors: false,
+          waitingLists: false,
+          upcomingAlerts: false,
+          count: false
+        }
+      : parts;
     Object.keys(pendingAppRender).forEach(key => {
-      if (parts[key]) {
+      if (nextParts[key]) {
         pendingAppRender[key] = true;
         countDebugCounter('render-request', key);
       }
@@ -7558,6 +7576,7 @@
   };
 
   function renderBedDoctorAlertPanel() {
+    if (isRegularFixedBedScreen()) return;
     const panel = document.getElementById('bedDoctorAlertPanel');
     const list = document.getElementById('bedDoctorAlertList');
     if (!panel || !list) return;
@@ -9569,6 +9588,7 @@
   }
 
   function updateCount() {
+    if (isRegularFixedBedScreen()) return;
     const todayCount = document.getElementById('todayCount');
     if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
     const treatedCount = dischargedPatientsByKey.size;
@@ -11245,6 +11265,7 @@
   }
 
   function renderUpcomingAlerts() {
+    if (isRegularFixedBedScreen()) return;
     countDebugCounter('render-call', 'upcomingAlerts');
     const renderAlertItemsHtml = (items) => items
       .sort((a, b) => {
@@ -14005,6 +14026,7 @@
   }
 
   function renderBedMonitors() {
+    if (isRegularFixedBedScreen()) return;
     countDebugCounter('render-call', 'bedMonitors');
     if (bedDragActive()) { bedRenderPending = true; return; }
     bedRenderPending = false;
@@ -14385,6 +14407,12 @@
           updateTimerDom(bedNo);
         }
       };
+      if (isRegularFixedBedScreen()) {
+        const fixedBedNo = getFixedBedNoFromUrl();
+        tickBed(getBedData(fixedBedNo), fixedBedNo);
+        updateBedRemainingChip();
+        return;
+      }
       bedAssignments.forEach((bed, index) => tickBed(bed, index + 1));
       Object.entries(doctorBedMap).forEach(([bedNo, bed]) => tickBed(bed, Number(bedNo)));
       renderUpcomingAlertsPassively();
