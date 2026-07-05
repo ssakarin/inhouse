@@ -1064,13 +1064,11 @@
     display: block;
   }
   body.app-mode-receive .receive-alert-card:not([data-alert-view="general"]) > #receiveUpcomingAlerts,
-  body.app-role-clinic .receive-alert-card:not([data-alert-view="general"]) > #receiveUpcomingAlerts,
-  body.app-mode-notify .receive-alert-card:not([data-alert-view="general"]) > #receiveUpcomingAlerts {
+  body.app-role-clinic .receive-alert-card:not([data-alert-view="general"]) > #receiveUpcomingAlerts {
     display: none;
   }
   body.app-mode-receive .receive-alert-card[data-alert-view="general"] > .doctor-alert-split,
-  body.app-role-clinic .receive-alert-card[data-alert-view="general"] > .doctor-alert-split,
-  body.app-mode-notify .receive-alert-card[data-alert-view="general"] > .doctor-alert-split {
+  body.app-role-clinic .receive-alert-card[data-alert-view="general"] > .doctor-alert-split {
     display: none;
   }
   body.app-mode-receive .receive-alert-card > .doctor-alert-split,
@@ -2285,9 +2283,12 @@
     /* 치료실알림: 치료알림 / 원장1 / 원장2 영역을 고정 크기로, 각자 스크롤 */
     body.app-mode-notify .receive-detail-column > .receive-alert-card {
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1.45fr) minmax(0, 0.8fr);
       gap: 10px;
       overflow: hidden;
+    }
+    body.app-mode-notify .receive-alert-toggle-row {
+      display: none;
     }
     body.app-mode-notify .receive-alert-card > .upcoming-list {
       min-height: 0;
