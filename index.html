@@ -1030,6 +1030,61 @@
     gap: 8px;
     margin-top: 10px;
   }
+  .receive-alert-card {
+    display: grid;
+    gap: 10px;
+  }
+  .receive-alert-toggle-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .receive-alert-toggle-btn {
+    flex: 1 1 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 8px 10px;
+    cursor: pointer;
+  }
+  .receive-alert-toggle-btn.active {
+    border-color: var(--accent);
+    background: rgba(57,169,245,0.22);
+    color: var(--text);
+  }
+  .receive-alert-card > .doctor-alert-split {
+    margin-top: 0;
+  }
+  body.app-mode-receive .receive-alert-card,
+  body.app-role-clinic .receive-alert-card {
+    display: block;
+  }
+  body.app-mode-receive .receive-alert-card:not([data-alert-view="general"]) > #receiveUpcomingAlerts,
+  body.app-role-clinic .receive-alert-card:not([data-alert-view="general"]) > #receiveUpcomingAlerts,
+  body.app-mode-notify .receive-alert-card:not([data-alert-view="general"]) > #receiveUpcomingAlerts {
+    display: none;
+  }
+  body.app-mode-receive .receive-alert-card[data-alert-view="general"] > .doctor-alert-split,
+  body.app-role-clinic .receive-alert-card[data-alert-view="general"] > .doctor-alert-split,
+  body.app-mode-notify .receive-alert-card[data-alert-view="general"] > .doctor-alert-split {
+    display: none;
+  }
+  body.app-mode-receive .receive-alert-card > .doctor-alert-split,
+  body.app-role-clinic .receive-alert-card > .doctor-alert-split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0;
+  }
+  body.app-mode-receive .receive-alert-card > .upcoming-list .upcoming-item,
+  body.app-role-clinic .receive-alert-card > .upcoming-list .upcoming-item {
+    grid-template-columns: 58px minmax(0, 1fr);
+    padding: 9px 10px;
+    gap: 8px;
+  }
   .doctor-alert-box {
     min-width: 0;
     background: var(--surface2);
@@ -1185,6 +1240,53 @@
     padding: 2px 8px;
     border-radius: 8px;
     font-size: clamp(10px, 0.9vw, 12px);
+  }
+  body.app-mode-receive .doctor-alert-box-list,
+  body.app-role-clinic .doctor-alert-box-list,
+  body.app-mode-notify .doctor-alert-box-list {
+    gap: 5px;
+  }
+  body.app-mode-receive .doctor-alert-box-list .upcoming-item.doctor-alert-simple-item,
+  body.app-role-clinic .doctor-alert-box-list .upcoming-item.doctor-alert-simple-item,
+  body.app-mode-notify .doctor-alert-box-list .upcoming-item.doctor-alert-simple-item {
+    padding: 5px 6px;
+    background: transparent;
+    border-color: rgba(57,169,245,0.22);
+    border-radius: 7px;
+  }
+  body.app-mode-receive .doctor-alert-box-list .doctor-room-alert-chips,
+  body.app-role-clinic .doctor-alert-box-list .doctor-room-alert-chips,
+  body.app-mode-notify .doctor-alert-box-list .doctor-room-alert-chips {
+    gap: 4px;
+  }
+  body.app-mode-receive .doctor-alert-box-list .doctor-room-alert-bed-chip,
+  body.app-role-clinic .doctor-alert-box-list .doctor-room-alert-bed-chip,
+  body.app-mode-notify .doctor-alert-box-list .doctor-room-alert-bed-chip,
+  body.app-mode-receive .doctor-alert-box-list .doctor-room-alert-treatment-text,
+  body.app-role-clinic .doctor-alert-box-list .doctor-room-alert-treatment-text,
+  body.app-mode-notify .doctor-alert-box-list .doctor-room-alert-treatment-text,
+  body.app-mode-receive .doctor-alert-box-list .doctor-alert-patient-chip,
+  body.app-role-clinic .doctor-alert-box-list .doctor-alert-patient-chip,
+  body.app-mode-notify .doctor-alert-box-list .doctor-alert-patient-chip {
+    min-height: 0;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent !important;
+    box-shadow: none;
+    max-width: none;
+    line-height: 1.2;
+  }
+  body.app-mode-receive .doctor-alert-box-list .doctor-room-alert-bed-chip,
+  body.app-role-clinic .doctor-alert-box-list .doctor-room-alert-bed-chip,
+  body.app-mode-notify .doctor-alert-box-list .doctor-room-alert-bed-chip,
+  body.app-mode-receive .doctor-alert-box-list .doctor-room-alert-treatment-text,
+  body.app-role-clinic .doctor-alert-box-list .doctor-room-alert-treatment-text,
+  body.app-mode-notify .doctor-alert-box-list .doctor-room-alert-treatment-text,
+  body.app-mode-receive .doctor-alert-box-list .doctor-alert-patient-chip,
+  body.app-role-clinic .doctor-alert-box-list .doctor-alert-patient-chip,
+  body.app-mode-notify .doctor-alert-box-list .doctor-alert-patient-chip {
+    font-size: 14px;
   }
   body.app-mode-doctor .doctor-alert-split {
     display: none;
@@ -2183,7 +2285,7 @@
     /* 치료실알림: 치료알림 / 원장1 / 원장2 영역을 고정 크기로, 각자 스크롤 */
     body.app-mode-notify .receive-detail-column > .receive-alert-card {
       display: grid;
-      grid-template-rows: minmax(0, 1.45fr) minmax(0, 0.8fr);
+      grid-template-rows: auto minmax(0, 1fr);
       gap: 10px;
       overflow: hidden;
     }
@@ -2292,6 +2394,10 @@
     padding: 9px 10px;
     display: flex;
     align-items: center;
+  }
+  body.app-mode-receive #receiveBedMonitor,
+  body.app-role-clinic #receiveBedMonitor {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .bed-status.compact .bed-status-top {
     width: 100%;
@@ -4109,8 +4215,22 @@
     .input-panel:not(.input-form-open) .input-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr); align-items: start; }
     .input-panel.input-form-open .input-layout { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; }
     .receive-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr); align-items: start; }
+    body.app-mode-receive .receive-layout,
+    body.app-role-clinic .receive-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr); }
     .receive-panel.receive-form-open .receive-layout { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; }
     .staff-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  }
+
+  @media (min-width: 1100px) {
+    body.app-mode-receive .receive-alert-card,
+    body.app-role-clinic .receive-alert-card {
+      grid-template-columns: minmax(300px, 1fr) minmax(378px, 1.44fr);
+      align-items: start;
+    }
+    body.app-mode-receive #receiveBedMonitor,
+    body.app-role-clinic #receiveBedMonitor {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 1050px) {
@@ -4132,6 +4252,10 @@
   @media (min-width: 1200px) {
     #inputBedMonitor,
     #receiveBedMonitor { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    body.app-mode-receive #receiveBedMonitor,
+    body.app-role-clinic #receiveBedMonitor {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 859px) {
@@ -4762,10 +4886,6 @@
         <div class="card">
           <div class="bed-monitor" id="receiveBedMonitor"></div>
         </div>
-        <div class="card receive-waiting-card">
-          <div class="card-label">대기</div>
-          <div class="waiting-list waiting-list--compact" id="receiveWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
-        </div>
         <div class="card receive-doctor-alert-editor" id="receiveDoctorAlertEditor"></div>
       </div>
       <div class="receive-detail-column">
@@ -4807,7 +4927,15 @@
             </div>
           </div>
         </div>
+        <div class="card receive-waiting-card">
+          <div class="card-label">대기</div>
+          <div class="waiting-list waiting-list--compact" id="receiveWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
+        </div>
         <div class="card receive-alert-card">
+          <div class="receive-alert-toggle-row">
+            <button type="button" class="receive-alert-toggle-btn" data-alert-view-button="doctor" onclick="setReceiveAlertView('doctor')">원장알림</button>
+            <button type="button" class="receive-alert-toggle-btn" data-alert-view-button="general" onclick="setReceiveAlertView('general')">일반알림</button>
+          </div>
           <div class="upcoming-list" id="receiveUpcomingAlerts"></div>
           <div class="doctor-alert-split" id="receiveDoctorAlertSplit"></div>
         </div>
@@ -5932,6 +6060,7 @@
   let isTimerAlertOpen = false;
   let activeTimerAlert = null;
   let receiveDoctorAlertEditDoctorId = '';
+  let receiveAlertView = localStorage.getItem('receiveAlertView') === 'general' ? 'general' : 'doctor';
   let selectedDoctorAlertId = localStorage.getItem('selectedDoctorAlertId') || ''; // 데스크 원장 호출용 (방과 무관, 전역)
   const selectedDoctorAlertIdByBed = {}; // 원장실 알림 토글 선택값 — 베드(원장실)별로 독립적으로 보관
   let doctorAlertManualOrderById = {};
@@ -5948,19 +6077,11 @@
   }
 
   function getDoctorAlertManualOrder(doctorId) {
-    return Array.isArray(doctorAlertManualOrderById?.[doctorId]) ? doctorAlertManualOrderById[doctorId] : [];
+    return [];
   }
 
   function applyDoctorAlertManualOrder(doctorId, items = []) {
-    const order = getDoctorAlertManualOrder(doctorId);
-    if (!order.length) return items;
-    const orderIndex = new Map(order.map((id, index) => [id, index]));
-    return [...items].sort((a, b) => {
-      const ai = orderIndex.has(a.alertId) ? orderIndex.get(a.alertId) : Number.MAX_SAFE_INTEGER;
-      const bi = orderIndex.has(b.alertId) ? orderIndex.get(b.alertId) : Number.MAX_SAFE_INTEGER;
-      if (ai !== bi) return ai - bi;
-      return Number(a.timestamp || 0) - Number(b.timestamp || 0);
-    });
+    return items;
   }
 
   function refreshDoctorAlertManualOrderViews() {
@@ -7448,13 +7569,8 @@
         }
         setSelectedDoctorAlertIdForBed(roomBedNo, bedDoctorId);
         const name = bedDoctorId ? (staffByType.doctors.get(bedDoctorId)?.name || '원장') : '원장선택';
-        const hasManualOrder = bedDoctorId && getDoctorAlertManualOrder(bedDoctorId).length > 0;
         bedContainer.innerHTML = '<button type="button" class="doctor-alert-btn doctor-alert-toggle' + (bedDoctorId ? ' active' : '') + '" onclick="cycleBedDoctorAlertFilter()">' + escapeHtml(name) + '</button>';
-        if (bedResetContainer) {
-          bedResetContainer.innerHTML = bedDoctorId
-            ? '<button type="button" class="doctor-alert-order-btn" onclick="resetDoctorProcedureAlertOrder(' + escapeHtmlJsString(bedDoctorId) + ')" ' + (hasManualOrder ? '' : 'disabled') + ' title="자동복귀">자동복귀</button>'
-            : '';
-        }
+        if (bedResetContainer) bedResetContainer.innerHTML = '';
       }
     }
 
@@ -7525,14 +7641,7 @@
   }
 
   function renderDoctorAlertOrderControls(item, index, total) {
-    if (!item?.doctorId || !item?.alertId || total <= 1) return '';
-    const doctorArg = escapeHtmlJsString(item.doctorId);
-    const alertArg = escapeHtmlJsString(item.alertId);
-    return `
-      <div class="doctor-alert-order-tools">
-        <button type="button" class="doctor-alert-order-btn" onclick="moveDoctorProcedureAlertOrder(${doctorArg}, ${alertArg}, -1)" ${index <= 0 ? 'disabled' : ''} title="위로">↑</button>
-        <button type="button" class="doctor-alert-order-btn" onclick="moveDoctorProcedureAlertOrder(${doctorArg}, ${alertArg}, 1)" ${index >= total - 1 ? 'disabled' : ''} title="아래로">↓</button>
-      </div>`;
+    return '';
   }
 
   function renderDoctorRoomAlertChips(item, options = {}) {
@@ -7546,12 +7655,14 @@
     );
     const bedLabel = item?.bedLabel || (item?.bedNo ? String(item.bedNo) : '');
     const patientName = options.includePatientName ? String(item?.name || '').trim() : '';
+    const soonLabel = item?.soonRemainingSeconds ? `${Math.ceil(Number(item.soonRemainingSeconds || 0) / 60)}분` : '';
     const orderControlsHtml = options.orderControlsHtml || '';
     return `
       <div class="doctor-room-alert-chips">
         <span class="doctor-room-alert-bed-chip">${escapeHtml(bedLabel)}</span>
         ${treatmentNames.map(name => `<span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${doctorRoomTreatmentTextClass(name)}">${escapeHtml(name)}</span>`).join('')}
         ${patientName ? `<span class="doctor-alert-patient-chip">${escapeHtml(patientName)}</span>` : ''}
+        ${soonLabel ? `<span class="doctor-alert-patient-chip">${escapeHtml(soonLabel)}</span>` : ''}
         ${orderControlsHtml}
       </div>`;
   }
@@ -7569,6 +7680,22 @@
     );
   }
 
+  function shouldShowPatientNameInTreatmentRoomDoctorAlert(item) {
+    const names = (Array.isArray(item?.treatments) && item.treatments.length ? item.treatments : [item?.treatment])
+      .map(name => String(name || '').replace(/\s+/g, '').toLowerCase())
+      .filter(Boolean);
+    return names.some(name => {
+      const badgeClass = getTreatmentBadgeClass(name);
+      return badgeClass === 'treatment-chuna'
+        || badgeClass === 'treatment-exam'
+        || name.includes('단추')
+        || name.includes('추나')
+        || name.includes('복추')
+        || name.includes('진찰')
+        || name.includes('베드진찰');
+    });
+  }
+
   function renderBedDoctorAlertItems(items, indexByAlertId = new Map(), total = items.length) {
     return items.map((item, index) => `
       <div class="upcoming-item assignment no-dismiss doctor-alert-list-item">
@@ -7582,6 +7709,7 @@
   }
 
   function renderBedDoctorAlertGroupedList(items = []) {
+    return items.length ? renderBedDoctorAlertItems(items) : `<div class="empty-state"><div class="empty-icon">-</div><div class="empty-text">알림 없음</div></div>`;
     if (!items.length) return `<div class="empty-state"><div class="empty-icon">-</div><div class="empty-text">알림 없음</div></div>`;
     const priorityItems = items.filter(isPriorityDoctorRoomTreatment);
     const otherItems = items.filter(item => !isPriorityDoctorRoomTreatment(item));
@@ -7613,7 +7741,6 @@
     const doctorId = receiveDoctorAlertEditDoctorId;
     const doctorName = staffByType.doctors.get(doctorId)?.name || '원장';
     const items = getDoctorProcedureAlertItems(doctorId);
-    const hasManualOrder = getDoctorAlertManualOrder(doctorId).length > 0;
     const listHtml = items.length
       ? items.map((item, index) => `
         <div class="upcoming-item assignment no-dismiss doctor-alert-simple-item">
@@ -7629,7 +7756,6 @@
       <div class="receive-doctor-alert-editor-head">
         <div class="receive-doctor-alert-editor-title">${escapeHtml(doctorName)} 원장실 알림</div>
         <div class="receive-doctor-alert-editor-actions">
-          <button type="button" class="doctor-alert-order-btn" onclick="resetDoctorProcedureAlertOrder(${escapeHtmlJsString(doctorId)})" ${hasManualOrder ? '' : 'disabled'} title="자동복귀">자동복귀</button>
           <button type="button" class="doctor-alert-order-btn" onclick="closeReceiveDoctorAlertEditor()" title="닫기">닫기</button>
         </div>
       </div>
@@ -7689,13 +7815,8 @@
       if (bedResetContainer) bedResetContainer.innerHTML = '';
     } else if (bedButtonContainer) {
       const doctorName = bedDoctorAlertId ? (staffByType.doctors.get(bedDoctorAlertId)?.name || '원장') : '원장선택';
-      const hasManualOrder = bedDoctorAlertId && getDoctorAlertManualOrder(bedDoctorAlertId).length > 0;
       bedButtonContainer.innerHTML = '<button type="button" class="doctor-alert-btn doctor-alert-toggle' + (bedDoctorAlertId ? ' active' : '') + '" onclick="cycleBedDoctorAlertFilter()">' + escapeHtml(doctorName) + '</button>';
-      if (bedResetContainer) {
-        bedResetContainer.innerHTML = bedDoctorAlertId
-          ? '<button type="button" class="doctor-alert-order-btn" onclick="resetDoctorProcedureAlertOrder(' + escapeHtmlJsString(bedDoctorAlertId) + ')" ' + (hasManualOrder ? '' : 'disabled') + ' title="자동복귀">자동복귀</button>'
-          : '';
-      }
+      if (bedResetContainer) bedResetContainer.innerHTML = '';
     }
     const items = bedDoctorAlertId ? getDoctorProcedureAlertItems(bedDoctorAlertId) : [];
     if (window.isFixedDoctorBedScreen?.() && !getBedData(fixedDoctorBedNo)) {
@@ -10929,7 +11050,7 @@
           </div>
         </div>`;
     }).join('');
-    const html = (heldHtml + waitingHtml) || `<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">대기가 없습니다</div></div>`;
+    const html = heldHtml + waitingHtml;
 
     ['inputWaitingList', 'receiveWaitingList'].forEach(id => {
       const list = document.getElementById(id);
@@ -11338,6 +11459,21 @@
     return [];
   }
 
+  function updateReceiveAlertView() {
+    const view = receiveAlertView === 'general' ? 'general' : 'doctor';
+    const card = document.querySelector('.receive-alert-card');
+    if (card) card.dataset.alertView = view;
+    document.querySelectorAll('[data-alert-view-button]').forEach(button => {
+      button.classList.toggle('active', button.dataset.alertViewButton === view);
+    });
+  }
+
+  window.setReceiveAlertView = (view) => {
+    receiveAlertView = view === 'general' ? 'general' : 'doctor';
+    localStorage.setItem('receiveAlertView', receiveAlertView);
+    updateReceiveAlertView();
+  };
+
   function renderUpcomingAlerts() {
     if (isRegularFixedBedScreen() || isFixedDoctorBedScreen()) return;
     countDebugCounter('render-call', 'upcomingAlerts');
@@ -11405,7 +11541,7 @@
     const renderSimpleDoctorProcedureAlertHtml = (item, index = 0, total = 1, options = {}) => `
       <div class="upcoming-item assignment no-dismiss doctor-alert-simple-item">
         <div class="doctor-alert-simple-row">
-          ${renderDoctorRoomAlertChips(item)}
+          ${renderDoctorRoomAlertChips(item, { includePatientName: shouldShowPatientNameInTreatmentRoomDoctorAlert(item) })}
           ${options.showOrderControls ? renderDoctorAlertOrderControls(item, index, total) : ''}
         </div>
       </div>`;
@@ -11428,9 +11564,7 @@
         const listHtml = items.length
           ? items.map(item => item.html).join('')
           : `<div class="empty-state"><div class="empty-icon">-</div><div class="empty-text">알림 없음</div></div>`;
-        const resetHtml = enableOrderControls && doctorId && getDoctorAlertManualOrder(doctorId).length
-          ? `<button type="button" class="doctor-alert-order-btn" onclick="resetDoctorProcedureAlertOrder(${escapeHtmlJsString(doctorId)})" title="자동복귀">자동복귀</button>`
-          : '';
+        const resetHtml = '';
         const nameHtml = enableEditorOpen && doctorId
           ? `<button type="button" class="doctor-alert-box-name doctor-alert-box-name-btn" onclick="openReceiveDoctorAlertEditor(${escapeHtmlJsString(doctorId)})">${escapeHtml(doctorName || '원장 없음')}</button>`
           : `<span class="doctor-alert-box-name">${doctorName ? escapeHtml(doctorName) : '원장 없음'}</span>`;
@@ -11609,11 +11743,12 @@
     if (receiveDoctorSplit) {
       receiveDoctorSplit.innerHTML = renderDoctorAlertSplitHtml({
         enableOrderControls: false,
-        enableEditorOpen: true
+        enableEditorOpen: false
       });
     }
     renderReceiveDoctorAlertEditor();
     renderBedDoctorAlertPanel();
+    updateReceiveAlertView();
     syncFixedDoctorRoomAlertAudio();
     updateAlertListAudioState();
   }
@@ -14158,8 +14293,9 @@
     const isInput = context === 'input';
     const canMoveBed = isInput || isReceive;
     const monitorLabel = getBedMonitorLabel(status.bedNo);
+    const receivePanelOpen = document.getElementById('receivePanel')?.classList.contains('receive-form-open');
     const compact = (isInput && document.getElementById('inputPanel')?.classList.contains('input-form-open'))
-      || (isReceive && document.getElementById('receivePanel')?.classList.contains('receive-form-open'));
+      || (isReceive && receivePanelOpen);
     const editingBedNo = isInput ? formEditBedNoByScope['desk'] : (isReceive ? formEditBedNoByScope['receive'] : null);
     const isEditingBed = compact && editingBedNo && status.bedNo === editingBedNo;
     const activeClass = [
@@ -14297,12 +14433,105 @@
     return Boolean(alertId && bed?.doctorProcedureAlert?.id === alertId && bed.doctorProcedureAlert.dismissed);
   }
 
+  function isLongDoctorProcedureTreatment(treatment) {
+    const badgeClass = getTreatmentBadgeClass(treatment);
+    return badgeClass === 'treatment-chuna' || badgeClass === 'treatment-exam';
+  }
+
+  function isShortDoctorProcedureTreatment(treatment) {
+    return isDoctorProcedureTreatment(treatment) && !isLongDoctorProcedureTreatment(treatment);
+  }
+
+  function getUpcomingShortDoctorProcedureInfo(bed) {
+    if (!bed || bed.complete || !bed.running || bed.lastAlertId) return null;
+    const remaining = getRemaining(bed);
+    if (remaining > 120) return null;
+    const treatments = bed.treatments || [];
+    const currentIndex = Number(bed.currentIndex || 0);
+    const nextIndex = getNextPendingTreatmentIndex(
+      treatments,
+      getConcurrentTreatmentEndIndex(treatments, currentIndex) + 1,
+      bed.preCompletedTreatmentIndexes || []
+    );
+    if (nextIndex < 0) return null;
+    const nextTreatments = getConcurrentTreatmentNames(treatments, nextIndex);
+    const shortTreatments = nextTreatments.filter(isShortDoctorProcedureTreatment);
+    if (!shortTreatments.length) return null;
+    return {
+      nextIndex,
+      treatments: shortTreatments,
+      treatment: formatTreatmentNames(shortTreatments),
+      remaining
+    };
+  }
+
   function isDoctorProcedureBlinking(bedNo, bed) {
     // 원장실 시술 알림 확인 기능 제거 → 확인에 의한 점멸 없음
     return false;
   }
 
+  function buildDoctorProcedureAlertItemsAuto(doctorId = selectedDoctorAlertId) {
+    if (!doctorId) return [];
+    const items = [];
+    [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS].forEach(bedNo => {
+      const bed = getBedData(bedNo);
+      if (!bed || bed.complete || isFixedBedArrivalPending(bedNo, bed) || bed.lastAlertId || bed.doctorId !== doctorId) return;
+
+      if (bed.running) {
+        const upcoming = getUpcomingShortDoctorProcedureInfo(bed);
+        if (!upcoming) return;
+        const alertId = `${bed.patientKey || bed.chartNo || bedNo}:${bedNo}:soon:${upcoming.nextIndex}:${upcoming.treatment}`;
+        items.push({
+          alertId,
+          bedNo,
+          doctorId: bed.doctorId || '',
+          bedLabel: getBedLabel(bedNo),
+          name: bed.name || '',
+          nurseName: bed.nurseName || '',
+          treatment: upcoming.treatment,
+          treatments: upcoming.treatments,
+          soon: true,
+          soonRemainingSeconds: upcoming.remaining,
+          alertPriority: 1,
+          sortPriority: 1,
+          timestamp: Number(bed.startedAt || bed.timestamp || 0),
+          message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${upcoming.treatment}`
+        });
+        return;
+      }
+
+      const treatments = getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
+      const currentTreatment = bed.treatments?.[bed.currentIndex || 0] || '치료';
+      const treatment = formatTreatmentNames(treatments) || '치료';
+      if (!treatments.some(isDoctorProcedureTreatment)) return;
+      const alertId = getDoctorProcedureAlertId(bedNo, bed, currentTreatment);
+      if (isDoctorProcedureAlertDismissed(bedNo, bed)) return;
+      items.push({
+        alertId,
+        bedNo,
+        doctorId: bed.doctorId || '',
+        bedLabel: getBedLabel(bedNo),
+        name: bed.name || '',
+        nurseName: bed.nurseName || '',
+        treatment,
+        treatments,
+        alertPriority: 1,
+        sortPriority: treatments.some(isShortDoctorProcedureTreatment) ? 0 : 2,
+        timestamp: Number(bed.doctorProcedureAlert?.dismissedAt || bed.startedAt || bed.timestamp || 0),
+        message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${treatment}`
+      });
+    });
+    return items.sort((a, b) => {
+      const sortPriorityDiff = Number(a.sortPriority ?? 2) - Number(b.sortPriority ?? 2);
+      if (sortPriorityDiff) return sortPriorityDiff;
+      const priorityDiff = Number(a.alertPriority ?? 1) - Number(b.alertPriority ?? 1);
+      if (priorityDiff) return priorityDiff;
+      return Number(a.timestamp || 0) - Number(b.timestamp || 0);
+    });
+  }
+
   function getDoctorProcedureAlertItems(doctorId = selectedDoctorAlertId) {
+    return applyDoctorAlertManualOrder(doctorId, buildDoctorProcedureAlertItemsAuto(doctorId));
     if (!doctorId) return [];
     const items = [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS]
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
@@ -16073,6 +16302,7 @@
     }
     window.updateBedHeaderBedChip?.();
     window.updateBedRemainingChip?.();
+    window.renderBedMonitors?.();
     if (mode !== 'receive' && mode !== 'input') window.closeNurseQuickPopover?.();
     if (mode === 'bed') window.openQueuedTimerAlertIfNeeded?.();
     window.updateReceiveAlertAudioState?.();

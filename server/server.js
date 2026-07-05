@@ -1808,6 +1808,7 @@ function isDoctorRoomRelevantBed(client, bedNo, bed) {
   if (!client || client.role !== "doctor-room") return true;
   if (Number(client.bedNo) === Number(bedNo)) return true;
   if (!bed || typeof bed !== "object") return false;
+  if (bed.doctorId && bed.running && !bed.complete) return true;
   return Boolean(bed.doctorId && !bed.complete && !bed.running && !bed.lastAlertId);
 }
 
