@@ -1294,6 +1294,19 @@
     flex-direction: column;
     gap: 8px;
   }
+  .bed-doctor-alert-section {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .bed-doctor-alert-section + .bed-doctor-alert-section {
+    margin-top: 4px;
+  }
+  .bed-doctor-alert-section-title {
+    color: var(--text3);
+    font-size: 11px;
+    font-weight: 900;
+  }
   .bed-doctor-alert-list .doctor-room-alert-chips {
     grid-column: 1 / -1;
     display: flex;
@@ -7543,6 +7556,47 @@
       </div>`;
   }
 
+  function isPriorityDoctorRoomTreatment(item) {
+    const names = (Array.isArray(item?.treatments) && item.treatments.length ? item.treatments : [item?.treatment])
+      .map(name => String(name || '').replace(/\s+/g, '').toLowerCase())
+      .filter(Boolean);
+    return names.some(name =>
+      name.includes('추나') ||
+      name.includes('복추') ||
+      name.includes('버치') ||
+      name.includes('진찰') ||
+      name.includes('베드진찰')
+    );
+  }
+
+  function renderBedDoctorAlertItems(items, indexByAlertId = new Map(), total = items.length) {
+    return items.map((item, index) => `
+      <div class="upcoming-item assignment no-dismiss doctor-alert-list-item">
+        <div class="doctor-alert-simple-row">
+          ${renderDoctorRoomAlertChips(item, {
+            includePatientName: true,
+            orderControlsHtml: renderDoctorAlertOrderControls(item, indexByAlertId.get(item.alertId) ?? index, total)
+          })}
+        </div>
+      </div>`).join('');
+  }
+
+  function renderBedDoctorAlertGroupedList(items = []) {
+    if (!items.length) return `<div class="empty-state"><div class="empty-icon">-</div><div class="empty-text">알림 없음</div></div>`;
+    const priorityItems = items.filter(isPriorityDoctorRoomTreatment);
+    const otherItems = items.filter(item => !isPriorityDoctorRoomTreatment(item));
+    const indexByAlertId = new Map(items.map((item, index) => [item.alertId, index]));
+    const section = (title, sectionItems) => sectionItems.length ? `
+      <div class="bed-doctor-alert-section">
+        <div class="bed-doctor-alert-section-title">${escapeHtml(title)}</div>
+        ${renderBedDoctorAlertItems(sectionItems, indexByAlertId, items.length)}
+      </div>` : '';
+    return [
+      section('추나 · 진찰', priorityItems),
+      section('치료 대기', otherItems)
+    ].filter(Boolean).join('');
+  }
+
   function renderReceiveDoctorAlertEditor() {
     const panel = document.getElementById('receivePanel');
     const editor = document.getElementById('receiveDoctorAlertEditor');
@@ -7653,6 +7707,8 @@
     } else {
       clearDoctorRoomAlertCountClass();
     }
+    list.innerHTML = renderBedDoctorAlertGroupedList(items);
+    return;
     list.innerHTML = items.length
       ? items
         .map((item, index) => `
