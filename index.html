@@ -5579,18 +5579,161 @@
   const removeBedAssignmentAlert = (key) => removeLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, key);
   const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {});
 
+  const longTermChartSaveTimers = new Map();
+
+  function shouldSyncLongTermChartPatch(patch = {}) {
+    return Object.prototype.hasOwnProperty.call(patch, 'packages')
+      || Object.prototype.hasOwnProperty.call(patch, 'spineSettings');
+  }
+
+  function getBedSnapshotByPatientKey(patientKey) {
+    if (!patientKey) return null;
+    try {
+      return getAllBedEntries()
+        .map(entry => entry.bed)
+        .find(bed => String(bed?.patientKey || '') === String(patientKey)) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function buildLongTermChartSyncPayload(patientKey, patch = {}) {
+    const patient = patientsByKey.get(patientKey) || {};
+    const bed = getBedSnapshotByPatientKey(patientKey) || {};
+    const source = { ...patient, ...bed, ...patch };
+    const chartNo = normalizeChartNo(source.chartNo || '');
+    if (!chartNo) return null;
+
+    const payload = {
+      patientId: source.patientId || '',
+      chartNo,
+      name: source.name || '',
+      age: source.age || '',
+      gender: source.gender || '',
+      visitType: source.visitType || '',
+      chiefComplaint: source.chiefComplaint || source.memo1 || '',
+      memo1: source.memo1 || source.chiefComplaint || ''
+    };
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'spineSettings')) {
+      payload.spineSettings = source.spineSettings || {};
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'packages')) {
+      const packages = getPackageStateFromPatient(source);
+      payload.packages = packages;
+      Object.assign(payload, getPCreditsFromPackages(packages));
+      payload.credit = null;
+    }
+
+    return payload;
+  }
+
+  function scheduleLongTermChartPatientSync(patientKey, patch = {}) {
+    if (!patientKey || !shouldSyncLongTermChartPatch(patch)) return;
+    clearTimeout(longTermChartSaveTimers.get(patientKey));
+    longTermChartSaveTimers.set(patientKey, setTimeout(async () => {
+      longTermChartSaveTimers.delete(patientKey);
+      const payload = buildLongTermChartSyncPayload(patientKey, patch);
+      if (!payload) return;
+      try {
+        await window.saveChartPatient?.(payload);
+      } catch (error) {
+        console.warn('long-term chart sync failed', error);
+      }
+    }, 700));
+  }
+
+  function buildLongTermChartGridSyncPayload(gridId, patch = {}) {
+    const scope = getScopeFromGridId(gridId);
+    if (!scope) return null;
+    const selected = selectedChartPatientByScope[scope] || {};
+    const form = typeof getFormValues === 'function' ? getFormValues(scope) : null;
+    const chartNo = normalizeChartNo(form?.chartNo || selected.chartNo || '');
+    const name = String(form?.name || selected.name || '').trim();
+    if (!chartNo || !name) return null;
+
+    const payload = {
+      patientId: selected.patientId || '',
+      chartNo,
+      name,
+      age: form?.age || selected.age || '',
+      gender: form?.gender || selected.gender || '',
+      visitType: form?.visitType || selected.visitType || '',
+      chiefComplaint: form?.memo1 || selected.memo1 || selected.chiefComplaint || '',
+      memo1: form?.memo1 || selected.memo1 || selected.chiefComplaint || ''
+    };
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'spineSettings')) {
+      payload.spineSettings = patch.spineSettings || {};
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'packages')) {
+      const packages = normalizePackageState(patch.packages || {});
+      payload.packages = packages;
+      Object.assign(payload, getPCreditsFromPackages(packages));
+      payload.credit = null;
+    }
+
+    return payload;
+  }
+
+  function scheduleLongTermChartGridSync(gridId, patch = {}) {
+    if (!gridId || !shouldSyncLongTermChartPatch(patch)) return;
+    const timerKey = `grid:${gridId}`;
+    clearTimeout(longTermChartSaveTimers.get(timerKey));
+    longTermChartSaveTimers.set(timerKey, setTimeout(async () => {
+      longTermChartSaveTimers.delete(timerKey);
+      const payload = buildLongTermChartGridSyncPayload(gridId, patch);
+      if (!payload) return;
+      try {
+        await window.saveChartPatient?.(payload);
+      } catch (error) {
+        console.warn('long-term chart form sync failed', error);
+      }
+    }, 700));
+  }
+
   // Patients (the live board working set, separate from the SQLite chart DB).
   const updatePatient = (key, patch) => {
     const safePatch = { ...(patch || {}) };
     if (safePatch.credit === null || safePatch.credit === undefined) delete safePatch.credit;
     if (!Object.keys(safePatch).length) return Promise.resolve();
-    return updateLocalNodeChild(PATIENTS_PATH, key, safePatch);
+    return updateLocalNodeChild(PATIENTS_PATH, key, safePatch).then((result) => {
+      scheduleLongTermChartPatientSync(key, safePatch);
+      return result;
+    });
   };
   const pushPatient = (data) => pushLocalNode(PATIENTS_PATH, data);
   const removePatient = (key) => removeLocalNodeChild(PATIENTS_PATH, key);
   const clearPatients = () => setLocalNode(PATIENTS_PATH, {});
   const getDischargedPatientsPath = (date = getTodayKey()) => `${DISCHARGED_PATIENTS_PATH_PREFIX}/${date}`;
   const saveDischargedPatientRecord = (date, key, data) => updateLocalNodeChild(getDischargedPatientsPath(date), key, data);
+  function normalizeDischargedIdentityText(value) {
+    return String(value || '').trim().replace(/\s+/g, '').toLowerCase();
+  }
+  function getDischargedPatientIdentity(record = {}) {
+    const patientKey = String(record.patientKey || '').trim();
+    if (patientKey) return `patientKey:${patientKey}`;
+    const patientId = String(record.patientId || '').trim();
+    if (patientId) return `patientId:${patientId}`;
+    const chartNo = normalizeChartNo(record.chartNo || '');
+    const name = normalizeDischargedIdentityText(record.name || '');
+    if (chartNo && name) return `chart:${chartNo}:${name}`;
+    return '';
+  }
+  function findExistingDischargedPatientKey(record = {}) {
+    const identity = getDischargedPatientIdentity(record);
+    const chartNo = normalizeChartNo(record.chartNo || '');
+    const name = normalizeDischargedIdentityText(record.name || '');
+    for (const [key, existing] of dischargedPatientsByKey.entries()) {
+      if (identity && getDischargedPatientIdentity(existing) === identity) return key;
+      const existingChartNo = normalizeChartNo(existing?.chartNo || '');
+      const existingName = normalizeDischargedIdentityText(existing?.name || '');
+      if (chartNo && name && existingChartNo === chartNo && existingName === name) return key;
+    }
+    return '';
+  }
   async function cleanupOldDischargedPatients(keepDate = getTodayKey()) {
     if (!SERVER_MODE) return;
     try {
@@ -6614,6 +6757,8 @@
       await updatePatient(patientKey, { spineSettings });
       patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), spineSettings });
       renderBedMonitors();
+    } else {
+      scheduleLongTermChartGridSync(gridId, { spineSettings });
     }
     window.updateSpineChip(gridId);
   }
@@ -7041,6 +7186,8 @@
       delete nextPatient.credit;
       patientsByKey.set(patientKey, nextPatient);
       renderBedMonitors();
+    } else {
+      scheduleLongTermChartGridSync(gridId, payload);
     }
     updateCreditChip(gridId);
   }
@@ -13326,7 +13473,6 @@
     }
 
     if (bed) {
-      const dischargedKey = bed.patientKey || `bed-${bedNo}-${dischargedAt}`;
       const dischargedRecord = {
         ...(patient || {}),
         ...bed,
@@ -13342,6 +13488,8 @@
         packages: indexDbPackages,
         ...getPCreditsFromPackages(indexDbPackages)
       };
+      const existingDischargedKey = findExistingDischargedPatientKey(dischargedRecord);
+      const dischargedKey = existingDischargedKey || bed.patientKey || `bed-${bedNo}-${dischargedAt}`;
       try {
         await saveDischargedPatientRecord(dischargeDate, dischargedKey, dischargedRecord);
         dischargedPatientsByKey.set(dischargedKey, dischargedRecord);
