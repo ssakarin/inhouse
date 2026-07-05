@@ -1804,7 +1804,19 @@ function isRegularFixedBedNo(bedNo) {
   return Number.isInteger(bedNo) && bedNo >= 1 && bedNo <= 15 && bedNo !== 7;
 }
 
+function isDoctorRoomRelevantBed(client, bedNo, bed) {
+  if (!client || client.role !== "doctor-room") return true;
+  if (Number(client.bedNo) === Number(bedNo)) return true;
+  if (!bed || typeof bed !== "object") return false;
+  return Boolean(bed.doctorId && !bed.complete && !bed.running && !bed.lastAlertId);
+}
+
 function getBedsPayloadForClient(client, beds = getBedsState()) {
+  if (client?.role === "doctor-room") {
+    return Object.fromEntries(
+      Object.entries(beds || {}).filter(([bedNo, bed]) => isDoctorRoomRelevantBed(client, Number(bedNo), bed))
+    );
+  }
   if (!client || client.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return beds || {};
   const key = String(client.bedNo);
   return Object.prototype.hasOwnProperty.call(beds || {}, key) ? { [key]: beds[key] } : {};
@@ -1816,7 +1828,13 @@ function sseClientAllowsBed(client, bedNo) {
 }
 
 function sseClientAllowsState(client, key) {
-  if (!client || client.role !== "fixed-bed") return true;
+  if (!client || !["fixed-bed", "doctor-room"].includes(client.role)) return true;
+  if (client.role === "doctor-room") {
+    return key === "settings/treatmentMinutes"
+      || key === "settings/doctorAlertManualOrder"
+      || key === "staff/doctors"
+      || key === "staff/nurses";
+  }
   return key === "settings/treatmentMinutes"
     || key === "settings/doctorAlertManualOrder"
     || key === "staff/doctors"
@@ -1909,7 +1927,7 @@ function diffBeds(previousBeds = {}, nextBeds = {}) {
   return { updates, removes };
 }
 
-function sseBroadcastBedsDelta(version, updates = [], removes = []) {
+function sseBroadcastBedsDelta(version, updates = [], removes = [], previousBeds = {}) {
   const updateFrames = new Map(updates.map(item => [
     String(item.bedNo),
     sseFrame("bed-update", { version, bedNo: item.bedNo, bed: item.bed })
@@ -1923,10 +1941,21 @@ function sseBroadcastBedsDelta(version, updates = [], removes = []) {
   for (const client of sseClients) {
     try {
       for (const item of updates) {
-        if (sseClientAllowsBed(client, item.bedNo)) sseSendFrame(client, updateFrames.get(String(item.bedNo)));
+        if (client.role === "doctor-room") {
+          const previousRelevant = isDoctorRoomRelevantBed(client, item.bedNo, previousBeds?.[String(item.bedNo)]);
+          const nextRelevant = isDoctorRoomRelevantBed(client, item.bedNo, item.bed);
+          if (nextRelevant) sseSendFrame(client, updateFrames.get(String(item.bedNo)));
+          else if (previousRelevant) sseSendFrame(client, removeFrames.get(String(item.bedNo)) || sseFrame("bed-remove", { version, bedNo: item.bedNo }));
+        } else if (sseClientAllowsBed(client, item.bedNo)) {
+          sseSendFrame(client, updateFrames.get(String(item.bedNo)));
+        }
       }
       for (const bedNo of removes) {
-        if (sseClientAllowsBed(client, bedNo)) sseSendFrame(client, removeFrames.get(String(bedNo)));
+        if (client.role === "doctor-room") {
+          if (isDoctorRoomRelevantBed(client, bedNo, previousBeds?.[String(bedNo)])) sseSendFrame(client, removeFrames.get(String(bedNo)));
+        } else if (sseClientAllowsBed(client, bedNo)) {
+          sseSendFrame(client, removeFrames.get(String(bedNo)));
+        }
       }
     } catch { sseClients.delete(client); }
   }
@@ -1939,19 +1968,22 @@ function commitBeds(beds, previousBeds = null) {
   const version = getBedsVersion() + 1;
   setStateValue("__bedsVersion", version);
   const { updates, removes } = diffBeds(previous || {}, next);
-  sseBroadcastBedsDelta(version, updates, removes);
+  sseBroadcastBedsDelta(version, updates, removes, previous);
   return version;
 }
 
 async function handleApi(req, res, pathname) {
   if (pathname === "/api/events" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-    const role = requestUrl.searchParams.get("role") === "fixed-bed" ? "fixed-bed" : "full";
+    const requestedRole = requestUrl.searchParams.get("role");
+    const role = ["fixed-bed", "doctor-room"].includes(requestedRole) ? requestedRole : "full";
     const bedNo = Number(requestUrl.searchParams.get("bed") || 0);
+    const room = Number(requestUrl.searchParams.get("room") || 0);
     const client = {
       id: sseNextClientId++,
       role,
       bedNo: Number.isInteger(bedNo) ? bedNo : 0,
+      room: Number.isInteger(room) ? room : 0,
       res,
       connectedAt: Date.now(),
       frames: 1,
@@ -1989,6 +2021,7 @@ async function handleApi(req, res, pathname) {
       id: client.id,
       role: client.role,
       bedNo: client.bedNo || 0,
+      room: client.room || 0,
       connectedSeconds: Math.round((now - client.connectedAt) / 1000),
       idleSeconds: Math.round((now - (client.lastWriteAt || client.connectedAt)) / 1000),
       frames: client.frames || 0,
@@ -2376,9 +2409,11 @@ async function handleApi(req, res, pathname) {
     }
     if (req.method === "GET") {
       const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const requestedRole = requestUrl.searchParams.get("role");
       const client = {
-        role: requestUrl.searchParams.get("role") === "fixed-bed" ? "fixed-bed" : "full",
-        bedNo: Number(requestUrl.searchParams.get("bed") || 0)
+        role: ["fixed-bed", "doctor-room"].includes(requestedRole) ? requestedRole : "full",
+        bedNo: Number(requestUrl.searchParams.get("bed") || 0),
+        room: Number(requestUrl.searchParams.get("room") || 0)
       };
       const stateKey = normalizeStateKey(key);
       jsonResponse(res, 200, { key: stateKey, value: stateValueForClient(client, stateKey, getStateValue(key)) });

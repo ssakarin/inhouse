@@ -5170,7 +5170,7 @@
     updateConnectionStatusLabel();
     const isRegularFixed = isRegularFixedBedScreen();
     applyBedsState(beds || {}, {
-      allowMigration: !isRegularFixed,
+      allowMigration: !isFixedBedScreen(),
       allowAutoAssign: !isFixedBedScreen(),
       fromLocalFallback: false
     });
@@ -5235,7 +5235,7 @@
     handleRemoteTimerAlerts(false);
     syncDoctorProcedureAlerts();
     if (!isFixedBedScreen() && autoAssignRelevantChange) await assignWaitingPatientsToBeds();
-    if (!isRegularFixedBedScreen()) processHoldBedReleases();
+    if (!isFixedBedScreen()) processHoldBedReleases();
 
     const fixedDoctorAlertOnly = isFixedDoctorAlertOnlyScreen();
     requestAppRender({
@@ -5254,10 +5254,12 @@
   function startBedsSSE() {
     if (!BEDS_LOCAL_PRIMARY || bedsSSE) return;
     try {
-      const role = isFixedBedScreen() ? 'fixed-bed' : 'full';
+      const role = isFixedDoctorBedScreen() ? 'doctor-room' : (isFixedBedScreen() ? 'fixed-bed' : 'full');
       const params = new URLSearchParams({ role });
       const fixedBedNo = getFixedBedNoFromUrl();
       if (fixedBedNo) params.set('bed', String(fixedBedNo));
+      const fixedDoctorBedNo = getFixedDoctorBedNoFromUrl();
+      if (fixedDoctorBedNo) params.set('room', String(fixedDoctorBedNo - 100));
       bedsSSE = new EventSource(`/api/events?${params.toString()}`);
       bedsSSE.addEventListener('beds', (event) => {
         countDebugCounter('sse', 'beds');
@@ -5366,6 +5368,12 @@
 
   function shouldSubscribeLocalNode(key) {
     if (!isFixedBedScreen()) return true;
+    if (isFixedDoctorBedScreen()) {
+      return key === 'settings/treatmentMinutes'
+        || key === 'settings/doctorAlertManualOrder'
+        || key === 'staff/doctors'
+        || key === 'staff/nurses';
+    }
     return key === 'settings/treatmentMinutes'
       || key === 'settings/treatmentPresets'
       || key === 'settings/doctorAlertManualOrder'
@@ -5471,9 +5479,11 @@
     if (!SERVER_MODE) return null;
     const params = new URLSearchParams();
     if (isFixedBedScreen()) {
-      params.set('role', 'fixed-bed');
+      params.set('role', isFixedDoctorBedScreen() ? 'doctor-room' : 'fixed-bed');
       const fixedBedNo = getFixedBedNoFromUrl();
       if (fixedBedNo) params.set('bed', String(fixedBedNo));
+      const fixedDoctorBedNo = getFixedDoctorBedNoFromUrl();
+      if (fixedDoctorBedNo) params.set('room', String(fixedDoctorBedNo - 100));
     }
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const res = await fetch(`/api/state/${encodeURIComponent(key)}${suffix}`, { cache: 'no-store' });
@@ -6052,6 +6062,16 @@
           upcomingAlerts: false,
           count: false
         }
+      : isFixedDoctorBedScreen()
+        ? {
+            ...parts,
+            receiveBedDetail: false,
+            bedMonitors: false,
+            waitingLists: false,
+            upcomingAlerts: false,
+            count: false,
+            fixedBedArrival: false
+          }
       : parts;
     Object.keys(pendingAppRender).forEach(key => {
       if (nextParts[key]) {
@@ -9555,7 +9575,7 @@
     syncDoctorProcedureAlerts();
     hasLoadedBedsOnce = true;
     if (allowAutoAssign && !migratedCount && autoAssignRelevantChange) await assignWaitingPatientsToBeds();
-    if (!isRegularFixedBedScreen()) processHoldBedReleases();
+    if (!isFixedBedScreen()) processHoldBedReleases();
     requestFullBoardRender();
     renderUpcomingAlerts();
     ensureBedTicker();
@@ -9588,7 +9608,7 @@
   }
 
   function updateCount() {
-    if (isRegularFixedBedScreen()) return;
+    if (isRegularFixedBedScreen() || isFixedDoctorBedScreen()) return;
     const todayCount = document.getElementById('todayCount');
     if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
     const treatedCount = dischargedPatientsByKey.size;
@@ -11265,7 +11285,7 @@
   }
 
   function renderUpcomingAlerts() {
-    if (isRegularFixedBedScreen()) return;
+    if (isRegularFixedBedScreen() || isFixedDoctorBedScreen()) return;
     countDebugCounter('render-call', 'upcomingAlerts');
     const renderAlertItemsHtml = (items) => items
       .sort((a, b) => {
@@ -14026,7 +14046,7 @@
   }
 
   function renderBedMonitors() {
-    if (isRegularFixedBedScreen()) return;
+    if (isRegularFixedBedScreen() || isFixedDoctorBedScreen()) return;
     countDebugCounter('render-call', 'bedMonitors');
     if (bedDragActive()) { bedRenderPending = true; return; }
     bedRenderPending = false;
@@ -14411,6 +14431,18 @@
         const fixedBedNo = getFixedBedNoFromUrl();
         tickBed(getBedData(fixedBedNo), fixedBedNo);
         updateBedRemainingChip();
+        return;
+      }
+      if (isFixedDoctorBedScreen()) {
+        const fixedDoctorBedNo = getFixedDoctorBedNoFromUrl();
+        const fixedDoctorBed = getBedData(fixedDoctorBedNo);
+        if (fixedDoctorBed) {
+          tickBed(fixedDoctorBed, fixedDoctorBedNo);
+          updateBedRemainingChip();
+        } else {
+          renderBedDoctorAlertPanel();
+          syncFixedDoctorRoomAlertAudio();
+        }
         return;
       }
       bedAssignments.forEach((bed, index) => tickBed(bed, index + 1));
