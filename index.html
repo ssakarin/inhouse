@@ -1059,6 +1059,9 @@
   .receive-alert-card > .doctor-alert-split {
     margin-top: 0;
   }
+  .notify-waiting-list {
+    display: none;
+  }
   body.app-mode-receive .receive-alert-card,
   body.app-role-clinic .receive-alert-card {
     display: block;
@@ -2287,6 +2290,9 @@
       gap: 10px;
       overflow: hidden;
     }
+    body.app-mode-notify .receive-detail-column > .receive-alert-card.notify-doctor-expanded {
+      grid-template-rows: minmax(0, 0.65fr) minmax(0, 1.65fr);
+    }
     body.app-mode-notify .receive-alert-toggle-row {
       display: none;
     }
@@ -2302,6 +2308,23 @@
       height: 100%;
       margin-top: 0;
       overflow: hidden;
+    }
+    body.app-mode-notify .receive-alert-card.notify-doctor-expanded > #receiveUpcomingAlerts {
+      display: none;
+    }
+    body.app-mode-notify .receive-alert-card.notify-doctor-expanded > .notify-waiting-list {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      align-content: flex-start;
+      min-height: 0;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-gutter: stable;
+    }
+    body.app-mode-notify .receive-alert-card.notify-doctor-expanded > .notify-waiting-list .waiting-item {
+      flex: 0 0 auto;
     }
     body.app-mode-notify .doctor-alert-box {
       min-height: 0;
@@ -4938,7 +4961,8 @@
             <button type="button" class="receive-alert-toggle-btn" data-alert-view-button="general" onclick="setReceiveAlertView('general')">일반알림</button>
           </div>
           <div class="upcoming-list" id="receiveUpcomingAlerts"></div>
-          <div class="doctor-alert-split" id="receiveDoctorAlertSplit"></div>
+          <div class="waiting-list waiting-list--compact notify-waiting-list" id="notifyWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
+          <div class="doctor-alert-split" id="receiveDoctorAlertSplit" onclick="toggleNotifyDoctorAlertExpanded(event)"></div>
         </div>
       </div>
     </div>
@@ -5580,6 +5604,7 @@
   const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {});
 
   const longTermChartSaveTimers = new Map();
+  const longTermChartPendingSyncs = new Map();
 
   function shouldSyncLongTermChartPatch(patch = {}) {
     return Object.prototype.hasOwnProperty.call(patch, 'packages')
@@ -5631,16 +5656,11 @@
 
   function scheduleLongTermChartPatientSync(patientKey, patch = {}) {
     if (!patientKey || !shouldSyncLongTermChartPatch(patch)) return;
-    clearTimeout(longTermChartSaveTimers.get(patientKey));
-    longTermChartSaveTimers.set(patientKey, setTimeout(async () => {
-      longTermChartSaveTimers.delete(patientKey);
-      const payload = buildLongTermChartSyncPayload(patientKey, patch);
-      if (!payload) return;
-      try {
-        await window.saveChartPatient?.(payload);
-      } catch (error) {
-        console.warn('long-term chart sync failed', error);
-      }
+    const timerKey = String(patientKey);
+    longTermChartPendingSyncs.set(timerKey, { type: 'patient', patientKey, patch: { ...patch } });
+    clearTimeout(longTermChartSaveTimers.get(timerKey));
+    longTermChartSaveTimers.set(timerKey, setTimeout(() => {
+      flushLongTermChartSync(timerKey);
     }, 700));
   }
 
@@ -5681,17 +5701,39 @@
   function scheduleLongTermChartGridSync(gridId, patch = {}) {
     if (!gridId || !shouldSyncLongTermChartPatch(patch)) return;
     const timerKey = `grid:${gridId}`;
+    longTermChartPendingSyncs.set(timerKey, { type: 'grid', gridId, patch: { ...patch } });
     clearTimeout(longTermChartSaveTimers.get(timerKey));
-    longTermChartSaveTimers.set(timerKey, setTimeout(async () => {
-      longTermChartSaveTimers.delete(timerKey);
-      const payload = buildLongTermChartGridSyncPayload(gridId, patch);
-      if (!payload) return;
-      try {
-        await window.saveChartPatient?.(payload);
-      } catch (error) {
-        console.warn('long-term chart form sync failed', error);
-      }
+    longTermChartSaveTimers.set(timerKey, setTimeout(() => {
+      flushLongTermChartSync(timerKey);
     }, 700));
+  }
+
+  async function flushLongTermChartSync(timerKey) {
+    const pending = longTermChartPendingSyncs.get(timerKey);
+    if (!pending) return;
+    clearTimeout(longTermChartSaveTimers.get(timerKey));
+    longTermChartSaveTimers.delete(timerKey);
+    longTermChartPendingSyncs.delete(timerKey);
+
+    const payload = pending.type === 'grid'
+      ? buildLongTermChartGridSyncPayload(pending.gridId, pending.patch)
+      : buildLongTermChartSyncPayload(pending.patientKey, pending.patch);
+    if (!payload) return;
+    try {
+      await window.saveChartPatient?.(payload);
+    } catch (error) {
+      console.warn('long-term chart sync failed', error);
+    }
+  }
+
+  function flushLongTermChartGridSync(gridId) {
+    if (!gridId) return;
+    const patientKey = getPatientKeyForCreditGrid(gridId);
+    if (patientKey) {
+      flushLongTermChartSync(String(patientKey));
+      return;
+    }
+    flushLongTermChartSync(`grid:${gridId}`);
   }
 
   // Patients (the live board working set, separate from the SQLite chart DB).
@@ -6772,6 +6814,7 @@
   };
 
   window.closeSpineSettingsPopup = function() {
+    flushLongTermChartGridSync(activeSpineGridId);
     document.getElementById('spineSettingsOverlay')?.classList.remove('show');
     activeSpineGridId = '';
   };
@@ -7237,6 +7280,7 @@
   };
 
   window.closeCreditPopup = function() {
+    flushLongTermChartGridSync(activeCreditGridId);
     document.getElementById('creditOverlay')?.classList.remove('show');
     activeCreditGridId = '';
   };
@@ -11200,7 +11244,7 @@
     }).join('');
     const html = heldHtml + waitingHtml;
 
-    ['inputWaitingList', 'receiveWaitingList'].forEach(id => {
+    ['inputWaitingList', 'receiveWaitingList', 'notifyWaitingList'].forEach(id => {
       const list = document.getElementById(id);
       if (list) list.innerHTML = html;
     });
@@ -11620,6 +11664,13 @@
     receiveAlertView = view === 'general' ? 'general' : 'doctor';
     localStorage.setItem('receiveAlertView', receiveAlertView);
     updateReceiveAlertView();
+  };
+
+  window.toggleNotifyDoctorAlertExpanded = (event) => {
+    if (window.currentMode !== 'notify') return;
+    if (event?.target?.closest?.('button, select, input, textarea, a')) return;
+    const card = document.querySelector('.receive-alert-card');
+    card?.classList.toggle('notify-doctor-expanded');
   };
 
   function renderUpcomingAlerts() {
