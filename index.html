@@ -7798,7 +7798,7 @@
     const doctors = getActiveDoctors();
     if (!doctors.length) return;
     const roomBedNo = Number(selectedBedNo);
-    const cycle = doctors.map(([key]) => key);
+    const cycle = ['', ...doctors.map(([key]) => key)];
     const idx = cycle.indexOf(getSelectedDoctorAlertIdForBed(roomBedNo));
     const next = cycle[(idx + 1) % cycle.length];
     setSelectedDoctorAlertIdForBed(roomBedNo, next);
