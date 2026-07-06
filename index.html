@@ -1606,6 +1606,12 @@
     display: none;
   }
   .bed-memo-wrap.open .bed-memo-field { display: block; }
+  .bed-memo-wrap .memo2-history-list {
+    margin-top: -2px;
+  }
+  .bed-memo-wrap:not(.open) .memo2-history-list {
+    display: none;
+  }
   .bed-edit-visible-grid .bed-submit-btn {
     grid-column: 2;
     grid-row: 1 / span 2;
@@ -3883,6 +3889,7 @@
     border: 0;
     background: transparent;
   }
+  .timer-next:empty { display: none; }
   .timer-next-label { font-size: 11px; font-weight: 700; color: var(--text3); white-space: nowrap; }
   .timer-next-value {
     font-size: 12px;
@@ -4611,6 +4618,43 @@
     line-height: 1.35;
     resize: none;
   }
+  .memo2-history-list {
+    display: none;
+    grid-column: 1 / 5;
+    grid-row: 4;
+    gap: 4px;
+    min-width: 0;
+  }
+  .memo2-history-list.show {
+    display: grid;
+  }
+  .memo2-history-item {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid rgba(255,202,106,0.28);
+    border-radius: 7px;
+    background: rgba(255,202,106,0.08);
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.25;
+    padding: 6px 8px;
+    text-align: left;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .memo2-history-item:hover {
+    border-color: rgba(255,202,106,0.55);
+    background: rgba(255,202,106,0.14);
+  }
+  .memo2-history-date {
+    color: var(--gold);
+    font-weight: 900;
+    margin-right: 6px;
+  }
   .desk-chart-grid .desk-submit-btn,
   .receive-chart-grid .receive-submit-btn {
     grid-column: 5 / 6;
@@ -4857,6 +4901,7 @@
               </div>
               <input class="name-input wide" id="chiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
               <textarea class="name-input wide" id="memoInput" placeholder="메모2" maxlength="120" rows="3" autocomplete="off"></textarea>
+              <div class="memo2-history-list" id="memo2HistoryList"></div>
               <button class="submit-btn desk-submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
             </div>
           </div>
@@ -4932,6 +4977,7 @@
                 </div>
                 <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
                 <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모2" maxlength="120" rows="3" autocomplete="off"></textarea>
+                <div class="memo2-history-list" id="receiveMemo2HistoryList"></div>
                 <button class="submit-btn receive-submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
               </div>
             </div>
@@ -5013,6 +5059,7 @@
                     <div class="bed-memo-wrap" id="bedMemoWrap">
                       <button class="bed-memo-toggle" id="bedMemoToggle" type="button" onclick="toggleBedMemoInput()">메모2</button>
                       <input class="name-input bed-memo-field" id="bedMemoInput" type="text" placeholder="메모2" maxlength="300" autocomplete="off">
+                      <div class="memo2-history-list" id="bedMemo2HistoryList"></div>
                     </div>
                     <button class="submit-btn bed-submit-btn" id="bedSubmitBtn" onclick="saveBedPatientInfo()">확인</button>
                   </div>
@@ -5608,7 +5655,18 @@
 
   function shouldSyncLongTermChartPatch(patch = {}) {
     return Object.prototype.hasOwnProperty.call(patch, 'packages')
-      || Object.prototype.hasOwnProperty.call(patch, 'spineSettings');
+      || Object.prototype.hasOwnProperty.call(patch, 'spineSettings')
+      || Object.prototype.hasOwnProperty.call(patch, 'memo1')
+      || Object.prototype.hasOwnProperty.call(patch, 'memo2')
+      || Object.prototype.hasOwnProperty.call(patch, 'memo2History')
+      || Object.prototype.hasOwnProperty.call(patch, 'chiefComplaint');
+  }
+
+  function hasMemoLongTermChartPatch(patch = {}) {
+    return Object.prototype.hasOwnProperty.call(patch, 'memo1')
+      || Object.prototype.hasOwnProperty.call(patch, 'memo2')
+      || Object.prototype.hasOwnProperty.call(patch, 'memo2History')
+      || Object.prototype.hasOwnProperty.call(patch, 'chiefComplaint');
   }
 
   function getBedSnapshotByPatientKey(patientKey) {
@@ -5637,7 +5695,9 @@
       gender: source.gender || '',
       visitType: source.visitType || '',
       chiefComplaint: source.chiefComplaint || source.memo1 || '',
-      memo1: source.memo1 || source.chiefComplaint || ''
+      memo1: source.memo1 || source.chiefComplaint || '',
+      memo2: source.memo2 || '',
+      memo2History: normalizeMemo2History(source)
     };
 
     if (Object.prototype.hasOwnProperty.call(patch, 'spineSettings')) {
@@ -5659,6 +5719,10 @@
     const timerKey = String(patientKey);
     longTermChartPendingSyncs.set(timerKey, { type: 'patient', patientKey, patch: { ...patch } });
     clearTimeout(longTermChartSaveTimers.get(timerKey));
+    if (hasMemoLongTermChartPatch(patch)) {
+      flushLongTermChartSync(timerKey);
+      return;
+    }
     longTermChartSaveTimers.set(timerKey, setTimeout(() => {
       flushLongTermChartSync(timerKey);
     }, 700));
@@ -5681,7 +5745,9 @@
       gender: form?.gender || selected.gender || '',
       visitType: form?.visitType || selected.visitType || '',
       chiefComplaint: form?.memo1 || selected.memo1 || selected.chiefComplaint || '',
-      memo1: form?.memo1 || selected.memo1 || selected.chiefComplaint || ''
+      memo1: form?.memo1 || selected.memo1 || selected.chiefComplaint || '',
+      memo2: form?.memo2 || selected.memo2 || '',
+      memo2History: form ? withMemo2ForDate(selected, form.memo2 || '', getMemo2HistoryDate(selected)).memo2History : normalizeMemo2History(selected)
     };
 
     if (Object.prototype.hasOwnProperty.call(patch, 'spineSettings')) {
@@ -8462,6 +8528,7 @@
       chartNo: 'chartNo',
       chiefComplaint: 'chiefComplaint',
       memo: 'memoInput',
+      memoHistoryList: 'memo2HistoryList',
       age: 'ageInput',
       visitType: 'visitType',
       gender: 'gender',
@@ -8474,6 +8541,7 @@
       chartNo: 'receiveChartNo',
       chiefComplaint: 'receiveChiefComplaint',
       memo: 'receiveMemoInput',
+      memoHistoryList: 'receiveMemo2HistoryList',
       age: 'receiveAgeInput',
       visitType: 'receiveVisitType',
       gender: 'receiveGender',
@@ -8486,6 +8554,7 @@
       chartNo: 'bedChartNo',
       chiefComplaint: 'bedChiefComplaint',
       memo: 'bedMemoInput',
+      memoHistoryList: 'bedMemo2HistoryList',
       age: 'bedAgeInput',
       visitType: 'bedVisitType',
       gender: 'bedGender',
@@ -8495,6 +8564,7 @@
     }
   };
   const selectedChartPatientByScope = { desk: null, receive: null, bed: null };
+  const formMemo2HistorySourceByScope = { desk: null, receive: null, bed: null };
   const formMemoOriginalByScope = {
     desk: { memo1: '', memo2: '', active: false },
     receive: { memo1: '', memo2: '', active: false },
@@ -8514,6 +8584,7 @@
   function setFormMemoOriginals(scope, record = null) {
     const originals = record ? getMemoOriginalsFromRecord(record) : { memo1: '', memo2: '' };
     formMemoOriginalByScope[scope] = { ...originals, active: Boolean(record) };
+    formMemo2HistorySourceByScope[scope] = record || null;
     updateFormMemoEditedState(scope);
   }
 
@@ -8529,6 +8600,91 @@
     if (memo2El) {
       const edited = originals.active && memo2El.value.trim() !== originals.memo2;
       memo2El.classList.toggle('memo-edited-field', edited);
+    }
+    renderMemo2HistoryDropdown(scope);
+  }
+
+  function shouldShowMemo2HistoryForScope(scope) {
+    if (scope === 'bed') {
+      return Boolean(formMemoOriginalByScope.bed?.active);
+    }
+    return Boolean(
+      formEditBedNoByScope[scope]
+      || formEditPatientKeyByScope[scope]
+      || formEditDischargedKeyByScope[scope]
+    );
+  }
+
+  function getMemo2HistoryItemsForScope(scope) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const source = formMemo2HistorySourceByScope[scope] || selectedChartPatientByScope[scope] || {};
+    const currentDate = toLocalDateInputValue();
+    const currentMemo = String(document.getElementById(ids.memo)?.value || '').trim();
+    return Object.entries(normalizeMemo2History(source))
+      .map(([date, memo]) => [date, String(memo || '').trim()])
+      .filter(([date, memo]) => date !== currentDate && memo && memo !== currentMemo)
+      .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+      .slice(0, 4);
+  }
+
+  function renderMemo2HistoryDropdown(scope) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const list = document.getElementById(ids.memoHistoryList);
+    if (!list) return;
+    if (!shouldShowMemo2HistoryForScope(scope)) {
+      list.classList.remove('show');
+      list.innerHTML = '';
+      return;
+    }
+    const items = getMemo2HistoryItemsForScope(scope);
+    list.classList.toggle('show', items.length > 0);
+    if (!items.length) {
+      list.innerHTML = '';
+      return;
+    }
+    list.innerHTML = items.map(([date, memo]) => {
+      const shortDate = date.slice(5).replace('-', '/');
+      return `<button type="button" class="memo2-history-item" onclick="applyMemo2HistoryEntry('${scope}', ${escapeHtmlJsString(memo)})"><span class="memo2-history-date">${escapeHtml(shortDate)}</span>${escapeHtml(memo)}</button>`;
+    }).join('');
+  }
+
+  window.applyMemo2HistoryEntry = function(scope, memo) {
+    const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
+    const input = document.getElementById(ids.memo);
+    if (!input) return;
+    input.value = String(memo || '');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    updateFormMemoEditedState(scope);
+    if (scope === 'bed') setBedMemoOpen(true);
+  }
+
+  async function hydrateMemo2HistorySource(scope, record = null) {
+    if (!record?.chartNo && !record?.patientId) return;
+    const requestId = `${Date.now()}:${Math.random()}`;
+    formMemo2HistorySourceByScope[`${scope}RequestId`] = requestId;
+    try {
+      const patientId = String(record.patientId || '').trim();
+      const chartRecord = patientId
+        ? await lookupChartPatientById(patientId)
+        : null;
+      const chartMatches = chartRecord ? [chartRecord] : await lookupChartPatientsFlexible(record.chartNo);
+      const matched = chartMatches.find(patient => {
+        const sameId = patientId && String(patient?.patientId || '') === patientId;
+        const sameName = !patientId && String(patient?.name || '').trim() === String(record.name || '').trim();
+        return sameId || sameName || chartMatches.length === 1;
+      }) || null;
+      if (!matched || formMemo2HistorySourceByScope[`${scope}RequestId`] !== requestId) return;
+      formMemo2HistorySourceByScope[scope] = {
+        ...record,
+        ...matched,
+        memo2History: {
+          ...normalizeMemo2History(record),
+          ...normalizeMemo2History(matched)
+        }
+      };
+      renderMemo2HistoryDropdown(scope);
+    } catch (error) {
+      console.error('메모2 과거 기록 조회 실패', error);
     }
   }
 
@@ -8621,6 +8777,21 @@
         spineSettings,
         ...packagePayload
       });
+
+      if (chartNo) {
+        await window.saveChartPatient?.({
+          patientId,
+          chartNo,
+          name,
+          age: age ? Number(age) : '',
+          gender,
+          visitType,
+          chiefComplaint: memo1,
+          memo1,
+          memo2,
+          memo2History: memo2Patch.memo2History
+        });
+      }
 
       // 초기화
       document.getElementById(ids.name).value = '';
@@ -8718,7 +8889,6 @@
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed?.memo1 || '';
     document.getElementById(ids.memo).value = getMemo2ForDate(bed || {}, getMemo2HistoryDate(bed || {}));
-    setFormMemoOriginals(scope, bed);
     document.getElementById(ids.age).value = bed?.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed?.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed?.gender || '남'}"]`)?.click();
@@ -8730,6 +8900,10 @@
     formBodyPartsByScope[scope] = normalizeBodyParts(bed?.bodyParts);
     renderFormBodyPartSelector(scope);
     const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    setFormMemoOriginals(scope, bed);
+    formMemo2HistorySourceByScope[scope] = patient || bed || null;
+    renderMemo2HistoryDropdown(scope);
+    hydrateMemo2HistorySource(scope, patient || bed);
     window.updateCreditChip?.(ids.treatmentGrid, patient || bed || {});
     window.updateSpineChip?.(ids.treatmentGrid, patient || bed || {});
   }
@@ -8814,7 +8988,6 @@
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed.memo1 || '';
     document.getElementById(ids.memo).value = getMemo2ForDate(bed || {}, getMemo2HistoryDate(bed || {}));
-    setFormMemoOriginals('bed', bed);
     document.getElementById(ids.age).value = bed.age || '';
     document.querySelector(`input[name="${ids.visitType}"][value="${bed.visitType || '초진'}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${bed.gender || '남'}"]`)?.click();
@@ -8824,6 +8997,10 @@
     formBodyPartsByScope.bed = normalizeBodyParts(bed.bodyParts);
     renderFormBodyPartSelector('bed');
     const bedPatient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    setFormMemoOriginals('bed', bed);
+    formMemo2HistorySourceByScope.bed = bedPatient || bed || null;
+    renderMemo2HistoryDropdown('bed');
+    hydrateMemo2HistorySource('bed', bedPatient || bed);
     window.updateCreditChip?.('bedTreatmentGrid', bedPatient || {});
     window.updateSpineChip?.('bedTreatmentGrid', bedPatient || {});
     setBedMemoOpen(false);
@@ -8884,11 +9061,22 @@
   }
 
   function normalizeMemo2History(record = {}) {
-    const source = record.memo2History || record.memo2ByDate || {};
-    if (!source || typeof source !== 'object' || Array.isArray(source)) return {};
-    return Object.fromEntries(Object.entries(source)
-      .filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')))
-      .map(([date, memo]) => [String(date), String(memo || '')]));
+    record = record || {};
+    const history = {};
+    [record.memo2History, record.memo2ByDate].forEach(source => {
+      if (!source || typeof source !== 'object' || Array.isArray(source)) return;
+      Object.entries(source)
+        .filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')))
+        .forEach(([date, memo]) => {
+          history[String(date)] = String(memo || '');
+        });
+    });
+    Object.entries(record.visitHistory || {})
+      .filter(([date, visit]) => /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) && Object.prototype.hasOwnProperty.call(visit || {}, 'memo2'))
+      .forEach(([date, visit]) => {
+        history[String(date)] = String(visit?.memo2 || '');
+      });
+    return history;
   }
 
   function getMemo2HistoryDate(source = {}) {
@@ -8971,6 +9159,7 @@
     const latestChiefComplaint = latestVisit?.chiefComplaint || '';
     const memo2History = {
       ...normalizeMemo2History(existing),
+      ...normalizeMemo2History(data),
       ...Object.fromEntries(Object.entries(byDate)
         .filter(([, entry]) => Object.prototype.hasOwnProperty.call(entry, 'memo2'))
         .map(([date, entry]) => [date, entry.memo2 || '']))
@@ -11316,8 +11505,8 @@
       showToast('퇴실환자 정보를 찾을 수 없습니다');
       return;
     }
-    populatePatientForm('desk', patient);
     setDischargedPatientEditMode('desk', key);
+    populatePatientForm('desk', patient);
     setInputFormOpen(true);
     closeDischargedPatientsPopup();
     showToast(`${patient.name || '퇴실환자'} 정보 불러옴`);
@@ -12866,13 +13055,19 @@
     };
   }
 
-  function renderNextStaffTaskHtml(bedNo, bed) {
+  function renderNextStaffTaskContentHtml(bedNo, bed) {
     const next = getNextStaffTaskInfo(bedNo, bed);
-    if (!next) return '';
-    return `
-      <div class="timer-next">
-        ${renderDoctorRoomAlertChips(next.item)}
-      </div>`;
+    return next ? renderDoctorRoomAlertChips(next.item) : '';
+  }
+
+  function renderNextStaffTaskHtml(bedNo, bed, context = 'bed') {
+    return `<div class="timer-next" id="${context}-timer-next-bed-${bedNo}">${renderNextStaffTaskContentHtml(bedNo, bed)}</div>`;
+  }
+
+  function updateTimerNextStaffTaskDom(bedNo, bed, context = 'bed') {
+    const el = document.getElementById(`${context}-timer-next-bed-${bedNo}`);
+    if (!el) return;
+    el.innerHTML = renderNextStaffTaskContentHtml(bedNo, bed);
   }
 
   function renderTimerCard(bedNo, bed, treatment, allowControls = true, context = 'bed') {
@@ -12883,7 +13078,7 @@
     const concurrentEndIndex = getConcurrentTreatmentEndIndex(treatments, currentIndex);
     const displayTreatment = formatTreatmentNames(concurrentTreatments) || treatment;
     const noTimer = concurrentTreatments.length ? concurrentTreatments.every(isNoTimerTreatment) : isNoTimerTreatment(treatment);
-    const nextTaskHtml = renderNextStaffTaskHtml(bedNo, bed);
+    const nextTaskHtml = renderNextStaffTaskHtml(bedNo, bed, context);
     const remaining = getRemaining(bed);
     const totalForDisplay = getConcurrentTreatmentSeconds(treatments, currentIndex) || bed.total;
     const percent = totalForDisplay ? Math.max(0, Math.min(100, (remaining / totalForDisplay) * 100)) : 0;
@@ -14921,6 +15116,7 @@
         const fixedDoctorBed = getBedData(fixedDoctorBedNo);
         if (fixedDoctorBed) {
           tickBed(fixedDoctorBed, fixedDoctorBedNo);
+          updateTimerNextStaffTaskDom(fixedDoctorBedNo, fixedDoctorBed, 'bed');
           updateBedRemainingChip();
         } else {
           renderBedDoctorAlertPanel();
@@ -15429,7 +15625,7 @@
           : (chartPatients.find(patient => String(patient?.name || '').trim() === String(data.name || '').trim()) || {});
         const baseRecord = existing?.patientId ? existing : {};
         const { visitEntry, visitEntries, ...plainData } = data;
-        const visitPatch = mergeChartVisitHistory(baseRecord, { visitEntry, visitEntries });
+        const visitPatch = mergeChartVisitHistory(baseRecord, data);
         const { latestVisit, latestChiefComplaint, latestDate, ...visitFields } = visitPatch;
         const next = { ...baseRecord, ...plainData, ...visitFields };
         if (latestVisit) {
@@ -15460,7 +15656,7 @@
         getReq.onsuccess = () => {
           const existing = getReq.result || {};
           const { visitEntry, visitEntries, ...plainData } = data;
-          const visitPatch = mergeChartVisitHistory(existing, { visitEntry, visitEntries });
+          const visitPatch = mergeChartVisitHistory(existing, data);
           const { latestVisit, latestChiefComplaint, latestDate, ...visitFields } = visitPatch;
           const next = { ...existing, ...plainData, ...visitFields };
           if (latestVisit) {
