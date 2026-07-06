@@ -1289,6 +1289,13 @@
   body.app-mode-notify .doctor-alert-box-list .doctor-alert-patient-chip {
     font-size: 14px;
   }
+  body.app-mode-receive .doctor-alert-box-list .doctor-room-alert-cleanup-text,
+  body.app-role-clinic .doctor-alert-box-list .doctor-room-alert-cleanup-text,
+  body.app-mode-notify .doctor-alert-box-list .doctor-room-alert-cleanup-text {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.15;
+  }
   body.app-mode-doctor .doctor-alert-split {
     display: none;
   }
@@ -3976,6 +3983,19 @@
   }
   .doctor-room-alert-treatment-text.doctor-room-alert-treatment-purple {
     color: #c084fc;
+  }
+  .doctor-room-alert-treatment-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .doctor-room-alert-cleanup-text {
+    color: var(--text);
+    font-weight: 900;
+    line-height: 1.15;
+    white-space: nowrap;
   }
   body.app-fixed-doctor-bed:not(.app-fixed-doctor-bed-occupied) .doctor-room-alert-treatment-text {
     flex: 0 1 auto;
@@ -7906,11 +7926,21 @@
     const treatmentNames = (Array.isArray(item?.treatments) && item.treatments.length ? item.treatments : [item?.treatment])
       .map(name => String(name || '').trim())
       .filter(Boolean);
+    const normalizeTreatmentNameForColor = (name) => String(name || '').replace(/\s*정리중\s*$/, '').trim();
     const doctorRoomTreatmentTextClass = (name) => (
-      name === '단추' || name === '복추'
-        ? `${getTreatmentBadgeClass(name)} doctor-room-alert-treatment-purple`
-        : getTreatmentBadgeClass(name)
+      normalizeTreatmentNameForColor(name) === '단추' || normalizeTreatmentNameForColor(name) === '복추'
+        ? `${getTreatmentBadgeClass(normalizeTreatmentNameForColor(name))} doctor-room-alert-treatment-purple`
+        : getTreatmentBadgeClass(normalizeTreatmentNameForColor(name))
     );
+    const renderTreatmentName = (name) => {
+      const cleanName = normalizeTreatmentNameForColor(name);
+      const suffix = cleanName && cleanName !== name ? name.slice(cleanName.length).trim() : '';
+      const colorClass = doctorRoomTreatmentTextClass(name);
+      if (!suffix) {
+        return `<span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${colorClass}">${escapeHtml(name)}</span>`;
+      }
+      return `<span class="doctor-room-alert-treatment-wrap"><span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${colorClass}">${escapeHtml(cleanName)}</span><span class="doctor-room-alert-cleanup-text">${escapeHtml(suffix)}</span></span>`;
+    };
     const bedLabel = item?.bedLabel || (item?.bedNo ? String(item.bedNo) : '');
     const patientName = options.includePatientName ? String(item?.name || '').trim() : '';
     const soonLabel = item?.soonRemainingSeconds ? `${Math.ceil(Number(item.soonRemainingSeconds || 0) / 60)}분` : '';
@@ -7918,7 +7948,7 @@
     return `
       <div class="doctor-room-alert-chips">
         <span class="doctor-room-alert-bed-chip">${escapeHtml(bedLabel)}</span>
-        ${treatmentNames.map(name => `<span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${doctorRoomTreatmentTextClass(name)}">${escapeHtml(name)}</span>`).join('')}
+        ${treatmentNames.map(renderTreatmentName).join('')}
         ${patientName ? `<span class="doctor-alert-patient-chip">${escapeHtml(patientName)}</span>` : ''}
         ${soonLabel ? `<span class="doctor-alert-patient-chip">${escapeHtml(soonLabel)}</span>` : ''}
         ${orderControlsHtml}
@@ -13268,6 +13298,7 @@
           complete: true,
           lastAlertId: alertId,
           lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${completedTreatmentLabel} 완료`,
+          lastCompletedTreatmentLabel: completedTreatmentLabel,
           doctorProcedureAlert: null
         };
       }
@@ -13283,6 +13314,7 @@
         complete: false,
         lastAlertId: alertId,
         lastAlertMessage: `${bedNo}번 베드 ${bed.name} · ${completedTreatmentLabel} 완료`,
+        lastCompletedTreatmentLabel: completedTreatmentLabel,
         doctorProcedureAlert: null
       };
     });
@@ -14860,6 +14892,23 @@
     };
   }
 
+  function getCleanupShortDoctorProcedureInfo(bed) {
+    if (!bed || bed.complete || bed.running || !bed.lastAlertId) return null;
+    const treatments = bed.treatments || [];
+    const currentIndex = Number(bed.currentIndex || 0);
+    const currentTreatments = getConcurrentTreatmentNames(treatments, currentIndex);
+    const shortTreatments = currentTreatments.filter(isShortDoctorProcedureTreatment);
+    if (!shortTreatments.length) return null;
+    const completedLabel = String(bed.lastCompletedTreatmentLabel || '').trim()
+      || String(bed.lastAlertMessage || '').split('·').pop()?.replace(/완료/g, '').trim()
+      || '이전치료';
+    return {
+      treatments: [`${completedLabel} 정리중`],
+      treatment: `${completedLabel} 정리중`,
+      nextTreatments: shortTreatments
+    };
+  }
+
   function isDoctorProcedureBlinking(bedNo, bed) {
     // 원장실 시술 알림 확인 기능 제거 → 확인에 의한 점멸 없음
     return false;
@@ -14870,7 +14919,30 @@
     const items = [];
     [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS].forEach(bedNo => {
       const bed = getBedData(bedNo);
-      if (!bed || bed.complete || isFixedBedArrivalPending(bedNo, bed) || bed.lastAlertId || bed.doctorId !== doctorId) return;
+      if (!bed || bed.complete || isFixedBedArrivalPending(bedNo, bed) || bed.doctorId !== doctorId) return;
+
+      const cleanup = getCleanupShortDoctorProcedureInfo(bed);
+      if (cleanup) {
+        const alertTimestamp = Number(String(bed.lastAlertId || '').split('-').pop()) || Number(bed.startedAt || bed.timestamp || 0);
+        items.push({
+          alertId: `${bed.lastAlertId}:cleanup:${cleanup.treatment}`,
+          bedNo,
+          doctorId: bed.doctorId || '',
+          bedLabel: getBedLabel(bedNo),
+          name: bed.name || '',
+          nurseName: bed.nurseName || '',
+          treatment: cleanup.treatment,
+          treatments: cleanup.treatments,
+          cleanup: true,
+          alertPriority: 1,
+          sortPriority: 0,
+          timestamp: alertTimestamp,
+          message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${cleanup.treatment}`
+        });
+        return;
+      }
+
+      if (bed.lastAlertId) return;
 
       if (bed.running) {
         const upcoming = getUpcomingShortDoctorProcedureInfo(bed);
@@ -15345,7 +15417,8 @@
       return {
         ...bed,
         lastAlertId: null,
-        lastAlertMessage: null
+        lastAlertMessage: null,
+        lastCompletedTreatmentLabel: null
       };
     });
     await maybeAutoMoveBedForNextTreatment(alert.bedNo, getBedData(alert.bedNo));
@@ -15361,7 +15434,8 @@
       return {
         ...currentBed,
         lastAlertId: null,
-        lastAlertMessage: null
+        lastAlertMessage: null,
+        lastCompletedTreatmentLabel: null
       };
     });
 
