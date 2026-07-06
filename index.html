@@ -14865,12 +14865,29 @@
     return badgeClass === 'treatment-chuna' || badgeClass === 'treatment-exam';
   }
 
+  function isChunaDoctorProcedureTreatment(treatment) {
+    return getTreatmentBadgeClass(treatment) === 'treatment-chuna';
+  }
+
   function isShortDoctorProcedureTreatment(treatment) {
     return isDoctorProcedureTreatment(treatment) && !isLongDoctorProcedureTreatment(treatment);
   }
 
-  function getUpcomingShortDoctorProcedureInfo(bed) {
+  function hasWaitingChunaDoctorProcedure(doctorId, excludeBedNo = null) {
+    if (!doctorId) return false;
+    return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS].some(bedNo => {
+      if (Number(bedNo) === Number(excludeBedNo)) return false;
+      const bed = getBedData(bedNo);
+      if (!bed || bed.complete || bed.running || bed.lastAlertId || isFixedBedArrivalPending(bedNo, bed)) return false;
+      if (bed.doctorId !== doctorId) return false;
+      const treatments = getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
+      return treatments.some(isChunaDoctorProcedureTreatment);
+    });
+  }
+
+  function getUpcomingShortDoctorProcedureInfo(bed, bedNo = null) {
     if (!bed || bed.complete || !bed.running || bed.lastAlertId) return null;
+    if (!hasWaitingChunaDoctorProcedure(bed.doctorId || '', bedNo)) return null;
     const remaining = getRemaining(bed);
     if (remaining > 120) return null;
     const treatments = bed.treatments || [];
@@ -14892,19 +14909,18 @@
     };
   }
 
-  function getCleanupShortDoctorProcedureInfo(bed) {
+  function getCleanupShortDoctorProcedureInfo(bed, bedNo = null) {
     if (!bed || bed.complete || bed.running || !bed.lastAlertId) return null;
+    if (!hasWaitingChunaDoctorProcedure(bed.doctorId || '', bedNo)) return null;
     const treatments = bed.treatments || [];
     const currentIndex = Number(bed.currentIndex || 0);
     const currentTreatments = getConcurrentTreatmentNames(treatments, currentIndex);
     const shortTreatments = currentTreatments.filter(isShortDoctorProcedureTreatment);
     if (!shortTreatments.length) return null;
-    const completedLabel = String(bed.lastCompletedTreatmentLabel || '').trim()
-      || String(bed.lastAlertMessage || '').split('·').pop()?.replace(/완료/g, '').trim()
-      || '이전치료';
+    const nextLabel = formatTreatmentNames(shortTreatments) || shortTreatments[0] || '다음치료';
     return {
-      treatments: [`${completedLabel} 정리중`],
-      treatment: `${completedLabel} 정리중`,
+      treatments: [`${nextLabel} 정리중`],
+      treatment: `${nextLabel} 정리중`,
       nextTreatments: shortTreatments
     };
   }
@@ -14921,7 +14937,7 @@
       const bed = getBedData(bedNo);
       if (!bed || bed.complete || isFixedBedArrivalPending(bedNo, bed) || bed.doctorId !== doctorId) return;
 
-      const cleanup = getCleanupShortDoctorProcedureInfo(bed);
+      const cleanup = getCleanupShortDoctorProcedureInfo(bed, bedNo);
       if (cleanup) {
         const alertTimestamp = Number(String(bed.lastAlertId || '').split('-').pop()) || Number(bed.startedAt || bed.timestamp || 0);
         items.push({
@@ -14945,7 +14961,7 @@
       if (bed.lastAlertId) return;
 
       if (bed.running) {
-        const upcoming = getUpcomingShortDoctorProcedureInfo(bed);
+        const upcoming = getUpcomingShortDoctorProcedureInfo(bed, bedNo);
         if (!upcoming) return;
         const alertId = `${bed.patientKey || bed.chartNo || bedNo}:${bedNo}:soon:${upcoming.nextIndex}:${upcoming.treatment}`;
         items.push({
