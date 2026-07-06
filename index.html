@@ -7943,14 +7943,12 @@
     };
     const bedLabel = item?.bedLabel || (item?.bedNo ? String(item.bedNo) : '');
     const patientName = options.includePatientName ? String(item?.name || '').trim() : '';
-    const soonLabel = item?.soonRemainingSeconds ? `${Math.ceil(Number(item.soonRemainingSeconds || 0) / 60)}분` : '';
     const orderControlsHtml = options.orderControlsHtml || '';
     return `
       <div class="doctor-room-alert-chips">
         <span class="doctor-room-alert-bed-chip">${escapeHtml(bedLabel)}</span>
         ${treatmentNames.map(renderTreatmentName).join('')}
         ${patientName ? `<span class="doctor-alert-patient-chip">${escapeHtml(patientName)}</span>` : ''}
-        ${soonLabel ? `<span class="doctor-alert-patient-chip">${escapeHtml(soonLabel)}</span>` : ''}
         ${orderControlsHtml}
       </div>`;
   }
@@ -14866,7 +14864,10 @@
   }
 
   function isChunaDoctorProcedureTreatment(treatment) {
-    return getTreatmentBadgeClass(treatment) === 'treatment-chuna';
+    const name = String(treatment || '').trim();
+    if (name === '진찰') return true;
+    const badgeClass = getTreatmentBadgeClass(treatment);
+    return badgeClass === 'treatment-chuna';
   }
 
   function isShortDoctorProcedureTreatment(treatment) {
@@ -14919,8 +14920,8 @@
     if (!shortTreatments.length) return null;
     const nextLabel = formatTreatmentNames(shortTreatments) || shortTreatments[0] || '다음치료';
     return {
-      treatments: [`${nextLabel} 정리중`],
-      treatment: `${nextLabel} 정리중`,
+      treatments: [nextLabel],
+      treatment: nextLabel,
       nextTreatments: shortTreatments
     };
   }
