@@ -11203,8 +11203,8 @@
     if (!force && !autoBedAssignEnabled) return false;
     if (data.bedStatus === 'discharged') return false;
 
-    // 초진: 담당 원장 베드로만 배정
-    if (data.visitType === '초진') {
+    // 초진 + 담당 원장 선택: 담당 원장 베드로만 배정
+    if (data.visitType === '초진' && data.doctorId) {
       const docBedNo = getDoctorBedNoForPatient(data.doctorId);
       if (!docBedNo) return false;
 
