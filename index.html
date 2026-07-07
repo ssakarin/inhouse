@@ -12794,12 +12794,16 @@
     const chips = [];
     if (bed.chartNo) chips.push(chip(`${bed.chartNo}`));
     if (getShortVisitTypeLabel(bed.visitType)) chips.push(chip(getShortVisitTypeLabel(bed.visitType)));
-    if (bed.gender) chips.push(chip(bed.gender));
     if (insuranceLabel) chips.push(chip(insuranceLabel, ' bed-name-meta-chip--insurance'));
-    if (bed.age) chips.push(chip(`${bed.age}세`));
 
     if (!chips.length) return '';
     return `<span class="bed-name-meta">${chips.join('')}</span>`;
+  }
+
+  function maskPatientDisplayName(name) {
+    const text = String(name || '').trim();
+    if (!text) return '';
+    return `${Array.from(text).slice(0, 2).join('')}*`;
   }
 
   function getBedDetailPatientSummaryChips(bed, includeIdentity = true) {
@@ -12809,9 +12813,7 @@
     if (includeIdentity) {
       if (bed.chartNo) chips.push(chip(`${bed.chartNo}번`));
       if (bed.visitType) chips.push(chip(bed.visitType));
-      if (bed.gender) chips.push(chip(bed.gender));
       if (insuranceLabel) chips.push(chip(insuranceLabel, ' bed-patient-summary-chip--insurance'));
-      if (bed.age) chips.push(chip(`${bed.age}세`));
     }
     const memo1Edited = bed.memo1 && bed.memo1 !== (bed.memo1Original || '');
     const memo2Edited = bed.memo2 && bed.memo2 !== (bed.memo2Original || '');
@@ -13020,7 +13022,7 @@
             <div class="bed-summary">
               <div>
                 <div class="bed-name-row">
-                  <div class="bed-name">${escapeHtml(bed.name)}</div>
+                  <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}</div>
                   ${getBedNameMetaChips(bed)}
                 </div>
               </div>
@@ -13046,7 +13048,7 @@
         <div class="bed-summary">
           <div>
             <div class="bed-name-row">
-              <div class="bed-name">${escapeHtml(bed.name)}</div>
+              <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}</div>
             </div>
           </div>
           <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
