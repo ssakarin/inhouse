@@ -977,6 +977,40 @@ function resolvePatientId(record = {}) {
   return makeDuplicatePatientId(chartNo, name || `unknown-${Date.now()}`);
 }
 
+function isPlainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isEmptyMergeValue(value) {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return !value.trim();
+  if (Array.isArray(value)) return value.length === 0;
+  if (isPlainObject(value)) return Object.values(value).every(isEmptyMergeValue);
+  return false;
+}
+
+function mergePreferNonEmpty(existing, incoming) {
+  if (isPlainObject(existing) && isPlainObject(incoming)) {
+    const merged = { ...existing };
+    for (const key of Object.keys(incoming)) {
+      merged[key] = mergePreferNonEmpty(existing[key], incoming[key]);
+    }
+    return merged;
+  }
+  if (Array.isArray(incoming)) {
+    return incoming.length || isEmptyMergeValue(existing) ? incoming : existing;
+  }
+  return isEmptyMergeValue(incoming) && !isEmptyMergeValue(existing) ? existing : incoming;
+}
+
+function mergePatientImportRecord(record = {}) {
+  const chartNo = normalizeChartNo(record?.chartNo);
+  if (!chartNo) throw new Error("chartNo is required");
+  const patientId = resolvePatientId(record);
+  const existing = getPatientById(patientId) || {};
+  return mergePreferNonEmpty(existing, { ...record, patientId, chartNo });
+}
+
 function savePatient(record) {
   const chartNo = normalizeChartNo(record?.chartNo);
   if (!chartNo) throw new Error("chartNo is required");
@@ -1604,7 +1638,7 @@ function importPatients(records, mode = "merge", shouldBackup = true) {
     db.exec("BEGIN");
     for (const record of records) {
       if (!normalizeChartNo(record?.chartNo)) continue;
-      savePatient(record);
+      savePatient(mode === "merge" ? mergePatientImportRecord(record) : record);
       saved += 1;
       if (saved % BATCH_SIZE === 0) {
         db.exec("COMMIT");

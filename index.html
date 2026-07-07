@@ -9170,16 +9170,32 @@
     (Array.isArray(data.visitEntries) ? data.visitEntries : []).forEach(pushEntry);
     pushEntry(data.visitEntry);
 
+    const isEmptyMergeValue = (value) => {
+      if (value === null || value === undefined) return true;
+      if (typeof value === 'string') return !value.trim();
+      if (Array.isArray(value)) return value.length === 0;
+      if (typeof value === 'object') return Object.values(value).every(isEmptyMergeValue);
+      return false;
+    };
+    const preferNonEmptyValue = (incoming, saved) =>
+      isEmptyMergeValue(incoming) && !isEmptyMergeValue(saved) ? saved : incoming;
+    const mergeVisitEntry = (saved = {}, incoming = {}) => {
+      const merged = {
+        treatments: preferNonEmptyValue(incoming.treatments, saved.treatments),
+        bodyParts: normalizeBodyParts(preferNonEmptyValue(incoming.bodyParts, saved.bodyParts)),
+        doctorName: preferNonEmptyValue(incoming.doctorName, saved.doctorName) || '',
+        visitType: preferNonEmptyValue(incoming.visitType, saved.visitType) || '',
+        chiefComplaint: preferNonEmptyValue(incoming.chiefComplaint, saved.chiefComplaint) || ''
+      };
+      if (Object.prototype.hasOwnProperty.call(saved, 'memo2') || Object.prototype.hasOwnProperty.call(incoming, 'memo2')) {
+        merged.memo2 = preferNonEmptyValue(incoming.memo2, saved.memo2) || '';
+      }
+      return merged;
+    };
+
     const byDate = {};
     entries.forEach(entry => {
-      byDate[entry.date] = {
-        treatments: entry.treatments,
-        bodyParts: entry.bodyParts,
-        doctorName: entry.doctorName,
-        visitType: entry.visitType,
-        chiefComplaint: entry.chiefComplaint,
-        ...(Object.prototype.hasOwnProperty.call(entry, 'memo2') ? { memo2: entry.memo2 || '' } : {})
-      };
+      byDate[entry.date] = mergeVisitEntry(byDate[entry.date], entry);
     });
     const visitDates = Object.keys(byDate).sort();
     const latestDate = visitDates[visitDates.length - 1] || '';
