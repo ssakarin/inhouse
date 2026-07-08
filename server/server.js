@@ -1846,20 +1846,31 @@ function isDoctorRoomRelevantBed(client, bedNo, bed) {
   return Boolean(bed.doctorId && !bed.complete && !bed.running && !bed.lastAlertId);
 }
 
+function isFixedBedRelevantBed(client, bedNo, bed) {
+  if (!client || client.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return true;
+  if (Number(client.bedNo) === Number(bedNo)) return true;
+  if (!bed || typeof bed !== "object") return false;
+  return Boolean(bed.doctorId && !bed.complete && !bed.running && !bed.lastAlertId);
+}
+
 function getBedsPayloadForClient(client, beds = getBedsState()) {
   if (client?.role === "doctor-room") {
     return Object.fromEntries(
       Object.entries(beds || {}).filter(([bedNo, bed]) => isDoctorRoomRelevantBed(client, Number(bedNo), bed))
     );
   }
-  if (!client || client.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return beds || {};
-  const key = String(client.bedNo);
-  return Object.prototype.hasOwnProperty.call(beds || {}, key) ? { [key]: beds[key] } : {};
+  if (client?.role === "fixed-bed" && isRegularFixedBedNo(client.bedNo)) {
+    return Object.fromEntries(
+      Object.entries(beds || {}).filter(([bedNo, bed]) => isFixedBedRelevantBed(client, Number(bedNo), bed))
+    );
+  }
+  return beds || {};
 }
 
 function sseClientAllowsBed(client, bedNo) {
   if (!client || client.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return true;
-  return Number(client.bedNo) === Number(bedNo);
+  const beds = getBedsState();
+  return isFixedBedRelevantBed(client, Number(bedNo), beds?.[String(bedNo)]);
 }
 
 function sseClientAllowsState(client, key) {
@@ -1981,6 +1992,11 @@ function sseBroadcastBedsDelta(version, updates = [], removes = [], previousBeds
           const nextRelevant = isDoctorRoomRelevantBed(client, item.bedNo, item.bed);
           if (nextRelevant) sseSendFrame(client, updateFrames.get(String(item.bedNo)));
           else if (previousRelevant) sseSendFrame(client, removeFrames.get(String(item.bedNo)) || sseFrame("bed-remove", { version, bedNo: item.bedNo }));
+        } else if (client.role === "fixed-bed" && isRegularFixedBedNo(client.bedNo)) {
+          const previousRelevant = isFixedBedRelevantBed(client, item.bedNo, previousBeds?.[String(item.bedNo)]);
+          const nextRelevant = isFixedBedRelevantBed(client, item.bedNo, item.bed);
+          if (nextRelevant) sseSendFrame(client, updateFrames.get(String(item.bedNo)));
+          else if (previousRelevant) sseSendFrame(client, removeFrames.get(String(item.bedNo)) || sseFrame("bed-remove", { version, bedNo: item.bedNo }));
         } else if (sseClientAllowsBed(client, item.bedNo)) {
           sseSendFrame(client, updateFrames.get(String(item.bedNo)));
         }
@@ -1988,6 +2004,8 @@ function sseBroadcastBedsDelta(version, updates = [], removes = [], previousBeds
       for (const bedNo of removes) {
         if (client.role === "doctor-room") {
           if (isDoctorRoomRelevantBed(client, bedNo, previousBeds?.[String(bedNo)])) sseSendFrame(client, removeFrames.get(String(bedNo)));
+        } else if (client.role === "fixed-bed" && isRegularFixedBedNo(client.bedNo)) {
+          if (isFixedBedRelevantBed(client, bedNo, previousBeds?.[String(bedNo)])) sseSendFrame(client, removeFrames.get(String(bedNo)));
         } else if (sseClientAllowsBed(client, bedNo)) {
           sseSendFrame(client, removeFrames.get(String(bedNo)));
         }

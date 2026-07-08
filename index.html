@@ -3480,10 +3480,19 @@
     line-height: 1;
     padding: 3px 8px 5px;
   }
+  button.bed-name-meta-chip {
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer;
+  }
   .bed-name-meta-chip--insurance {
     background: rgba(167,139,250,0.18);
     border-color: rgba(167,139,250,0.55);
     color: rgb(196,181,253);
+  }
+  .bed-name-meta-chip--visit-count {
+    background: rgba(57,169,245,0.16);
+    border-color: rgba(57,169,245,0.58);
+    color: var(--accent);
   }
   .bed-patient-summary {
     display: inline-flex;
@@ -3502,7 +3511,9 @@
     font-size: 12px;
     font-weight: 900;
     padding: 5px 8px;
+    font-family: 'Noto Sans KR', sans-serif;
   }
+  button.bed-patient-summary-chip { cursor: pointer; }
   .bed-patient-summary-chip--insurance {
     background: rgba(167,139,250,0.18);
     border-color: rgba(167,139,250,0.55);
@@ -4507,6 +4518,47 @@
     margin-bottom: 22px;
     word-break: keep-all;
   }
+  .visit-goal-popup {
+    max-width: 360px;
+  }
+  .visit-goal-form {
+    display: grid;
+    gap: 12px;
+    margin: 10px 0 18px;
+  }
+  .visit-goal-input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface2);
+    color: var(--text);
+    padding: 14px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+    text-align: center;
+    outline: none;
+  }
+  .visit-goal-input:focus { border-color: var(--accent); }
+  .visit-goal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .visit-goal-actions .popup-close {
+    width: 100%;
+  }
+  .visit-goal-secondary {
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--line);
+  }
+  .bed-patient-summary-chip--visit-count {
+    cursor: pointer;
+    border-color: rgba(57,169,245,0.55);
+    color: var(--accent);
+    background: rgba(57,169,245,0.14);
+  }
 
   /* 데스크/치료실 차트 조회 폼 */
   .desk-chart-grid,
@@ -5202,6 +5254,20 @@
   </div>
 </div>
 
+<div class="notif-overlay" id="visitGoalOverlay" onclick="closeVisitGoalPopup()">
+  <div class="notif-popup visit-goal-popup" onclick="event.stopPropagation()">
+    <div class="popup-name">목표 치료횟수</div>
+    <div class="popup-label" id="visitGoalCurrentLabel"></div>
+    <form class="visit-goal-form" onsubmit="saveVisitGoalFromPopup(event)">
+      <input class="visit-goal-input" id="visitGoalInput" type="number" min="0" max="999" inputmode="numeric" placeholder="목표횟수">
+      <div class="visit-goal-actions">
+        <button class="popup-close visit-goal-secondary" type="button" onclick="clearVisitGoalFromPopup()">지우기</button>
+        <button class="popup-close" type="submit">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- 패키지 입력 -->
 <div class="notif-overlay" id="creditOverlay" onclick="closeCreditPopup()">
   <div class="notif-popup credit-popup" onclick="event.stopPropagation()">
@@ -5445,7 +5511,7 @@
     updateConnectionStatusLabel();
 
     const numericBedNo = Number(bedNo);
-    if (isRegularFixedBedScreen() && numericBedNo !== getFixedBedNoFromUrl()) return;
+    const regularFixedBedNo = isRegularFixedBedScreen() ? Number(getFixedBedNoFromUrl()) : 0;
     const previousChangedBed = getBedData(numericBedNo);
     setLocalBedState(numericBedNo, op === 'remove' ? null : (bed || null));
     const selectedBedNextTaskChanged = shouldRefreshSelectedBedNextStaffTask(
@@ -5453,6 +5519,13 @@
       previousChangedBed,
       op === 'remove' ? null : (bed || null)
     );
+    if (regularFixedBedNo && numericBedNo !== regularFixedBedNo) {
+      if (selectedBedNextTaskChanged) {
+        const fixedBed = getBedData(regularFixedBedNo);
+        updateTimerNextStaffTaskDom(regularFixedBedNo, fixedBed, 'bed');
+      }
+      return;
+    }
 
     const beds = getCurrentBedsMapFromLocalState();
     const autoAssignBedSignature = getAutoAssignBedSignatureFromBeds(beds);
@@ -5679,7 +5752,8 @@
       || Object.prototype.hasOwnProperty.call(patch, 'memo1')
       || Object.prototype.hasOwnProperty.call(patch, 'memo2')
       || Object.prototype.hasOwnProperty.call(patch, 'memo2History')
-      || Object.prototype.hasOwnProperty.call(patch, 'chiefComplaint');
+      || Object.prototype.hasOwnProperty.call(patch, 'chiefComplaint')
+      || Object.prototype.hasOwnProperty.call(patch, 'targetTreatmentCount');
   }
 
   function hasMemoLongTermChartPatch(patch = {}) {
@@ -5729,6 +5803,10 @@
       payload.packages = packages;
       Object.assign(payload, getPCreditsFromPackages(packages));
       payload.credit = null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'targetTreatmentCount')) {
+      payload.targetTreatmentCount = normalizeVisitGoal(source.targetTreatmentCount);
     }
 
     return payload;
@@ -8718,7 +8796,7 @@
   }
 
   function setSelectedChartPatient(scope, patient = null) {
-    selectedChartPatientByScope[scope] = patient?.patientId ? patient : null;
+    selectedChartPatientByScope[scope] = patient && (patient.patientId || patient.chartNo) ? patient : null;
   }
 
   window.submitPatient = async (scope = 'desk') => {
@@ -8771,6 +8849,11 @@
       return;
     }
     const lastVisitDate = isSameChartPatient ? getPatientLatestVisitDate(selectedChartPatient) : '';
+    const visitDates = isSameChartPatient && Array.isArray(selectedChartPatient.visitDates) ? selectedChartPatient.visitDates : [];
+    const visitHistory = isSameChartPatient && selectedChartPatient.visitHistory && typeof selectedChartPatient.visitHistory === 'object'
+      ? selectedChartPatient.visitHistory
+      : {};
+    const targetTreatmentCount = isSameChartPatient ? getVisitGoal(selectedChartPatient) : '';
     if (!doctor.id && selectedChartPatientByScope[scope]?.doctorName) {
       doctor = getFirstActiveDoctor();
     }
@@ -8800,6 +8883,9 @@
         nurseId: nurse.id,
         nurseName: nurse.name,
         lastVisitDate,
+        visitDates,
+        visitHistory,
+        targetTreatmentCount,
         memo1,
         memo2,
         memo2History: memo2Patch.memo2History,
@@ -8818,7 +8904,8 @@
           chiefComplaint: memo1,
           memo1,
           memo2,
-          memo2History: memo2Patch.memo2History
+          memo2History: memo2Patch.memo2History,
+          targetTreatmentCount
         });
       }
 
@@ -8913,7 +9000,7 @@
   function populatePatientForm(scope, bed = null) {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     suppressSelectFieldAutosaveForPopulation();
-    setSelectedChartPatient(scope, bed?.patientId ? bed : null);
+    setSelectedChartPatient(scope, bed && (bed.patientId || bed.chartNo) ? bed : null);
     document.getElementById(ids.name).value = bed?.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
     document.getElementById(ids.chiefComplaint).value = bed?.memo1 || '';
@@ -9210,6 +9297,51 @@
         .map(([date, entry]) => [date, entry.memo2 || '']))
     };
     return { visitDates, visitHistory: byDate, memo2History, latestDate, latestVisit, latestChiefComplaint };
+  }
+
+  function normalizeVisitGoal(value) {
+    const numeric = Number(String(value ?? '').replace(/[^0-9]/g, ''));
+    return numeric > 0 ? Math.min(999, Math.floor(numeric)) : '';
+  }
+
+  function visitHistoryEntriesForCount(record = {}) {
+    const byDate = new Map();
+    const add = (date, entry = {}) => {
+      const normalizedDate = String(date || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) return;
+      byDate.set(normalizedDate, { ...(byDate.get(normalizedDate) || {}), ...(entry || {}) });
+    };
+    (Array.isArray(record.visitDates) ? record.visitDates : []).forEach(date => add(date, record.visitHistory?.[date] || {}));
+    Object.entries(record.visitHistory || {}).forEach(([date, entry]) => add(date, entry));
+    const currentDate = String(record.visitDate || getVisitDateFromTimestamp(record.timestamp) || toLocalDateInputValue());
+    if (record.name && record.chartNo) add(currentDate, createChartVisitEntry({ ...record, visitDate: currentDate }));
+    return [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, entry]) => ({ date, ...(entry || {}) }));
+  }
+
+  function getVisitCountSinceLatestInitial(record = {}) {
+    const entries = visitHistoryEntriesForCount(record);
+    if (!entries.length) return 0;
+    let startIndex = entries.findLastIndex?.(entry => String(entry.visitType || '').includes('초'));
+    if (startIndex === undefined) {
+      startIndex = -1;
+      entries.forEach((entry, index) => {
+        if (String(entry.visitType || '').includes('초')) startIndex = index;
+      });
+    }
+    return entries.length - Math.max(0, startIndex);
+  }
+
+  function getVisitGoal(record = {}) {
+    return normalizeVisitGoal(record.targetTreatmentCount ?? record.visitGoalCount ?? record.treatmentGoalCount);
+  }
+
+  function getVisitCountChipLabel(record = {}) {
+    const current = getVisitCountSinceLatestInitial(record);
+    if (!current) return '';
+    const goal = getVisitGoal(record);
+    return goal ? `${current}/${goal}` : String(current);
   }
 
   function addLocalDays(date, days) {
@@ -10243,6 +10375,12 @@
     }[ch]));
   }
 
+  function maskPatientNameForBedPopup(value) {
+    const chars = Array.from(String(value ?? '').trim());
+    if (chars.length <= 2) return chars.join('');
+    return `${chars.slice(0, 2).join('')}${'*'.repeat(chars.length - 2)}`;
+  }
+
   function normalizeChartNo(value) {
     const text = String(value ?? '').trim();
     if (!/^\d+$/.test(text)) return text;
@@ -10992,6 +11130,9 @@
       memo2History: normalizeMemo2History(data),
       memo1Original: data.memo1 || '',
       memo2Original: data.memo2 || '',
+      visitDates: Array.isArray(data.visitDates) ? data.visitDates : [],
+      visitHistory: data.visitHistory && typeof data.visitHistory === 'object' ? data.visitHistory : {},
+      targetTreatmentCount: getVisitGoal(data),
       age: data.age || '',
       gender: data.gender || '',
       doctorId: data.doctorId || '',
@@ -11465,7 +11606,6 @@
     const waitingHtml = waitingPatients.map(([key, data], index) => {
       const infoChips = [
         data.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(data.gender)}</span>` : '',
-        data.age ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(String(data.age))}세</span>` : '',
         data.doctorName ? `<span class="bed-meta-chip">${escapeHtml(data.doctorName)}</span>` : '',
         data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : '',
       ].filter(Boolean).join('');
@@ -12788,12 +12928,18 @@
     return '';
   }
 
-  function getBedNameMetaChips(bed) {
+  function getBedNameMetaChips(bed, bedNo = null) {
     const chip = (text, cls = '') => `<span class="bed-name-meta-chip${cls}">${escapeHtml(text)}</span>`;
     const insuranceLabel = getInsuranceChipLabel(bed.insuranceType);
     const chips = [];
     if (bed.chartNo) chips.push(chip(`${bed.chartNo}`));
-    if (getShortVisitTypeLabel(bed.visitType)) chips.push(chip(getShortVisitTypeLabel(bed.visitType)));
+    if (getShortVisitTypeLabel(bed.visitType)) {
+      chips.push(chip(getShortVisitTypeLabel(bed.visitType)));
+      const visitCountLabel = getVisitCountChipLabel(bed);
+      if (visitCountLabel && bedNo) {
+        chips.push(`<button class="bed-name-meta-chip bed-name-meta-chip--visit-count" type="button" data-visit-goal-bed="${escapeHtml(bedNo)}">${escapeHtml(visitCountLabel)}</button>`);
+      }
+    }
     if (insuranceLabel) chips.push(chip(insuranceLabel, ' bed-name-meta-chip--insurance'));
 
     if (!chips.length) return '';
@@ -12806,13 +12952,21 @@
     return `${Array.from(text).slice(0, 2).join('')}*`;
   }
 
-  function getBedDetailPatientSummaryChips(bed, includeIdentity = true) {
+  function renderVisitCountChip(bed, bedNo) {
+    const label = getVisitCountChipLabel(bed);
+    if (!label || !bedNo) return '';
+    return `<button class="bed-patient-summary-chip bed-patient-summary-chip--visit-count" type="button" data-visit-goal-bed="${escapeHtml(bedNo)}">${escapeHtml(label)}</button>`;
+  }
+
+  function getBedDetailPatientSummaryChips(bed, includeIdentity = true, bedNo = null) {
     const chip = (text, cls = '') => `<span class="bed-patient-summary-chip${cls}">${escapeHtml(text)}</span>`;
     const insuranceLabel = getInsuranceChipLabel(bed.insuranceType);
     const chips = [];
     if (includeIdentity) {
       if (bed.chartNo) chips.push(chip(`${bed.chartNo}번`));
       if (bed.visitType) chips.push(chip(bed.visitType));
+      const visitCountChip = renderVisitCountChip(bed, bedNo);
+      if (visitCountChip) chips.push(visitCountChip);
       if (insuranceLabel) chips.push(chip(insuranceLabel, ' bed-patient-summary-chip--insurance'));
     }
     const memo1Edited = bed.memo1 && bed.memo1 !== (bed.memo1Original || '');
@@ -12868,7 +13022,7 @@
   }
 
   function renderBedDetailPatientInfo(bed, bedNo, showClearButton = false, options = {}) {
-    const patientSummary = getBedDetailPatientSummaryChips(bed, options.includeIdentity !== false);
+    const patientSummary = getBedDetailPatientSummaryChips(bed, options.includeIdentity !== false, bedNo);
     const recentVisitLabel = formatRecentVisitDate(bed.lastVisitDate);
     const infoChips = [
       bed.doctorName || '-',
@@ -13023,7 +13177,7 @@
               <div>
                 <div class="bed-name-row">
                   <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}</div>
-                  ${getBedNameMetaChips(bed)}
+                  ${getBedNameMetaChips(bed, bedNo)}
                 </div>
               </div>
               <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
@@ -13724,6 +13878,73 @@
     editTimerClock(Number(target.dataset.timerEditBed));
   });
 
+  let activeVisitGoalBedNo = null;
+
+  async function persistVisitGoalForBed(bedNo, value) {
+    const bed = getBedData(bedNo);
+    if (!bed) return;
+    const targetTreatmentCount = normalizeVisitGoal(value);
+    const patch = { targetTreatmentCount };
+    await updateBedRecord(bedNo, patch);
+    if (bed.patientKey) await updatePatient(bed.patientKey, patch);
+    if (bed.chartNo) {
+      await window.saveChartPatient?.({
+        patientId: bed.patientId || '',
+        chartNo: normalizeChartNo(bed.chartNo),
+        name: bed.name || '',
+        age: bed.age || '',
+        gender: bed.gender || '',
+        visitType: bed.visitType || '',
+        targetTreatmentCount
+      });
+    }
+    showToast(targetTreatmentCount ? `목표 ${targetTreatmentCount}회 저장` : '목표 치료횟수 삭제');
+    renderBedDetail();
+    renderBedMonitors();
+  }
+
+  function openVisitGoalPopup(bedNo) {
+    const bed = getBedData(bedNo);
+    if (!bed) return;
+    activeVisitGoalBedNo = Number(bedNo);
+    const current = getVisitCountSinceLatestInitial(bed);
+    const input = document.getElementById('visitGoalInput');
+    const label = document.getElementById('visitGoalCurrentLabel');
+    if (label) label.textContent = current ? `현재 ${current}번째 방문` : '현재 방문 기록 없음';
+    if (input) {
+      input.value = getVisitGoal(bed) || '';
+      setTimeout(() => input.focus(), 0);
+    }
+    document.getElementById('visitGoalOverlay')?.classList.add('show');
+  }
+
+  window.closeVisitGoalPopup = () => {
+    activeVisitGoalBedNo = null;
+    document.getElementById('visitGoalOverlay')?.classList.remove('show');
+  };
+
+  window.saveVisitGoalFromPopup = async (event) => {
+    event?.preventDefault();
+    if (!activeVisitGoalBedNo) return;
+    const value = document.getElementById('visitGoalInput')?.value || '';
+    await persistVisitGoalForBed(activeVisitGoalBedNo, value);
+    window.closeVisitGoalPopup();
+  };
+
+  window.clearVisitGoalFromPopup = async () => {
+    if (!activeVisitGoalBedNo) return;
+    await persistVisitGoalForBed(activeVisitGoalBedNo, '');
+    window.closeVisitGoalPopup();
+  };
+
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest?.('[data-visit-goal-bed]');
+    if (!target) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openVisitGoalPopup(Number(target.dataset.visitGoalBed));
+  });
+
   window.setTimerMinutes = async (bedNo, context = 'bed') => {
     const input = document.getElementById(`${context}-timer-minutes-bed-${bedNo}`) ||
       document.querySelector(`[id$="-timer-minutes-bed-${bedNo}"]`);
@@ -13757,6 +13978,7 @@
         memo1: bed.memo1 || '',
         memo2: bed.memo2 || '',
         memo2History: normalizeMemo2History(bed),
+        targetTreatmentCount: getVisitGoal(bed),
         spineSettings: patient?.spineSettings || {},
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
@@ -15903,6 +16125,11 @@
     const packages = getPackageStateFromPatient(patient);
     const chiefComplaint = latestVisit.chiefComplaint || patient.chiefComplaint || patient.memo1 || '';
     const memo2 = getMemo2ForDate(patient, toLocalDateInputValue());
+    const visitDates = Array.isArray(patient.visitDates) ? patient.visitDates.map(String) : [];
+    const visitHistory = patient.visitHistory && typeof patient.visitHistory === 'object'
+      ? { ...patient.visitHistory }
+      : {};
+    const targetTreatmentCount = getVisitGoal(patient);
     return {
       name: patient.name || '',
       treatments,
@@ -15926,6 +16153,10 @@
       appointmentDates: normalizeAppointmentDates(patient),
       appointmentDate: normalizeAppointmentDates(patient)[0] || '',
       appointmentUndecided: Boolean(patient.appointmentUndecided),
+      lastVisitDate: getPatientLatestVisitDate(patient),
+      visitDates,
+      visitHistory,
+      targetTreatmentCount,
       packages,
       ...getPCreditsFromPackages(packages),
       doctorId: doctor.id,
@@ -16580,7 +16811,7 @@
 
     fixedBedArrivalVisiblePatientKey = patientKey;
     fixedBedArrivalVisibleAlertKey = assignmentAlert.key;
-    nameEl.textContent = assignmentAlert.patientName || bed?.name || '';
+    nameEl.textContent = maskPatientNameForBedPopup(assignmentAlert.patientName || bed?.name || '');
     requestBedScreenWakeLock('bed-assignment-overlay');
     overlay.classList.add('show');
     fixedBedArrivalShownByBed[bedNo] = assignmentAlert.key;
