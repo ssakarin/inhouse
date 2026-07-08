@@ -535,7 +535,54 @@ function randomPatients(limit = 10, excludeChartNos = []) {
     const j = i + Math.floor(Math.random() * (source.length - i));
     [source[i], source[j]] = [source[j], source[i]];
   }
-  return source.slice(0, count);
+  return source.slice(0, count).map(record => enrichRandomPatientRecord(record));
+}
+
+function getLocalDateKey(date = new Date()) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function latestPastVisitDateFromRecord(record = {}) {
+  const today = getLocalDateKey();
+  const dates = [
+    ...(Array.isArray(record.visitDates) ? record.visitDates : []),
+    ...Object.keys(record.visitHistory || {})
+  ]
+    .map(date => String(date || "").trim())
+    .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date) && date < today)
+    .sort();
+  return dates[dates.length - 1] || "";
+}
+
+function daysSinceVisitDate(dateStr) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ""));
+  if (!match) return null;
+  const [, yyyy, mm, dd] = match;
+  const visitDate = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  if (Number.isNaN(visitDate.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  visitDate.setHours(0, 0, 0, 0);
+  const elapsedDays = Math.floor((today - visitDate) / 86400000);
+  return Number.isFinite(elapsedDays) && elapsedDays >= 0 ? elapsedDays : null;
+}
+
+function getVisitTypeByLatestVisitDate(record = {}) {
+  const latestVisitDate = latestPastVisitDateFromRecord(record);
+  const elapsedDays = daysSinceVisitDate(latestVisitDate);
+  return elapsedDays === null || elapsedDays > 90 ? "초진" : "재진";
+}
+
+function enrichRandomPatientRecord(record = {}) {
+  const lastVisitDate = latestPastVisitDateFromRecord(record);
+  return {
+    ...record,
+    lastVisitDate,
+    visitType: getVisitTypeByLatestVisitDate(record)
+  };
 }
 
 function visitEntriesFromRecord(record = {}) {

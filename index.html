@@ -5542,10 +5542,11 @@
     if (!isFixedBedScreen()) processHoldBedReleases();
 
     const fixedDoctorAlertOnly = isFixedDoctorAlertOnlyScreen();
+    const fixedDoctorBedChanged = isFixedDoctorBedScreen() && numericBedNo === selectedBedNo;
     requestAppRender({
       bedSelector: !fixedDoctorAlertOnly,
       bedDetail: numericBedNo === selectedBedNo || selectedBedNextTaskChanged,
-      doctorAlertPanel: fixedDoctorAlertOnly && numericBedNo !== selectedBedNo,
+      doctorAlertPanel: fixedDoctorBedChanged || (fixedDoctorAlertOnly && numericBedNo !== selectedBedNo),
       receiveBedDetail: !fixedDoctorAlertOnly && numericBedNo === selectedReceiveBedNo,
       bedMonitors: !fixedDoctorAlertOnly,
       upcomingAlerts: !fixedDoctorAlertOnly,
@@ -12564,6 +12565,7 @@
     renderBedDetailInto(detail, selectedBedNo, true);
     updateBedRemainingChip();
     renderBedDoctorAlertPanel();
+    syncFixedDoctorRoomAlertAudio();
     window.updateAlertListAudioState?.();
   }
 
@@ -13006,15 +13008,8 @@
   }
 
   function formatRecentVisitDate(dateStr) {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
-    if (!match) return '';
-    const [, yyyy, mm, dd] = match;
-    const visitDate = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-    if (Number.isNaN(visitDate.getTime())) return '';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    visitDate.setHours(0, 0, 0, 0);
-    const elapsedDays = Math.floor((today - visitDate) / 86400000);
+    const elapsedDays = getDaysSinceVisitDate(dateStr);
+    if (elapsedDays === null) return '';
     if (elapsedDays < 0) return '';
     if (elapsedDays === 0) return '오늘';
     if (elapsedDays <= 90) return `${elapsedDays}일 전`;
@@ -15855,11 +15850,32 @@
 
   function getPatientLatestVisitDate(patient = {}) {
     const today = toLocalDateInputValue();
-    const dates = (Array.isArray(patient.visitDates) ? patient.visitDates : [])
+    const dates = [
+      ...(Array.isArray(patient.visitDates) ? patient.visitDates : []),
+      ...Object.keys(patient.visitHistory || {})
+    ]
       .map(date => String(date || '').trim())
       .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date) && date < today)
       .sort();
     return dates[dates.length - 1] || '';
+  }
+
+  function getDaysSinceVisitDate(dateStr) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
+    if (!match) return null;
+    const [, yyyy, mm, dd] = match;
+    const visitDate = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    if (Number.isNaN(visitDate.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    visitDate.setHours(0, 0, 0, 0);
+    return Math.floor((today - visitDate) / 86400000);
+  }
+
+  function getVisitTypeByLatestVisitDate(patient = {}) {
+    const latestVisitDate = getPatientLatestVisitDate(patient);
+    const daysSince = getDaysSinceVisitDate(latestVisitDate);
+    return daysSince === null || daysSince > 90 ? '초진' : '재진';
   }
 
   function patientChoiceMeta(patient = {}) {
@@ -15924,7 +15940,7 @@
     document.getElementById(ids.chiefComplaint).value = patient.memo1 || '';
     document.getElementById(ids.memo).value = getMemo2ForDate(patient, toLocalDateInputValue());
     setFormMemoOriginals(scope, patient);
-    document.querySelector(`input[name="${ids.visitType}"][value="재진"]`)?.click();
+    document.querySelector(`input[name="${ids.visitType}"][value="${getVisitTypeByLatestVisitDate(patient)}"]`)?.click();
     document.querySelector(`input[name="${ids.gender}"][value="${patient.gender || '남'}"]`)?.click();
     setSelectedStaffByStoredValue('doctors', scope, patient);
     window.applyTreatmentsToForm?.(scope, patient.treatments || []);
@@ -16130,6 +16146,8 @@
       ? { ...patient.visitHistory }
       : {};
     const targetTreatmentCount = getVisitGoal(patient);
+    const latestVisitDate = getPatientLatestVisitDate(patient);
+    const visitType = getVisitTypeByLatestVisitDate(patient);
     return {
       name: patient.name || '',
       treatments,
@@ -16140,7 +16158,7 @@
       patientId: patient.patientId || '',
       insuranceType: getRandomTestInsuranceType(patient),
       chartNo: normalizeChartNo(patient.chartNo),
-      visitType: latestVisit.visitType || patient.visitType || '재진',
+      visitType,
       chiefComplaint,
       memo1: chiefComplaint,
       memo2,
@@ -16153,7 +16171,7 @@
       appointmentDates: normalizeAppointmentDates(patient),
       appointmentDate: normalizeAppointmentDates(patient)[0] || '',
       appointmentUndecided: Boolean(patient.appointmentUndecided),
-      lastVisitDate: getPatientLatestVisitDate(patient),
+      lastVisitDate: latestVisitDate,
       visitDates,
       visitHistory,
       targetTreatmentCount,
@@ -16930,7 +16948,7 @@
       document.getElementById('chiefComplaint').value = patient.memo1 || '';
       document.getElementById('memoInput').value = getMemo2ForDate(patient, toLocalDateInputValue());
       setFormMemoOriginals('desk', patient);
-      document.querySelector('input[name="visitType"][value="재진"]')?.click();
+      document.querySelector(`input[name="visitType"][value="${getVisitTypeByLatestVisitDate(patient)}"]`)?.click();
       document.querySelector(`input[name="gender"][value="${patient.gender || '남'}"]`)?.click();
       setSelectedStaffByStoredValue?.('doctors', 'desk', patient);
       window.applyTreatmentsToForm?.('desk', patient.treatments || []);
