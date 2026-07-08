@@ -1461,6 +1461,13 @@ function buildThirdVisitUpdates(sheetValues, visits) {
       return name && firstDate ? `${name}\u0000${firstDate}` : "";
     })
     .filter(Boolean));
+  const existingRevisitVisitKeys = new Set(rows.flatMap(row => {
+    const name = String(row[1] || "").trim();
+    if (!name) return [];
+    return [parseThirdVisitSheetDate(row[19]), parseThirdVisitSheetDate(row[20])]
+      .filter(Boolean)
+      .map(date => `${name}\u0000${date}`);
+  }));
 
   const periodRows = visits
     .filter(row => row.name && compareIsoDate(row.visitDate, lastDate) >= 0)
@@ -1504,6 +1511,7 @@ function buildThirdVisitUpdates(sheetValues, visits) {
 
   const revisitRows = periodRows
     .filter(row => normalizeVisitType(row.visitType) === "재진")
+    .filter(row => !existingRevisitVisitKeys.has(`${row.name}\u0000${row.visitDate}`))
     .sort((a, b) => compareIsoDate(a.visitDate, b.visitDate));
   const existingRevisitNames = new Set(rows.filter(row => revisitRows.some(visit => visit.name === row[1])).map(row => row[1]));
   const missingRevisitNames = [...new Set(revisitRows.map(row => row.name).filter(name => !existingRevisitNames.has(name)))].sort();
