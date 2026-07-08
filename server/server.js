@@ -281,7 +281,7 @@ const statements = {
       p.name
     FROM patient_visits pv
     LEFT JOIN patients p ON p.patient_id = pv.patient_id
-    WHERE pv.visit_date > ?
+    WHERE pv.visit_date >= ?
     ORDER BY pv.visit_date, pv.chart_no COLLATE NOCASE, p.name COLLATE NOCASE, pv.patient_id
   `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
@@ -1454,9 +1454,16 @@ function buildThirdVisitUpdates(sheetValues, visits) {
   if (!existingFirstDates.length) throw new Error("기존 시트의 19번째 컬럼에서 마지막 진료일을 찾지 못했습니다.");
   const lastDate = parseThirdVisitSheetDate(existingFirstDates[existingFirstDates.length - 1]);
   if (!lastDate) throw new Error(`기존 시트의 마지막 진료일 형식을 읽지 못했습니다: ${existingFirstDates[existingFirstDates.length - 1]}`);
+  const existingFirstVisitKeys = new Set(rows
+    .map(row => {
+      const name = String(row[1] || "").trim();
+      const firstDate = parseThirdVisitSheetDate(row[18]);
+      return name && firstDate ? `${name}\u0000${firstDate}` : "";
+    })
+    .filter(Boolean));
 
   const periodRows = visits
-    .filter(row => row.name && compareIsoDate(row.visitDate, lastDate) > 0)
+    .filter(row => row.name && compareIsoDate(row.visitDate, lastDate) >= 0)
     .map(row => ({
       name: String(row.name || "").trim(),
       doctorName: String(row.doctorName || "").trim(),
@@ -1469,6 +1476,7 @@ function buildThirdVisitUpdates(sheetValues, visits) {
 
   const newRows = periodRows
     .filter(row => normalizeVisitType(row.visitType) === "초진" && !isThirdVisitPrescription(row.chiefComplaint))
+    .filter(row => !existingFirstVisitKeys.has(`${row.name}\u0000${row.visitDate}`))
     .sort((a, b) => compareIsoDate(a.visitDate, b.visitDate));
 
   let lastFirstDateIndex = -1;
