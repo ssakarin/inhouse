@@ -5489,6 +5489,7 @@
 
   function setLocalBedState(bedNo, bed) {
     const numericBedNo = Number(bedNo);
+    if (bed && !isCleaningBed(bed)) recentlyClearedBedPatients.delete(numericBedNo);
     if (HOLD_BED_NUMBERS.includes(numericBedNo)) {
       if (bed) holdBedMap[numericBedNo] = bed;
       else delete holdBedMap[numericBedNo];
@@ -5502,6 +5503,11 @@
     if (numericBedNo >= 1 && numericBedNo <= BED_COUNT) {
       bedAssignments[numericBedNo - 1] = bed || null;
     }
+  }
+
+  function getRecentlyClearedBedPatient(bedNo) {
+    const entry = recentlyClearedBedPatients.get(Number(bedNo));
+    return entry?.bed ? entry : null;
   }
 
   async function applyBedDeltaFromLocal(bedNo, bed, version, op = 'update') {
@@ -6378,6 +6384,7 @@
   let fixedBedArrivalVisibleAlertKey = '';
   const fixedBedArrivalAcknowledgedByBed = {};
   const fixedBedArrivalShownByBed = {};
+  const recentlyClearedBedPatients = new Map();
   const formEditBedNoByScope = {
     desk: null,
     receive: null
@@ -13155,10 +13162,16 @@
             <div class="bed-info-zone"></div>
           </div>`;
       }
+      const recentlyCleared = allowControls ? getRecentlyClearedBedPatient(bedNo) : null;
+      const recallHtml = recentlyCleared ? `
+          <button class="bed-clear-btn" type="button" onclick="restoreRecentlyClearedBedPatient(${bedNo})">
+            ${escapeHtml(recentlyCleared.bed.name || '환자')} 다시불러오기
+          </button>` : '';
       return `
         <div class="empty-state">
           <div class="empty-icon">⏱</div>
           <div class="empty-text">${escapeHtml(bedLabel)} 현재 비어 있습니다</div>
+          ${recallHtml}
         </div>`;
     }
     if (isCleaningBed(bed)) return renderBedCleaningMarkup(bedNo, bed);
@@ -14012,6 +14025,21 @@
       } catch (e) {
         console.error('퇴실환자 저장 실패', e);
       }
+      recentlyClearedBedPatients.set(Number(bedNo), {
+        bed: {
+          ...bed,
+          packages: indexDbPackages,
+          ...getPCreditsFromPackages(indexDbPackages),
+          running: false,
+          startedAt: null
+        },
+        patient: patient ? {
+          ...patient,
+          packages: indexDbPackages,
+          ...getPCreditsFromPackages(indexDbPackages)
+        } : null,
+        savedAt: Date.now()
+      });
     }
 
     if (bed?.patientKey) {
@@ -14020,6 +14048,68 @@
       await removePatient(bed.patientKey);
     }
     await removeBedRecord(bedNo);
+  };
+
+  window.restoreRecentlyClearedBedPatient = async (bedNo) => {
+    bedNo = Number(bedNo);
+    if (getBedData(bedNo)) {
+      recentlyClearedBedPatients.delete(bedNo);
+      renderBedDetail();
+      showToast(`${getBedLabel(bedNo)}에 이미 환자가 있습니다`);
+      return false;
+    }
+    const entry = getRecentlyClearedBedPatient(bedNo);
+    const bed = entry?.bed;
+    if (!bed) {
+      showToast('다시 불러올 환자 정보가 없습니다');
+      renderBedDetail();
+      return false;
+    }
+
+    const restoredAt = Date.now();
+    const patientKey = bed.patientKey || `restore-${bedNo}-${restoredAt}`;
+    const restoredBed = {
+      ...bed,
+      patientKey,
+      bedStatus: 'assigned',
+      bedNo,
+      timestamp: restoredAt,
+      timeStr: new Date(restoredAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+      date: new Date(restoredAt).toLocaleDateString('ko-KR')
+    };
+    const restoredPatient = {
+      ...(entry.patient || {}),
+      ...restoredBed,
+      bedStatus: 'assigned',
+      bedNo
+    };
+    delete restoredPatient.currentIndex;
+    delete restoredPatient.total;
+    delete restoredPatient.remaining;
+    delete restoredPatient.running;
+    delete restoredPatient.startedAt;
+    delete restoredPatient.complete;
+    delete restoredPatient.lastAlertId;
+    delete restoredPatient.lastAlertMessage;
+    delete restoredPatient.doctorProcedureAlert;
+
+    try {
+      await updateBedRecord(bedNo, restoredBed);
+      await updatePatient(patientKey, restoredPatient);
+      patientsByKey.set(patientKey, restoredPatient);
+      recentlyClearedBedPatients.delete(bedNo);
+      selectedBedNo = bedNo;
+      renderBedSelector();
+      renderBedDetail();
+      renderReceiveBedDetail();
+      renderBedMonitors();
+      showToast(`${restoredBed.name || '환자'} 다시 불러옴`);
+      return true;
+    } catch (e) {
+      console.error('환자 다시불러오기 실패', e);
+      showToast('다시불러오기 실패');
+      return false;
+    }
   };
 
   window.confirmClearBed = async (event, bedNo) => {
