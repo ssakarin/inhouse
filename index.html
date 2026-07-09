@@ -11136,6 +11136,7 @@
       : (Number(bedNo) >= 101 ? ['진찰'] : (data.treatments || []));
     const firstTreatment = treatments[0];
     const total = firstTreatment ? getConcurrentTreatmentSeconds(treatments, 0) : 0;
+    const packages = getPackageStateFromPatient(data);
     return {
       patientKey,
       name: data.name,
@@ -11157,6 +11158,9 @@
       visitDates: Array.isArray(data.visitDates) ? data.visitDates : [],
       visitHistory: data.visitHistory && typeof data.visitHistory === 'object' ? data.visitHistory : {},
       targetTreatmentCount: getVisitGoal(data),
+      spineSettings: data.spineSettings || {},
+      packages,
+      ...getPCreditsFromPackages(packages),
       age: data.age || '',
       gender: data.gender || '',
       doctorId: data.doctorId || '',
