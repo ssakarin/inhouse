@@ -6967,8 +6967,12 @@
   async function persistSpineSettings(gridId) {
     const spineSettings = getSpineSettingsForGrid(gridId);
     const patientKey = getPatientKeyForCreditGrid(gridId);
+    const bedNo = getBedNoForCreditGrid(gridId);
     if (patientKey) {
-      await updatePatient(patientKey, { spineSettings });
+      await Promise.all([
+        updatePatient(patientKey, { spineSettings }),
+        bedNo ? updateBedRecord(bedNo, { spineSettings }) : Promise.resolve()
+      ]);
       patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), spineSettings });
       renderBedMonitors();
     } else {
@@ -7194,6 +7198,13 @@
     return '';
   }
 
+  function getBedNoForCreditGrid(gridId) {
+    const scope = getScopeFromGridId(gridId);
+    if (scope === 'bed') return getBedData(selectedBedNo) ? Number(selectedBedNo) : 0;
+    if (scope === 'desk' || scope === 'receive') return Number(formEditBedNoByScope[scope] || 0);
+    return 0;
+  }
+
   function resetPCredits(gridId) {
     setPackageStateForGrid(gridId, createEmptyPackageState());
     updateCreditChip(gridId);
@@ -7392,8 +7403,13 @@
     const packages = getPackageStateForGrid(gridId);
     const payload = { packages, ...getPCreditsFromPackages(packages), credit: null };
     const patientKey = getPatientKeyForCreditGrid(gridId);
+    const bedNo = getBedNoForCreditGrid(gridId);
+    const { credit, ...bedPayload } = payload;
     if (patientKey) {
-      await updatePatient(patientKey,payload);
+      await Promise.all([
+        updatePatient(patientKey,payload),
+        bedNo ? updateBedRecord(bedNo, bedPayload) : Promise.resolve()
+      ]);
       const nextPatient = {
         ...(patientsByKey.get(patientKey) || {}),
         ...payload
@@ -9125,8 +9141,8 @@
     formMemo2HistorySourceByScope.bed = bedPatient || bed || null;
     renderMemo2HistoryDropdown('bed');
     hydrateMemo2HistorySource('bed', bedPatient || bed);
-    window.updateCreditChip?.('bedTreatmentGrid', bedPatient || {});
-    window.updateSpineChip?.('bedTreatmentGrid', bedPatient || {});
+    window.updateCreditChip?.('bedTreatmentGrid', bedPatient || bed || {});
+    window.updateSpineChip?.('bedTreatmentGrid', bedPatient || bed || {});
     setBedMemoOpen(false);
   }
 

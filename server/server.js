@@ -749,6 +749,33 @@ function normalizeTreatmentStatName(name) {
   return text;
 }
 
+function isSimpleChunaTreatment(name) {
+  const text = String(name || "").trim();
+  return text === "추나" || text === "단추" || text === "단순추나";
+}
+
+function isComplexChunaTreatment(name) {
+  const text = String(name || "").trim();
+  return text === "복추" || text === "복잡추나";
+}
+
+function isPharmaTreatment(name) {
+  return String(name || "").trim().includes("약침");
+}
+
+function hasPackagePurchaseInRange(record = {}, start = "", end = "") {
+  const packages = record.packages && typeof record.packages === "object" ? record.packages : {};
+  return Object.entries(packages).some(([key, pkg]) => {
+    if (!String(key || "").startsWith("p")) return false;
+    const purchases = Array.isArray(pkg?.purchases) ? pkg.purchases : [];
+    return purchases.some(entry => {
+      const date = String(entry?.date || "").trim();
+      const qty = Number(entry?.qty ?? entry?.totalQty ?? 0) || 0;
+      return qty > 0 && date >= start && date <= end;
+    });
+  });
+}
+
 function collectStatsDoctors() {
   return db.prepare(`
     SELECT DISTINCT doctor_name AS doctorName
@@ -841,6 +868,13 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   let thirdVisitPatients = 0;
   const treatmentCounts = {};
   let pharmaTotal = 0;
+  let chunaTotal = 0;
+  let simpleChunaTotal = 0;
+  let complexChunaTotal = 0;
+  const chunaPatientSet = new Set();
+  const pharmaPatientSet = new Set();
+  const pharmaPackagePurchasePatientSet = new Set();
+  const clinicDateSet = new Set();
   const doctorCounts = {};
   const weekdayCounts = {};
   const weekdayDateSets = {};
@@ -888,18 +922,36 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       } else {
         matchedCore = true;
         coreVisits += 1;
+        clinicDateSet.add(date);
         trendBuckets[key].coreVisits += 1;
         trendBuckets[key].patientIds.add(pid);
       }
       let countedPharma = false;
+      let countedChuna = false;
+      let countedSimpleChuna = false;
+      let countedComplexChuna = false;
       const comboParts = [];
       for (const rawTreatment of treatments) {
         const treatment = normalizeTreatmentStatName(rawTreatment);
         if (!treatment) continue;
         treatmentCounts[treatment] = (treatmentCounts[treatment] || 0) + 1;
         comboParts.push(treatment);
-        if (treatment.includes("약침") && !countedPharma) {
+        if (!isPrescription && isSimpleChunaTreatment(treatment) && !countedSimpleChuna) {
+          simpleChunaTotal += 1;
+          countedSimpleChuna = true;
+        }
+        if (!isPrescription && isComplexChunaTreatment(treatment) && !countedComplexChuna) {
+          complexChunaTotal += 1;
+          countedComplexChuna = true;
+        }
+        if (!isPrescription && (isSimpleChunaTreatment(treatment) || isComplexChunaTreatment(treatment)) && !countedChuna) {
+          chunaTotal += 1;
+          chunaPatientSet.add(pid);
+          countedChuna = true;
+        }
+        if (isPharmaTreatment(treatment) && !countedPharma) {
           pharmaTotal += 1;
+          if (!isPrescription) pharmaPatientSet.add(pid);
           countedPharma = true;
         }
       }
@@ -909,6 +961,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     }
 
     if (matchedCore) patientSet.add(pid);
+    if (hasPackagePurchaseInRange(record, start, end)) pharmaPackagePurchasePatientSet.add(pid);
 
     for (const firstDate of newVisitDatesOf(record)) {
       if (!inRange(firstDate) || isPrescriptionVisit(record, firstDate)) continue;
@@ -954,6 +1007,12 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
         thirdVisitRate: bucket.newPatients ? bucket.thirdVisitPatients / bucket.newPatients : 0
       };
     });
+  const clinicDays = Math.max(1, clinicDateSet.size);
+  const chunaPatientRate = patientSet.size ? chunaPatientSet.size / patientSet.size : 0;
+  const chunaTypeTotal = simpleChunaTotal + complexChunaTotal;
+  const simpleChunaRate = chunaTypeTotal ? simpleChunaTotal / chunaTypeTotal : 0;
+  const complexChunaRate = chunaTypeTotal ? complexChunaTotal / chunaTypeTotal : 0;
+  const pharmaPatientRate = patientSet.size ? pharmaPatientSet.size / patientSet.size : 0;
 
   return {
     recordCount: records.length,
@@ -968,6 +1027,19 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     thirdVisitRate: newPatients ? thirdVisitPatients / newPatients : 0,
     avgVisitsPerPatient: patientSet.size ? coreVisits / patientSet.size : 0,
     pharmaTotal,
+    chunaTotal,
+    simpleChunaTotal,
+    complexChunaTotal,
+    chunaPatients: chunaPatientSet.size,
+    chunaPatientRate,
+    simpleChunaRate,
+    complexChunaRate,
+    pharmaPatients: pharmaPatientSet.size,
+    pharmaPatientRate,
+    avgChunaPerDay: chunaTotal / clinicDays,
+    avgPharmaPatientsPerDay: pharmaTotal / clinicDays,
+    pharmaPackagePurchasePatients: pharmaPackagePurchasePatientSet.size,
+    clinicDays,
     treatmentCounts,
     doctorCounts,
     weekdayCounts,
