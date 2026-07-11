@@ -2004,6 +2004,8 @@ function loginPageHtml() {
 
 const sseClients = new Set();
 let sseNextClientId = 1;
+const SSE_BACKPRESSURE_TIMEOUT_MS = Number(process.env.SSE_BACKPRESSURE_TIMEOUT_MS || 15000);
+const SSE_MAX_QUEUE_BYTES = Number(process.env.SSE_MAX_QUEUE_BYTES || 1024 * 1024);
 const sseTotals = {
   opened: 0,
   closed: 0,
@@ -2014,12 +2016,14 @@ const sseTotals = {
   stateFrames: 0,
   stateChildFrames: 0,
   pingFrames: 0,
+  pingSkipped: 0,
+  backpressureEvents: 0,
+  backpressureDrains: 0,
+  backpressureTimeoutCloses: 0,
+  backpressureQueueCloses: 0,
+  maxFrameBytes: 0,
   backpressureCloses: 0
 };
-
-function sseSend(res, event, payload) {
-  return res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
-}
 
 function sseFrame(event, payload) {
   return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
@@ -2100,18 +2104,82 @@ function stateChildAllowsClient(client, key, value) {
   return values.some(item => Number(item?.bedNo) === Number(client.bedNo));
 }
 
-function sseSendFrame(client, frame) {
-  if (!client?.res || client.res.destroyed || client.res.writableEnded) return false;
+function clearSseBackpressureWait(client) {
+  if (!client) return;
+  if (client.backpressureTimer) clearTimeout(client.backpressureTimer);
+  client.backpressureTimer = null;
+  if (client.drainHandler && client.res) client.res.off("drain", client.drainHandler);
+  client.drainHandler = null;
+}
+
+function closeSseForBackpressure(client, reason) {
+  if (!client || client.backpressureClosing) return;
+  client.backpressureClosing = true;
+  client.backpressureCloseReason = reason;
+  clearSseBackpressureWait(client);
+  sseTotals.backpressureCloses += 1;
+  if (reason === "drain-timeout") sseTotals.backpressureTimeoutCloses += 1;
+  if (reason === "queue-limit") sseTotals.backpressureQueueCloses += 1;
+  try { client.res.destroy(); } catch {}
+}
+
+function waitForSseDrain(client) {
+  if (!client || client.backpressured || client.backpressureClosing) return;
+  client.backpressured = true;
+  sseTotals.backpressureEvents += 1;
+  client.drainHandler = () => {
+    clearSseBackpressureWait(client);
+    if (!client.res || client.res.destroyed || client.res.writableEnded) return;
+    client.backpressured = false;
+    sseTotals.backpressureDrains += 1;
+    flushSseQueue(client);
+  };
+  client.res.once("drain", client.drainHandler);
+  client.backpressureTimer = setTimeout(() => {
+    closeSseForBackpressure(client, "drain-timeout");
+  }, SSE_BACKPRESSURE_TIMEOUT_MS);
+}
+
+function writeSseFrame(client, frame, countFrame) {
+  if (!client?.res || client.res.destroyed || client.res.writableEnded || client.backpressureClosing) return false;
+  const bytes = Buffer.byteLength(frame);
+  sseTotals.maxFrameBytes = Math.max(sseTotals.maxFrameBytes, bytes);
   const ok = client.res.write(frame);
-  client.frames = (client.frames || 0) + 1;
+  if (countFrame) client.frames = (client.frames || 0) + 1;
   client.lastWriteAt = Date.now();
   if (!ok) {
-    sseTotals.backpressureCloses += 1;
-    try { client.res.destroy(); } catch {}
-    sseClients.delete(client);
+    client.lastBackpressureAt = Date.now();
+    client.lastBackpressureFrameBytes = bytes;
+    client.lastBackpressureWritableLength = client.res.writableLength || 0;
+    client.lastBackpressureHighWaterMark = client.res.writableHighWaterMark || 0;
+    client.lastBackpressureEvent = frame.startsWith("event: ")
+      ? frame.slice(7, frame.indexOf("\n")).trim()
+      : (frame.startsWith(":") ? "ping" : "retry");
+    waitForSseDrain(client);
+  }
+  return ok;
+}
+
+function flushSseQueue(client) {
+  while (!client.backpressured && client.pendingFrames?.length) {
+    const pending = client.pendingFrames.shift();
+    client.pendingBytes = Math.max(0, (client.pendingBytes || 0) - pending.bytes);
+    writeSseFrame(client, pending.frame, pending.countFrame);
+  }
+}
+
+function sseSendFrame(client, frame, { countFrame = true } = {}) {
+  if (!client?.res || client.res.destroyed || client.res.writableEnded || client.backpressureClosing) return false;
+  if (!client.backpressured) return writeSseFrame(client, frame, countFrame);
+
+  const bytes = Buffer.byteLength(frame);
+  if ((client.pendingBytes || 0) + bytes > SSE_MAX_QUEUE_BYTES) {
+    closeSseForBackpressure(client, "queue-limit");
     return false;
   }
-  return true;
+  client.pendingFrames.push({ frame, bytes, countFrame });
+  client.pendingBytes += bytes;
+  return false;
 }
 
 // Push a generic app_state key change to all connected clients (staff, settings,
@@ -2230,8 +2298,11 @@ async function handleApi(req, res, pathname) {
       room: Number.isInteger(room) ? room : 0,
       res,
       connectedAt: Date.now(),
-      frames: 1,
-      lastWriteAt: Date.now()
+      frames: 0,
+      lastWriteAt: Date.now(),
+      backpressured: false,
+      pendingFrames: [],
+      pendingBytes: 0
     };
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
@@ -2239,23 +2310,28 @@ async function handleApi(req, res, pathname) {
       "Connection": "keep-alive",
       "X-Accel-Buffering": "no"
     });
-    res.write("retry: 3000\n\n");
-    sseSend(res, "beds", { version: getBedsVersion(), beds: getBedsPayloadForClient(client) });
     sseClients.add(client);
     sseTotals.opened += 1;
-    const ping = setInterval(() => {
-      try {
-        sseTotals.pingFrames += 1;
-        if (!res.write(": ping\n\n")) {
-          sseTotals.backpressureCloses += 1;
-          try { res.destroy(); } catch {}
-        }
-      } catch { /* closed */ }
-    }, 25000);
+    let ping = null;
     req.on("close", () => {
-      clearInterval(ping);
+      if (ping) clearInterval(ping);
+      clearSseBackpressureWait(client);
+      client.pendingFrames.length = 0;
+      client.pendingBytes = 0;
       if (sseClients.delete(client)) sseTotals.closed += 1;
     });
+    sseSendFrame(client, "retry: 3000\n\n", { countFrame: false });
+    sseSendFrame(client, sseFrame("beds", { version: getBedsVersion(), beds: getBedsPayloadForClient(client) }));
+    ping = setInterval(() => {
+      try {
+        if (client.backpressured) {
+          sseTotals.pingSkipped += 1;
+          return;
+        }
+        sseTotals.pingFrames += 1;
+        sseSendFrame(client, ": ping\n\n", { countFrame: false });
+      } catch { /* closed */ }
+    }, 25000);
     return true;
   }
 
@@ -2269,6 +2345,18 @@ async function handleApi(req, res, pathname) {
       connectedSeconds: Math.round((now - client.connectedAt) / 1000),
       idleSeconds: Math.round((now - (client.lastWriteAt || client.connectedAt)) / 1000),
       frames: client.frames || 0,
+      backpressured: Boolean(client.backpressured),
+      pendingFrames: client.pendingFrames?.length || 0,
+      pendingBytes: client.pendingBytes || 0,
+      writableLength: client.res?.writableLength || 0,
+      writableHighWaterMark: client.res?.writableHighWaterMark || 0,
+      lastBackpressureSecondsAgo: client.lastBackpressureAt
+        ? Math.round((now - client.lastBackpressureAt) / 1000)
+        : null,
+      lastBackpressureEvent: client.lastBackpressureEvent || null,
+      lastBackpressureFrameBytes: client.lastBackpressureFrameBytes || 0,
+      lastBackpressureWritableLength: client.lastBackpressureWritableLength || 0,
+      lastBackpressureHighWaterMark: client.lastBackpressureHighWaterMark || 0,
       destroyed: Boolean(client.res?.destroyed || client.res?.writableEnded)
     }));
     jsonResponse(res, 200, {
