@@ -4870,9 +4870,35 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
   }
+  .import-progress-overlay {
+    position: fixed; inset: 0; z-index: 10050; display: grid; place-items: center;
+    padding: 20px; background: rgba(3, 10, 20, 0.72); backdrop-filter: blur(3px);
+  }
+  .import-progress-overlay[hidden] { display: none; }
+  .import-progress-panel {
+    width: min(460px, 100%); padding: 22px; border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 16px; background: var(--surface, #101b2d); color: var(--text, #e7eef8);
+    box-shadow: 0 18px 60px rgba(0,0,0,0.42);
+  }
+  .import-progress-title { font-size: 18px; font-weight: 900; margin-bottom: 8px; }
+  .import-progress-detail { min-height: 42px; color: var(--text3, #9badbf); font-size: 13px; font-weight: 800; line-height: 1.55; white-space: pre-wrap; }
+  .import-progress-track { height: 12px; margin-top: 14px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.1); }
+  .import-progress-bar { width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #39a9f5, #4ade80); transition: width 180ms ease; }
+  .import-progress-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--text3, #9badbf); font-size: 12px; font-weight: 900; }
+  .import-progress-close { width: 100%; margin-top: 16px; }
 </style>
 </head>
 <body>
+
+<div class="import-progress-overlay" id="chartImportProgress" hidden role="dialog" aria-modal="true" aria-labelledby="chartImportProgressTitle">
+  <div class="import-progress-panel">
+    <div class="import-progress-title" id="chartImportProgressTitle">엑셀 불러오기</div>
+    <div class="import-progress-detail" id="chartImportProgressDetail"></div>
+    <div class="import-progress-track"><div class="import-progress-bar" id="chartImportProgressBar"></div></div>
+    <div class="import-progress-meta"><span id="chartImportProgressStage">준비</span><span id="chartImportProgressPercent">0%</span></div>
+    <button class="import-progress-close" id="chartImportProgressClose" type="button" hidden>확인</button>
+  </div>
+</div>
 
 <div class="app">
   <!-- 헤더 -->
@@ -4887,7 +4913,7 @@
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
-        <button type="button" class="desk-excel-add-btn" onclick="document.getElementById('deskChartImportInput').click()">엑셀추가</button>
+        <button type="button" class="desk-excel-add-btn" id="deskChartImportBtn" onclick="document.getElementById('deskChartImportInput').click()">엑셀추가</button>
         <input id="deskChartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
           onchange="importChartFileFromDesk(this.files?.[0]); this.value='';">
         <button class="nurse-quick-btn nurse-quick-btn-desk" id="nurseQuickBtnDesk" type="button" onclick="toggleNurseQuickPopover(event)">간호사</button>
@@ -5215,7 +5241,7 @@
           <div class="rr-setting" style="margin-top:0">
             <span class="rr-setting-text" id="chartDbCountText">로딩 중...</span>
           </div>
-          <button class="export-btn" onclick="document.getElementById('chartImportInput').click()" style="margin-top:10px">
+          <button class="export-btn" id="chartImportBtn" onclick="document.getElementById('chartImportInput').click()" style="margin-top:10px">
             엑셀 추가
           </button>
           <input id="chartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
@@ -5683,7 +5709,8 @@
       return key === 'settings/treatmentMinutes'
         || key === 'settings/doctorAlertManualOrder'
         || key === 'staff/doctors'
-        || key === 'staff/nurses';
+        || key === 'staff/nurses'
+        || key === BED_ASSIGNMENT_ALERTS_PATH;
     }
     return key === 'settings/treatmentMinutes'
       || key === 'settings/treatmentPresets'
@@ -8600,7 +8627,9 @@
       }
       bedAssignmentAlertItems.set(key, data);
     });
+    syncDoctorProcedureAlerts();
     renderUpcomingAlerts();
+    renderBedDoctorAlertPanel();
     renderBedMonitors();
     syncFixedBedArrivalOverlay();
   });
@@ -16550,19 +16579,89 @@
     return '';
   }
 
+  let chartImportRunning = false;
+  let chartImportStartedAt = 0;
+  let chartImportElapsedTimer = null;
+  let chartImportStageText = '';
+
+  function setChartImportControlsDisabled(disabled) {
+    ['chartImportBtn', 'deskChartImportBtn', 'chartImportInput', 'deskChartImportInput'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = disabled;
+    });
+  }
+
+  function renderChartImportElapsed() {
+    const stageEl = document.getElementById('chartImportProgressStage');
+    if (!stageEl || !chartImportStartedAt) return;
+    const seconds = Math.max(0, Math.floor((Date.now() - chartImportStartedAt) / 1000));
+    stageEl.textContent = `${chartImportStageText} · ${seconds}초`;
+  }
+
+  function updateChartImportProgress(percent, stage, detail) {
+    const normalized = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    chartImportStageText = stage || chartImportStageText || '처리 중';
+    document.getElementById('chartImportProgressBar').style.width = `${normalized}%`;
+    document.getElementById('chartImportProgressPercent').textContent = `${normalized}%`;
+    if (detail !== undefined) document.getElementById('chartImportProgressDetail').textContent = detail;
+    renderChartImportElapsed();
+  }
+
+  function beginChartImportProgress(file) {
+    if (chartImportRunning) return false;
+    chartImportRunning = true;
+    chartImportStartedAt = Date.now();
+    chartImportStageText = '준비';
+    setChartImportControlsDisabled(true);
+    document.getElementById('chartImportProgress').hidden = false;
+    document.getElementById('chartImportProgressClose').hidden = true;
+    document.getElementById('chartImportProgressTitle').textContent = '엑셀 불러오기';
+    updateChartImportProgress(0, '준비', `${file.name}\n파일을 확인하고 있습니다.`);
+    chartImportElapsedTimer = setInterval(renderChartImportElapsed, 1000);
+    return true;
+  }
+
+  function finishChartImportProgress(success, title, detail) {
+    if (chartImportElapsedTimer) clearInterval(chartImportElapsedTimer);
+    chartImportElapsedTimer = null;
+    const current = Number(document.getElementById('chartImportProgressPercent').textContent.replace('%', '')) || 0;
+    updateChartImportProgress(success ? 100 : current, success ? '완료' : '실패', detail);
+    document.getElementById('chartImportProgressTitle').textContent = title;
+    document.getElementById('chartImportProgressClose').hidden = false;
+    chartImportRunning = false;
+    setChartImportControlsDisabled(false);
+  }
+
+  function yieldChartImportPaint() {
+    return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  }
+
+  document.getElementById('chartImportProgressClose').addEventListener('click', () => {
+    document.getElementById('chartImportProgress').hidden = true;
+  });
+
   window.importChartFile = async function(file, options = {}) {
     if (!file) return;
+    if (!beginChartImportProgress(file)) return null;
     const statusEl = document.getElementById('chartImportStatus');
     statusEl.textContent = '파일 읽는 중...';
 
     try {
+      updateChartImportProgress(5, '파일 읽기', `${file.name}\n엑셀 파일을 메모리로 읽고 있습니다.`);
+      await yieldChartImportPaint();
       const XLSX = await loadXlsx();
       const buf = await file.arrayBuffer();
+      updateChartImportProgress(12, '엑셀 분석', '워크시트와 행 데이터를 분석하고 있습니다.');
+      await yieldChartImportPaint();
       const wb = XLSX.read(buf, { type: 'array', cellText: true, cellDates: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
-      if (!rows.length) { statusEl.textContent = '데이터가 없습니다'; return; }
+      if (!rows.length) {
+        statusEl.textContent = '데이터가 없습니다';
+        finishChartImportProgress(false, '불러오기 실패', '엑셀 파일에 가져올 데이터가 없습니다.');
+        return null;
+      }
 
       const headers = Object.keys(rows[0]);
 
@@ -16579,10 +16678,20 @@
       const colPhone  = detectColumn(headers, ['연락처','전화번호','휴대폰','핸드폰','휴대전화','전화','Tel','TEL','Mobile','Phone']);
       const colInsuranceType = detectColumn(headers, ['보험종별','보험종류','보험구분','보험유형','InsuranceType','Insurance Kind','InsuKind']);
 
-      if (!colChart) { statusEl.textContent = '❌ 차트번호 컬럼을 찾을 수 없습니다. 컬럼명을 확인해주세요.'; return; }
-      if (!colName)  { statusEl.textContent = '❌ 환자명 컬럼을 찾을 수 없습니다.'; return; }
+      if (!colChart) {
+        statusEl.textContent = '❌ 차트번호 컬럼을 찾을 수 없습니다. 컬럼명을 확인해주세요.';
+        finishChartImportProgress(false, '불러오기 실패', '차트번호 컬럼을 찾을 수 없습니다. 컬럼명을 확인해주세요.');
+        return null;
+      }
+      if (!colName) {
+        statusEl.textContent = '❌ 환자명 컬럼을 찾을 수 없습니다.';
+        finishChartImportProgress(false, '불러오기 실패', '환자명 컬럼을 찾을 수 없습니다.');
+        return null;
+      }
 
       statusEl.textContent = `컬럼 감지 완료 → 저장 중...`;
+      updateChartImportProgress(20, '데이터 정리', `총 ${rows.length.toLocaleString()}행을 환자별로 정리하고 있습니다.`);
+      await yieldChartImportPaint();
 
       // 같은 차트번호가 여러 진료일로 들어오므로 환자별로 먼저 합침.
       // 단, 같은 파일 안에서 차트번호가 같고 이름이 다르면 별도 환자로 유지한다.
@@ -16592,6 +16701,11 @@
       const chartNameConflictKeys = new Set();
       let skipped = 0;
       for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        if (rowIndex > 0 && rowIndex % 500 === 0) {
+          const percent = 20 + (rowIndex / rows.length) * 30;
+          updateChartImportProgress(percent, '데이터 정리', `${rowIndex.toLocaleString()} / ${rows.length.toLocaleString()}행 분석 완료`);
+          await yieldChartImportPaint();
+        }
         const row = rows[rowIndex];
         const chartNo = normalizeChartNo(String(row[colChart] || '').trim().replace(/\.0$/, ''));
         const name    = String(row[colName]  || '').trim();
@@ -16678,8 +16792,12 @@
       let existingRecordsForImport = null;
       if (SERVER_MODE) {
         statusEl.textContent = `기존 환자 확인 중...`;
+        updateChartImportProgress(52, '기존 DB 확인', `${patients.length.toLocaleString()}명의 기존 환자 정보를 확인하고 있습니다.`);
+        await yieldChartImportPaint();
         existingRecordsForImport = await getChartPatientsByChartNos(patients.map(patient => patient.chartNo));
       } else {
+        updateChartImportProgress(52, '기존 DB 확인', `${patients.length.toLocaleString()}명의 기존 환자 정보를 확인하고 있습니다.`);
+        await yieldChartImportPaint();
         const conflictDb = await openChartDb();
         existingRecordsForImport = await new Promise((resolve, reject) => {
           const tx = conflictDb.transaction(CHART_STORE, 'readonly');
@@ -16751,6 +16869,7 @@
         ) || {};
         const records = patients.map(agg => buildImportRecord(agg, findExistingForImport(agg)));
         const BATCH = 1000;
+        updateChartImportProgress(62, 'DB 저장', `0 / ${records.length.toLocaleString()}명 저장 완료`);
         for (let i = 0; i < records.length; i += BATCH) {
           const batch = records.slice(i, i + BATCH);
           const res = await fetch('/api/import/patients', {
@@ -16761,16 +16880,21 @@
           if (!res.ok) throw new Error('server patient import failed');
           saved += batch.length;
           statusEl.textContent = `저장 중... ${Math.min(i + BATCH, records.length)} / ${records.length}`;
+          const completed = Math.min(i + BATCH, records.length);
+          updateChartImportProgress(62 + (records.length ? (completed / records.length) * 34 : 34), 'DB 저장', `${completed.toLocaleString()} / ${records.length.toLocaleString()}명 저장 완료`);
+          await yieldChartImportPaint();
         }
         updateChartDbCount();
         refreshAppointmentAlerts();
         statusEl.textContent = `총 ${saved.toLocaleString()}명 저장 완료 (원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped}행 건너뜀` : ''}${splitSummary})`;
+        finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}`);
         notifySplitComplete();
         return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount };
       }
 
       const db = await openChartDb();
       const BATCH = 500;
+      updateChartImportProgress(62, '로컬 DB 저장', `0 / ${patients.length.toLocaleString()}명 저장 완료`);
       for (let i = 0; i < patients.length; i += BATCH) {
         const batch = patients.slice(i, i + BATCH);
         await new Promise((resolve, reject) => {
@@ -16789,16 +16913,21 @@
           tx.onerror = () => reject(tx.error);
         });
         statusEl.textContent = `저장 중... ${Math.min(i + BATCH, patients.length)} / ${patients.length}`;
+        const completed = Math.min(i + BATCH, patients.length);
+        updateChartImportProgress(62 + (patients.length ? (completed / patients.length) * 34 : 34), '로컬 DB 저장', `${completed.toLocaleString()} / ${patients.length.toLocaleString()}명 저장 완료`);
+        await yieldChartImportPaint();
       }
 
       updateChartDbCount();
       refreshAppointmentAlerts();
       statusEl.textContent = `✅ ${saved.toLocaleString()}명 저장 완료 (총 ${rows.length.toLocaleString()}행)${skipped ? ` · ${skipped}행 건너뜀` : ''}${splitSummary}`;
+      finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}`);
       notifySplitComplete();
       return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount };
     } catch(e) {
       console.error(e);
       statusEl.textContent = '❌ 오류: ' + e.message;
+      finishChartImportProgress(false, '엑셀 불러오기 실패', e?.message || String(e));
       return null;
     }
   };
@@ -16809,6 +16938,7 @@
     let before = null;
     try { before = await getChartDbCount(); } catch {}
     const result = await importChartFile(file, { alertSplit: false });
+    if (!result) return;
     let after = null;
     try { after = await getChartDbCount(); } catch {}
     const fmt = (n) => (n == null ? '?' : n.toLocaleString());
@@ -16885,7 +17015,9 @@
     const alertPatientKey = String(assignmentAlert.patientKey || '');
     const bedPatientKey = String(bed?.patientKey || '');
     if (alertPatientKey && bedPatientKey && alertPatientKey !== bedPatientKey) return false;
-    if (fixedBedArrivalShownByBed[bedNo] !== assignmentAlert.key) return false;
+    // 배정 알림은 베드 태블릿에서 환자 이름 팝업을 눌렀을 때 공유 상태에서 제거된다.
+    // 로컬에서 팝업을 그렸는지가 아니라 공유 배정 알림의 존재 여부로 판단해야
+    // 데스크/치료실/원장실 화면도 그때까지 원장 시술 알림을 표시하지 않는다.
     return fixedBedArrivalAcknowledgedByBed[bedNo] !== assignmentAlert.key;
   }
 

@@ -175,6 +175,15 @@
   </div>
 
   <div class="card">
+    <div class="card-title">최근 6개월 진료 환자 연락처</div>
+    <div class="tool-row">
+      <button class="good" id="recentContactsDownloadBtn" type="button">연락처 엑셀 다운로드</button>
+    </div>
+    <div class="note">오늘 기준 6개월 전부터 오늘까지 진료 기록이 있는 환자를 중복 없이 정리합니다. 연락처가 없는 환자는 엑셀에서 제외됩니다.</div>
+    <div class="status" id="recentContactsStatus">대기 중</div>
+  </div>
+
+  <div class="card">
     <div class="card-title">알림톡 엑셀 생성</div>
     <div class="tool-row">
       <textarea class="alerttalk-input" id="alerttalkInput" placeholder="예:
@@ -235,6 +244,8 @@
   const thirdVisitSyncBtn = document.getElementById("thirdVisitSyncBtn");
   const thirdVisitSyncStatus = document.getElementById("thirdVisitSyncStatus");
   const thirdVisitSyncResult = document.getElementById("thirdVisitSyncResult");
+  const recentContactsDownloadBtn = document.getElementById("recentContactsDownloadBtn");
+  const recentContactsStatus = document.getElementById("recentContactsStatus");
   const alerttalkInput = document.getElementById("alerttalkInput");
   const alerttalkCreateBtn = document.getElementById("alerttalkCreateBtn");
   const alerttalkStatus = document.getElementById("alerttalkStatus");
@@ -832,6 +843,60 @@ const DISEASE = [
     return xlsxModulePromise;
   }
 
+  function setRecentContactsStatus(text, type = "") {
+    recentContactsStatus.className = "status" + (type ? ` ${type}` : "");
+    recentContactsStatus.textContent = text;
+  }
+
+  async function downloadRecentVisitContacts() {
+    recentContactsDownloadBtn.disabled = true;
+    setRecentContactsStatus("최근 6개월 진료 환자 조회 중...");
+    try {
+      const [XLSX, res] = await Promise.all([
+        loadXlsxModule(),
+        fetch("/api/patients/visits/recent-contacts?months=6", { cache: "no-store" })
+      ]);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `환자 조회 실패 (${res.status})`);
+
+      const patients = Array.isArray(data.patients) ? data.patients : [];
+      const rows = patients
+        .map(patient => ({
+          name: String(patient.name || "").trim(),
+          phone: normalizeAlerttalkPhone(patient.phone),
+          chartNo: String(patient.chartNo || "").trim(),
+          latestVisitDate: String(patient.latestVisitDate || "").trim(),
+          visitCount: Number(patient.visitCount || 0)
+        }))
+        .filter(patient => patient.phone);
+      const missingPhoneCount = patients.length - rows.length;
+      if (!rows.length) throw new Error("해당 기간에 연락처가 등록된 진료 환자가 없습니다.");
+
+      const sheetRows = [
+        ["이름", "연락처", "차트번호", "최근 진료일", "기간 내 진료 횟수"],
+        ...rows.map(row => [row.name, row.phone, row.chartNo, row.latestVisitDate, row.visitCount])
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+      ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 18 }];
+      ws["!autofilter"] = { ref: `A1:E${sheetRows.length}` };
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "최근 6개월 연락처");
+      const dateKey = String(data.end || "").replace(/-/g, "") || alerttalkTimestamp().slice(0, 8);
+      XLSX.writeFile(wb, `최근6개월_진료환자_연락처_${dateKey}.xlsx`);
+
+      const skipped = missingPhoneCount ? ` / 연락처 없음 ${missingPhoneCount.toLocaleString()}명 제외` : "";
+      setRecentContactsStatus(
+        `${data.start || "-"} ~ ${data.end || "-"} / ${rows.length.toLocaleString()}명 다운로드 완료${skipped}`,
+        "good"
+      );
+    } catch (error) {
+      console.error(error);
+      setRecentContactsStatus(error?.message || "엑셀 다운로드 실패", "error");
+    } finally {
+      recentContactsDownloadBtn.disabled = false;
+    }
+  }
+
   function parseAlerttalkToken(token) {
     const text = String(token || "").trim();
     if (/^[dD]\d+$/.test(text)) return { isD: true, num: Number.parseInt(text.slice(1), 10) };
@@ -1417,6 +1482,7 @@ const DISEASE = [
     if (event.key === "Enter") searchNoFollowupPatients();
   });
   thirdVisitSyncBtn.addEventListener("click", runThirdVisitTestSync);
+  recentContactsDownloadBtn.addEventListener("click", downloadRecentVisitContacts);
   alerttalkCreateBtn.addEventListener("click", createAlerttalkExcels);
   alerttalkInput.addEventListener("keydown", event => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) createAlerttalkExcels();

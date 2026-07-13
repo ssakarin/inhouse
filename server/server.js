@@ -284,6 +284,20 @@ const statements = {
     WHERE pv.visit_date >= ?
     ORDER BY pv.visit_date, pv.chart_no COLLATE NOCASE, p.name COLLATE NOCASE, pv.patient_id
   `),
+  listRecentVisitContacts: db.prepare(`
+    SELECT
+      pv.patient_id,
+      pv.chart_no,
+      p.name,
+      p.phone,
+      MAX(pv.visit_date) AS latest_visit_date,
+      COUNT(DISTINCT pv.visit_date) AS visit_count
+    FROM patient_visits pv
+    INNER JOIN patients p ON p.patient_id = pv.patient_id
+    WHERE pv.visit_date >= ? AND pv.visit_date <= ?
+    GROUP BY pv.patient_id, pv.chart_no, p.name, p.phone
+    ORDER BY latest_visit_date DESC, pv.chart_no COLLATE NOCASE, p.name COLLATE NOCASE, pv.patient_id
+  `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
   upsertState: db.prepare(`
     INSERT INTO app_state (state_key, data_json, updated_at)
@@ -663,6 +677,28 @@ function patientsByVisitMonth(month) {
 function ymd(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
+}
+
+function recentVisitContactsReport(months = 6) {
+  const normalizedMonths = Math.max(1, Math.min(24, Number.parseInt(months, 10) || 6));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const targetMonthIndex = today.getFullYear() * 12 + today.getMonth() - normalizedMonths;
+  const targetYear = Math.floor(targetMonthIndex / 12);
+  const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+  const targetDay = Math.min(today.getDate(), new Date(targetYear, targetMonth + 1, 0).getDate());
+  const startDate = new Date(targetYear, targetMonth, targetDay);
+  const start = ymd(startDate);
+  const end = ymd(today);
+  const patients = statements.listRecentVisitContacts.all(start, end).map(row => ({
+    patientId: row.patient_id || "",
+    chartNo: normalizeChartNo(row.chart_no),
+    name: row.name || "",
+    phone: row.phone || "",
+    latestVisitDate: row.latest_visit_date || "",
+    visitCount: Number(row.visit_count || 0)
+  }));
+  return { months: normalizedMonths, start, end, patients };
 }
 
 function addDays(dateStr, n) {
@@ -2074,7 +2110,8 @@ function sseClientAllowsState(client, key) {
     return key === "settings/treatmentMinutes"
       || key === "settings/doctorAlertManualOrder"
       || key === "staff/doctors"
-      || key === "staff/nurses";
+      || key === "staff/nurses"
+      || key === "bedAssignmentAlerts";
   }
   return key === "settings/treatmentMinutes"
     || key === "settings/doctorAlertManualOrder"
@@ -2322,6 +2359,7 @@ async function handleApi(req, res, pathname) {
     });
     sseSendFrame(client, "retry: 3000\n\n", { countFrame: false });
     sseSendFrame(client, sseFrame("beds", { version: getBedsVersion(), beds: getBedsPayloadForClient(client) }));
+    sseTotals.bedsFrames += 1;
     ping = setInterval(() => {
       try {
         if (client.backpressured) {
@@ -2585,6 +2623,12 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/patients/visits/month" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     jsonResponse(res, 200, patientsByVisitMonth(requestUrl.searchParams.get("month") || ""));
+    return true;
+  }
+
+  if (pathname === "/api/patients/visits/recent-contacts" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, recentVisitContactsReport(requestUrl.searchParams.get("months") || 6));
     return true;
   }
 

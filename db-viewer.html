@@ -510,6 +510,23 @@
   .day-patient-main { font-weight: 900; }
   .day-patient-sub { color: var(--muted); font-size: 11px; font-weight: 800; }
   .file-input { display: none; }
+  .restore-progress-overlay {
+    position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
+    padding: 20px; background: rgba(3, 10, 20, 0.74); backdrop-filter: blur(3px);
+  }
+  .restore-progress-overlay[hidden] { display: none; }
+  .restore-progress-panel {
+    width: min(460px, 100%); padding: 22px; border: 1px solid var(--line); border-radius: 16px;
+    background: var(--panel); box-shadow: 0 18px 60px rgba(0,0,0,0.45);
+  }
+  .restore-progress-title { color: #fff; font-size: 18px; font-weight: 900; margin-bottom: 8px; }
+  .restore-progress-detail { min-height: 44px; color: var(--muted); font-size: 13px; font-weight: 800; line-height: 1.55; white-space: pre-wrap; }
+  .restore-progress-track { height: 12px; margin-top: 14px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.1); }
+  .restore-progress-bar { width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--green)); transition: width 180ms ease; }
+  .restore-progress-bar.indeterminate { width: 45%; animation: restore-progress-slide 1.2s ease-in-out infinite alternate; }
+  @keyframes restore-progress-slide { from { transform: translateX(-30%); } to { transform: translateX(150%); } }
+  .restore-progress-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--muted); font-size: 12px; font-weight: 900; }
+  .restore-progress-close { width: 100%; margin-top: 16px; }
   @media (max-width: 1080px) {
     .editor-layout { grid-template-columns: 1fr; }
     .patient-list-pane { border-right: 0; border-bottom: 1px solid var(--line); }
@@ -523,6 +540,15 @@
 </style>
 </head>
 <body>
+<div class="restore-progress-overlay" id="restoreProgress" hidden role="dialog" aria-modal="true" aria-labelledby="restoreProgressTitle">
+  <div class="restore-progress-panel">
+    <div class="restore-progress-title" id="restoreProgressTitle">DB 복원</div>
+    <div class="restore-progress-detail" id="restoreProgressDetail"></div>
+    <div class="restore-progress-track"><div class="restore-progress-bar" id="restoreProgressBar"></div></div>
+    <div class="restore-progress-meta"><span id="restoreProgressStage">준비</span><span id="restoreProgressPercent">0%</span></div>
+    <button class="restore-progress-close" id="restoreProgressClose" type="button" hidden>확인</button>
+  </div>
+</div>
 <div class="app">
   <div class="grid">
     <section class="card">
@@ -705,7 +731,68 @@
   function setStatus(id, text, isError = false) {
     const el = $(id);
     el.textContent = text;
+    el.hidden = !text;
     el.classList.toggle("error", isError);
+  }
+
+  let restoreRunning = false;
+  let restoreStartedAt = 0;
+  let restoreElapsedTimer = null;
+  let restoreStageText = "";
+
+  function renderRestoreElapsed() {
+    if (!restoreStartedAt) return;
+    const seconds = Math.max(0, Math.floor((Date.now() - restoreStartedAt) / 1000));
+    $("restoreProgressStage").textContent = `${restoreStageText} · ${seconds}초`;
+  }
+
+  function setRestoreProgress(percent, stage, detail, indeterminate = false) {
+    const normalized = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    restoreStageText = stage || restoreStageText || "처리 중";
+    $("restoreProgressBar").classList.toggle("indeterminate", indeterminate);
+    if (!indeterminate) $("restoreProgressBar").style.width = `${normalized}%`;
+    $("restoreProgressPercent").textContent = indeterminate ? "처리 중" : `${normalized}%`;
+    if (detail !== undefined) $("restoreProgressDetail").textContent = detail;
+    renderRestoreElapsed();
+  }
+
+  function beginRestoreProgress(file) {
+    if (restoreRunning) return false;
+    restoreRunning = true;
+    restoreStartedAt = Date.now();
+    $("importIndexedBtn").disabled = true;
+    $("importFileInput").disabled = true;
+    $("restoreProgress").hidden = false;
+    $("restoreProgressClose").hidden = true;
+    $("restoreProgressTitle").textContent = "DB 복원";
+    setRestoreProgress(0, "준비", `${file.name}\n백업 파일을 확인하고 있습니다.`);
+    restoreElapsedTimer = setInterval(renderRestoreElapsed, 1000);
+    return true;
+  }
+
+  function finishRestoreProgress(success, title, detail) {
+    if (restoreElapsedTimer) clearInterval(restoreElapsedTimer);
+    restoreElapsedTimer = null;
+    const current = Number($("restoreProgressPercent").textContent.replace("%", "")) || 0;
+    setRestoreProgress(success ? 100 : current, success ? "완료" : "실패", detail, false);
+    $("restoreProgressTitle").textContent = title;
+    $("restoreProgressClose").hidden = false;
+    $("importIndexedBtn").disabled = false;
+    $("importFileInput").disabled = false;
+    restoreRunning = false;
+  }
+
+  function cancelRestoreProgress() {
+    if (restoreElapsedTimer) clearInterval(restoreElapsedTimer);
+    restoreElapsedTimer = null;
+    $("restoreProgress").hidden = true;
+    $("importIndexedBtn").disabled = false;
+    $("importFileInput").disabled = false;
+    restoreRunning = false;
+  }
+
+  function yieldRestorePaint() {
+    return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
   }
 
   function getType(value) {
@@ -1687,52 +1774,116 @@
 
   async function importIndexedBackup(file) {
     if (!file) return;
+    if (!beginRestoreProgress(file)) return;
+    setStatus("indexedStatus", "복원 파일 읽는 중...");
+    setRestoreProgress(5, "파일 읽기", `${file.name}\n백업 파일을 읽고 있습니다.`);
+    await yieldRestorePaint();
     const text = await file.text();
     const isEncryptedBackup = /\.enc$/i.test(file.name || "") || text.startsWith("enc:v1:");
     if (SERVER_MODE) {
-      let res;
       if (isEncryptedBackup) {
-        if (!confirm("암호화 백업 파일을 서버 DB에 복원/추가할까요?")) return;
-        res = await fetch("/api/import/patients-encrypted", {
+        setRestoreProgress(15, "암호화 파일 확인", "암호화된 서버 백업 파일입니다.");
+        if (!confirm("암호화 백업 파일을 서버 DB에 복원/추가할까요?")) {
+          cancelRestoreProgress();
+          setStatus("indexedStatus", "복원이 취소되었습니다.");
+          return;
+        }
+        setStatus("indexedStatus", "암호 해독 및 서버 DB 복원 중...");
+        setRestoreProgress(35, "암호 해독 및 저장", "서버에서 백업을 해독하고 DB에 저장하고 있습니다.\n완료될 때까지 이 창을 닫지 마세요.", true);
+        await yieldRestorePaint();
+        const res = await fetch("/api/import/patients-encrypted", {
           method: "POST",
           headers: { "Content-Type": "text/plain; charset=utf-8" },
           body: text
         });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(result.error || `서버 복원 실패 (${res.status})`);
+        hasLoadedFullIndexed = false;
+        setRestoreProgress(96, "목록 갱신", "복원이 완료되어 환자 수를 다시 확인하고 있습니다.");
+        await loadIndexedSummary();
+        const saved = Number(result.saved || 0);
+        const skipped = Number(result.skipped || 0);
+        setStatus("indexedStatus", `복원 완료: ${saved.toLocaleString()}명${skipped ? ` · ${skipped.toLocaleString()}건 건너뜀` : ""}`);
+        finishRestoreProgress(true, "DB 복원 완료", `${saved.toLocaleString()}명 저장 완료${skipped ? `\n${skipped.toLocaleString()}건 건너뜀` : ""}`);
+        return;
       } else {
+        setRestoreProgress(15, "JSON 분석", "백업 데이터 형식을 확인하고 있습니다.");
+        await yieldRestorePaint();
         const records = JSON.parse(text);
         if (!Array.isArray(records)) throw new Error("JSON 배열 파일만 복원할 수 있습니다.");
-        if (!confirm(`${records.length}개 레코드를 서버 DB에 덮어쓰기/추가할까요?`)) return;
-        res = await fetch("/api/import/patients", {
-          method: "POST",
-          headers: { "Content-Type": "application/json; charset=utf-8" },
-          body: JSON.stringify({ mode: "merge", patients: records.map(withPackageBalances) })
-        });
+        setRestoreProgress(22, "복원 확인", `${records.length.toLocaleString()}명의 백업 데이터를 확인했습니다.`);
+        if (!confirm(`${records.length}개 레코드를 서버 DB에 덮어쓰기/추가할까요?`)) {
+          cancelRestoreProgress();
+          setStatus("indexedStatus", "복원이 취소되었습니다.");
+          return;
+        }
+        const normalizedRecords = records.map(withPackageBalances);
+        const batchSize = 500;
+        let saved = 0;
+        let skipped = 0;
+        setStatus("indexedStatus", `서버 DB 복원 중... 0 / ${records.length.toLocaleString()}`);
+        for (let i = 0; i < normalizedRecords.length; i += batchSize) {
+          const batch = normalizedRecords.slice(i, i + batchSize);
+          const res = await fetch("/api/import/patients", {
+            method: "POST",
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            body: JSON.stringify({ mode: "merge", patients: batch, backup: true })
+          });
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(result.error || `서버 복원 실패 (${res.status})`);
+          saved += Number(result.saved || 0);
+          skipped += Number(result.skipped || 0);
+          const completed = Math.min(i + batch.length, normalizedRecords.length);
+          const percent = 25 + (normalizedRecords.length ? (completed / normalizedRecords.length) * 70 : 70);
+          setStatus("indexedStatus", `서버 DB 복원 중... ${completed.toLocaleString()} / ${normalizedRecords.length.toLocaleString()}`);
+          setRestoreProgress(percent, "서버 DB 저장", `${completed.toLocaleString()} / ${normalizedRecords.length.toLocaleString()}명 처리 완료`);
+          await yieldRestorePaint();
+        }
+        hasLoadedFullIndexed = false;
+        setRestoreProgress(96, "목록 갱신", "복원이 완료되어 환자 수를 다시 확인하고 있습니다.");
+        await loadIndexedSummary();
+        setStatus("indexedStatus", `복원 완료: ${saved.toLocaleString()}명${skipped ? ` · ${skipped.toLocaleString()}건 건너뜀` : ""}`);
+        finishRestoreProgress(true, "DB 복원 완료", `${saved.toLocaleString()}명 저장 완료${skipped ? `\n${skipped.toLocaleString()}건 건너뜀` : ""}`);
+        return;
       }
-      if (!res.ok) throw new Error(`서버 복원 실패 (${res.status})`);
-      hasLoadedFullIndexed = false;
-      await loadIndexedSummary();
-      setStatus("indexedStatus", "복원됨");
-      return;
     }
     if (isEncryptedBackup) throw new Error("암호화 백업은 서버 모드에서만 복원할 수 있습니다.");
+    setRestoreProgress(15, "JSON 분석", "백업 데이터 형식을 확인하고 있습니다.");
+    await yieldRestorePaint();
     const records = JSON.parse(text);
     if (!Array.isArray(records)) throw new Error("JSON 배열 파일만 복원할 수 있습니다.");
-    if (!confirm(`${records.length}개 레코드를 현재 IndexedDB에 덮어쓰기/추가할까요?`)) return;
-    const { db, tx, store } = await transactionStore("readwrite");
-    try {
-      await new Promise((resolve, reject) => {
-        records.forEach(record => {
-          if (record?.chartNo) store.put(withPackageBalances(record));
+    if (!confirm(`${records.length}개 레코드를 현재 IndexedDB에 덮어쓰기/추가할까요?`)) {
+      cancelRestoreProgress();
+      setStatus("indexedStatus", "복원이 취소되었습니다.");
+      return;
+    }
+    const validRecords = records.filter(record => record?.chartNo).map(withPackageBalances);
+    const batchSize = 500;
+    let saved = 0;
+    for (let i = 0; i < validRecords.length; i += batchSize) {
+      const batch = validRecords.slice(i, i + batchSize);
+      const { db, tx, store } = await transactionStore("readwrite");
+      try {
+        await new Promise((resolve, reject) => {
+          batch.forEach(record => store.put(record));
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
         });
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-    } finally {
-      db.close();
+      } finally {
+        db.close();
+      }
+      saved += batch.length;
+      const percent = 25 + (validRecords.length ? (saved / validRecords.length) * 70 : 70);
+      setStatus("indexedStatus", `로컬 DB 복원 중... ${saved.toLocaleString()} / ${validRecords.length.toLocaleString()}`);
+      setRestoreProgress(percent, "로컬 DB 저장", `${saved.toLocaleString()} / ${validRecords.length.toLocaleString()}명 처리 완료`);
+      await yieldRestorePaint();
     }
     hasLoadedFullIndexed = false;
+    setRestoreProgress(96, "목록 갱신", "복원이 완료되어 환자 수를 다시 확인하고 있습니다.");
     await loadIndexedSummary();
-    setStatus("indexedStatus", "복원됨");
+    const skipped = records.length - validRecords.length;
+    setStatus("indexedStatus", `복원 완료: ${saved.toLocaleString()}명${skipped ? ` · ${skipped.toLocaleString()}건 건너뜀` : ""}`);
+    finishRestoreProgress(true, "DB 복원 완료", `${saved.toLocaleString()}명 저장 완료${skipped ? `\n${skipped.toLocaleString()}건 건너뜀` : ""}`);
   }
 
   async function refreshAll() {
@@ -1801,10 +1952,16 @@
   });
   $("exportIndexedBtn").addEventListener("click", exportIndexedBackup);
   $("importIndexedBtn").addEventListener("click", () => $("importFileInput").click());
-  $("importFileInput").addEventListener("change", event => importIndexedBackup(event.target.files?.[0]).catch(error => {
-    setStatus("indexedStatus", "오류", true);
-    $("selectedPatientStatus").textContent = error?.message || String(error);
-  }));
+  $("restoreProgressClose").addEventListener("click", () => { $("restoreProgress").hidden = true; });
+  $("importFileInput").addEventListener("change", event => {
+    const input = event.currentTarget;
+    importIndexedBackup(input.files?.[0]).catch(error => {
+      const message = error?.message || String(error);
+      setStatus("indexedStatus", `복원 오류: ${message}`, true);
+      $("selectedPatientStatus").textContent = message;
+      finishRestoreProgress(false, "DB 복원 실패", message);
+    }).finally(() => { input.value = ""; });
+  });
   disableAutocomplete();
 
   refreshAll();
