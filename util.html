@@ -184,6 +184,23 @@
   </div>
 
   <div class="card">
+    <div class="card-title">패키지·스파인 설정 내역</div>
+    <div class="tool-row">
+      <button class="good" id="settingsHistoryWeekBtn" type="button">최근 1주일 엑셀</button>
+      <button class="good" id="settingsHistoryMonthBtn" type="button">최근 1개월 엑셀</button>
+    </div>
+    <div class="tool-row" style="margin-top:10px">
+      <input class="search-input" id="settingsHistoryStartInput" type="date" aria-label="내역 시작일">
+      <span class="note" style="margin-top:0">부터</span>
+      <input class="search-input" id="settingsHistoryEndInput" type="date" aria-label="내역 종료일">
+      <span class="note" style="margin-top:0">까지</span>
+      <button class="good" id="settingsHistoryCustomBtn" type="button">선택 기간 엑셀</button>
+    </div>
+    <div class="note">XLSX 한 파일에 패키지 결제·보너스·사용 내역과 스파인 설정을 시트별로 저장합니다. 스파인은 변경 이력을 누적 저장하지 않으므로, 선택 기간에 마지막으로 수정된 현재 설정만 포함됩니다.</div>
+    <div class="status" id="settingsHistoryStatus">대기 중</div>
+  </div>
+
+  <div class="card">
     <div class="card-title">알림톡 엑셀 생성</div>
     <div class="tool-row">
       <textarea class="alerttalk-input" id="alerttalkInput" placeholder="예:
@@ -246,6 +263,12 @@
   const thirdVisitSyncResult = document.getElementById("thirdVisitSyncResult");
   const recentContactsDownloadBtn = document.getElementById("recentContactsDownloadBtn");
   const recentContactsStatus = document.getElementById("recentContactsStatus");
+  const settingsHistoryWeekBtn = document.getElementById("settingsHistoryWeekBtn");
+  const settingsHistoryMonthBtn = document.getElementById("settingsHistoryMonthBtn");
+  const settingsHistoryStartInput = document.getElementById("settingsHistoryStartInput");
+  const settingsHistoryEndInput = document.getElementById("settingsHistoryEndInput");
+  const settingsHistoryCustomBtn = document.getElementById("settingsHistoryCustomBtn");
+  const settingsHistoryStatus = document.getElementById("settingsHistoryStatus");
   const alerttalkInput = document.getElementById("alerttalkInput");
   const alerttalkCreateBtn = document.getElementById("alerttalkCreateBtn");
   const alerttalkStatus = document.getElementById("alerttalkStatus");
@@ -897,6 +920,159 @@ const DISEASE = [
     }
   }
 
+  function setSettingsHistoryStatus(text, type = "") {
+    settingsHistoryStatus.className = "status" + (type ? ` ${type}` : "");
+    settingsHistoryStatus.textContent = text;
+  }
+
+  function makeReportSheet(XLSX, rows, widths) {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = widths.map(wch => ({ wch }));
+    if (rows.length) ws["!autofilter"] = { ref: `A1:${XLSX.utils.encode_col(rows[0].length - 1)}${rows.length}` };
+    return ws;
+  }
+
+  function spineConditionLabel(value) {
+    if (value === "ddd") return "협착증(DDD)";
+    if (value === "hnp") return "디스크(HNP)";
+    return value || "";
+  }
+
+  function localReportDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function quickSettingsHistoryRange(period) {
+    const endDate = new Date();
+    endDate.setHours(0, 0, 0, 0);
+    const startDate = new Date(endDate);
+    if (period === "month") {
+      const originalDay = startDate.getDate();
+      startDate.setDate(1);
+      startDate.setMonth(startDate.getMonth() - 1);
+      const lastDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
+      startDate.setDate(Math.min(originalDay, lastDay));
+    } else {
+      startDate.setDate(startDate.getDate() - 6);
+    }
+    return { start: localReportDate(startDate), end: localReportDate(endDate) };
+  }
+
+  function initializeSettingsHistoryDates() {
+    const range = quickSettingsHistoryRange("week");
+    settingsHistoryStartInput.value = range.start;
+    settingsHistoryEndInput.value = range.end;
+  }
+
+  async function downloadSettingsHistory(period) {
+    const normalizedPeriod = period === "custom" ? "custom" : (period === "month" ? "month" : "week");
+    const periodLabel = normalizedPeriod === "custom" ? "선택 기간" : (normalizedPeriod === "month" ? "최근 1개월" : "최근 1주일");
+    let start = settingsHistoryStartInput.value;
+    let end = settingsHistoryEndInput.value;
+    if (normalizedPeriod === "custom") {
+      if (!start || !end) {
+        setSettingsHistoryStatus("시작일과 종료일을 모두 선택해 주세요.", "error");
+        return;
+      }
+      if (start > end) {
+        setSettingsHistoryStatus("시작일은 종료일보다 늦을 수 없습니다.", "error");
+        return;
+      }
+    } else {
+      ({ start, end } = quickSettingsHistoryRange(normalizedPeriod));
+      settingsHistoryStartInput.value = start;
+      settingsHistoryEndInput.value = end;
+    }
+    const query = new URLSearchParams({ period: normalizedPeriod });
+    if (normalizedPeriod === "custom") {
+      query.set("start", start);
+      query.set("end", end);
+    }
+    settingsHistoryWeekBtn.disabled = true;
+    settingsHistoryMonthBtn.disabled = true;
+    settingsHistoryCustomBtn.disabled = true;
+    settingsHistoryStartInput.disabled = true;
+    settingsHistoryEndInput.disabled = true;
+    setSettingsHistoryStatus(`${periodLabel} 패키지·스파인 내역 조회 중...`);
+    try {
+      const [XLSX, res] = await Promise.all([
+        loadXlsxModule(),
+        fetch(`/api/patients/settings-history?${query.toString()}`, { cache: "no-store" })
+      ]);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `내역 조회 실패 (${res.status})`);
+      const packageRows = Array.isArray(data.packageRows) ? data.packageRows : [];
+      const spineRows = Array.isArray(data.spineRows) ? data.spineRows : [];
+
+      const wb = XLSX.utils.book_new();
+      const infoRows = [
+        ["항목", "내용"],
+        ["보고서", `${periodLabel} 패키지·스파인 설정 내역`],
+        ["조회 기간", `${data.start || "-"} ~ ${data.end || "-"}`],
+        ["생성 시각", new Date().toLocaleString("ko-KR")],
+        ["패키지 내역", "기간 내 결제·보너스·사용 기록을 한 행씩 표시"],
+        ["스파인 설정", "변경 이력이 아닌, 기간 내 마지막 수정된 현재 설정을 표시"],
+        ["패키지 건수", packageRows.length],
+        ["스파인 설정 환자 수", spineRows.length]
+      ];
+      XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, infoRows, [22, 62]), "안내");
+
+      const packageSheetRows = [
+        ["날짜", "구분", "패키지", "패키지 코드", "수량", "환자명", "차트번호", "현재 잔여량"],
+        ...packageRows.map(row => [
+          row.date || "",
+          row.type || "",
+          row.packageName || "",
+          row.packageKey || "",
+          Number(row.qty || 0),
+          row.name || "",
+          String(row.chartNo || ""),
+          Number(row.currentBalance || 0)
+        ])
+      ];
+      XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, packageSheetRows, [13, 10, 20, 18, 10, 16, 14, 14]), "패키지 내역");
+
+      const spineSheetRows = [
+        ["마지막 수정일시", "환자명", "차트번호", "경추 구간", "경추 Force", "경추 상태", "경추 회전", "요추 구간", "요추 Force", "요추 상태", "요추 회전"],
+        ...spineRows.map(row => [
+          row.updatedAt || "",
+          row.name || "",
+          String(row.chartNo || ""),
+          row.cervicalLevels || "",
+          row.cervicalForce === "" ? "" : Number(row.cervicalForce),
+          spineConditionLabel(row.cervicalCondition),
+          row.cervicalRotation === "" ? "" : Number(row.cervicalRotation),
+          row.lumbarLevels || "",
+          row.lumbarForce === "" ? "" : Number(row.lumbarForce),
+          spineConditionLabel(row.lumbarCondition),
+          row.lumbarRotation === "" ? "" : Number(row.lumbarRotation)
+        ])
+      ];
+      XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, spineSheetRows, [20, 16, 14, 24, 13, 18, 12, 24, 13, 18, 12]), "스파인 설정");
+
+      const dateKey = normalizedPeriod === "custom"
+        ? `${String(data.start || start).replace(/-/g, "")}-${String(data.end || end).replace(/-/g, "")}`
+        : (String(data.end || "").replace(/-/g, "") || alerttalkTimestamp().slice(0, 8));
+      XLSX.writeFile(wb, `${periodLabel.replace(/\s/g, "")}_패키지_스파인내역_${dateKey}.xlsx`);
+      setSettingsHistoryStatus(
+        `${data.start || "-"} ~ ${data.end || "-"} / 패키지 ${packageRows.length.toLocaleString()}건 · 스파인 ${spineRows.length.toLocaleString()}명 다운로드 완료`,
+        "good"
+      );
+    } catch (error) {
+      console.error(error);
+      setSettingsHistoryStatus(error?.message || "엑셀 다운로드 실패", "error");
+    } finally {
+      settingsHistoryWeekBtn.disabled = false;
+      settingsHistoryMonthBtn.disabled = false;
+      settingsHistoryCustomBtn.disabled = false;
+      settingsHistoryStartInput.disabled = false;
+      settingsHistoryEndInput.disabled = false;
+    }
+  }
+
   function parseAlerttalkToken(token) {
     const text = String(token || "").trim();
     if (/^[dD]\d+$/.test(text)) return { isD: true, num: Number.parseInt(text.slice(1), 10) };
@@ -1483,6 +1659,10 @@ const DISEASE = [
   });
   thirdVisitSyncBtn.addEventListener("click", runThirdVisitTestSync);
   recentContactsDownloadBtn.addEventListener("click", downloadRecentVisitContacts);
+  settingsHistoryWeekBtn.addEventListener("click", () => downloadSettingsHistory("week"));
+  settingsHistoryMonthBtn.addEventListener("click", () => downloadSettingsHistory("month"));
+  settingsHistoryCustomBtn.addEventListener("click", () => downloadSettingsHistory("custom"));
+  initializeSettingsHistoryDates();
   alerttalkCreateBtn.addEventListener("click", createAlerttalkExcels);
   alerttalkInput.addEventListener("keydown", event => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) createAlerttalkExcels();

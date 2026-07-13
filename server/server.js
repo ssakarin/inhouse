@@ -701,6 +701,132 @@ function recentVisitContactsReport(months = 6) {
   return { months: normalizedMonths, start, end, patients };
 }
 
+const PACKAGE_REPORT_LABELS = {
+  p6: "약침 6",
+  p13: "약침 13",
+  "p초음파6": "초음파약침 6",
+  "p초음파13": "초음파약침 13",
+  "p자하거": "약침(자하거)",
+  "p라인": "약침(라인)"
+};
+
+function isValidReportDate(value) {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T00:00:00`);
+  return !Number.isNaN(date.getTime()) && ymd(date) === text;
+}
+
+function reportDateRange(period = "week", requestedStart = "", requestedEnd = "") {
+  const customStart = String(requestedStart || "").trim();
+  const customEnd = String(requestedEnd || "").trim();
+  if (customStart || customEnd) {
+    if (!isValidReportDate(customStart) || !isValidReportDate(customEnd)) throw new Error("start and end must be YYYY-MM-DD");
+    if (customStart > customEnd) throw new Error("start must be on or before end");
+    return { period: "custom", start: customStart, end: customEnd };
+  }
+  const normalizedPeriod = period === "month" ? "month" : "week";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let startDate;
+  if (normalizedPeriod === "month") {
+    const targetMonthIndex = today.getFullYear() * 12 + today.getMonth() - 1;
+    const targetYear = Math.floor(targetMonthIndex / 12);
+    const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+    const targetDay = Math.min(today.getDate(), new Date(targetYear, targetMonth + 1, 0).getDate());
+    startDate = new Date(targetYear, targetMonth, targetDay);
+  } else {
+    startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 6);
+  }
+  return { period: normalizedPeriod, start: ymd(startDate), end: ymd(today) };
+}
+
+function packageReportEntries(value, type) {
+  if (Array.isArray(value)) return value.map((entry, index) => ({ id: entry?.id || String(index), ...(entry || {}) }));
+  return Object.entries(value || {}).map(([id, entry]) => ({ id, ...(entry || {}) }));
+}
+
+function packageReportBalance(pkg = {}) {
+  const opening = Number(pkg.openingQty || 0) || 0;
+  const purchases = packageReportEntries(pkg.purchases, "purchase").reduce((sum, entry) => sum + (Number(entry.qty ?? entry.totalQty ?? 0) || 0), 0);
+  const usages = packageReportEntries(pkg.usages, "usage").reduce((sum, entry) => sum + (Number(entry.qty ?? entry.totalQty ?? 0) || 0), 0);
+  return Math.max(0, opening + purchases - usages);
+}
+
+function localDateTimeString(timestamp) {
+  const date = new Date(Number(timestamp || 0));
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = value => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function patientSettingsHistoryReport(period = "week", start = "", end = "") {
+  const range = reportDateRange(period, start, end);
+  const packageRows = [];
+  const spineRows = [];
+  for (const patient of listPatients()) {
+    const identity = {
+      patientId: patient.patientId || "",
+      chartNo: normalizeChartNo(patient.chartNo),
+      name: patient.name || ""
+    };
+    const packages = patient.packages && typeof patient.packages === "object" ? patient.packages : {};
+    Object.entries(packages).forEach(([key, pkg]) => {
+      const currentBalance = packageReportBalance(pkg || {});
+      packageReportEntries(pkg?.purchases, "purchase").forEach(entry => {
+        const date = String(entry.date || "").trim();
+        const qty = Number(entry.qty ?? entry.totalQty ?? 0) || 0;
+        if (qty <= 0 || date < range.start || date > range.end) return;
+        packageRows.push({
+          ...identity,
+          date,
+          type: entry.kind === "bonus" ? "보너스" : "결제",
+          packageName: PACKAGE_REPORT_LABELS[key] || key,
+          packageKey: key,
+          qty,
+          currentBalance
+        });
+      });
+      packageReportEntries(pkg?.usages, "usage").forEach(entry => {
+        const date = String(entry.date || "").trim();
+        const qty = Number(entry.qty ?? entry.totalQty ?? 0) || 0;
+        if (qty <= 0 || date < range.start || date > range.end) return;
+        packageRows.push({
+          ...identity,
+          date,
+          type: "사용",
+          packageName: PACKAGE_REPORT_LABELS[key] || key,
+          packageKey: key,
+          qty,
+          currentBalance
+        });
+      });
+    });
+
+    const spine = patient.spineSettings && typeof patient.spineSettings === "object" ? patient.spineSettings : null;
+    const updatedAt = Number(spine?.updatedAt || 0);
+    const updatedDate = updatedAt ? ymd(new Date(updatedAt)) : "";
+    if (spine && updatedDate >= range.start && updatedDate <= range.end) {
+      spineRows.push({
+        ...identity,
+        updatedAt: localDateTimeString(updatedAt),
+        cervicalLevels: Array.isArray(spine.cervicalLevels) ? spine.cervicalLevels.join(", ") : "",
+        cervicalForce: spine.cervicalForce ?? "",
+        cervicalCondition: spine.cervicalCondition || "",
+        cervicalRotation: spine.cervicalRotation ?? "",
+        lumbarLevels: Array.isArray(spine.lumbarLevels) ? spine.lumbarLevels.join(", ") : "",
+        lumbarForce: spine.lumbarForce ?? "",
+        lumbarCondition: spine.lumbarCondition || "",
+        lumbarRotation: spine.lumbarRotation ?? ""
+      });
+    }
+  }
+  packageRows.sort((a, b) => b.date.localeCompare(a.date) || a.chartNo.localeCompare(b.chartNo, "ko", { numeric: true }));
+  spineRows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.chartNo.localeCompare(b.chartNo, "ko", { numeric: true }));
+  return { ...range, packageRows, spineRows, spineHistoryMode: "latest-settings-updated-in-range" };
+}
+
 function addDays(dateStr, n) {
   const d = new Date(`${dateStr}T00:00:00`);
   d.setDate(d.getDate() + n);
@@ -2629,6 +2755,16 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/patients/visits/recent-contacts" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     jsonResponse(res, 200, recentVisitContactsReport(requestUrl.searchParams.get("months") || 6));
+    return true;
+  }
+
+  if (pathname === "/api/patients/settings-history" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, patientSettingsHistoryReport(
+      requestUrl.searchParams.get("period") || "week",
+      requestUrl.searchParams.get("start") || "",
+      requestUrl.searchParams.get("end") || ""
+    ));
     return true;
   }
 
