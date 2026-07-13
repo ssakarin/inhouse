@@ -6384,6 +6384,24 @@
     await localBedsRequest('/api/beds/remove', { bedNo });
   }
 
+  async function retryClearBedStep(label, operation, maxAttempts = 4) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const result = await operation();
+        if (result === false) throw new Error(`${label} 실패`);
+        return result;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts) break;
+        console.warn(`${label} 실패 · 재시도 ${attempt}/${maxAttempts - 1}`, error);
+        showToast(`${label} 통신 오류 · 재시도 중 (${attempt}/${maxAttempts - 1})`);
+        await new Promise(resolve => setTimeout(resolve, attempt * 800));
+      }
+    }
+    throw lastError || new Error(`${label} 실패`);
+  }
+
   async function runBedRecordTransaction(bedNo, mutator) {
     const key = String(bedNo);
     for (let attempt = 0; attempt < 6; attempt++) {
@@ -6419,6 +6437,7 @@
   let draggedBedNo = null;
   let draggedTreatment = null; // { bedNo, fromIndex }
   let draggedWaitingPatientKey = null;
+  const clearingBedNumbers = new Set();
   const ADDED_TREATMENT_ALERT_MS = 30000;
   const transientAddedTreatmentAlerts = [];
   const transientAddedTreatmentAlertTimers = new Map();
@@ -14161,9 +14180,9 @@
       ? applyPostTreatmentPackageBalances(getPackageStateFromPatient(patient || {}), bed, visitDate || '')
       : getPackageStateFromPatient(patient || {});
 
-    // IndexedDB에 먼저 저장 (차트번호 있는 경우)
+    // 차트 DB에 먼저 저장 (차트번호 있는 경우)
     if (bed?.chartNo) {
-      await window.saveChartPatient?.({
+      await retryClearBedStep('차트 저장', () => window.saveChartPatient?.({
         patientId: patient?.patientId || bed.patientId || '',
         chartNo: normalizeChartNo(bed.chartNo),
         name: bed.name || '',
@@ -14184,7 +14203,7 @@
         appointmentDate: normalizeAppointmentDates(patient || {})[0] || '',
         packages: indexDbPackages,
         ...getPCreditsFromPackages(indexDbPackages)
-      });
+      }));
     }
 
     if (bed) {
@@ -14205,14 +14224,10 @@
       };
       const existingDischargedKey = findExistingDischargedPatientKey(dischargedRecord);
       const dischargedKey = existingDischargedKey || bed.patientKey || `bed-${bedNo}-${dischargedAt}`;
-      try {
-        await saveDischargedPatientRecord(dischargeDate, dischargedKey, dischargedRecord);
-        dischargedPatientsByKey.set(dischargedKey, dischargedRecord);
-        renderDischargedPatientsList();
-        updateCount();
-      } catch (e) {
-        console.error('퇴실환자 저장 실패', e);
-      }
+      await retryClearBedStep('퇴실환자 저장', () => saveDischargedPatientRecord(dischargeDate, dischargedKey, dischargedRecord));
+      dischargedPatientsByKey.set(dischargedKey, dischargedRecord);
+      renderDischargedPatientsList();
+      updateCount();
       recentlyClearedBedPatients.set(Number(bedNo), {
         bed: {
           ...bed,
@@ -14231,11 +14246,14 @@
     }
 
     if (bed?.patientKey) {
+      await retryClearBedStep('실시간 환자 정리', () => removePatient(bed.patientKey));
+    }
+    await retryClearBedStep('베드 비우기', () => removeBedRecord(bedNo));
+    if (bed?.patientKey) {
       patientsByKey.delete(bed.patientKey);
       loadedKeys.delete(bed.patientKey);
-      await removePatient(bed.patientKey);
     }
-    await removeBedRecord(bedNo);
+    return true;
   };
 
   window.restoreRecentlyClearedBedPatient = async (bedNo) => {
@@ -14307,9 +14325,25 @@
   };
 
   window.confirmClearBedNumber = async (bedNo) => {
+    bedNo = Number(bedNo);
+    if (clearingBedNumbers.has(bedNo)) {
+      showToast(`${getBedLabel(bedNo)} 비우기 처리 중입니다`);
+      return false;
+    }
     const bed = getBedData(bedNo);
-    if (!bed) return;
-    await clearBed(bedNo, toLocalDateInputValue());
+    if (!bed) return false;
+    clearingBedNumbers.add(bedNo);
+    try {
+      await clearBed(bedNo, toLocalDateInputValue());
+      showToast(`${getBedLabel(bedNo)} 비우기 완료`);
+      return true;
+    } catch (error) {
+      console.error('베드 비우기 최종 실패', error);
+      showToast(`${getBedLabel(bedNo)} 비우기 실패 · 통신 확인 후 다시 눌러주세요`);
+      return false;
+    } finally {
+      clearingBedNumbers.delete(bedNo);
+    }
   };
 
   window.confirmClearSelectedBed = async () => {
