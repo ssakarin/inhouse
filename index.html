@@ -5920,10 +5920,15 @@
 
   function scheduleLongTermChartGridSync(gridId, patch = {}) {
     if (!gridId || !shouldSyncLongTermChartPatch(patch)) return;
-    const timerKey = `grid:${gridId}`;
+    const payload = buildLongTermChartGridSyncPayload(gridId, patch);
+    if (!payload) return;
+    const identity = String(payload.patientId || `chart:${payload.chartNo}:${normalizePatientIdentity(payload.name)}`);
+    const timerKey = `grid:${gridId}:${identity}`;
     const previous = longTermChartPendingSyncs.get(timerKey);
-    const mergedPatch = previous?.type === 'grid' ? { ...(previous.patch || {}), ...patch } : { ...patch };
-    longTermChartPendingSyncs.set(timerKey, { type: 'grid', gridId, patch: mergedPatch });
+    const nextPayload = previous?.type === 'payload'
+      ? { ...(previous.payload || {}), ...clonePlain(payload) }
+      : clonePlain(payload);
+    longTermChartPendingSyncs.set(timerKey, { type: 'payload', payload: nextPayload });
     clearTimeout(longTermChartSaveTimers.get(timerKey));
     longTermChartSaveTimers.set(timerKey, setTimeout(() => {
       flushLongTermChartSync(timerKey).catch(error => console.warn('long-term chart sync failed', error));
@@ -5938,9 +5943,11 @@
         if (!pending) return true;
         clearTimeout(longTermChartSaveTimers.get(timerKey));
         longTermChartSaveTimers.delete(timerKey);
-        const payload = pending.type === 'grid'
-          ? buildLongTermChartGridSyncPayload(pending.gridId, pending.patch)
-          : buildLongTermChartSyncPayload(pending.patientKey, pending.patch);
+        const payload = pending.type === 'payload'
+          ? clonePlain(pending.payload || {})
+          : pending.type === 'grid'
+            ? buildLongTermChartGridSyncPayload(pending.gridId, pending.patch)
+            : buildLongTermChartSyncPayload(pending.patientKey, pending.patch);
         if (!payload) {
           if (longTermChartPendingSyncs.get(timerKey) === pending) longTermChartPendingSyncs.delete(timerKey);
           return true;
@@ -5964,10 +5971,11 @@
   function flushLongTermChartGridSync(gridId) {
     if (!gridId) return Promise.resolve(true);
     const patientKey = getPatientKeyForCreditGrid(gridId);
-    if (patientKey) {
-      return flushLongTermChartSync(String(patientKey));
-    }
-    return flushLongTermChartSync(`grid:${gridId}`);
+    const timerKeys = [...longTermChartPendingSyncs.keys()]
+      .filter(key => String(key).startsWith(`grid:${gridId}:`));
+    if (patientKey) timerKeys.push(String(patientKey));
+    if (!timerKeys.length) return Promise.resolve(true);
+    return Promise.all([...new Set(timerKeys)].map(flushLongTermChartSync)).then(() => true);
   }
 
   // Patients (the live board working set, separate from the SQLite chart DB).
@@ -7286,7 +7294,7 @@
       pharmacopuncture_1: hasChuna ? 0.5 : 1,
       pharmacopuncture_2: hasChuna ? 1 : 2,
       pharmacopuncture_3: hasChuna ? 1 : 2,
-      pharmacopuncture_4: hasChuna ? 2 : 4
+      pharmacopuncture_4: hasChuna ? 3 : 6
     };
     const deduction = treatmentIds.reduce((sum, id) => sum + (unitMapById[id] || 0), 0);
     const hasPackageRecord = (key) => {
@@ -9014,6 +9022,19 @@
     selectedChartPatientByScope[scope] = patient && (patient.patientId || patient.chartNo) ? patient : null;
   }
 
+  function hasPatientChartIdentityConflict(patient, nextChartNo) {
+    if (!patient?.patientId) return false;
+    const currentChartNo = normalizeChartNo(patient.chartNo || '');
+    const normalizedNextChartNo = normalizeChartNo(nextChartNo || '');
+    return Boolean(currentChartNo && normalizedNextChartNo && currentChartNo !== normalizedNextChartNo);
+  }
+
+  function blockPatientChartIdentityConflict(patient, nextChartNo) {
+    if (!hasPatientChartIdentityConflict(patient, nextChartNo)) return false;
+    showToast(`차트번호 변경 불가 · 이 환자는 ${normalizeChartNo(patient.chartNo)}번으로 연결되어 있습니다`);
+    return true;
+  }
+
   window.submitPatient = async (scope = 'desk') => {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     if ((scope === 'desk' || scope === 'receive') && formEditBedNoByScope[scope]) {
@@ -9054,6 +9075,7 @@
     // (재사용하면 베드비우기 저장 시 기존 환자 레코드를 덮어써 한 명만 남는다)
     const selectedChartPatient = selectedChartPatientByScope[scope];
     const isSameChartPatient = Boolean(selectedChartPatient &&
+      normalizeChartNo(selectedChartPatient.chartNo) === chartNo &&
       normalizePatientIdentity(selectedChartPatient.name) === normalizePatientIdentity(name));
     const patientId = isSameChartPatient ? (selectedChartPatient.patientId || '') : '';
     // 보험 정보는 동일 환자일 때만 차트 레코드에서 가져온다(다른 사람이면 그 사람 정보가 아니므로 제외).
@@ -9805,6 +9827,7 @@
 
     const form = getFormValues('bed');
     if (!form.name) { showToast('❗ 성함을 입력해주세요'); return; }
+    if (blockPatientChartIdentityConflict(bed, form.chartNo)) return;
 
     const btn = document.getElementById(form.ids.submitBtn);
     btn.disabled = true;
@@ -9910,6 +9933,7 @@
       visitType: document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진',
       gender: document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남',
     };
+    if (blockPatientChartIdentityConflict(bed, payload.chartNo)) return;
 
     const btn = document.getElementById(ids.submitBtn);
     btn.disabled = true;
@@ -9938,6 +9962,7 @@
 
     const form = getFormValues(scope);
     if (!form.name) { showToast('❗ 성함을 입력해주세요'); return false; }
+    if (blockPatientChartIdentityConflict(patient, form.chartNo)) return false;
 
     const memo2Date = getMemo2HistoryDate(patient);
     const payload = {
@@ -9986,6 +10011,7 @@
 
     const form = getFormValues(scope);
     if (!form.name) { showToast('❗ 성함을 입력해주세요'); return false; }
+    if (blockPatientChartIdentityConflict(patient, form.chartNo)) return false;
 
     const memo2Date = getMemo2HistoryDate(patient);
     const payload = {
@@ -13286,7 +13312,7 @@
       pharmacopuncture_1: hasChuna ? 0.5 : 1,
       pharmacopuncture_2: hasChuna ? 1 : 2,
       pharmacopuncture_3: hasChuna ? 1 : 2,
-      pharmacopuncture_4: hasChuna ? 2 : 4
+      pharmacopuncture_4: hasChuna ? 3 : 6
     };
     const deduction = treatmentIds.reduce((sum, id) => sum + (unitMapById[id] || 0), 0);
 
@@ -14106,6 +14132,36 @@
     editTimerClock(Number(target.dataset.timerEditBed));
   });
 
+  function hasStoredPackageData(source = {}) {
+    const packages = source?.packages || {};
+    const hasHistory = PCREDIT_FIELDS.some(({ key }) => {
+      const pkg = packages[key] || {};
+      return Number(pkg.openingQty || 0) > 0
+        || normalizePackageEntries(pkg.purchases, 'purchase').length > 0
+        || normalizePackageEntries(pkg.usages, 'usage').length > 0;
+    });
+    if (hasHistory) return true;
+    return PCREDIT_FIELDS.some(({ key }) => Number(source?.[key] || 0) > 0);
+  }
+
+  async function lookupLatestChartPatientForBed(bed = {}) {
+    if (!bed?.chartNo && !bed?.patientId) return null;
+    try {
+      const patientId = String(bed.patientId || '').trim();
+      if (patientId) {
+        const byId = await lookupChartPatientById(patientId);
+        if (byId) return byId;
+      }
+      const matches = await lookupChartPatientsFlexible(bed.chartNo);
+      return matches.find(patient =>
+        normalizePatientIdentity(patient?.name) === normalizePatientIdentity(bed.name)
+      ) || (matches.length === 1 ? matches[0] : null);
+    } catch (error) {
+      console.warn('베드 환자 최신 차트 조회 실패', error);
+      return null;
+    }
+  }
+
   let activeVisitGoalBedNo = null;
 
   async function persistVisitGoalForBed(bedNo, value) {
@@ -14185,13 +14241,41 @@
   window.clearBed = async (bedNo, visitDate = '') => {
     const bed = getBedData(bedNo);
     clearLocalTimerAlertsForBed(bedNo);
-    const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    let patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
+    if (bed?.patientKey) {
+      try {
+        await flushLongTermChartSync(String(bed.patientKey));
+      } catch (error) {
+        console.warn('베드 비우기 전 차트 저장 대기 실패', error);
+      }
+    }
+    const chartPatient = bed?.chartNo ? await lookupLatestChartPatientForBed(bed) : null;
+    if (bed?.chartNo && !patient && !chartPatient) {
+      showToast('환자 차트 정보를 불러오지 못해 베드 비우기를 중단했습니다');
+      return false;
+    }
+    const packageSource = hasStoredPackageData(patient)
+      ? patient
+      : hasStoredPackageData(chartPatient)
+        ? chartPatient
+        : hasStoredPackageData(bed)
+          ? bed
+          : (patient || chartPatient || bed || {});
+    const patientSpineSettings = getSpineSettingsFromPatient(patient || {});
+    const chartSpineSettings = getSpineSettingsFromPatient(chartPatient || {});
+    const bedSpineSettings = getSpineSettingsFromPatient(bed || {});
+    const spineSettings = hasAnySpineSetting(patientSpineSettings)
+      ? patientSpineSettings
+      : hasAnySpineSetting(chartSpineSettings)
+        ? chartSpineSettings
+        : bedSpineSettings;
+    if (!patient && chartPatient) patient = chartPatient;
     const dischargeDate = toLocalDateInputValue();
     cleanupOldDischargedPatients(dischargeDate);
     const dischargedAt = Date.now();
     const indexDbPackages = bed?.chartNo
-      ? applyPostTreatmentPackageBalances(getPackageStateFromPatient(patient || {}), bed, visitDate || '')
-      : getPackageStateFromPatient(patient || {});
+      ? applyPostTreatmentPackageBalances(getPackageStateFromPatient(packageSource), bed, visitDate || '')
+      : getPackageStateFromPatient(packageSource);
 
     // 차트 DB에 먼저 저장 (차트번호 있는 경우)
     if (bed?.chartNo) {
@@ -14207,7 +14291,7 @@
         memo2: bed.memo2 || '',
         memo2History: normalizeMemo2History(bed),
         targetTreatmentCount: getVisitGoal(bed),
-        spineSettings: patient?.spineSettings || {},
+        spineSettings,
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
         doctorName: bed.doctorName || '',
@@ -16298,6 +16382,10 @@
         const existing = patientId
           ? (await lookupChartPatientById(patientId) || {})
           : (chartPatients.find(patient => String(patient?.name || '').trim() === String(data.name || '').trim()) || {});
+        if (hasPatientChartIdentityConflict(existing, data.chartNo)) {
+          blockPatientChartIdentityConflict(existing, data.chartNo);
+          return false;
+        }
         const baseRecord = existing?.patientId ? existing : {};
         const { visitEntry, visitEntries, ...plainData } = data;
         const visitPatch = mergeChartVisitHistory(baseRecord, data);
@@ -16320,7 +16408,10 @@
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify(next)
         });
-        if (!res.ok) throw new Error('server patient save failed');
+        if (!res.ok) {
+          const errorPayload = await res.json().catch(() => ({}));
+          throw new Error(errorPayload.error || 'server patient save failed');
+        }
         return true;
       }
       const db = await openChartDb();
@@ -16352,6 +16443,7 @@
       return true;
     } catch(e) {
       console.error('차트DB 저장 실패', e);
+      if (String(e?.message || '').includes('환자 내부 ID')) showToast(e.message);
       return false;
     }
   };
@@ -16826,6 +16918,10 @@
     return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
   }
 
+  function normalizeImportedPatientName(value) {
+    return String(value || '').normalize('NFC').trim().replace(/\s+/g, ' ');
+  }
+
   document.getElementById('chartImportProgressClose').addEventListener('click', () => {
     document.getElementById('chartImportProgress').hidden = true;
   });
@@ -16898,7 +16994,7 @@
         }
         const row = rows[rowIndex];
         const chartNo = normalizeChartNo(String(row[colChart] || '').trim().replace(/\.0$/, ''));
-        const name    = String(row[colName]  || '').trim();
+        const name    = normalizeImportedPatientName(row[colName]);
         if (!chartNo || !name) { skipped++; continue; }
         const chartNameKey = `${chartNo}\u0000${name}`;
         const namesForChart = namesByChartInFile.get(chartNo) || new Set();
@@ -16960,11 +17056,11 @@
       const splitPatientCount = [...namesByChartInFile.values()]
         .reduce((sum, names) => sum + Math.max(0, names.size - 1), 0);
       const splitSummary = splitPatientCount
-        ? ` · 동일 차트번호 다른 이름 ${splitPatientCount.toLocaleString()}명 별도 저장 처리`
+        ? ` · 동일 차트번호 다른 이름 ${splitPatientCount.toLocaleString()}명 저장 보류`
         : '';
       const notifySplitComplete = () => {
         if (options.alertSplit === false || !splitPatientCount) return;
-        alert(`동일 차트번호의 다른 이름 ${splitPatientCount.toLocaleString()}명을 별도 환자로 저장했습니다.`);
+        alert(`동일 차트번호의 다른 이름 ${splitPatientCount.toLocaleString()}명은 안전을 위해 저장하지 않았습니다.`);
       };
 
       if (chartNameConflicts.length) {
@@ -16973,8 +17069,8 @@
           .map(item => `${item.chartNo}: ${item.firstName} / ${item.nextName} (${item.rowNumber}행)`)
           .join('\n');
         const more = chartNameConflicts.length > 20 ? `\n외 ${chartNameConflicts.length - 20}건` : '';
-        statusEl.textContent = `차트번호-이름 충돌 ${chartNameConflicts.length}건 확인, 저장 계속 진행`;
-        alert(`같은 차트번호에 다른 이름이 있습니다.\n\n${preview}${more}\n\n확인 후 import를 계속 진행합니다.`);
+        statusEl.textContent = `차트번호-이름 충돌 ${chartNameConflicts.length}건 저장 보류`;
+        alert(`같은 차트번호에 다른 이름이 있습니다.\n\n${preview}${more}\n\n해당 차트번호는 저장하지 않고 나머지만 불러옵니다.`);
       }
 
       let saved = 0;
@@ -17006,8 +17102,12 @@
       const existingNameConflicts = patients
         .map(patient => {
           const existingRows = existingByChartForConflict.get(patient.chartNo) || [];
-          const hasSameName = existingRows.some(existing => String(existing?.name || '').trim() === patient.name);
-          const different = existingRows.find(existing => String(existing?.name || '').trim() && String(existing?.name || '').trim() !== patient.name);
+          const patientName = normalizeImportedPatientName(patient.name);
+          const hasSameName = existingRows.some(existing => normalizeImportedPatientName(existing?.name) === patientName);
+          const different = existingRows.find(existing => {
+            const existingName = normalizeImportedPatientName(existing?.name);
+            return existingName && existingName !== patientName;
+          });
           return different && !hasSameName
             ? { chartNo: patient.chartNo, firstName: String(different.name || '').trim(), nextName: patient.name }
             : null;
@@ -17020,9 +17120,16 @@
           .map(item => `${item.chartNo}: DB ${item.firstName} / 엑셀 ${item.nextName}`)
           .join('\n');
         const more = existingNameConflicts.length > 20 ? `\n외 ${existingNameConflicts.length - 20}건` : '';
-        statusEl.textContent = `기존 DB와 차트번호-이름 충돌 ${existingNameConflicts.length}건 확인, 저장 계속 진행`;
-        alert(`기존 DB와 엑셀 사이에 같은 차트번호의 다른 이름이 있습니다.\n\n${preview}${more}\n\n확인 후 import를 계속 진행합니다.`);
+        statusEl.textContent = `기존 DB와 차트번호-이름 충돌 ${existingNameConflicts.length}건 저장 보류`;
+        alert(`기존 DB와 엑셀 사이에 같은 차트번호의 다른 이름이 있습니다.\n\n${preview}${more}\n\n해당 차트번호는 저장하지 않고 나머지만 불러옵니다.`);
       }
+
+      const blockedChartNos = new Set([
+        ...[...namesByChartInFile.entries()].filter(([, names]) => names.size > 1).map(([chartNo]) => chartNo),
+        ...existingNameConflicts.map(item => item.chartNo)
+      ]);
+      const patientsToSave = patients.filter(patient => !blockedChartNos.has(patient.chartNo));
+      let blockedPatientCount = patients.length - patientsToSave.length;
 
       const buildImportRecord = (agg, existing = {}) => {
         const visitPatch = mergeChartVisitHistory(existing, { visitEntries: agg.visitEntries });
@@ -17055,9 +17162,9 @@
         const existingRecords = existingRecordsForImport || [];
         const findExistingForImport = agg => existingRecords.find(record =>
           String(record.chartNo || '') === String(agg.chartNo || '') &&
-          String(record.name || '').trim() === String(agg.name || '').trim()
+          normalizeImportedPatientName(record.name) === normalizeImportedPatientName(agg.name)
         ) || {};
-        const records = patients.map(agg => buildImportRecord(agg, findExistingForImport(agg)));
+        const records = patientsToSave.map(agg => buildImportRecord(agg, findExistingForImport(agg)));
         const BATCH = 1000;
         updateChartImportProgress(62, 'DB 저장', `0 / ${records.length.toLocaleString()}명 저장 완료`);
         for (let i = 0; i < records.length; i += BATCH) {
@@ -17065,10 +17172,18 @@
           const res = await fetch('/api/import/patients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            body: JSON.stringify({ mode: 'merge', patients: batch, backup: i === 0 })
+            body: JSON.stringify({
+              mode: 'merge',
+              patients: batch,
+              backup: i === 0,
+              preserveExistingSettings: true,
+              blockNameConflicts: true
+            })
           });
           if (!res.ok) throw new Error('server patient import failed');
-          saved += batch.length;
+          const importResult = await res.json();
+          saved += Number(importResult.saved || 0);
+          blockedPatientCount += Number(importResult.blockedNameConflicts || 0);
           statusEl.textContent = `저장 중... ${Math.min(i + BATCH, records.length)} / ${records.length}`;
           const completed = Math.min(i + BATCH, records.length);
           updateChartImportProgress(62 + (records.length ? (completed / records.length) * 34 : 34), 'DB 저장', `${completed.toLocaleString()} / ${records.length.toLocaleString()}명 저장 완료`);
@@ -17077,16 +17192,16 @@
         updateChartDbCount();
         refreshAppointmentAlerts();
         statusEl.textContent = `총 ${saved.toLocaleString()}명 저장 완료 (원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped}행 건너뜀` : ''}${splitSummary})`;
-        finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}`);
+        finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}${blockedPatientCount ? `\n이름 충돌 ${blockedPatientCount.toLocaleString()}명 저장 보류` : ''}`);
         notifySplitComplete();
-        return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount };
+        return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount, blockedPatientCount };
       }
 
       const db = await openChartDb();
       const BATCH = 500;
-      updateChartImportProgress(62, '로컬 DB 저장', `0 / ${patients.length.toLocaleString()}명 저장 완료`);
-      for (let i = 0; i < patients.length; i += BATCH) {
-        const batch = patients.slice(i, i + BATCH);
+      updateChartImportProgress(62, '로컬 DB 저장', `0 / ${patientsToSave.length.toLocaleString()}명 저장 완료`);
+      for (let i = 0; i < patientsToSave.length; i += BATCH) {
+        const batch = patientsToSave.slice(i, i + BATCH);
         await new Promise((resolve, reject) => {
           const tx = db.transaction(CHART_STORE, 'readwrite');
           const store = tx.objectStore(CHART_STORE);
@@ -17102,18 +17217,18 @@
           tx.oncomplete = resolve;
           tx.onerror = () => reject(tx.error);
         });
-        statusEl.textContent = `저장 중... ${Math.min(i + BATCH, patients.length)} / ${patients.length}`;
-        const completed = Math.min(i + BATCH, patients.length);
-        updateChartImportProgress(62 + (patients.length ? (completed / patients.length) * 34 : 34), '로컬 DB 저장', `${completed.toLocaleString()} / ${patients.length.toLocaleString()}명 저장 완료`);
+        statusEl.textContent = `저장 중... ${Math.min(i + BATCH, patientsToSave.length)} / ${patientsToSave.length}`;
+        const completed = Math.min(i + BATCH, patientsToSave.length);
+        updateChartImportProgress(62 + (patientsToSave.length ? (completed / patientsToSave.length) * 34 : 34), '로컬 DB 저장', `${completed.toLocaleString()} / ${patientsToSave.length.toLocaleString()}명 저장 완료`);
         await yieldChartImportPaint();
       }
 
       updateChartDbCount();
       refreshAppointmentAlerts();
       statusEl.textContent = `✅ ${saved.toLocaleString()}명 저장 완료 (총 ${rows.length.toLocaleString()}행)${skipped ? ` · ${skipped}행 건너뜀` : ''}${splitSummary}`;
-      finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}`);
+      finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}${blockedPatientCount ? `\n이름 충돌 ${blockedPatientCount.toLocaleString()}명 저장 보류` : ''}`);
       notifySplitComplete();
-      return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount };
+      return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount, blockedPatientCount };
     } catch(e) {
       console.error(e);
       statusEl.textContent = '❌ 오류: ' + e.message;
@@ -17135,8 +17250,8 @@
     const added = (before != null && after != null) ? Math.max(0, after - before) : null;
     const msg = `추가전 인원: ${fmt(before)}명\n추가후 인원: ${fmt(after)}명`
       + (added != null ? `\n(신규 ${added.toLocaleString()}명)` : '')
-      + (result?.splitPatientCount
-        ? `\n동일 차트번호의 다른 이름 ${result.splitPatientCount.toLocaleString()}명은 별도 환자로 저장했습니다.`
+      + (result?.blockedPatientCount
+        ? `\n이름 충돌 ${result.blockedPatientCount.toLocaleString()}명은 저장하지 않았습니다.`
         : '');
     alert(msg);
   };

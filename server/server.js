@@ -95,7 +95,7 @@ function encryptedJson(value) {
 }
 
 function normalizePatientName(value) {
-  return normalizeSearchText(value).replace(/\s+/g, " ");
+  return normalizeSearchText(value).normalize("NFC").replace(/\s+/g, " ");
 }
 
 function makeDuplicatePatientId(chartNo, name) {
@@ -1296,15 +1296,34 @@ function getPatients(chartNos) {
   return records;
 }
 
+function assertExistingPatientChartNo(patientId, chartNo) {
+  const normalizedPatientId = normalizeSearchText(patientId);
+  const normalizedChartNo = normalizeChartNo(chartNo);
+  if (!normalizedPatientId || !normalizedChartNo) return;
+  const existing = getPatientById(normalizedPatientId);
+  const existingChartNo = normalizeChartNo(existing?.chartNo);
+  if (!existingChartNo || existingChartNo === normalizedChartNo) return;
+
+  const error = new Error(
+    `환자 내부 ID ${normalizedPatientId}는 차트번호 ${existingChartNo}에 연결되어 있어 ${normalizedChartNo}로 저장할 수 없습니다.`
+  );
+  error.statusCode = 409;
+  error.code = "PATIENT_CHART_IDENTITY_CONFLICT";
+  throw error;
+}
+
 function resolvePatientId(record = {}) {
   const chartNo = normalizeChartNo(record?.chartNo);
   if (!chartNo) throw new Error("chartNo is required");
   const requestedId = normalizeSearchText(record.patientId || record.patient_id);
-  if (requestedId) return requestedId;
+  if (requestedId) {
+    assertExistingPatientChartNo(requestedId, chartNo);
+    return requestedId;
+  }
 
-  const name = normalizeSearchText(record.name);
+  const name = normalizePatientName(record.name);
   if (name) {
-    const sameName = getPatientsByChartNo(chartNo).find(patient => normalizeSearchText(patient.name) === name);
+    const sameName = getPatientsByChartNo(chartNo).find(patient => normalizePatientName(patient.name) === name);
     if (sameName?.patientId) return sameName.patientId;
   }
 
@@ -1340,12 +1359,37 @@ function mergePreferNonEmpty(existing, incoming) {
   return isEmptyMergeValue(incoming) && !isEmptyMergeValue(existing) ? existing : incoming;
 }
 
-function mergePatientImportRecord(record = {}) {
+const CLINICAL_SETTINGS_FIELDS = [
+  "packages",
+  "spineSettings",
+  "p6",
+  "p13",
+  "p초음파6",
+  "p초음파13",
+  "p자하거",
+  "p라인"
+];
+
+function mergePatientImportRecord(record = {}, preserveExistingSettings = false) {
   const chartNo = normalizeChartNo(record?.chartNo);
   if (!chartNo) throw new Error("chartNo is required");
   const patientId = resolvePatientId(record);
   const existing = getPatientById(patientId) || {};
-  return mergePreferNonEmpty(existing, { ...record, patientId, chartNo });
+  const merged = mergePreferNonEmpty(existing, { ...record, patientId, chartNo });
+  if (preserveExistingSettings && existing.patientId) {
+    for (const field of CLINICAL_SETTINGS_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(existing, field)) merged[field] = existing[field];
+    }
+  }
+  return merged;
+}
+
+function mergePatientPutRecord(existing = {}, record = {}, identity = {}) {
+  return {
+    ...existing,
+    ...record,
+    ...identity
+  };
 }
 
 function savePatient(record) {
@@ -1967,11 +2011,19 @@ function parsePatientImportPayload(payload) {
   const records = Array.isArray(payload) ? payload : payload?.patients;
   const mode = Array.isArray(payload) ? "merge" : (payload?.mode || "merge");
   const shouldBackup = Array.isArray(payload) ? true : payload?.backup !== false;
+  const preserveExistingSettings = !Array.isArray(payload) && payload?.preserveExistingSettings === true;
+  const blockNameConflicts = !Array.isArray(payload) && payload?.blockNameConflicts === true;
   if (!Array.isArray(records)) throw new Error("JSON array or { patients: [] } is required");
-  return { records, mode, shouldBackup };
+  if (mode !== "merge") {
+    const error = new Error("일반 환자 import는 merge만 허용됩니다. 전체 교체는 관리자 복원 절차를 사용하세요.");
+    error.statusCode = 403;
+    error.code = "PATIENT_IMPORT_REPLACE_BLOCKED";
+    throw error;
+  }
+  return { records, mode, shouldBackup, preserveExistingSettings, blockNameConflicts };
 }
 
-function importPatients(records, mode = "merge", shouldBackup = true) {
+function importPatients(records, mode = "merge", shouldBackup = true, preserveExistingSettings = false, blockNameConflicts = false) {
   if (shouldBackup) {
     const before = mode === "replace"
       ? listPatients()
@@ -1984,14 +2036,25 @@ function importPatients(records, mode = "merge", shouldBackup = true) {
     clearPatientCache();
   }
   let saved = 0;
+  let blockedNameConflicts = 0;
   // 전체를 단일 트랜잭션에 넣으면 WAL이 한 번에 수십 MB로 부푼다.
   // 일정 건수마다 커밋해 WAL을 작게 유지한다.
   const BATCH_SIZE = 500;
   try {
     db.exec("BEGIN");
     for (const record of records) {
-      if (!normalizeChartNo(record?.chartNo)) continue;
-      savePatient(mode === "merge" ? mergePatientImportRecord(record) : record);
+      const chartNo = normalizeChartNo(record?.chartNo);
+      if (!chartNo) continue;
+      if (blockNameConflicts) {
+        const incomingName = normalizePatientName(record?.name);
+        const existingForChart = getPatientsByChartNo(chartNo);
+        const hasSameName = incomingName && existingForChart.some(patient => normalizePatientName(patient?.name) === incomingName);
+        if (existingForChart.length && !hasSameName) {
+          blockedNameConflicts += 1;
+          continue;
+        }
+      }
+      savePatient(mode === "merge" ? mergePatientImportRecord(record, preserveExistingSettings) : record);
       saved += 1;
       if (saved % BATCH_SIZE === 0) {
         db.exec("COMMIT");
@@ -2006,7 +2069,7 @@ function importPatients(records, mode = "merge", shouldBackup = true) {
   }
   // 삭제(replace)로 생긴 빈 페이지 회수 + WAL 정리
   runDbMaintenance();
-  return { ok: true, mode, saved, skipped: records.length - saved };
+  return { ok: true, mode, saved, skipped: records.length - saved, blockedNameConflicts };
 }
 
 function normalizeStateKey(value) {
@@ -2806,7 +2869,9 @@ async function handleApi(req, res, pathname) {
     }
     if (req.method === "PUT") {
       const record = await readJson(req);
-      jsonResponse(res, 200, savePatient({ ...record, patientId }));
+      const existing = getPatientById(patientId) || {};
+      const chartNo = normalizeChartNo(record?.chartNo || existing.chartNo);
+      jsonResponse(res, 200, savePatient(mergePatientPutRecord(existing, record, { patientId, chartNo })));
       return true;
     }
     if (req.method === "DELETE") {
@@ -2831,7 +2896,10 @@ async function handleApi(req, res, pathname) {
     }
     if (req.method === "PUT") {
       const record = await readJson(req);
-      jsonResponse(res, 200, savePatient({ ...record, chartNo: normalizeChartNo(record?.chartNo || chartNo) }));
+      const requested = { ...record, chartNo: normalizeChartNo(record?.chartNo || chartNo) };
+      const patientId = resolvePatientId(requested);
+      const existing = getPatientById(patientId) || {};
+      jsonResponse(res, 200, savePatient(mergePatientPutRecord(existing, requested, { patientId, chartNo: requested.chartNo })));
       return true;
     }
     if (req.method === "DELETE") {
@@ -2854,16 +2922,16 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/import/patients" && req.method === "POST") {
     const payload = await readJson(req);
-    const { records, mode, shouldBackup } = parsePatientImportPayload(payload);
-    jsonResponse(res, 200, importPatients(records, mode, shouldBackup));
+    const { records, mode, shouldBackup, preserveExistingSettings, blockNameConflicts } = parsePatientImportPayload(payload);
+    jsonResponse(res, 200, importPatients(records, mode, shouldBackup, preserveExistingSettings, blockNameConflicts));
     return true;
   }
 
   if (pathname === "/api/import/patients-encrypted" && req.method === "POST") {
     const raw = await readBody(req, LARGE_BODY_LIMIT_BYTES);
     const payload = JSON.parse(decrypt(raw));
-    const { records, mode, shouldBackup } = parsePatientImportPayload(payload);
-    jsonResponse(res, 200, importPatients(records, mode, shouldBackup));
+    const { records, mode, shouldBackup, preserveExistingSettings, blockNameConflicts } = parsePatientImportPayload(payload);
+    jsonResponse(res, 200, importPatients(records, mode, shouldBackup, preserveExistingSettings, blockNameConflicts));
     return true;
   }
 
@@ -3140,8 +3208,13 @@ const server = http.createServer(async (req, res) => {
     }
     serveStatic(res, url.pathname);
   } catch (error) {
-    console.error(error);
-    jsonResponse(res, 500, { error: error?.message || String(error) });
+    const errorStatus = Number(error?.statusCode) || 500;
+    if (errorStatus >= 500) console.error(error);
+    else console.warn(`[api] ${req.method} ${req.url} -> ${errorStatus}: ${error?.message || String(error)}`);
+    jsonResponse(res, errorStatus, {
+      error: error?.message || String(error),
+      code: error?.code || undefined
+    });
   }
 });
 
