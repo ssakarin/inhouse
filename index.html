@@ -3026,6 +3026,17 @@
     grid-template-columns: 1fr;
     gap: 10px;
   }
+  .settings-save-status {
+    min-height: 20px;
+    margin: 10px 0 8px;
+    color: var(--text3);
+    font-size: 12px;
+    font-weight: 900;
+    text-align: center;
+  }
+  .settings-save-status.saving { color: var(--gold); }
+  .settings-save-status.success { color: var(--green); }
+  .settings-save-status.error { color: var(--danger); }
   @media (max-width: 760px) {
     .package-entry-grid { grid-template-columns: minmax(0, 1fr) auto; }
   }
@@ -5303,8 +5314,10 @@
   <div class="notif-popup credit-popup" onclick="event.stopPropagation()">
     <div class="popup-name">패키지</div>
     <div class="credit-form" id="creditForm"></div>
+    <div class="settings-save-status" id="packageSaveStatus" aria-live="polite"></div>
     <div class="credit-popup-actions">
-      <button class="popup-close" type="button" onclick="closeCreditPopup()">닫기</button>
+      <button class="popup-close" id="packageRetryBtn" type="button" onclick="retryPackageSave()" hidden>다시 시도</button>
+      <button class="popup-close" id="packageCloseBtn" type="button" onclick="closeCreditPopup()">닫기</button>
     </div>
   </div>
 </div>
@@ -5314,8 +5327,10 @@
   <div class="notif-popup spine-settings-popup" onclick="event.stopPropagation()">
     <div class="popup-name">스파인 설정</div>
     <div class="spine-settings-form" id="spineSettingsForm"></div>
+    <div class="settings-save-status" id="spineSaveStatus" aria-live="polite"></div>
     <div class="credit-popup-actions">
-      <button class="popup-close" type="button" onclick="closeSpineSettingsPopup()">닫기</button>
+      <button class="popup-close" id="spineRetryBtn" type="button" onclick="retrySpineSettingsSave()" hidden>다시 시도</button>
+      <button class="popup-close" id="spineCloseBtn" type="button" onclick="closeSpineSettingsPopup()">닫기</button>
     </div>
   </div>
 </div>
@@ -5783,6 +5798,7 @@
 
   const longTermChartSaveTimers = new Map();
   const longTermChartPendingSyncs = new Map();
+  const longTermChartSyncInFlight = new Map();
 
   function shouldSyncLongTermChartPatch(patch = {}) {
     return Object.prototype.hasOwnProperty.call(patch, 'packages')
@@ -5853,14 +5869,16 @@
   function scheduleLongTermChartPatientSync(patientKey, patch = {}) {
     if (!patientKey || !shouldSyncLongTermChartPatch(patch)) return;
     const timerKey = String(patientKey);
-    longTermChartPendingSyncs.set(timerKey, { type: 'patient', patientKey, patch: { ...patch } });
+    const previous = longTermChartPendingSyncs.get(timerKey);
+    const mergedPatch = previous?.type === 'patient' ? { ...(previous.patch || {}), ...patch } : { ...patch };
+    longTermChartPendingSyncs.set(timerKey, { type: 'patient', patientKey, patch: mergedPatch });
     clearTimeout(longTermChartSaveTimers.get(timerKey));
     if (hasMemoLongTermChartPatch(patch)) {
-      flushLongTermChartSync(timerKey);
+      flushLongTermChartSync(timerKey).catch(error => console.warn('long-term chart sync failed', error));
       return;
     }
     longTermChartSaveTimers.set(timerKey, setTimeout(() => {
-      flushLongTermChartSync(timerKey);
+      flushLongTermChartSync(timerKey).catch(error => console.warn('long-term chart sync failed', error));
     }, 700));
   }
 
@@ -5903,39 +5921,53 @@
   function scheduleLongTermChartGridSync(gridId, patch = {}) {
     if (!gridId || !shouldSyncLongTermChartPatch(patch)) return;
     const timerKey = `grid:${gridId}`;
-    longTermChartPendingSyncs.set(timerKey, { type: 'grid', gridId, patch: { ...patch } });
+    const previous = longTermChartPendingSyncs.get(timerKey);
+    const mergedPatch = previous?.type === 'grid' ? { ...(previous.patch || {}), ...patch } : { ...patch };
+    longTermChartPendingSyncs.set(timerKey, { type: 'grid', gridId, patch: mergedPatch });
     clearTimeout(longTermChartSaveTimers.get(timerKey));
     longTermChartSaveTimers.set(timerKey, setTimeout(() => {
-      flushLongTermChartSync(timerKey);
+      flushLongTermChartSync(timerKey).catch(error => console.warn('long-term chart sync failed', error));
     }, 700));
   }
 
   async function flushLongTermChartSync(timerKey) {
-    const pending = longTermChartPendingSyncs.get(timerKey);
-    if (!pending) return;
-    clearTimeout(longTermChartSaveTimers.get(timerKey));
-    longTermChartSaveTimers.delete(timerKey);
-    longTermChartPendingSyncs.delete(timerKey);
-
-    const payload = pending.type === 'grid'
-      ? buildLongTermChartGridSyncPayload(pending.gridId, pending.patch)
-      : buildLongTermChartSyncPayload(pending.patientKey, pending.patch);
-    if (!payload) return;
+    if (longTermChartSyncInFlight.has(timerKey)) return longTermChartSyncInFlight.get(timerKey);
+    const task = (async () => {
+      while (true) {
+        const pending = longTermChartPendingSyncs.get(timerKey);
+        if (!pending) return true;
+        clearTimeout(longTermChartSaveTimers.get(timerKey));
+        longTermChartSaveTimers.delete(timerKey);
+        const payload = pending.type === 'grid'
+          ? buildLongTermChartGridSyncPayload(pending.gridId, pending.patch)
+          : buildLongTermChartSyncPayload(pending.patientKey, pending.patch);
+        if (!payload) {
+          if (longTermChartPendingSyncs.get(timerKey) === pending) longTermChartPendingSyncs.delete(timerKey);
+          return true;
+        }
+        const saved = await window.saveChartPatient?.(payload);
+        if (saved === false) throw new Error('차트 DB 저장 실패');
+        if (longTermChartPendingSyncs.get(timerKey) === pending) {
+          longTermChartPendingSyncs.delete(timerKey);
+          return true;
+        }
+      }
+    })();
+    longTermChartSyncInFlight.set(timerKey, task);
     try {
-      await window.saveChartPatient?.(payload);
-    } catch (error) {
-      console.warn('long-term chart sync failed', error);
+      return await task;
+    } finally {
+      if (longTermChartSyncInFlight.get(timerKey) === task) longTermChartSyncInFlight.delete(timerKey);
     }
   }
 
   function flushLongTermChartGridSync(gridId) {
-    if (!gridId) return;
+    if (!gridId) return Promise.resolve(true);
     const patientKey = getPatientKeyForCreditGrid(gridId);
     if (patientKey) {
-      flushLongTermChartSync(String(patientKey));
-      return;
+      return flushLongTermChartSync(String(patientKey));
     }
-    flushLongTermChartSync(`grid:${gridId}`);
+    return flushLongTermChartSync(`grid:${gridId}`);
   }
 
   // Patients (the live board working set, separate from the SQLite chart DB).
@@ -6701,6 +6733,93 @@
   let activePackageKey = 'p6';
   let activePackageMonth = toLocalDateInputValue().slice(0, 7);
   let activePackageDate = toLocalDateInputValue();
+  const settingsSaveStates = new Map();
+
+  function getSettingsSaveState(kind, gridId) {
+    const key = `${kind}:${gridId || ''}`;
+    if (!settingsSaveStates.has(key)) {
+      settingsSaveStates.set(key, { kind, gridId, dirty: false, pending: null, error: null, closing: false });
+    }
+    return settingsSaveStates.get(key);
+  }
+
+  function getSettingsSaveElements(kind) {
+    const isPackage = kind === 'package';
+    return {
+      status: document.getElementById(isPackage ? 'packageSaveStatus' : 'spineSaveStatus'),
+      retry: document.getElementById(isPackage ? 'packageRetryBtn' : 'spineRetryBtn'),
+      close: document.getElementById(isPackage ? 'packageCloseBtn' : 'spineCloseBtn'),
+      overlay: document.getElementById(isPackage ? 'creditOverlay' : 'spineSettingsOverlay')
+    };
+  }
+
+  function setSettingsSaveStatus(kind, text = '', state = '') {
+    const elements = getSettingsSaveElements(kind);
+    if (elements.status) {
+      elements.status.textContent = text;
+      elements.status.className = `settings-save-status${state ? ` ${state}` : ''}`;
+    }
+    if (elements.retry) elements.retry.hidden = state !== 'error';
+  }
+
+  function beginSettingsPopupSession(kind, gridId) {
+    const saveState = getSettingsSaveState(kind, gridId);
+    saveState.dirty = false;
+    saveState.error = null;
+    saveState.closing = false;
+    setSettingsSaveStatus(kind, '변경하면 자동 저장됩니다.');
+    const elements = getSettingsSaveElements(kind);
+    if (elements.close) elements.close.disabled = false;
+  }
+
+  function queueSettingsSave(kind, gridId, saveFn) {
+    const saveState = getSettingsSaveState(kind, gridId);
+    saveState.dirty = true;
+    saveState.error = null;
+    setSettingsSaveStatus(kind, '저장 중...', 'saving');
+    const previous = saveState.pending || Promise.resolve();
+    const task = previous.catch(() => {}).then(saveFn);
+    saveState.pending = task;
+    task.then(() => {
+      if (saveState.pending !== task) return;
+      saveState.error = null;
+      setSettingsSaveStatus(kind, '변경 내용 저장됨 · 닫을 때 최종 확인', 'success');
+    }).catch(error => {
+      if (saveState.pending !== task) return;
+      saveState.error = error;
+      setSettingsSaveStatus(kind, '저장 실패 · 다시 시도해주세요.', 'error');
+    });
+    return task.then(() => true, () => false);
+  }
+
+  async function finishSettingsPopupSave(kind, gridId) {
+    const saveState = getSettingsSaveState(kind, gridId);
+    const elements = getSettingsSaveElements(kind);
+    if (!saveState.dirty) {
+      elements.overlay?.classList.remove('show');
+      return true;
+    }
+    if (saveState.closing) return false;
+    saveState.closing = true;
+    if (elements.close) elements.close.disabled = true;
+    setSettingsSaveStatus(kind, '실시간 데이터와 차트 DB 저장 확인 중...', 'saving');
+    try {
+      if (saveState.pending) await saveState.pending;
+      if (saveState.error) throw saveState.error;
+      await flushLongTermChartGridSync(gridId);
+      saveState.dirty = false;
+      elements.overlay?.classList.remove('show');
+      showToast(kind === 'package' ? '패키지 저장 완료' : '스파인 설정 저장 완료');
+      return true;
+    } catch (error) {
+      saveState.error = error;
+      setSettingsSaveStatus(kind, '최종 저장 확인 실패 · 다시 시도해주세요.', 'error');
+      return false;
+    } finally {
+      saveState.closing = false;
+      if (elements.close) elements.close.disabled = false;
+    }
+  }
 
   function getTreatmentChipsId(gridId) {
     return gridId + 'Chips';
@@ -6999,31 +7118,41 @@
     const spineSettings = getSpineSettingsForGrid(gridId);
     const patientKey = getPatientKeyForCreditGrid(gridId);
     const bedNo = getBedNoForCreditGrid(gridId);
-    if (patientKey) {
-      await Promise.all([
-        updatePatient(patientKey, { spineSettings }),
-        bedNo ? updateBedRecord(bedNo, { spineSettings }) : Promise.resolve()
-      ]);
-      patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), spineSettings });
-      renderBedMonitors();
-    } else {
-      scheduleLongTermChartGridSync(gridId, { spineSettings });
-    }
-    window.updateSpineChip(gridId);
+    return queueSettingsSave('spine', gridId, async () => {
+      if (patientKey) {
+        await Promise.all([
+          updatePatient(patientKey, { spineSettings }),
+          bedNo ? updateBedRecord(bedNo, { spineSettings }) : Promise.resolve()
+        ]);
+        patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), spineSettings });
+        renderBedMonitors();
+      } else {
+        scheduleLongTermChartGridSync(gridId, { spineSettings });
+      }
+      window.updateSpineChip(gridId);
+    });
   }
 
   window.openSpineSettingsPopup = function(gridId) {
     activeSpineGridId = gridId;
+    beginSettingsPopupSession('spine', gridId);
     const overlay = document.getElementById('spineSettingsOverlay');
     if (!overlay) return;
     renderSpineSettingsPopup();
     overlay.classList.add('show');
   };
 
-  window.closeSpineSettingsPopup = function() {
-    flushLongTermChartGridSync(activeSpineGridId);
-    document.getElementById('spineSettingsOverlay')?.classList.remove('show');
-    activeSpineGridId = '';
+  window.closeSpineSettingsPopup = async function() {
+    const gridId = activeSpineGridId;
+    if (!gridId) return;
+    if (await finishSettingsPopupSave('spine', gridId)) activeSpineGridId = '';
+  };
+
+  window.retrySpineSettingsSave = async function() {
+    const gridId = activeSpineGridId;
+    if (!gridId) return;
+    const saved = await persistSpineSettings(gridId);
+    if (saved) await window.closeSpineSettingsPopup();
   };
 
   function formatSpineUpdatedAgo(updatedAt) {
@@ -7264,6 +7393,7 @@
 
   window.openCreditPopup = function(gridId) {
     activeCreditGridId = gridId;
+    beginSettingsPopupSession('package', gridId);
     const overlay = document.getElementById('creditOverlay');
     if (!overlay) return;
     renderPackagePopup();
@@ -7436,22 +7566,24 @@
     const patientKey = getPatientKeyForCreditGrid(gridId);
     const bedNo = getBedNoForCreditGrid(gridId);
     const { credit, ...bedPayload } = payload;
-    if (patientKey) {
-      await Promise.all([
-        updatePatient(patientKey,payload),
-        bedNo ? updateBedRecord(bedNo, bedPayload) : Promise.resolve()
-      ]);
-      const nextPatient = {
-        ...(patientsByKey.get(patientKey) || {}),
-        ...payload
-      };
-      delete nextPatient.credit;
-      patientsByKey.set(patientKey, nextPatient);
-      renderBedMonitors();
-    } else {
-      scheduleLongTermChartGridSync(gridId, payload);
-    }
-    updateCreditChip(gridId);
+    return queueSettingsSave('package', gridId, async () => {
+      if (patientKey) {
+        await Promise.all([
+          updatePatient(patientKey,payload),
+          bedNo ? updateBedRecord(bedNo, bedPayload) : Promise.resolve()
+        ]);
+        const nextPatient = {
+          ...(patientsByKey.get(patientKey) || {}),
+          ...payload
+        };
+        delete nextPatient.credit;
+        patientsByKey.set(patientKey, nextPatient);
+        renderBedMonitors();
+      } else {
+        scheduleLongTermChartGridSync(gridId, payload);
+      }
+      updateCreditChip(gridId);
+    });
   }
 
   window.addPackageEntry = async function(key, type) {
@@ -7478,9 +7610,9 @@
     activePackageDate = date;
     activePackageMonth = date.slice(0, 7);
     setPackageStateForGrid(gridId, packages);
-    await persistPackageState(gridId);
+    const saved = await persistPackageState(gridId);
     renderPackagePopup();
-    showToast(type === 'purchase' ? '결제 기록 추가' : (type === 'bonus' ? '보너스 기록 추가' : '사용 기록 추가'));
+    if (!saved) showToast('패키지 저장 실패');
   };
 
   window.removePackageEntry = async function(key, type, id) {
@@ -7493,19 +7625,26 @@
     pkg[field] = normalizePackageEntries(pkg[field], isIncrease ? 'purchase' : 'usage').filter(entry => entry.id !== id);
     packages[key] = pkg;
     setPackageStateForGrid(gridId, packages);
-    await persistPackageState(gridId);
+    const saved = await persistPackageState(gridId);
     renderPackagePopup();
-    showToast('패키지 기록 삭제');
+    if (!saved) showToast('패키지 저장 실패');
   };
 
-  window.closeCreditPopup = function() {
-    flushLongTermChartGridSync(activeCreditGridId);
-    document.getElementById('creditOverlay')?.classList.remove('show');
-    activeCreditGridId = '';
+  window.closeCreditPopup = async function() {
+    const gridId = activeCreditGridId;
+    if (!gridId) return;
+    if (await finishSettingsPopupSave('package', gridId)) activeCreditGridId = '';
+  };
+
+  window.retryPackageSave = async function() {
+    const gridId = activeCreditGridId;
+    if (!gridId) return;
+    const saved = await persistPackageState(gridId);
+    if (saved) await window.closeCreditPopup();
   };
 
   window.saveCreditPopup = async function() {
-    closeCreditPopup();
+    await closeCreditPopup();
   };
 
   function renderTreatmentPresetSelect(select) {
@@ -16135,7 +16274,7 @@
           body: JSON.stringify(next)
         });
         if (!res.ok) throw new Error('server patient save failed');
-        return;
+        return true;
       }
       const db = await openChartDb();
       await new Promise((resolve, reject) => {
@@ -16161,9 +16300,13 @@
         };
         getReq.onerror = () => reject(getReq.error);
         tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch(e) { console.error('차트DB 저장 실패', e); }
+          tx.onerror = () => reject(tx.error);
+        });
+      return true;
+    } catch(e) {
+      console.error('차트DB 저장 실패', e);
+      return false;
+    }
   };
 
   async function getAllChartPatients() {
