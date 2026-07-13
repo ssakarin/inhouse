@@ -2461,6 +2461,7 @@
     margin-bottom: 6px;
   }
   .bed-status-no {
+    flex: 1 1 auto;
     min-width: 0;
     font-size: 13px;
     font-weight: 900;
@@ -2470,14 +2471,17 @@
     white-space: nowrap;
   }
   .bed-status-time {
+    flex: 0 0 auto;
+    min-width: 5.2ch;
     font-size: clamp(18px, 4.8vw, 28px);
     font-weight: 900;
     font-variant-numeric: tabular-nums;
     color: var(--text);
     line-height: 0.95;
-    max-width: 74%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    max-width: none;
+    overflow: visible;
+    text-align: right;
+    text-overflow: clip;
     white-space: nowrap;
   }
   /* 치료실알림: 베드 박스 안에 치료칩이 박스 밖으로 삐져나오지 않도록 */
@@ -9701,7 +9705,7 @@
       });
 
       if (bed.patientKey) {
-        await updatePatient(bed.patientKey,patientPatch);
+        await updatePatient(bed.patientKey,bedPatch);
       }
 
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(selectedBedNo);
@@ -9772,7 +9776,6 @@
       memo1: form.memo1,
       memo2: form.memo2,
       ...withMemo2ForDate(patient, form.memo2, memo2Date),
-      spineSettings: form.spineSettings,
       age: form.age ? Number(form.age) : '',
       gender: form.gender,
       bodyParts: form.bodyParts,
@@ -9780,9 +9783,7 @@
       doctorId: form.doctor.id,
       doctorName: form.doctor.name,
       nurseId: form.nurse.id,
-      nurseName: form.nurse.name,
-      ...form.packagePayload,
-      credit: null
+      nurseName: form.nurse.name
     };
 
     const btn = document.getElementById(form.ids.submitBtn);
@@ -9958,7 +9959,7 @@
         ...timerUpdates
       });
       if (bed.patientKey) {
-        await updatePatient(bed.patientKey,payload);
+        await updatePatient(bed.patientKey,bedPayload);
       }
       if (currentTreatmentChanged) clearLocalTimerAlertsForBed(bedNo);
       await recordManualNurseAssignment(form.nurse.id, bed.nurseId);
@@ -13656,8 +13657,7 @@
         doctorName: form.doctor.name,
         nurseId: form.nurse.id,
         nurseName: form.nurse.name,
-        bodyParts: form.bodyParts,
-        ...form.packagePayload
+        bodyParts: form.bodyParts
       };
       patientsByKey.set(waitingPatientKey, { ...patient, ...payload });
       renderWaitingLists();
