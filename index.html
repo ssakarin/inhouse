@@ -9066,7 +9066,7 @@
     const lastVisitDate = isSameChartPatient ? getPatientLatestVisitDate(selectedChartPatient) : '';
     const visitDates = isSameChartPatient && Array.isArray(selectedChartPatient.visitDates) ? selectedChartPatient.visitDates : [];
     const visitHistory = isSameChartPatient && selectedChartPatient.visitHistory && typeof selectedChartPatient.visitHistory === 'object'
-      ? selectedChartPatient.visitHistory
+      ? lightenVisitHistoryForBoard(selectedChartPatient.visitHistory)
       : {};
     const targetTreatmentCount = isSameChartPatient ? getVisitGoal(selectedChartPatient) : '';
     if (!doctor.id && selectedChartPatientByScope[scope]?.doctorName) {
@@ -9512,6 +9512,19 @@
         .map(([date, entry]) => [date, entry.memo2 || '']))
     };
     return { visitDates, visitHistory: byDate, memo2History, latestDate, latestVisit, latestChiefComplaint };
+  }
+
+  // 실시간 보드(patients/beds)에는 방문일별 visitType만 있으면 충분하다
+  // (getVisitCountSinceLatestInitial이 필요로 하는 전부). 치료내역/부위/메모까지
+  // 포함된 전체 visitHistory를 그대로 복사하면 레코드가 방문 수에 비례해 커져서
+  // SSE로 매번 방송되므로, 라이브 보드에 얹을 때는 이 경량 버전만 사용한다.
+  function lightenVisitHistoryForBoard(visitHistory = {}) {
+    const result = {};
+    Object.entries(visitHistory || {}).forEach(([date, entry]) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return;
+      result[date] = { visitType: entry?.visitType || '' };
+    });
+    return result;
   }
 
   function normalizeVisitGoal(value) {
@@ -11344,7 +11357,7 @@
       memo1Original: data.memo1 || '',
       memo2Original: data.memo2 || '',
       visitDates: Array.isArray(data.visitDates) ? data.visitDates : [],
-      visitHistory: data.visitHistory && typeof data.visitHistory === 'object' ? data.visitHistory : {},
+      visitHistory: data.visitHistory && typeof data.visitHistory === 'object' ? lightenVisitHistoryForBoard(data.visitHistory) : {},
       targetTreatmentCount: getVisitGoal(data),
       spineSettings: data.spineSettings || {},
       packages,
@@ -16459,7 +16472,7 @@
     const memo2 = getMemo2ForDate(patient, toLocalDateInputValue());
     const visitDates = Array.isArray(patient.visitDates) ? patient.visitDates.map(String) : [];
     const visitHistory = patient.visitHistory && typeof patient.visitHistory === 'object'
-      ? { ...patient.visitHistory }
+      ? lightenVisitHistoryForBoard(patient.visitHistory)
       : {};
     const targetTreatmentCount = getVisitGoal(patient);
     const latestVisitDate = getPatientLatestVisitDate(patient);
