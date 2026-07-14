@@ -6756,6 +6756,7 @@
   }
   const pCreditValuesByGrid = {};
   const packageStatesByGrid = {};
+  const packagePatientIdentityByGrid = {};
   let activeCreditGridId = '';
   let activePackageKey = 'p6';
   let activePackageMonth = toLocalDateInputValue().slice(0, 7);
@@ -7055,7 +7056,18 @@
     { key: 'hnp', label: '디스크(HNP)' }
   ];
   const spineSettingsByGrid = {};
+  const spinePatientIdentityByGrid = {};
   let activeSpineGridId = '';
+
+  function getSettingsPatientIdentity(values = {}) {
+    const patientKey = String(values?.patientKey || '').trim();
+    if (patientKey) return `key:${patientKey}`;
+    const patientId = String(values?.patientId || '').trim();
+    if (patientId) return `id:${patientId}`;
+    const chartNo = normalizeChartNo(values?.chartNo || '');
+    const name = normalizePatientIdentity(values?.name || '');
+    return chartNo || name ? `chart:${chartNo}:${name}` : '';
+  }
 
   function createEmptySpineSettings() {
     return {
@@ -7121,7 +7133,19 @@
   window.updateSpineChip = function(gridId, values = null) {
     if (values !== null && values !== undefined) {
       const popupOpenForGrid = activeSpineGridId === gridId && document.getElementById('spineSettingsOverlay')?.classList.contains('show');
-      if (!popupOpenForGrid) spineSettingsByGrid[gridId] = getSpineSettingsFromPatient(values);
+      const saveState = getSettingsSaveState('spine', gridId);
+      const incomingIdentity = getSettingsPatientIdentity(values);
+      const previousIdentity = spinePatientIdentityByGrid[gridId] || '';
+      const patientChanged = Boolean(incomingIdentity && previousIdentity && incomingIdentity !== previousIdentity);
+      // Keep unsaved edits while the popup is open, but do not let an idle/open
+      // popup block a later server refresh. A different patient must always
+      // replace the cache so one patient's edits can never carry to another.
+      if (!popupOpenForGrid || !saveState.dirty || patientChanged) {
+        if (patientChanged) saveState.dirty = false;
+        spineSettingsByGrid[gridId] = getSpineSettingsFromPatient(values);
+        if (incomingIdentity) spinePatientIdentityByGrid[gridId] = incomingIdentity;
+        if (popupOpenForGrid) renderSpineSettingsPopup();
+      }
     }
     const settings = getSpineSettingsForGrid(gridId);
     const chip = document.getElementById(`spine-chip-${gridId}`);
@@ -7138,6 +7162,7 @@
 
   function resetSpineSettings(gridId) {
     spineSettingsByGrid[gridId] = createEmptySpineSettings();
+    spinePatientIdentityByGrid[gridId] = '';
     window.updateSpineChip(gridId);
   }
 
@@ -7147,9 +7172,11 @@
     const bedNo = getBedNoForCreditGrid(gridId);
     return queueSettingsSave('spine', gridId, async () => {
       if (patientKey) {
+        const bedStillHasPatient = bedNo
+          && String(getBedData(bedNo)?.patientKey || '') === String(patientKey);
         await Promise.all([
           updatePatient(patientKey, { spineSettings }),
-          bedNo ? updateBedRecord(bedNo, { spineSettings }) : Promise.resolve()
+          bedStillHasPatient ? updateBedRecord(bedNo, { spineSettings }) : Promise.resolve()
         ]);
         patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), spineSettings });
         renderBedMonitors();
@@ -7393,6 +7420,7 @@
   }
 
   function resetPCredits(gridId) {
+    packagePatientIdentityByGrid[gridId] = '';
     setPackageStateForGrid(gridId, createEmptyPackageState());
     updateCreditChip(gridId);
   }
@@ -7400,12 +7428,21 @@
   window.updateCreditChip = function(gridId, values = null) {
     if (values !== null && values !== undefined) {
       const popupOpenForGrid = activeCreditGridId === gridId && document.getElementById('creditOverlay')?.classList.contains('show');
-      if (!popupOpenForGrid) {
+      const saveState = getSettingsSaveState('package', gridId);
+      const incomingIdentity = getSettingsPatientIdentity(values);
+      const previousIdentity = packagePatientIdentityByGrid[gridId] || '';
+      const patientChanged = Boolean(incomingIdentity && previousIdentity && incomingIdentity !== previousIdentity);
+      // As with spine settings, protect only unsaved popup edits. An idle popup
+      // still accepts server refreshes, and a different patient always wins.
+      if (!popupOpenForGrid || !saveState.dirty || patientChanged) {
+        if (patientChanged) saveState.dirty = false;
         if (values.packages) setPackageStateForGrid(gridId, createEmptyPackageState(values));
         else {
           pCreditValuesByGrid[gridId] = normalizePCredits(typeof values === 'number' ? {} : values);
           packageStatesByGrid[gridId] = createEmptyPackageState(values);
         }
+        if (incomingIdentity) packagePatientIdentityByGrid[gridId] = incomingIdentity;
+        if (popupOpenForGrid) renderPackagePopup();
       }
     }
     const payload = getPCreditPayload(gridId);
@@ -7595,9 +7632,11 @@
     const { credit, ...bedPayload } = payload;
     return queueSettingsSave('package', gridId, async () => {
       if (patientKey) {
+        const bedStillHasPatient = bedNo
+          && String(getBedData(bedNo)?.patientKey || '') === String(patientKey);
         await Promise.all([
           updatePatient(patientKey,payload),
-          bedNo ? updateBedRecord(bedNo, bedPayload) : Promise.resolve()
+          bedStillHasPatient ? updateBedRecord(bedNo, bedPayload) : Promise.resolve()
         ]);
         const nextPatient = {
           ...(patientsByKey.get(patientKey) || {}),
@@ -9330,8 +9369,9 @@
       setTreatmentSelection(ids.treatmentGrid, []);
       formBodyPartsByScope.bed = { front: [], back: [] };
       renderFormBodyPartSelector('bed');
-      resetPCredits('bedTreatmentGrid');
-      resetSpineSettings('bedTreatmentGrid');
+      // A reconnect/delta refresh can make the selected bed appear empty for a
+      // moment. Preserve package/spine caches here; an explicit move to an
+      // actually empty bed clears them in selectBed instead.
       setBedMemoOpen(false);
       return;
     }
@@ -12802,7 +12842,15 @@
   window.selectBed = (bedNo) => {
     const doctorBedNums = getDoctorBedNumbers();
     if (!ACTIVE_BED_NUMBERS.includes(bedNo) && !doctorBedNums.includes(bedNo)) bedNo = doctorBedNums[0] || 1;
-    if (selectedBedNo !== bedNo) bedMovePanelOpenFor = null;
+    if (selectedBedNo !== bedNo) {
+      bedMovePanelOpenFor = null;
+      // This is a deliberate user selection, so an empty target must not show
+      // the previously selected patient's cached package/spine settings.
+      if (!getBedData(bedNo)) {
+        resetPCredits('bedTreatmentGrid');
+        resetSpineSettings('bedTreatmentGrid');
+      }
+    }
     selectedBedNo = bedNo;
     renderBedSelector();
     renderBedDetail();
