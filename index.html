@@ -6837,6 +6837,10 @@
       await flushLongTermChartGridSync(gridId);
       saveState.dirty = false;
       elements.overlay?.classList.remove('show');
+      // Saving either popup can trigger a partial patient refresh. Re-assert
+      // both indicators so the sibling button never loses its saved state.
+      window.updateCreditChip?.(gridId);
+      window.updateSpineChip?.(gridId);
       showToast(kind === 'package' ? '패키지 저장 완료' : '스파인 설정 저장 완료');
       return true;
     } catch (error) {
@@ -7137,10 +7141,11 @@
       const incomingIdentity = getSettingsPatientIdentity(values);
       const previousIdentity = spinePatientIdentityByGrid[gridId] || '';
       const patientChanged = Boolean(incomingIdentity && previousIdentity && incomingIdentity !== previousIdentity);
+      const hasIncomingSettings = Object.prototype.hasOwnProperty.call(values, 'spineSettings');
       // Keep unsaved edits while the popup is open, but do not let an idle/open
       // popup block a later server refresh. A different patient must always
       // replace the cache so one patient's edits can never carry to another.
-      if (!popupOpenForGrid || !saveState.dirty || patientChanged) {
+      if ((!popupOpenForGrid || !saveState.dirty || patientChanged) && (hasIncomingSettings || patientChanged)) {
         if (patientChanged) saveState.dirty = false;
         spineSettingsByGrid[gridId] = getSpineSettingsFromPatient(values);
         if (incomingIdentity) spinePatientIdentityByGrid[gridId] = incomingIdentity;
@@ -7432,9 +7437,11 @@
       const incomingIdentity = getSettingsPatientIdentity(values);
       const previousIdentity = packagePatientIdentityByGrid[gridId] || '';
       const patientChanged = Boolean(incomingIdentity && previousIdentity && incomingIdentity !== previousIdentity);
+      const hasIncomingPackages = Object.prototype.hasOwnProperty.call(values, 'packages')
+        || PCREDIT_FIELDS.some(({ key }) => Object.prototype.hasOwnProperty.call(values, key));
       // As with spine settings, protect only unsaved popup edits. An idle popup
       // still accepts server refreshes, and a different patient always wins.
-      if (!popupOpenForGrid || !saveState.dirty || patientChanged) {
+      if ((!popupOpenForGrid || !saveState.dirty || patientChanged) && (hasIncomingPackages || patientChanged)) {
         if (patientChanged) saveState.dirty = false;
         if (values.packages) setPackageStateForGrid(gridId, createEmptyPackageState(values));
         else {
@@ -7831,9 +7838,14 @@
       return `
       <span class="${className}" data-grid="${gridId}" data-index="${i}" ${treatmentSelectionChipAttrs(gridId, i)}>${escapeHtml(s.name)}</span>`;
     }).join('');
-    if (lastTreatmentChipsHtml.get(gridId) === html && chipsWrap.innerHTML === html) return;
-    chipsWrap.innerHTML = html;
-    lastTreatmentChipsHtml.set(gridId, html);
+    if (lastTreatmentChipsHtml.get(gridId) !== html || chipsWrap.innerHTML !== html) {
+      chipsWrap.innerHTML = html;
+      lastTreatmentChipsHtml.set(gridId, html);
+    }
+    // Treatment/reservation updates may repaint this area. Restore the package
+    // and spine indicators from their patient-scoped caches after every repaint.
+    window.updateCreditChip?.(gridId);
+    window.updateSpineChip?.(gridId);
   }
 
   let _chipDragFromIndex = null;
@@ -16718,7 +16730,13 @@
     if (!patientKey) return false;
     const dates = normalizeAppointmentDates(appointmentDates);
     const isUndecided = Boolean(undecided);
-    const existingPatient = patientsByKey.get(patientKey) || {};
+    // Fixed-bed screens do not subscribe to the full patients collection. Use
+    // the bed snapshot as the merge base so an appointment-only update cannot
+    // replace package/spine data with a partial in-memory patient record.
+    const existingPatient = {
+      ...(getBedSnapshotByPatientKey(patientKey) || {}),
+      ...(patientsByKey.get(patientKey) || {})
+    };
     const existingAlerts = existingPatient.appointmentAlerts || {};
     const appointmentAlerts = Object.fromEntries(dates.map(date => [
       date,
