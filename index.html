@@ -5565,6 +5565,10 @@
     const regularFixedBedNo = isRegularFixedBedScreen() ? Number(getFixedBedNoFromUrl()) : 0;
     const previousChangedBed = getBedData(numericBedNo);
     setLocalBedState(numericBedNo, op === 'remove' ? null : (bed || null));
+    if (op === 'remove' && numericBedNo === Number(selectedBedNo)) {
+      resetPCredits('bedTreatmentGrid');
+      resetSpineSettings('bedTreatmentGrid');
+    }
     const selectedBedNextTaskChanged = shouldRefreshSelectedBedNextStaffTask(
       numericBedNo,
       previousChangedBed,
@@ -9366,6 +9370,10 @@
     const ids = PATIENT_FORM_IDS.bed;
     suppressSelectFieldAutosaveForPopulation();
     formEditBedNoByScope.bed = selectedBedNo;
+    if (isCleaningBed(bed)) {
+      resetPCredits(ids.treatmentGrid);
+      resetSpineSettings(ids.treatmentGrid);
+    }
     if (!bed) {
       setIdentityFieldsLocked('bed', false);
       document.getElementById(ids.name).value = '';
@@ -14410,6 +14418,10 @@
       patientsByKey.delete(bed.patientKey);
       loadedKeys.delete(bed.patientKey);
     }
+    if (Number(bedNo) === Number(selectedBedNo)) {
+      resetPCredits('bedTreatmentGrid');
+      resetSpineSettings('bedTreatmentGrid');
+    }
     return true;
   };
 
@@ -14512,6 +14524,10 @@
     if (!isCleaningBed(bed)) return;
     try {
       await removeBedRecord(bedNo);
+      if (Number(bedNo) === Number(selectedBedNo)) {
+        resetPCredits('bedTreatmentGrid');
+        resetSpineSettings('bedTreatmentGrid');
+      }
       showToast(`${getBedLabel(bedNo)} 정리 완료`);
       renderBedMonitors();
       renderBedDetail();
@@ -14541,6 +14557,10 @@
       await removePatient(bed.patientKey);
     }
     await removeBedRecord(bedNo);
+    if (Number(bedNo) === Number(selectedBedNo)) {
+      resetPCredits('bedTreatmentGrid');
+      resetSpineSettings('bedTreatmentGrid');
+    }
     await recordManualNurseAssignment('', bed.nurseId);
     renderWaitingLists();
     renderBedMonitors();
