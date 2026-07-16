@@ -370,6 +370,14 @@ function normalizeChartNo(value) {
   return String(value || "").trim().replace(/\.0$/, "");
 }
 
+function assertValidChartNo(chartNo) {
+  if (/^\d+$/.test(chartNo)) return;
+  const error = new Error("Chart number must contain digits only.");
+  error.statusCode = 400;
+  error.code = "INVALID_CHART_NO";
+  throw error;
+}
+
 function normalizeSearchText(value) {
   return String(value || "").trim();
 }
@@ -1395,6 +1403,7 @@ function mergePatientPutRecord(existing = {}, record = {}, identity = {}) {
 function savePatient(record) {
   const chartNo = normalizeChartNo(record?.chartNo);
   if (!chartNo) throw new Error("chartNo is required");
+  assertValidChartNo(chartNo);
   const patientId = resolvePatientId(record);
   const now = new Date().toISOString();
   const normalized = { ...record, patientId, chartNo };
