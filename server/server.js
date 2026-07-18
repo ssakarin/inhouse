@@ -773,6 +773,7 @@ function patientSettingsHistoryReport(period = "week", start = "", end = "") {
   const range = reportDateRange(period, start, end);
   const packageRows = [];
   const spineRows = [];
+  const treatmentSummaryCounts = new Map();
   for (const patient of listPatients()) {
     const identity = {
       patientId: patient.patientId || "",
@@ -829,10 +830,43 @@ function patientSettingsHistoryReport(period = "week", start = "", end = "") {
         lumbarRotation: spine.lumbarRotation ?? ""
       });
     }
+
+    visitDatesOf(patient).filter(date => date >= range.start && date <= range.end).forEach(date => {
+      if (isPrescriptionVisit(patient, date)) return;
+      const entry = getVisitRecord(patient, date);
+      const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
+      const doctorName = String(entry.doctorName || patient.doctorName || "").trim() || "미지정";
+      const addTreatmentSummary = (category, treatmentName) => {
+        const key = JSON.stringify([doctorName, category, treatmentName]);
+        treatmentSummaryCounts.set(key, (treatmentSummaryCounts.get(key) || 0) + 1);
+      };
+      treatments.forEach(rawTreatment => {
+        const treatment = String(rawTreatment || "").trim();
+        if (!treatment) return;
+        if (isSimpleChunaTreatment(treatment)) {
+          addTreatmentSummary("추나", "단추");
+        } else if (isComplexChunaTreatment(treatment)) {
+          addTreatmentSummary("추나", "복추");
+        } else if (isPharmaTreatment(treatment)) {
+          addTreatmentSummary("약침", normalizeTreatmentStatName(treatment));
+        }
+      });
+    });
   }
   packageRows.sort((a, b) => b.date.localeCompare(a.date) || a.chartNo.localeCompare(b.chartNo, "ko", { numeric: true }));
   spineRows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.chartNo.localeCompare(b.chartNo, "ko", { numeric: true }));
-  return { ...range, packageRows, spineRows, spineHistoryMode: "latest-settings-updated-in-range" };
+  const treatmentSummaryRows = [...treatmentSummaryCounts.entries()]
+    .map(([key, count]) => {
+      const [doctorName, category, treatmentName] = JSON.parse(key);
+      return { doctorName, category, treatmentName, count };
+    })
+    .sort((a, b) => {
+      const categoryOrder = { "추나": 0, "약침": 1 };
+      return a.doctorName.localeCompare(b.doctorName, "ko", { numeric: true })
+        || (categoryOrder[a.category] ?? 9) - (categoryOrder[b.category] ?? 9)
+        || a.treatmentName.localeCompare(b.treatmentName, "ko", { numeric: true });
+    });
+  return { ...range, packageRows, spineRows, treatmentSummaryRows, spineHistoryMode: "latest-settings-updated-in-range" };
 }
 
 function addDays(dateStr, n) {

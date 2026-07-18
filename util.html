@@ -184,7 +184,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">패키지·스파인 설정 내역</div>
+    <div class="card-title">패키지 스파인 설정 추나 약침 내역</div>
     <div class="tool-row">
       <button class="good" id="settingsHistoryWeekBtn" type="button">최근 1주일 엑셀</button>
       <button class="good" id="settingsHistoryMonthBtn" type="button">최근 1개월 엑셀</button>
@@ -196,7 +196,7 @@
       <span class="note" style="margin-top:0">까지</span>
       <button class="good" id="settingsHistoryCustomBtn" type="button">선택 기간 엑셀</button>
     </div>
-    <div class="note">XLSX 한 파일에 패키지 결제·보너스·사용 내역과 스파인 설정을 시트별로 저장합니다. 스파인은 변경 이력을 누적 저장하지 않으므로, 선택 기간에 마지막으로 수정된 현재 설정만 포함됩니다.</div>
+    <div class="note">XLSX 한 파일에 패키지 결제·보너스·사용 내역, 스파인 설정, 전체 환자의 추나·약침 집계를 시트별로 저장합니다. 추나는 단추·복추로, 약침은 종류별·원장별로 각각 집계합니다. 스파인은 변경 이력을 누적 저장하지 않으므로, 선택 기간에 마지막으로 수정된 현재 설정만 포함됩니다.</div>
     <div class="status" id="settingsHistoryStatus">대기 중</div>
   </div>
 
@@ -1006,6 +1006,7 @@ const DISEASE = [
       if (!res.ok) throw new Error(data.error || `내역 조회 실패 (${res.status})`);
       const packageRows = Array.isArray(data.packageRows) ? data.packageRows : [];
       const spineRows = Array.isArray(data.spineRows) ? data.spineRows : [];
+      const treatmentSummaryRows = Array.isArray(data.treatmentSummaryRows) ? data.treatmentSummaryRows : [];
 
       const wb = XLSX.utils.book_new();
       const infoRows = [
@@ -1015,8 +1016,10 @@ const DISEASE = [
         ["생성 시각", new Date().toLocaleString("ko-KR")],
         ["패키지 내역", "기간 내 결제·보너스·사용 기록을 한 행씩 표시"],
         ["스파인 설정", "변경 이력이 아닌, 기간 내 마지막 수정된 현재 설정을 표시"],
+        ["치료 집계", "전체 환자의 기간 내 진료기록에서 추나는 단추·복추, 약침은 종류별·원장별로 집계"],
         ["패키지 건수", packageRows.length],
-        ["스파인 설정 환자 수", spineRows.length]
+        ["스파인 설정 환자 수", spineRows.length],
+        ["추나·약침 시행 건수", treatmentSummaryRows.reduce((sum, row) => sum + (Number(row.count) || 0), 0)]
       ];
       XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, infoRows, [22, 62]), "안내");
 
@@ -1053,12 +1056,27 @@ const DISEASE = [
       ];
       XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, spineSheetRows, [20, 16, 14, 24, 13, 18, 12, 24, 13, 18, 12]), "스파인 설정");
 
+      const treatmentSummarySheetRows = [
+        ["원장", "구분", "치료 종류", "시행 건수"],
+        ...treatmentSummaryRows.map(row => [
+          row.doctorName || "미지정",
+          row.category || "",
+          row.treatmentName || "",
+          Number(row.count || 0)
+        ])
+      ];
+      XLSX.utils.book_append_sheet(
+        wb,
+        makeReportSheet(XLSX, treatmentSummarySheetRows, [16, 12, 24, 14]),
+        "추나·약침 집계"
+      );
+
       const dateKey = normalizedPeriod === "custom"
         ? `${String(data.start || start).replace(/-/g, "")}-${String(data.end || end).replace(/-/g, "")}`
         : (String(data.end || "").replace(/-/g, "") || alerttalkTimestamp().slice(0, 8));
       XLSX.writeFile(wb, `${periodLabel.replace(/\s/g, "")}_패키지_스파인내역_${dateKey}.xlsx`);
       setSettingsHistoryStatus(
-        `${data.start || "-"} ~ ${data.end || "-"} / 패키지 ${packageRows.length.toLocaleString()}건 · 스파인 ${spineRows.length.toLocaleString()}명 다운로드 완료`,
+        `${data.start || "-"} ~ ${data.end || "-"} / 패키지 ${packageRows.length.toLocaleString()}건 · 스파인 ${spineRows.length.toLocaleString()}명 · 추나·약침 ${treatmentSummaryRows.reduce((sum, row) => sum + (Number(row.count) || 0), 0).toLocaleString()}건 다운로드 완료`,
         "good"
       );
     } catch (error) {
