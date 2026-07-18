@@ -1064,12 +1064,14 @@ const DISEASE = [
         treatmentRowsByDoctor.set(doctorName, rows);
       });
       const treatmentSummarySheetRows = [["원장", "구분", "치료 종류", "시행 건수"]];
+      const treatmentTotals = new Map();
       let treatmentGrandTotal = 0;
       treatmentRowsByDoctor.forEach((rows, doctorName) => {
-        let doctorTotal = 0;
         rows.forEach(row => {
           const count = Number(row.count || 0);
-          doctorTotal += count;
+          const totalKey = JSON.stringify([row.category || "", row.treatmentName || ""]);
+          treatmentTotals.set(totalKey, (treatmentTotals.get(totalKey) || 0) + count);
+          treatmentGrandTotal += count;
           treatmentSummarySheetRows.push([
             doctorName,
             row.category || "",
@@ -1077,9 +1079,20 @@ const DISEASE = [
             count
           ]);
         });
-        treatmentGrandTotal += doctorTotal;
-        treatmentSummarySheetRows.push([doctorName, "소계", "", doctorTotal]);
       });
+      [...treatmentTotals.entries()]
+        .map(([key, count]) => {
+          const [category, treatmentName] = JSON.parse(key);
+          return { category, treatmentName, count };
+        })
+        .sort((a, b) => {
+          const categoryOrder = { "추나": 0, "약침": 1 };
+          return (categoryOrder[a.category] ?? 9) - (categoryOrder[b.category] ?? 9)
+            || a.treatmentName.localeCompare(b.treatmentName, "ko", { numeric: true });
+        })
+        .forEach(row => {
+          treatmentSummarySheetRows.push(["전체", row.category, `${row.treatmentName} 합계`, row.count]);
+        });
       treatmentSummarySheetRows.push(["전체", "합계", "", treatmentGrandTotal]);
       XLSX.utils.book_append_sheet(
         wb,
