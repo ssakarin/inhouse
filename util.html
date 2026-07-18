@@ -1056,15 +1056,31 @@ const DISEASE = [
       ];
       XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, spineSheetRows, [20, 16, 14, 24, 13, 18, 12, 24, 13, 18, 12]), "스파인 설정");
 
-      const treatmentSummarySheetRows = [
-        ["원장", "구분", "치료 종류", "시행 건수"],
-        ...treatmentSummaryRows.map(row => [
-          row.doctorName || "미지정",
-          row.category || "",
-          row.treatmentName || "",
-          Number(row.count || 0)
-        ])
-      ];
+      const treatmentRowsByDoctor = new Map();
+      treatmentSummaryRows.forEach(row => {
+        const doctorName = row.doctorName || "미지정";
+        const rows = treatmentRowsByDoctor.get(doctorName) || [];
+        rows.push(row);
+        treatmentRowsByDoctor.set(doctorName, rows);
+      });
+      const treatmentSummarySheetRows = [["원장", "구분", "치료 종류", "시행 건수"]];
+      let treatmentGrandTotal = 0;
+      treatmentRowsByDoctor.forEach((rows, doctorName) => {
+        let doctorTotal = 0;
+        rows.forEach(row => {
+          const count = Number(row.count || 0);
+          doctorTotal += count;
+          treatmentSummarySheetRows.push([
+            doctorName,
+            row.category || "",
+            row.treatmentName || "",
+            count
+          ]);
+        });
+        treatmentGrandTotal += doctorTotal;
+        treatmentSummarySheetRows.push([doctorName, "소계", "", doctorTotal]);
+      });
+      treatmentSummarySheetRows.push(["전체", "합계", "", treatmentGrandTotal]);
       XLSX.utils.book_append_sheet(
         wb,
         makeReportSheet(XLSX, treatmentSummarySheetRows, [16, 12, 24, 14]),
