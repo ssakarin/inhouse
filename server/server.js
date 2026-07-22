@@ -1338,6 +1338,33 @@ function getPatients(chartNos) {
   return records;
 }
 
+function getRecentPatientVisitDetails(record = {}, limit = 4) {
+  const today = getLocalDateKey();
+  const visitHistory = record.visitHistory && typeof record.visitHistory === "object" ? record.visitHistory : {};
+  const memo2History = record.memo2History && typeof record.memo2History === "object" ? record.memo2History : {};
+  const dates = [...new Set([
+    ...(Array.isArray(record.visitDates) ? record.visitDates : []),
+    ...Object.keys(visitHistory),
+    ...Object.keys(memo2History)
+  ].map(value => String(value || "").trim()))]
+    .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date) && date < today)
+    .sort((a, b) => b.localeCompare(a))
+    .slice(0, Math.max(1, Math.min(4, Number(limit) || 4)));
+
+  return dates.map(date => {
+    const entry = visitHistory[date] && typeof visitHistory[date] === "object" ? visitHistory[date] : {};
+    const treatments = Array.isArray(entry.treatments)
+      ? entry.treatments.map(value => String(value || "").trim()).filter(Boolean)
+      : [];
+    return {
+      date,
+      doctorName: String(entry.doctorName || "").trim(),
+      treatments,
+      memo2: String(entry.memo2 ?? memo2History[date] ?? "").trim()
+    };
+  });
+}
+
 function assertExistingPatientChartNo(patientId, chartNo) {
   const normalizedPatientId = normalizeSearchText(patientId);
   const normalizedChartNo = normalizeChartNo(chartNo);
@@ -2805,6 +2832,22 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/patients/count" && req.method === "GET") {
     jsonResponse(res, 200, { count: countPatients() });
+    return true;
+  }
+
+  if (pathname === "/api/patients/recent-visit-details" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const patientId = normalizeSearchText(requestUrl.searchParams.get("patientId") || "");
+    const chartNo = normalizeChartNo(requestUrl.searchParams.get("chartNo") || "");
+    const name = normalizeSearchText(requestUrl.searchParams.get("name") || "");
+    const patientRow = patientId ? statements.getPatientById.get(patientId) : null;
+    let patient = patientRow ? parsePatientRow(patientRow) : null;
+    if (!patient && chartNo) {
+      const matches = statements.listPatientsByChartNo.all(chartNo).map(parsePatientRow).filter(Boolean);
+      patient = (name ? matches.find(record => normalizeSearchText(record.name) === name) : null) || matches[0] || null;
+    }
+    if (!patient) jsonResponse(res, 404, { error: "Patient not found" });
+    else jsonResponse(res, 200, { visits: getRecentPatientVisitDetails(patient, 4) });
     return true;
   }
 
