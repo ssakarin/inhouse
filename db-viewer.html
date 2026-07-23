@@ -1414,7 +1414,7 @@
       try {
         setStatus("indexedStatus", "월별 조회 중");
         await loadVisitMonth(globalVisitMonth);
-        setStatus("indexedStatus", "완료");
+        setStatus("indexedStatus", "");
       } catch (error) {
         setStatus("indexedStatus", "오류", true);
         $("globalVisitPatientList").innerHTML = `<div class="meta">월별 조회 실패: ${escapeHtml(error?.message || String(error))}</div>`;
@@ -1489,7 +1489,7 @@
       renderPatientList();
       renderGlobalVisitCalendar();
       if (selectedPatientId) selectPatient(selectedPatientId, false);
-      setStatus("indexedStatus", "완료");
+      setStatus("indexedStatus", "");
     } catch (error) {
       latestIndexedValue = [];
       hasLoadedFullIndexed = false;
@@ -1510,7 +1510,7 @@
       renderSummary("indexedSummary", null, { countOverride: latestIndexedTotal, sizeLabel: "전체 로드 전", 모드: SERVER_MODE ? "검색 우선" : "로컬" });
       $("patientList").innerHTML = `<div class="meta" style="padding:12px;">이름 또는 차트번호로 검색하세요.</div>`;
       renderGlobalVisitCalendar();
-      setStatus("indexedStatus", "완료");
+      setStatus("indexedStatus", "");
     } catch (error) {
       latestIndexedTotal = 0;
       renderSummary("indexedSummary", null);
