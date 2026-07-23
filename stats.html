@@ -169,6 +169,9 @@
   .period-report-metric-label { color: var(--muted); font-size: 11px; font-weight: 900; }
   .period-report-metric-value { margin-top: 5px; color: #fff; font-size: 24px; font-weight: 900; }
   .period-report-metric-sub { margin-top: 3px; color: var(--accent); font-size: 11px; font-weight: 800; }
+  .period-report-change.increase { color: var(--danger); }
+  .period-report-change.decrease { color: var(--accent); }
+  .period-report-change.neutral { color: var(--muted); }
   .period-report-section { padding-top: 4px; overflow-x: auto; }
   .period-report-section h3 { margin: 0 0 8px; color: var(--gold); font-size: 15px; }
   .period-report-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -1398,7 +1401,15 @@
   }
 
   function periodReportMetric(label, value, sub = "") {
-    return `<div class="period-report-metric"><div class="period-report-metric-label">${escapePeriodReportHtml(label)}</div><div class="period-report-metric-value">${escapePeriodReportHtml(value)}</div><div class="period-report-metric-sub">${escapePeriodReportHtml(sub)}</div></div>`;
+    const changeClass = periodReportChangeClass(sub);
+    return `<div class="period-report-metric"><div class="period-report-metric-label">${escapePeriodReportHtml(label)}</div><div class="period-report-metric-value">${escapePeriodReportHtml(value)}</div><div class="period-report-metric-sub period-report-change ${changeClass}">${escapePeriodReportHtml(sub)}</div></div>`;
+  }
+
+  function periodReportChangeClass(text) {
+    const value = String(text || "");
+    if (value.includes("▲")) return "increase";
+    if (value.includes("▼")) return "decrease";
+    return "neutral";
   }
 
   function periodNeedComparisonText(currentRate, previousRate, previousCount) {
@@ -1471,7 +1482,10 @@
       <div class="period-report-columns">
         <div class="period-report-section"><h3>관리 필요 현황</h3><table>
           <thead><tr><th>구분</th><th>현재</th><th>이전 기간 비교</th></tr></thead>
-          <tbody>${managementRows.map(row => `<tr><td>${escapePeriodReportHtml(row.label)}</td><td>${row.count.toLocaleString()}명 (${periodReportRate(row.rate)})</td><td>${escapePeriodReportHtml(periodNeedComparisonText(row.rate, row.previousRate, row.previousCount))}</td></tr>`).join("")}</tbody>
+          <tbody>${managementRows.map(row => {
+            const comparison = periodNeedComparisonText(row.rate, row.previousRate, row.previousCount);
+            return `<tr><td>${escapePeriodReportHtml(row.label)}</td><td>${row.count.toLocaleString()}명 (${periodReportRate(row.rate)})</td><td><span class="period-report-change ${periodReportChangeClass(comparison)}">${escapePeriodReportHtml(comparison)}</span></td></tr>`;
+          }).join("")}</tbody>
         </table></div>
         <div class="period-report-section"><h3>요일별 진료</h3><table><thead><tr><th>요일</th><th>환자 수</th></tr></thead><tbody>${weekdayRows.map(day => `<tr><td>${day}요일</td><td>${Number(stats.weekdayCounts[day] || 0).toFixed(1)}</td></tr>`).join("")}</tbody></table></div>
       </div>
