@@ -159,47 +159,43 @@
   }
   .comparison-unit-btn.active { border-color: rgba(57,169,245,0.75); background: rgba(57,169,245,0.15); color: var(--accent); }
   .wide-card { grid-column: 1 / -1; }
-  .followup-list {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    max-width: 100%;
-  }
-  .followup-column {
-    min-width: 0;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .followup-row {
-    display: grid;
-    grid-template-columns: 72px minmax(70px, 1fr) 72px 78px;
-    align-items: center;
-    gap: 8px;
-    min-height: 38px;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--line);
-    font-size: 13px;
-  }
-  .followup-row:last-child { border-bottom: 0; }
-  .followup-head { min-height: 32px; color: var(--muted); font-size: 11px; font-weight: 900; background: rgba(255,255,255,0.035); }
-  .followup-days { color: var(--gold); font-weight: 900; text-align: right; }
-  .followup-name { font-weight: 900; }
-  .followup-meta, .followup-doctor { color: var(--muted); font-weight: 800; }
-  @media (max-width: 1100px) {
-    .followup-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
+  .period-report { display: grid; gap: 14px; margin-top: 14px; }
+  .period-report:empty { display: none; }
+  .period-report-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: end; }
+  .period-report-title { margin: 0; color: #fff; font-size: 24px; }
+  .period-report-period { color: var(--muted); font-size: 13px; font-weight: 800; }
+  .period-report-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .period-report-metric { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+  .period-report-metric-label { color: var(--muted); font-size: 11px; font-weight: 900; }
+  .period-report-metric-value { margin-top: 5px; color: #fff; font-size: 24px; font-weight: 900; }
+  .period-report-metric-sub { margin-top: 3px; color: var(--accent); font-size: 11px; font-weight: 800; }
+  .period-report-section { padding-top: 4px; overflow-x: auto; }
+  .period-report-section h3 { margin: 0 0 8px; color: var(--gold); font-size: 15px; }
+  .period-report-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .period-report-note { color: var(--muted); font-size: 11px; line-height: 1.55; }
   @media (max-width: 640px) {
-    .followup-list { grid-template-columns: 1fr; }
-    .followup-row {
-      grid-template-columns: 72px 1fr;
-      gap: 4px 10px;
-      align-items: start;
-    }
-    .followup-head { display: none; }
-    .followup-days { grid-row: span 3; text-align: left; }
-    .followup-meta, .followup-doctor { font-size: 12px; }
-    .followup-doctor::before { content: "원장 "; color: var(--muted); }
+    .period-report-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .period-report-columns { grid-template-columns: 1fr; }
+  }
+  @media print {
+    body.period-report-printing { background: #fff; color: #111; }
+    body.period-report-printing .topbar,
+    body.period-report-printing .card:not(#periodReportCard),
+    body.period-report-printing #periodReportControls,
+    body.period-report-printing #periodReportStatus,
+    body.period-report-printing #periodReportCard > .card-title,
+    body.period-report-printing #periodReportCard > .period-report-note { display: none !important; }
+    body.period-report-printing .app { width: 100%; padding: 0; }
+    body.period-report-printing #periodReportCard { border: 0; padding: 0; margin: 0; background: #fff; color: #111; }
+    body.period-report-printing .period-report-metric,
+    body.period-report-printing .period-report-section { background: #fff; border-color: #bbb; break-inside: avoid; }
+    body.period-report-printing .period-report-title,
+    body.period-report-printing .period-report-metric-value { color: #111; }
+    body.period-report-printing .period-report-period,
+    body.period-report-printing .period-report-metric-label,
+    body.period-report-printing .period-report-note,
+    body.period-report-printing th { color: #555; }
+    body.period-report-printing td, body.period-report-printing th { border-color: #ccc; }
   }
 </style>
 </head>
@@ -243,6 +239,17 @@
     </div>
     <div class="range-label" id="rangeLabel"></div>
     <div class="status" id="status"></div>
+  </div>
+
+  <div class="card" id="periodReportCard">
+    <div class="card-title">기간 리포트</div>
+    <div class="controls" id="periodReportControls">
+      <button id="periodReportCreateBtn" type="button" style="border-color:rgba(74,222,128,0.55);color:var(--green)">기간 리포트 만들기</button>
+      <button id="periodReportPrintBtn" type="button" disabled>인쇄 / PDF</button>
+    </div>
+    <div class="period-report-note">위에서 선택한 기간의 운영 통계와 3주 전 초진 코호트의 21일 재진·삼진율을 집계합니다. 추나 여부는 초진 당일 단추·복추 시행 여부로 구분합니다.</div>
+    <div class="status" id="periodReportStatus">대기 중</div>
+    <div class="period-report" id="periodReportResult"></div>
   </div>
 
   <div class="card">
@@ -311,10 +318,6 @@
     <div class="card">
       <div class="card-title">치료조합 Top 10</div>
       <div id="comboTableWrap"></div>
-    </div>
-    <div class="card wide-card">
-      <div class="card-title">20~7일 전 초진 후 미재방문</div>
-      <div id="noFollowupTableWrap"></div>
     </div>
   </div>
 </div>
@@ -694,35 +697,6 @@
     return addDays(firstDate, days - 1) <= statsEndDate;
   }
 
-  function noFollowupNewPatients(docFilter = "") {
-    const todayStr = today();
-    const targetDates = new Map(Array.from({ length: 14 }, (_, index) => 20 - index).map(daysAgo => [addDays(todayStr, -daysAgo), daysAgo]));
-    const rows = [];
-    for (const rec of allRecords) {
-      const dates = visitDatesOf(rec).filter(d => d <= todayStr);
-      if (!dates.length) continue;
-      for (const firstDate of newVisitDatesOf(rec).filter(d => d <= todayStr)) {
-        if (!targetDates.has(firstDate)) continue;
-        const firstEntry = getVisitRecord(rec, firstDate);
-        if (isPrescriptionVisit(rec, firstDate)) continue;
-        const doctorName = String(firstEntry.doctorName || rec.doctorName || "").trim();
-        if (docFilter && doctorName !== docFilter) continue;
-        if (dates.some(d => d > firstDate && d <= todayStr)) continue;
-        rows.push({
-          chartNo: rec.chartNo || "",
-          name: rec.name || "",
-          firstDate,
-          daysAgo: targetDates.get(firstDate),
-          doctorName,
-          age: rec.age || "",
-          gender: rec.gender || "",
-          phone: rec.phone || rec.phoneNumber || rec.tel || ""
-        });
-      }
-    }
-    return rows.sort((a, b) => b.daysAgo - a.daysAgo || String(a.chartNo).localeCompare(String(b.chartNo), "ko", { numeric: true }));
-  }
-
   // ── 집계 ────────────────────────────────────────────────────────
   // docFilter: "" = 전체, 그 외에는 해당 원장이 본 진료만 집계
   function normalizeTreatmentStatName(name) {
@@ -1084,39 +1058,6 @@
     `;
   }
 
-  function renderNoFollowupTable(rows) {
-    const wrap = $("noFollowupTableWrap");
-    if (!rows.length) {
-      wrap.innerHTML = `<div class="empty">대상자 없음</div>`;
-      return;
-    }
-    const columnCount = 3;
-    const columnSize = Math.ceil(rows.length / columnCount);
-    const columns = Array.from({ length: columnCount }, (_, index) => rows.slice(index * columnSize, (index + 1) * columnSize)).filter(Boolean);
-    wrap.innerHTML = `
-      <div class="followup-list">
-        ${columns.map(column => `
-          <div class="followup-column">
-            <div class="followup-row followup-head">
-              <div>경과</div>
-              <div>이름</div>
-              <div>정보</div>
-              <div>원장</div>
-            </div>
-            ${column.map(row => `
-              <div class="followup-row">
-                <div class="followup-days">${row.daysAgo}일 전</div>
-                <div class="followup-name">${escapeHtml(row.name || "-")}</div>
-                <div class="followup-meta">${escapeHtml([row.gender, row.age ? `${row.age}세` : ""].filter(Boolean).join(" · ") || "-")}</div>
-                <div class="followup-doctor">${escapeHtml(row.doctorName || "-")}</div>
-              </div>
-            `).join("")}
-          </div>
-        `).join("")}
-      </div>
-    `;
-  }
-
   function chartMetricValue(row, metric) {
     return Number(row?.[metric.key] || 0);
   }
@@ -1440,6 +1381,142 @@
     renderPeriodComparisonChart(comparison, comparisonUnit);
   }
 
+  function escapePeriodReportHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  }
+
+  function periodReportRate(value) {
+    return `${(Number(value || 0) * 100).toFixed(1)}%`;
+  }
+
+  function periodComparisonText(current, previous, digits = 0) {
+    current = Number(current || 0);
+    previous = Number(previous || 0);
+    if (!previous) return current ? "이전 기간 0" : "이전 기간과 동일";
+    const change = ((current - previous) / previous) * 100;
+    return `${change >= 0 ? "▲" : "▼"} ${Math.abs(change).toFixed(1)}% · 이전 ${previous.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+  }
+
+  function periodReportMetric(label, value, sub = "") {
+    return `<div class="period-report-metric"><div class="period-report-metric-label">${escapePeriodReportHtml(label)}</div><div class="period-report-metric-value">${escapePeriodReportHtml(value)}</div><div class="period-report-metric-sub">${escapePeriodReportHtml(sub)}</div></div>`;
+  }
+
+  function periodNeedComparisonText(currentRate, previousRate, previousCount) {
+    const pointChange = (Number(currentRate || 0) - Number(previousRate || 0)) * 100;
+    const direction = pointChange > 0 ? "▲" : pointChange < 0 ? "▼" : "－";
+    return `${direction} ${Math.abs(pointChange).toFixed(1)}%p · 이전 ${Number(previousCount || 0).toLocaleString()}명 (${periodReportRate(previousRate)})`;
+  }
+
+  function renderPeriodReport(data) {
+    const stats = data.stats || {};
+    const previous = data.previousStats || {};
+    const stages = data.visitStages || {};
+    const previousStages = data.previousVisitStages || {};
+    const followup = data.followup || {};
+    const previousFollowup = data.previousFollowup || {};
+    const needs = data.followupNeeds || {};
+    const previousNeeds = data.previousFollowupNeeds || {};
+    const followupRows = ["all", "chuna", "noChuna", "simple", "complex"].map(key => followup[key]).filter(Boolean);
+    const treatmentRows = Object.entries(stats.treatmentCounts || {}).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const doctorRows = Object.entries(stats.doctorCounts || {}).sort((a, b) => b[1] - a[1]);
+    const weekdayRows = ["월", "화", "수", "목", "금", "토", "일"].filter(day => Number(stats.weekdayCounts?.[day] || 0) > 0);
+    const currentDailyAverage = Number(stats.coreVisits || 0) / Math.max(1, Number(stats.clinicDays || 0));
+    const previousDailyAverage = Number(previous.coreVisits || 0) / Math.max(1, Number(previous.clinicDays || 0));
+    const pharmaPackageRate = Number(stats.pharmaPackagePurchasePatients || 0) / Math.max(1, Number(stats.uniquePatients || 0));
+    const managementRows = [
+      { label: "전체 · 재진 미도달", key: "noReturn", denominator: followup.all?.patients, previousDenominator: previousFollowup.all?.patients },
+      { label: "전체 · 재진 후 삼진 미도달", key: "noThirdVisit", denominator: followup.all?.returned, previousDenominator: previousFollowup.all?.returned },
+      { label: "추나군 · 재진 미도달", key: "chunaNoReturn", denominator: followup.chuna?.patients, previousDenominator: previousFollowup.chuna?.patients },
+      { label: "추나군 · 재진 후 삼진 미도달", key: "chunaNoThirdVisit", denominator: followup.chuna?.returned, previousDenominator: previousFollowup.chuna?.returned },
+      { label: "비추나군 · 재진 미도달", key: "noChunaNoReturn", denominator: followup.noChuna?.patients, previousDenominator: previousFollowup.noChuna?.patients },
+      { label: "비추나군 · 재진 후 삼진 미도달", key: "noChunaNoThirdVisit", denominator: followup.noChuna?.returned, previousDenominator: previousFollowup.noChuna?.returned }
+    ].map(row => ({
+      ...row,
+      count: Number(needs[row.key] || 0),
+      previousCount: Number(previousNeeds[row.key] || 0),
+      rate: row.denominator ? Number(needs[row.key] || 0) / Number(row.denominator) : 0,
+      previousRate: row.previousDenominator ? Number(previousNeeds[row.key] || 0) / Number(row.previousDenominator) : 0
+    }));
+
+    $("periodReportResult").innerHTML = `
+      <div class="period-report-head">
+        <div><h2 class="period-report-title">경희홍익한의원 기간 리포트</h2><div class="period-report-period">${escapePeriodReportHtml(data.start)} ~ ${escapePeriodReportHtml(data.end)} · 이전 기간 ${escapePeriodReportHtml(data.previousStart)} ~ ${escapePeriodReportHtml(data.previousEnd)}</div></div>
+        <div class="period-report-period">생성 ${escapePeriodReportHtml(new Date(data.generatedAt).toLocaleString("ko-KR"))}</div>
+      </div>
+      <div class="period-report-metrics">
+        ${periodReportMetric("총 진료 건수", Number(stats.coreVisits || 0).toLocaleString(), periodComparisonText(stats.coreVisits, previous.coreVisits))}
+        ${periodReportMetric("진료 환자", Number(stats.uniquePatients || 0).toLocaleString(), periodComparisonText(stats.uniquePatients, previous.uniquePatients))}
+        ${periodReportMetric("초진", Number(stats.newPatients || 0).toLocaleString(), periodComparisonText(stats.newPatients, previous.newPatients))}
+        ${periodReportMetric("재진 환자", Number(stats.revisitPatients || 0).toLocaleString(), periodComparisonText(stats.revisitPatients, previous.revisitPatients))}
+        ${periodReportMetric("일평균 진료", currentDailyAverage.toFixed(1), periodComparisonText(currentDailyAverage, previousDailyAverage, 1))}
+        ${periodReportMetric("추나 시행", Number(stats.chunaTotal || 0).toLocaleString(), `환자 비율 ${periodReportRate(stats.chunaPatientRate)}`)}
+        ${periodReportMetric("약환", Number(stats.prescriptionPatients || 0).toLocaleString(), periodComparisonText(stats.prescriptionPatients, previous.prescriptionPatients))}
+        ${periodReportMetric("약침 시행", Number(stats.pharmaTotal || 0).toLocaleString(), `${Number(stats.pharmaPatients || 0).toLocaleString()}명 (${periodReportRate(stats.pharmaPatientRate)}) · ${periodComparisonText(stats.pharmaTotal, previous.pharmaTotal)}`)}
+        ${periodReportMetric("약침 패키지", Number(stats.pharmaPackagePurchasePatients || 0).toLocaleString(), `진료 환자 비율 ${periodReportRate(pharmaPackageRate)} · ${periodComparisonText(stats.pharmaPackagePurchasePatients, previous.pharmaPackagePurchasePatients)}`)}
+        ${periodReportMetric("평균 방문 횟수", Number(stats.avgVisitsPerPatient || 0).toFixed(2), periodComparisonText(stats.avgVisitsPerPatient, previous.avgVisitsPerPatient, 2))}
+      </div>
+      <div class="period-report-section"><h3>선택 기간 방문 단계</h3><div class="period-report-metrics">
+        ${periodReportMetric("1회차", Number(stages.first || 0).toLocaleString(), periodComparisonText(stages.first, previousStages.first))}
+        ${periodReportMetric("2회차", Number(stages.second || 0).toLocaleString(), periodComparisonText(stages.second, previousStages.second))}
+        ${periodReportMetric("3회차", Number(stages.third || 0).toLocaleString(), periodComparisonText(stages.third, previousStages.third))}
+        ${periodReportMetric("4회차 이상", Number(stages.fourthPlus || 0).toLocaleString(), periodComparisonText(stages.fourthPlus, previousStages.fourthPlus))}
+      </div></div>
+      <div class="period-report-section"><h3>초진 코호트 재진·삼진율</h3>
+        <div class="period-report-period">초진 기간 ${escapePeriodReportHtml(data.cohortStart)} ~ ${escapePeriodReportHtml(data.cohortEnd)} · 초진일부터 21일 추적</div>
+        <table><thead><tr><th>초진 치료</th><th>초진</th><th>재진 도달</th><th>재진율</th><th>삼진 도달</th><th>삼진율</th><th>재진→삼진</th></tr></thead><tbody>
+          ${followupRows.map(row => `<tr><td>${escapePeriodReportHtml(row.label)}</td><td>${Number(row.patients || 0).toLocaleString()}</td><td>${Number(row.returned || 0).toLocaleString()}</td><td>${periodReportRate(row.returnRate)}</td><td>${Number(row.thirdVisit || 0).toLocaleString()}</td><td>${periodReportRate(row.thirdVisitRate)}</td><td>${periodReportRate(row.returnToThirdRate)}</td></tr>`).join("")}
+        </tbody></table>
+        <div class="period-report-note">추나군은 초진 당일 단추·복추·기존 추나 중 하나 이상을 시행한 환자입니다. 이 수치는 관찰된 연관성이며 치료 효과의 인과관계를 의미하지 않습니다.</div>
+      </div>
+      <div class="period-report-columns">
+        <div class="period-report-section"><h3>관리 필요 현황</h3><table>
+          <thead><tr><th>구분</th><th>현재</th><th>이전 기간 비교</th></tr></thead>
+          <tbody>${managementRows.map(row => `<tr><td>${escapePeriodReportHtml(row.label)}</td><td>${row.count.toLocaleString()}명 (${periodReportRate(row.rate)})</td><td>${escapePeriodReportHtml(periodNeedComparisonText(row.rate, row.previousRate, row.previousCount))}</td></tr>`).join("")}</tbody>
+        </table></div>
+        <div class="period-report-section"><h3>요일별 진료</h3><table><thead><tr><th>요일</th><th>환자 수</th></tr></thead><tbody>${weekdayRows.map(day => `<tr><td>${day}요일</td><td>${Number(stats.weekdayCounts[day] || 0).toFixed(1)}</td></tr>`).join("")}</tbody></table></div>
+      </div>
+      <div class="period-report-columns">
+        <div class="period-report-section"><h3>치료 항목 상위 10</h3><table><thead><tr><th>치료</th><th>건수</th></tr></thead><tbody>${treatmentRows.map(([name, count]) => `<tr><td>${escapePeriodReportHtml(name)}</td><td>${Number(count || 0).toLocaleString()}</td></tr>`).join("")}</tbody></table></div>
+        <div class="period-report-section"><h3>원장별 진료 건수</h3><table><thead><tr><th>담당 원장</th><th>건수</th></tr></thead><tbody>${doctorRows.map(([name, count]) => `<tr><td>${escapePeriodReportHtml(name)}</td><td>${Number(count || 0).toLocaleString()}</td></tr>`).join("")}</tbody></table></div>
+      </div>`;
+  }
+
+  async function createPeriodReport() {
+    let start = $("startDate").value;
+    let end = $("endDate").value;
+    if (!start || !end) {
+      $("periodReportStatus").textContent = "시작일과 종료일을 확인해주세요.";
+      $("periodReportStatus").classList.add("error");
+      return;
+    }
+    if (start > end) [start, end] = [end, start];
+    $("periodReportCreateBtn").disabled = true;
+    $("periodReportPrintBtn").disabled = true;
+    $("periodReportStatus").classList.remove("error");
+    $("periodReportStatus").textContent = "기간 리포트 집계 중...";
+    try {
+      const res = await fetch(`/api/reports/period?${new URLSearchParams({ start, end })}`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `리포트 생성 실패 (${res.status})`);
+      renderPeriodReport(data);
+      $("periodReportPrintBtn").disabled = false;
+      $("periodReportStatus").textContent = "기간 리포트 생성 완료";
+    } catch (error) {
+      $("periodReportResult").innerHTML = "";
+      $("periodReportStatus").textContent = error?.message || String(error);
+      $("periodReportStatus").classList.add("error");
+    } finally {
+      $("periodReportCreateBtn").disabled = false;
+    }
+  }
+
+  function printPeriodReport() {
+    if (!$("periodReportResult").innerHTML) return;
+    document.body.classList.add("period-report-printing");
+    window.print();
+    setTimeout(() => document.body.classList.remove("period-report-printing"), 0);
+  }
+
   async function run() {
     let start = $("startDate").value;
     let end = $("endDate").value;
@@ -1464,7 +1541,6 @@
       renderCountTable("doctorTableWrap", s.doctorCounts);
       renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"], valueHeader: "평균", decimals: 1 });
       renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
-      renderNoFollowupTable(SERVER_MODE ? (s.noFollowupRows || []) : noFollowupNewPatients(docFilter));
       lastResult = { start, end, docLabel, chartUnit, comparisonUnit, comparisonGraphUnit, stats: s, comparison };
     } catch (e) {
       $("status").textContent = "오류: " + (e?.message || e);
@@ -1586,6 +1662,8 @@
     });
   });
   $("csvBtn").addEventListener("click", downloadCsv);
+  $("periodReportCreateBtn").addEventListener("click", createPeriodReport);
+  $("periodReportPrintBtn").addEventListener("click", printPeriodReport);
   renderChartMetricToggles();
   disableAutocomplete();
   $("chartMetricToggles").addEventListener("click", event => {

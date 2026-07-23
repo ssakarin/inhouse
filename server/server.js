@@ -1304,8 +1304,176 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     doctorCounts,
     weekdayCounts,
     treatmentComboCounts,
-    trendStats,
-    noFollowupRows: noFollowupNewPatientsFromRecords(records, docFilter)
+    trendStats
+  };
+}
+
+function shiftReportDate(date, days) {
+  return addDays(date, Number(days) || 0);
+}
+
+function visitOrdinalForDate(record = {}, targetDate = "") {
+  const dates = nonPrescriptionVisitDatesOf(record).filter(date => date <= targetDate);
+  if (!dates.includes(targetDate)) return 0;
+  const initials = newVisitDatesOf(record).filter(date => date <= targetDate);
+  const courseStart = initials.filter(date => date <= targetDate).at(-1) || dates[0] || targetDate;
+  return dates.filter(date => date >= courseStart && date <= targetDate).length;
+}
+
+function createFollowupGroup(label) {
+  return { label, patients: 0, returned: 0, thirdVisit: 0 };
+}
+
+function finishFollowupGroup(group) {
+  return {
+    ...group,
+    returnRate: group.patients ? group.returned / group.patients : 0,
+    thirdVisitRate: group.patients ? group.thirdVisit / group.patients : 0,
+    returnToThirdRate: group.returned ? group.thirdVisit / group.returned : 0
+  };
+}
+
+function weeklyStatsSummary(stats = {}, includeBreakdowns = true) {
+  const summary = {
+    coreVisits: Number(stats.coreVisits || 0),
+    uniquePatients: Number(stats.uniquePatients || 0),
+    newPatients: Number(stats.newPatients || 0),
+    revisitPatients: Number(stats.revisitPatients || 0),
+    prescriptionPatients: Number(stats.prescriptionPatients || 0),
+    clinicDays: Number(stats.clinicDays || 0),
+    chunaTotal: Number(stats.chunaTotal || 0),
+    chunaPatientRate: Number(stats.chunaPatientRate || 0),
+    pharmaTotal: Number(stats.pharmaTotal || 0),
+    pharmaPatients: Number(stats.pharmaPatients || 0),
+    pharmaPatientRate: Number(stats.pharmaPatientRate || 0),
+    pharmaPackagePurchasePatients: Number(stats.pharmaPackagePurchasePatients || 0),
+    avgVisitsPerPatient: Number(stats.avgVisitsPerPatient || 0)
+  };
+  if (includeBreakdowns) {
+    summary.treatmentCounts = stats.treatmentCounts || {};
+    summary.doctorCounts = stats.doctorCounts || {};
+    summary.weekdayCounts = stats.weekdayCounts || {};
+  }
+  return summary;
+}
+
+function computePeriodClinicReport(start, end) {
+  if (!isValidReportDate(start) || !isValidReportDate(end) || start > end) {
+    throw new Error("start and end must be valid YYYY-MM-DD dates");
+  }
+  const rangeDays = Math.max(1, Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1);
+  if (rangeDays > 366) throw new Error("period report range must be 366 days or less");
+  const previousStart = shiftReportDate(start, -rangeDays);
+  const previousEnd = shiftReportDate(end, -rangeDays);
+  const cohortStart = shiftReportDate(start, -21);
+  const cohortEnd = shiftReportDate(end, -21);
+  const previousCohortStart = shiftReportDate(previousStart, -21);
+  const previousCohortEnd = shiftReportDate(previousEnd, -21);
+  const stats = computeClinicStats({ start, end, chartUnit: "day" });
+  const previousStats = computeClinicStats({ start: previousStart, end: previousEnd, chartUnit: "day" });
+  const stagePatientSets = { first: new Set(), second: new Set(), third: new Set(), fourthPlus: new Set() };
+  const previousStagePatientSets = { first: new Set(), second: new Set(), third: new Set(), fourthPlus: new Set() };
+  const groups = {
+    all: createFollowupGroup("전체"),
+    chuna: createFollowupGroup("추나 시행"),
+    noChuna: createFollowupGroup("추나 미시행"),
+    simple: createFollowupGroup("단추"),
+    complex: createFollowupGroup("복추")
+  };
+  const previousGroups = {
+    all: createFollowupGroup("전체"),
+    chuna: createFollowupGroup("추나 시행"),
+    noChuna: createFollowupGroup("추나 미시행"),
+    simple: createFollowupGroup("단추"),
+    complex: createFollowupGroup("복추")
+  };
+
+  for (const record of listPatients()) {
+    const pid = String(record.patientId || record.chartNo || record.name || "");
+    if (!pid) continue;
+    const addVisitStage = (date, targetSets) => {
+      const ordinal = visitOrdinalForDate(record, date);
+      if (ordinal === 1) targetSets.first.add(pid);
+      else if (ordinal === 2) targetSets.second.add(pid);
+      else if (ordinal === 3) targetSets.third.add(pid);
+      else if (ordinal >= 4) targetSets.fourthPlus.add(pid);
+    };
+    for (const date of nonPrescriptionVisitDatesOf(record).filter(date => date >= start && date <= end)) {
+      addVisitStage(date, stagePatientSets);
+    }
+    for (const date of nonPrescriptionVisitDatesOf(record).filter(date => date >= previousStart && date <= previousEnd)) {
+      addVisitStage(date, previousStagePatientSets);
+    }
+
+    const addFollowup = (firstDate, targetGroups) => {
+      if (isPrescriptionVisit(record, firstDate)) return;
+      const entry = getVisitRecord(record, firstDate);
+      const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
+      const hasSimple = treatments.some(isSimpleChunaTreatment);
+      const hasComplex = treatments.some(isComplexChunaTreatment);
+      const hasChuna = hasSimple || hasComplex;
+      const followupCount = visitsWithinDays(nonPrescriptionVisitDatesOf(record), firstDate, 21);
+      const returned = followupCount >= 2;
+      const thirdVisit = followupCount >= 3;
+      const selectedGroups = [targetGroups.all, hasChuna ? targetGroups.chuna : targetGroups.noChuna];
+      if (hasSimple) selectedGroups.push(targetGroups.simple);
+      if (hasComplex) selectedGroups.push(targetGroups.complex);
+      selectedGroups.forEach(group => {
+        group.patients += 1;
+        if (returned) group.returned += 1;
+        if (thirdVisit) group.thirdVisit += 1;
+      });
+    };
+    for (const firstDate of newVisitDatesOf(record).filter(date => date >= cohortStart && date <= cohortEnd)) {
+      addFollowup(firstDate, groups);
+    }
+    for (const firstDate of newVisitDatesOf(record).filter(date => date >= previousCohortStart && date <= previousCohortEnd)) {
+      addFollowup(firstDate, previousGroups);
+    }
+  }
+
+  return {
+    start,
+    end,
+    previousStart,
+    previousEnd,
+    cohortStart,
+    cohortEnd,
+    previousCohortStart,
+    previousCohortEnd,
+    generatedAt: new Date().toISOString(),
+    stats: weeklyStatsSummary(stats, true),
+    previousStats: weeklyStatsSummary(previousStats, false),
+    visitStages: {
+      first: stagePatientSets.first.size,
+      second: stagePatientSets.second.size,
+      third: stagePatientSets.third.size,
+      fourthPlus: stagePatientSets.fourthPlus.size
+    },
+    previousVisitStages: {
+      first: previousStagePatientSets.first.size,
+      second: previousStagePatientSets.second.size,
+      third: previousStagePatientSets.third.size,
+      fourthPlus: previousStagePatientSets.fourthPlus.size
+    },
+    followup: Object.fromEntries(Object.entries(groups).map(([key, group]) => [key, finishFollowupGroup(group)])),
+    previousFollowup: Object.fromEntries(Object.entries(previousGroups).map(([key, group]) => [key, finishFollowupGroup(group)])),
+    followupNeeds: {
+      noReturn: Math.max(0, groups.all.patients - groups.all.returned),
+      noThirdVisit: Math.max(0, groups.all.returned - groups.all.thirdVisit),
+      chunaNoReturn: Math.max(0, groups.chuna.patients - groups.chuna.returned),
+      chunaNoThirdVisit: Math.max(0, groups.chuna.returned - groups.chuna.thirdVisit),
+      noChunaNoReturn: Math.max(0, groups.noChuna.patients - groups.noChuna.returned),
+      noChunaNoThirdVisit: Math.max(0, groups.noChuna.returned - groups.noChuna.thirdVisit)
+    },
+    previousFollowupNeeds: {
+      noReturn: Math.max(0, previousGroups.all.patients - previousGroups.all.returned),
+      noThirdVisit: Math.max(0, previousGroups.all.returned - previousGroups.all.thirdVisit),
+      chunaNoReturn: Math.max(0, previousGroups.chuna.patients - previousGroups.chuna.returned),
+      chunaNoThirdVisit: Math.max(0, previousGroups.chuna.returned - previousGroups.chuna.thirdVisit),
+      noChunaNoReturn: Math.max(0, previousGroups.noChuna.patients - previousGroups.noChuna.returned),
+      noChunaNoThirdVisit: Math.max(0, previousGroups.noChuna.returned - previousGroups.noChuna.thirdVisit)
+    }
   };
 }
 
@@ -2863,6 +3031,14 @@ async function handleApi(req, res, pathname) {
     const docFilter = requestUrl.searchParams.get("doctor") || "";
     const chartUnit = requestUrl.searchParams.get("unit") || "week";
     jsonResponse(res, 200, computeClinicStats({ start, end, docFilter, chartUnit }));
+    return true;
+  }
+
+  if (pathname === "/api/reports/period" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const start = requestUrl.searchParams.get("start") || "";
+    const end = requestUrl.searchParams.get("end") || "";
+    jsonResponse(res, 200, computePeriodClinicReport(start, end));
     return true;
   }
 
