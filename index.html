@@ -13690,7 +13690,7 @@
   }
 
   // 타이머 불필요 치료 (시행완료 버튼만 표시)
-  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선', '아이스팩', '테이핑', '벤치']);
+  const NO_TIMER_TREATMENTS = new Set(['진찰', '베드진찰', '단추', '복추', '추나', '적외선', '테이핑', '벤치']);
   function isNoTimerTreatment(name) {
     if (!name) return false;
     if (NO_TIMER_TREATMENTS.has(name)) return true;
