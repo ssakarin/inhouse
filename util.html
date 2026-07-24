@@ -206,12 +206,12 @@
     <div class="card-title">알림톡 엑셀 생성</div>
     <div class="tool-row">
       <textarea class="alerttalk-input" id="alerttalkInput" placeholder="예:
-홍길동 11,33
-김영희님 22,44
-이단비님 99" autocomplete="off"></textarea>
+홍길동 e11,33
+김영희님 200-52,100-90
+이단비님 d79,e35" autocomplete="off"></textarea>
       <button class="good" id="alerttalkCreateBtn" type="button">엑셀 생성</button>
     </div>
-    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. 번호가 1개면 첫번째 파일만, 2개면 첫번째/두번째 파일을 생성합니다.</div>
+    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 1개면 첫번째 파일만, 2개면 첫번째/두번째 파일을 생성합니다.</div>
     <div class="status" id="alerttalkStatus">대기 중</div>
     <div class="alerttalk-preview" id="alerttalkPreview"></div>
   </div>
@@ -1161,7 +1161,10 @@ const DISEASE = [
 
   function parseAlerttalkToken(token) {
     const text = String(token || "").trim();
+    const legacyMatch = text.match(/^(100|200)-(\d+)$/);
+    if (legacyMatch) return { isD: legacyMatch[1] === "200", num: Number.parseInt(legacyMatch[2], 10) };
     if (/^[dD]\d+$/.test(text)) return { isD: true, num: Number.parseInt(text.slice(1), 10) };
+    if (/^[eE]\d+$/.test(text)) return { isD: false, num: Number.parseInt(text.slice(1), 10) };
     if (/^\d+$/.test(text)) return { isD: false, num: Number.parseInt(text, 10) };
     return null;
   }
@@ -1182,7 +1185,7 @@ const DISEASE = [
   }
 
   function parseAlerttalkTokens(text) {
-    return (String(text || "").match(/[dD]?\d+/g) || []).map(parseAlerttalkToken).filter(Boolean);
+    return (String(text || "").match(/(?:[12]00-\d+|[dDeE]?\d+)/g) || []).map(parseAlerttalkToken).filter(Boolean);
   }
 
   function lookupAlerttalkLabel(isD, num) {
@@ -1191,7 +1194,7 @@ const DISEASE = [
   }
 
   function parseAlerttalkInput(text) {
-    const firstToken = String(text || "").search(/[dD]?\d+/);
+    const firstToken = String(text || "").search(/(?:[12]00-\d+|[dDeE]?\d+)/);
     if (firstToken < 0) return { name: normalizeAlerttalkName(text), tokens: [] };
     return {
       name: normalizeAlerttalkName(String(text).slice(0, firstToken)),

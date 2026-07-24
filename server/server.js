@@ -1066,18 +1066,19 @@ function attachOnlineManagementMatches(rows = [], messages = []) {
   return rows.map(row => {
     const name = normalizeSearchText(row.name);
     if (!name) return row;
-    const pattern = new RegExp(`${escapeRegExp(name)}([^\\n]{0,100})`, "g");
+    const codeToken = "(?:[12]00-\\d+|[dDeE]?\\d+)";
+    const pattern = new RegExp(`^\\s*${escapeRegExp(name)}(?:님)?\\s*[:：]?\\s*(${codeToken})\\s*[,，\\s]+\\s*(${codeToken})(?![\\d-])`, "i");
     const matches = [];
     for (const text of texts) {
-      let match;
-      while ((match = pattern.exec(text)) !== null) {
-        const tokens = String(match[1] || "").match(/[dDeE]?\d+/g) || [];
-        if (tokens.length >= 2) {
-          const codes = tokens.slice(0, 2).map(token =>
-            /^d/i.test(token) ? `d${token.replace(/\D/g, "")}` : `e${token.replace(/\D/g, "")}`
-          );
-          matches.push(codes.join(","));
-        }
+      for (const line of text.split(/\r?\n|\\n/)) {
+        const match = line.match(pattern);
+        if (!match) continue;
+        const codes = match.slice(1, 3).map(token => {
+          const legacyMatch = token.match(/^(100|200)-(\d+)$/);
+          if (legacyMatch) return `${legacyMatch[1] === "200" ? "d" : "e"}${legacyMatch[2]}`;
+          return /^d/i.test(token) ? `d${token.replace(/\D/g, "")}` : `e${token.replace(/\D/g, "")}`;
+        });
+        matches.push(codes.join(","));
       }
     }
     return { ...row, onlineManagementMatches: [...new Set(matches)] };
