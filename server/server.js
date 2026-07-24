@@ -1071,8 +1071,13 @@ function attachOnlineManagementMatches(rows = [], messages = []) {
     for (const text of texts) {
       let match;
       while ((match = pattern.exec(text)) !== null) {
-        const tokens = String(match[1] || "").match(/\d+(?:-\d+)?/g) || [];
-        if (tokens.length >= 2) matches.push(tokens.slice(0, 2).join(" "));
+        const tokens = String(match[1] || "").match(/[dDeE]?\d+/g) || [];
+        if (tokens.length >= 2) {
+          const codes = tokens.slice(0, 2).map(token =>
+            /^d/i.test(token) ? `d${token.replace(/\D/g, "")}` : `e${token.replace(/\D/g, "")}`
+          );
+          matches.push(codes.join(","));
+        }
       }
     }
     return { ...row, onlineManagementMatches: [...new Set(matches)] };

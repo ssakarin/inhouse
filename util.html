@@ -108,6 +108,8 @@
   .status.error { color: var(--danger); }
   .note { color: var(--muted); font-size: 12px; font-weight: 800; margin-top: 10px; line-height: 1.5; }
   .result-table { margin-top: 12px; overflow-x: auto; }
+  .result-table table { min-width: 860px; }
+  .message-copy-btn { white-space: nowrap; color: var(--accent); }
   .message-output { margin-top: 12px; max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
   .message-output table { min-width: 760px; }
   .message-output td { vertical-align: top; }
@@ -428,7 +430,41 @@
     noFollowupStatus.textContent = text;
   }
 
+  const NO_FOLLOWUP_MESSAGE_TEMPLATE = `안녕하세요. 경희홍익한의원입니다.
+
+치료받으신 부위는 좀 어떠신가요?
+많이 편해지셨다면 다행입니다. 보내드린 안내를 참고하셔서 홈케어를 병행해 주세요.  한번 더 보내 드리겠습니다. https://khhongik-kakao-care.pages.dev/?imgs={info}
+
+혹시 아직 불편함이 남아있거나 치료가 필요하시면, 증상이 다시 심해지기 전에 내원하셔서 경과를 확인해 보시는 것을 추천해 드립니다.
+
+편하게 연락 주시고, 언제든지 궁금한 점도 문의해 주세요.
+감사합니다.`;
+
+  let noFollowupMessages = [];
+
+  function buildNoFollowupMessage(info) {
+    const imageCodes = String(info || "").replace(/\s+/g, "");
+    return NO_FOLLOWUP_MESSAGE_TEMPLATE.replace("{info}", imageCodes);
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) throw new Error("클립보드 복사에 실패했습니다.");
+  }
+
   function renderNoFollowupRows(rows) {
+    noFollowupMessages = [];
     if (!rows.length) {
       noFollowupResult.innerHTML = "";
       setNoFollowupStatus("대상자가 없습니다.", "good");
@@ -445,6 +481,7 @@
             <th>정보</th>
             <th>원장</th>
             <th>차트</th>
+            <th>문구</th>
           </tr>
         </thead>
         <tbody>
@@ -453,6 +490,7 @@
               ? row.onlineManagementMatches.join(", ")
               : "";
             const meta = [row.gender, row.age ? `${row.age}세` : ""].filter(Boolean).join(" · ");
+            const messageIndex = noFollowupMessages.push(buildNoFollowupMessage(info)) - 1;
             return `
               <tr>
                 <td>${escapeHtml(String(row.daysAgo || ""))}일</td>
@@ -462,6 +500,7 @@
                 <td>${escapeHtml(info || "-")}</td>
                 <td>${escapeHtml(row.doctorName || "-")}</td>
                 <td>${escapeHtml(row.chartNo || "-")}</td>
+                <td><button class="message-copy-btn" type="button" data-message-index="${messageIndex}">문구 복사</button></td>
               </tr>`;
           }).join("")}
         </tbody>
@@ -1701,6 +1740,21 @@ const DISEASE = [
     if (event.key === "Enter") loadOnlineSlackMessages();
   });
   noFollowupSearchBtn.addEventListener("click", searchNoFollowupPatients);
+  noFollowupResult.addEventListener("click", async event => {
+    const button = event.target.closest(".message-copy-btn");
+    if (!button) return;
+    const message = noFollowupMessages[Number(button.dataset.messageIndex)];
+    if (!message) return;
+    const originalText = button.textContent;
+    try {
+      await copyText(message);
+      button.textContent = "복사됨";
+    } catch (error) {
+      button.textContent = "복사 실패";
+      setNoFollowupStatus(error?.message || String(error), "error");
+    }
+    window.setTimeout(() => { button.textContent = originalText; }, 1200);
+  });
   noFollowupDaysInput.addEventListener("keydown", event => {
     if (event.key === "Enter") searchNoFollowupPatients();
   });
