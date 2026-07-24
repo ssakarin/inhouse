@@ -1184,8 +1184,16 @@ const DISEASE = [
     return digits.replace(/^(01[0-9])(\d{3,4})(\d{4})$/, "$1-$2-$3");
   }
 
+  function normalizeAlerttalkCodeText(text) {
+    return String(text || "")
+      .replace(/[‐‑‒–—―−]/g, "-")
+      .replace(/\b(100|200)\s*-\s*(\d+)\b/g, "$1-$2");
+  }
+
   function parseAlerttalkTokens(text) {
-    return (String(text || "").match(/(?:[12]00-\d+|[dDeE]?\d+)/g) || []).map(parseAlerttalkToken).filter(Boolean);
+    return (normalizeAlerttalkCodeText(text).match(/(?:[12]00-\d+|[dDeE]?\d+)/g) || [])
+      .map(parseAlerttalkToken)
+      .filter(Boolean);
   }
 
   function lookupAlerttalkLabel(isD, num) {
@@ -1194,11 +1202,12 @@ const DISEASE = [
   }
 
   function parseAlerttalkInput(text) {
-    const firstToken = String(text || "").search(/(?:[12]00-\d+|[dDeE]?\d+)/);
-    if (firstToken < 0) return { name: normalizeAlerttalkName(text), tokens: [] };
+    const normalizedText = normalizeAlerttalkCodeText(text);
+    const firstToken = normalizedText.search(/(?:[12]00-\d+|[dDeE]?\d+)/);
+    if (firstToken < 0) return { name: normalizeAlerttalkName(normalizedText), tokens: [] };
     return {
-      name: normalizeAlerttalkName(String(text).slice(0, firstToken)),
-      tokens: parseAlerttalkTokens(String(text).slice(firstToken))
+      name: normalizeAlerttalkName(normalizedText.slice(0, firstToken)),
+      tokens: parseAlerttalkTokens(normalizedText.slice(firstToken))
     };
   }
 
