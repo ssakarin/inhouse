@@ -4625,6 +4625,27 @@
     color: var(--gold);
     background: rgba(240,192,96,0.14);
   }
+  .inline-visit-plan {
+    display: none;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid rgba(240,192,96,0.58);
+    border-radius: 8px;
+    background: rgba(240,192,96,0.14);
+    color: var(--gold);
+    padding: 9px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .inline-visit-plan.show { display: flex; }
+  .inline-visit-plan:hover { border-color: var(--gold); }
+  .inline-visit-plan-label { color: var(--text2); font-size: 12px; }
+  .inline-visit-plan-value { white-space: nowrap; }
   .visit-history-popup { max-width: 560px; }
   .visit-history-popup-list {
     display: grid;
@@ -5105,6 +5126,13 @@
           </div>
 
           <div class="form-section">
+            <button class="inline-visit-plan" id="deskVisitPlanBtn" type="button" onclick="openInlineVisitGoalPopup('desk')">
+              <span class="inline-visit-plan-label">방문횟수 / 목표횟수</span>
+              <span class="inline-visit-plan-value" id="deskVisitPlanValue"></span>
+            </button>
+          </div>
+
+          <div class="form-section">
             <div class="staff-select-grid monitor-staff-grid">
               <select class="staff-select" id="doctorSelect"></select>
               <select class="staff-select" id="nurseSelect"></select>
@@ -5178,6 +5206,13 @@
                 <div class="memo2-history-list" id="receiveMemo2HistoryList"></div>
                 <button class="submit-btn receive-submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
               </div>
+            </div>
+
+            <div class="form-section">
+              <button class="inline-visit-plan" id="receiveVisitPlanBtn" type="button" onclick="openInlineVisitGoalPopup('receive')">
+                <span class="inline-visit-plan-label">방문횟수 / 목표횟수</span>
+                <span class="inline-visit-plan-value" id="receiveVisitPlanValue"></span>
+              </button>
             </div>
 
             <div class="form-section">
@@ -5666,6 +5701,7 @@
     const regularFixedBedNo = isRegularFixedBedScreen() ? Number(getFixedBedNoFromUrl()) : 0;
     const previousChangedBed = getBedData(numericBedNo);
     setLocalBedState(numericBedNo, op === 'remove' ? null : (bed || null));
+    refreshOpenVisitPlanControls();
     if (op === 'remove' && numericBedNo === Number(selectedBedNo)) {
       resetPCredits('bedTreatmentGrid');
       resetSpineSettings('bedTreatmentGrid');
@@ -9456,6 +9492,7 @@
     const dischargedKey = formEditDischargedKeyByScope[scope];
     if (button) button.textContent = bedNo || patientKey || dischargedKey ? '확인' : '입력';
     setIdentityFieldsLocked(scope, Boolean(bedNo));
+    renderInlineVisitPlan(scope);
   }
 
   window.setFormEditMode = setFormEditMode;
@@ -9469,6 +9506,7 @@
     const dischargedKey = formEditDischargedKeyByScope[scope];
     if (button) button.textContent = patientKey || dischargedKey ? '확인' : (formEditBedNoByScope[scope] ? '확인' : '입력');
     setIdentityFieldsLocked(scope, false);
+    renderInlineVisitPlan(scope);
   }
 
   function setDischargedPatientEditMode(scope, dischargedKey = null) {
@@ -9481,6 +9519,7 @@
     const button = document.getElementById(ids.submitBtn);
     if (button) button.textContent = dischargedKey ? '확인' : (formEditPatientKeyByScope[scope] || formEditBedNoByScope[scope] ? '확인' : '입력');
     setIdentityFieldsLocked(scope, false);
+    renderInlineVisitPlan(scope);
   }
 
   function populateBedEditForm() {
@@ -10613,6 +10652,7 @@
     }
     loadedKeys.add(key);
     patientsByKey.set(key, data);
+    refreshOpenVisitPlanControls();
     requestFullBoardRender();
   }
 
@@ -10621,6 +10661,7 @@
     if (assignedBedNo > 0) clearLocalTimerAlertsForBed(assignedBedNo);
     patientsByKey.delete(key);
     loadedKeys.delete(key);
+    refreshOpenVisitPlanControls();
 
     requestFullBoardRender();
   }
@@ -14369,12 +14410,47 @@
     }
   }
 
-  let activeVisitGoalBedNo = null;
+  let activeVisitGoalTarget = null;
 
-  async function persistVisitCountsForBed(bedNo, currentValue, goalValue) {
-    const bed = getBedData(bedNo);
-    if (!bed) return;
-    const calculatedCount = getVisitCountSinceLatestInitial(bed);
+  function getVisitGoalTargetSource(target = {}) {
+    if (target.bedNo) return getBedData(Number(target.bedNo));
+    if (target.patientKey) return patientsByKey.get(String(target.patientKey));
+    return null;
+  }
+
+  function getInlineVisitGoalTarget(scope) {
+    const bedNo = Number(formEditBedNoByScope[scope] || 0);
+    if (bedNo && getBedData(bedNo)) return { bedNo, scope };
+    const patientKey = String(formEditPatientKeyByScope[scope] || '');
+    if (patientKey && patientsByKey.get(patientKey)) return { patientKey, scope };
+    return null;
+  }
+
+  function renderInlineVisitPlan(scope) {
+    const button = document.getElementById(scope === 'receive' ? 'receiveVisitPlanBtn' : 'deskVisitPlanBtn');
+    const value = document.getElementById(scope === 'receive' ? 'receiveVisitPlanValue' : 'deskVisitPlanValue');
+    if (!button || !value) return;
+    const target = getInlineVisitGoalTarget(scope);
+    const source = target ? getVisitGoalTargetSource(target) : null;
+    button.classList.toggle('show', Boolean(source));
+    if (!source) {
+      value.textContent = '';
+      return;
+    }
+    const current = getCurrentVisitCount(source);
+    const goal = getVisitGoal(source);
+    value.textContent = `방문 ${current}회 · 목표 ${goal ? `${goal}회` : '-'}`;
+  }
+
+  function refreshOpenVisitPlanControls() {
+    renderInlineVisitPlan('desk');
+    renderInlineVisitPlan('receive');
+  }
+
+  async function persistVisitCountsForTarget(target, currentValue, goalValue) {
+    const source = getVisitGoalTargetSource(target);
+    if (!source) return false;
+    const calculatedCount = getVisitCountSinceLatestInitial(source);
     if (String(currentValue ?? '').trim() === '') {
       showToast('현재 방문횟수를 입력해주세요');
       return false;
@@ -14387,16 +14463,21 @@
     const targetTreatmentCount = normalizeVisitGoal(goalValue);
     const visitCountAdjustment = normalizeVisitCountAdjustment(desiredCount - calculatedCount);
     const patch = { visitCountAdjustment, targetTreatmentCount };
-    await updateBedRecord(bedNo, patch);
-    if (bed.patientKey) await updatePatient(bed.patientKey, patch);
-    if (bed.chartNo) {
+    const bedNo = Number(target?.bedNo || 0);
+    const patientKey = String(target?.patientKey || source.patientKey || '');
+    if (bedNo) await updateBedRecord(bedNo, patch);
+    if (patientKey) await updatePatient(patientKey, patch);
+    if (patientKey && patientsByKey.has(patientKey)) {
+      patientsByKey.set(patientKey, { ...patientsByKey.get(patientKey), ...patch });
+    }
+    if (source.chartNo) {
       await window.saveChartPatient?.({
-        patientId: bed.patientId || '',
-        chartNo: normalizeChartNo(bed.chartNo),
-        name: bed.name || '',
-        age: bed.age || '',
-        gender: bed.gender || '',
-        visitType: bed.visitType || '',
+        patientId: source.patientId || '',
+        chartNo: normalizeChartNo(source.chartNo),
+        name: source.name || '',
+        age: source.age || '',
+        gender: source.gender || '',
+        visitType: source.visitType || '',
         visitCountAdjustment,
         targetTreatmentCount
       });
@@ -14404,45 +14485,62 @@
     showToast(`방문 ${desiredCount}회${targetTreatmentCount ? ` / 목표 ${targetTreatmentCount}회` : ' / 목표 미설정'} 저장`);
     renderBedDetail();
     renderBedMonitors();
+    renderWaitingLists();
+    refreshOpenVisitPlanControls();
     return true;
+  }
+
+  async function persistVisitCountsForBed(bedNo, currentValue, goalValue) {
+    return persistVisitCountsForTarget({ bedNo: Number(bedNo) }, currentValue, goalValue);
   }
 
   function openVisitGoalPopup(bedNo) {
     const bed = getBedData(bedNo);
     if (!bed) return;
-    activeVisitGoalBedNo = Number(bedNo);
-    const current = getCurrentVisitCount(bed);
-    const historyCount = getVisitCountSinceLatestInitial(bed);
+    openVisitGoalPopupForTarget({ bedNo: Number(bedNo) });
+  }
+
+  function openVisitGoalPopupForTarget(target) {
+    const source = getVisitGoalTargetSource(target);
+    if (!source) return;
+    activeVisitGoalTarget = target;
+    const current = getCurrentVisitCount(source);
+    const historyCount = getVisitCountSinceLatestInitial(source);
     const currentInput = document.getElementById('visitCountInput');
     const input = document.getElementById('visitGoalInput');
     const label = document.getElementById('visitGoalCurrentLabel');
-    if (label) label.textContent = `방문 이력 카운트 ${historyCount}회`;
+    if (label) label.textContent = `${source.name || '환자'} · 방문 이력 카운트 ${historyCount}회`;
     if (currentInput) currentInput.value = String(current);
     if (input) {
-      input.value = getVisitGoal(bed) || '';
+      input.value = getVisitGoal(source) || '';
       setTimeout(() => currentInput?.focus(), 0);
     }
     document.getElementById('visitGoalOverlay')?.classList.add('show');
   }
 
+  window.openInlineVisitGoalPopup = (scope) => {
+    const target = getInlineVisitGoalTarget(scope);
+    if (target) openVisitGoalPopupForTarget(target);
+  };
+
   window.closeVisitGoalPopup = () => {
-    activeVisitGoalBedNo = null;
+    activeVisitGoalTarget = null;
     document.getElementById('visitGoalOverlay')?.classList.remove('show');
   };
 
   window.saveVisitGoalFromPopup = async (event) => {
     event?.preventDefault();
-    if (!activeVisitGoalBedNo) return;
+    if (!activeVisitGoalTarget) return;
     const currentValue = document.getElementById('visitCountInput')?.value;
     const goalValue = document.getElementById('visitGoalInput')?.value || '';
-    const saved = await persistVisitCountsForBed(activeVisitGoalBedNo, currentValue, goalValue);
+    const saved = await persistVisitCountsForTarget(activeVisitGoalTarget, currentValue, goalValue);
     if (saved) window.closeVisitGoalPopup();
   };
 
   window.clearVisitGoalFromPopup = async () => {
-    if (!activeVisitGoalBedNo) return;
+    if (!activeVisitGoalTarget) return;
     const currentValue = document.getElementById('visitCountInput')?.value;
-    const saved = await persistVisitCountsForBed(activeVisitGoalBedNo, currentValue, '');
+    const saved = await persistVisitCountsForTarget(activeVisitGoalTarget, currentValue, '');
     if (saved) window.closeVisitGoalPopup();
   };
 
