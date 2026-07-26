@@ -65,6 +65,8 @@
     margin-bottom: 16px;
   }
   .card-title { color: var(--gold); font-weight: 900; font-size: 14px; margin-bottom: 12px; }
+  .card-title-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .card-title-row .card-title { margin-bottom: 0; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .preset-btn.active { border-color: rgba(255,202,106,0.75); background: rgba(255,202,106,0.15); color: var(--gold); }
   .date-input { display: flex; align-items: center; gap: 6px; }
@@ -92,6 +94,24 @@
   .metric-value.gold { color: var(--gold); }
   .metric-value.accent { color: var(--accent); }
   .metric-sub { color: var(--muted); font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .metric-compare { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 17px; margin-top: 8px; font-size: 11px; font-weight: 900; }
+  .metric-compare.increase { color: var(--danger); }
+  .metric-compare.decrease { color: var(--accent); }
+  .metric-compare.neutral { color: var(--green); }
+  .metric-compare-previous { color: var(--muted); font-weight: 700; }
+  .summary-breakdowns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .summary-breakdown { min-width: 0; padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; background: rgba(255,255,255,0.035); }
+  .summary-breakdown-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .summary-breakdown-title { color: var(--text); font-size: 13px; font-weight: 900; }
+  .summary-breakdown-total { color: var(--muted); font-size: 11px; font-weight: 800; white-space: nowrap; }
+  .summary-stacked-bar { display: flex; width: 100%; height: 18px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.08); }
+  .summary-stacked-segment { min-width: 0; height: 100%; }
+  .summary-breakdown-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 7px 10px; margin-top: 11px; }
+  .summary-breakdown-item { min-width: 0; }
+  .summary-breakdown-label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 900; }
+  .summary-breakdown-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; }
+  .summary-breakdown-value { margin: 2px 0 0 14px; color: var(--text); font-size: 12px; font-weight: 900; }
+  @media (max-width: 760px) { .summary-breakdowns { grid-template-columns: 1fr; } }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
   table { width: 100%; border-collapse: collapse; }
@@ -110,6 +130,7 @@
   .chart-axis, .chart-grid { stroke: rgba(255,255,255,0.16); stroke-width: 1; }
   .chart-grid { stroke-dasharray: 4 6; }
   .chart-text { fill: var(--muted); font-size: 11px; font-weight: 800; }
+  .chart-value-label { font-size: 9px; font-weight: 900; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
   .chart-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
   .chart-dot { stroke: var(--panel); stroke-width: 2; }
   .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; color: var(--muted); font-size: 12px; font-weight: 900; }
@@ -120,6 +141,7 @@
   .chart-divider { height: 1px; background: var(--line); margin: 18px 0 0; }
   .comparison-line-prev { stroke-dasharray: 7 7; opacity: 0.68; }
   .comparison-dot-prev { fill: var(--panel); stroke-width: 2.5; opacity: 0.85; }
+  .chart-line-recent { stroke-dasharray: 6 6; opacity: 0.78; }
   .chart-toggle-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .chart-toggle {
     display: inline-flex;
@@ -158,6 +180,30 @@
     font-weight: 900;
   }
   .comparison-unit-btn.active { border-color: rgba(57,169,245,0.75); background: rgba(57,169,245,0.15); color: var(--accent); }
+  .comparison-average-list { display: grid; gap: 0; margin-top: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.035); }
+  .comparison-average-item { padding: 13px 14px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+  .comparison-average-item:last-child { border-bottom: 0; }
+  .comparison-average-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+  .comparison-average-title { color: var(--text); font-size: 13px; font-weight: 900; }
+  .comparison-average-change { font-size: 11px; font-weight: 900; }
+  .comparison-average-change.increase { color: var(--danger); }
+  .comparison-average-change.decrease { color: var(--accent); }
+  .comparison-average-change.neutral { color: var(--green); }
+  .comparison-average-bar-row { display: grid; grid-template-columns: 190px minmax(120px, 1fr) 76px; align-items: center; gap: 8px; margin-top: 7px; }
+  .comparison-average-period { color: var(--muted); font-size: 11px; font-weight: 900; white-space: nowrap; }
+  .comparison-average-track { height: 14px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.08); }
+  .comparison-average-fill { display: block; height: 100%; min-width: 0; border-radius: inherit; }
+  .comparison-average-value { color: var(--text); font-size: 11px; font-weight: 900; text-align: right; white-space: nowrap; }
+  @media (max-width: 640px) { .comparison-average-bar-row { grid-template-columns: 1fr 70px; } .comparison-average-period { grid-column: 1 / -1; } }
+  .operational-trend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+  .operational-trend-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.035); }
+  .operational-trend-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 5px; }
+  .operational-trend-title { color: var(--text); font-size: 12px; font-weight: 900; }
+  .operational-trend-latest { font-size: 12px; font-weight: 900; }
+  .operational-trend-svg { display: block; width: 100%; height: 130px; }
+  .cohort-chart-bar { fill: rgba(255,202,106,0.6); }
+  .cohort-rate-bar-recent { opacity: 0.48; stroke-width: 2; stroke-dasharray: 5 4; }
+  @media (max-width: 760px) { .operational-trend-grid { grid-template-columns: 1fr; } }
   .wide-card { grid-column: 1 / -1; }
   .period-report { display: grid; gap: 14px; margin-top: 14px; }
   .period-report:empty { display: none; }
@@ -171,7 +217,7 @@
   .period-report-metric-sub { margin-top: 3px; color: var(--accent); font-size: 11px; font-weight: 800; }
   .period-report-change.increase { color: var(--danger); }
   .period-report-change.decrease { color: var(--accent); }
-  .period-report-change.neutral { color: var(--muted); }
+  .period-report-change.neutral { color: var(--green); }
   .period-report-section { padding-top: 4px; overflow-x: auto; }
   .period-report-section h3 { margin: 0 0 8px; color: var(--gold); font-size: 15px; }
   .period-report-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -181,17 +227,43 @@
     .period-report-columns { grid-template-columns: 1fr; }
   }
   @media print {
-    body.period-report-printing { background: #fff; color: #111; }
+    @page { size: A4 landscape; margin: 10mm; }
+    body.period-report-printing { background: #fff; color: #111; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body.period-report-printing .topbar,
-    body.period-report-printing .card:not(#periodReportCard),
-    body.period-report-printing #periodReportControls,
+    body.period-report-printing #statsFilterCard,
+    body.period-report-printing #periodSelectionCard,
     body.period-report-printing #periodReportStatus,
     body.period-report-printing #periodReportCard > .card-title,
-    body.period-report-printing #periodReportCard > .period-report-note { display: none !important; }
+    body.period-report-printing #periodReportCard > .period-report-note,
+    body.period-report-printing .card-title-row .field-label,
+    body.period-report-printing .chart-toggle-row,
+    body.period-report-printing .comparison-unit-row,
+    body.period-report-printing .comparison-period-controls { display: none !important; }
     body.period-report-printing .app { width: 100%; padding: 0; }
-    body.period-report-printing #periodReportCard { border: 0; padding: 0; margin: 0; background: #fff; color: #111; }
+    body.period-report-printing .card { background: #fff; color: #111; border-color: #bbb; box-shadow: none; break-inside: auto; }
+    body.period-report-printing #periodReportCard { background: #fff; color: #111; }
+    body.period-report-printing .period-report { display: block; }
+    body.period-report-printing .period-report-head { margin-bottom: 12px; }
+    body.period-report-printing .period-report-section { overflow: visible; margin-bottom: 12px; }
+    body.period-report-printing .period-report-columns { break-inside: avoid; margin-bottom: 12px; }
+    body.period-report-printing table { break-inside: auto; }
+    body.period-report-printing tr { break-inside: avoid; break-after: auto; }
     body.period-report-printing .period-report-metric,
     body.period-report-printing .period-report-section { background: #fff; border-color: #bbb; break-inside: avoid; }
+    body.period-report-printing .metric,
+    body.period-report-printing .summary-breakdown,
+    body.period-report-printing .comparison-average-item { background: #fff; border-color: #bbb; break-inside: avoid; }
+    body.period-report-printing .summary-breakdown-title,
+    body.period-report-printing .summary-breakdown-value,
+    body.period-report-printing .comparison-average-title,
+    body.period-report-printing .comparison-average-value { color: #111; }
+    body.period-report-printing .chart-wrap { overflow: visible; break-inside: avoid; }
+    body.period-report-printing .weekly-chart { min-width: 0 !important; width: 100% !important; height: auto !important; max-height: 175mm; }
+    body.period-report-printing .chart-text { fill: #555; }
+    body.period-report-printing .chart-value-label { stroke: #fff; }
+    body.period-report-printing .chart-legend,
+    body.period-report-printing .summary-breakdowns,
+    body.period-report-printing .period-report-section { break-inside: avoid; }
     body.period-report-printing .period-report-title,
     body.period-report-printing .period-report-metric-value { color: #111; }
     body.period-report-printing .period-report-period,
@@ -213,7 +285,7 @@
     <a class="btn-link" href="util.html">유틸</a>
   </div>
 
-  <div class="card">
+  <div class="card" id="statsFilterCard">
     <div class="controls">
       <label class="field-label">원장
         <select id="doctorFilter"><option value="">전체</option></select>
@@ -222,7 +294,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="periodSelectionCard">
     <div class="card-title">기간 선택</div>
     <div class="controls" id="presetRow">
       <button class="preset-btn" data-preset="7">최근 7일</button>
@@ -237,6 +309,7 @@
         <input type="date" id="endDate">
       </span>
       <button id="applyBtn" style="border-color:rgba(74,222,128,0.55);color:var(--green)">조회</button>
+      <button id="periodReportPrintBtn" type="button" disabled>인쇄 / PDF</button>
     </div>
     <div class="controls" style="margin-top:10px">
       <span style="color:var(--muted);font-size:11px;font-weight:700">오늘은 집계에서 제외됩니다 (전일까지)</span>
@@ -245,25 +318,15 @@
     <div class="status" id="status"></div>
   </div>
 
-  <div class="card" id="periodReportCard">
-    <div class="card-title">기간 리포트</div>
-    <div class="controls" id="periodReportControls">
-      <button id="periodReportCreateBtn" type="button" style="border-color:rgba(74,222,128,0.55);color:var(--green)">기간 리포트 만들기</button>
-      <button id="periodReportPrintBtn" type="button" disabled>인쇄 / PDF</button>
-    </div>
-    <div class="period-report-note">위에서 선택한 기간의 운영 통계와 3주 전 초진 코호트의 21일 재진·삼진율을 집계합니다. 추나 여부는 초진 당일 단추·복추 시행 여부로 구분합니다.</div>
-    <div class="status" id="periodReportStatus">대기 중</div>
-    <div class="period-report" id="periodReportResult"></div>
-  </div>
-
   <div class="card">
     <div class="card-title">기간 요약</div>
     <div class="metrics" id="summaryMetrics"></div>
+    <div class="summary-breakdowns" id="summaryBreakdowns"></div>
   </div>
 
   <div class="card">
-    <div class="card-title">기간 추이</div>
-    <div class="controls">
+    <div class="card-title-row">
+      <div class="card-title">기간 추이</div>
       <label class="field-label">그래프 단위
         <select id="chartUnit">
           <option value="day">일</option>
@@ -278,31 +341,7 @@
     <div id="weeklyChartWrap"></div>
     <div class="chart-divider"></div>
     <div class="chart-section-title">기간 비교</div>
-    <div class="comparison-unit-row" id="comparisonUnitRow">
-      <button class="comparison-unit-btn active" data-comparison-unit="week">주</button>
-      <button class="comparison-unit-btn" data-comparison-unit="month">월</button>
-      <button class="comparison-unit-btn" data-comparison-unit="quarter">분기</button>
-      <button class="comparison-unit-btn" data-comparison-unit="year">년</button>
-      <label class="field-label">그래프 단위
-        <select id="comparisonGraphUnit">
-          <option value="day">일</option>
-          <option value="week">주</option>
-          <option value="month">월</option>
-          <option value="quarter">분기</option>
-          <option value="year">년</option>
-        </select>
-      </label>
-    </div>
-    <div class="comparison-period-controls hidden" id="comparisonMonthControls">
-      <label class="field-label">이전 월 <input type="month" id="comparisonPreviousMonth"></label>
-      <label class="field-label">현재 월 <input type="month" id="comparisonCurrentMonth"></label>
-    </div>
-    <div class="comparison-period-controls hidden" id="comparisonQuarterControls">
-      <label class="field-label">이전 분기 <select id="comparisonPreviousQuarter"></select></label>
-      <label class="field-label">현재 분기 <select id="comparisonCurrentQuarter"></select></label>
-    </div>
     <div class="chart-toggle-row" id="periodComparisonMetricToggles"></div>
-    <div class="chart-subtitle" id="periodComparisonLabel"></div>
     <div id="periodComparisonChartWrap"></div>
   </div>
 
@@ -354,11 +393,11 @@
     return chips.filter(chip => chip.classList.contains("active")).map(chip => chip.dataset.metricKey);
   }
 
-  function renderMetricToggles(wrapId, chipClass, activeKeys = null) {
+  function renderMetricToggles(wrapId, chipClass, activeKeys = null, metrics = CHART_METRICS) {
     const wrap = $(wrapId);
     if (!wrap) return;
     const activeSet = activeKeys ? new Set(activeKeys) : null;
-    wrap.innerHTML = CHART_METRICS.map(metric => `
+    wrap.innerHTML = metrics.map(metric => `
       <button class="chart-toggle ${chipClass}${!activeSet || activeSet.has(metric.key) ? " active" : ""}" type="button" data-metric-key="${metric.key}" style="--metric-color:${metric.color}">
         <span class="chart-toggle-swatch"></span>
         ${metric.label}
@@ -367,8 +406,8 @@
   }
 
   function renderChartMetricToggles() {
-    renderMetricToggles("chartMetricToggles", "chart-metric-chip", ["avgVisitsPerDay", "returnRate", "thirdVisitRate"]);
-    renderMetricToggles("periodComparisonMetricToggles", "comparison-chart-metric-chip", ["thirdVisitRate"]);
+    renderMetricToggles("chartMetricToggles", "chart-metric-chip", ["returnRate", "thirdVisitRate"]);
+    renderMetricToggles("periodComparisonMetricToggles", "comparison-chart-metric-chip", ["avgVisitsPerDay", "avgNewPatientsPerDay", "returnRate", "thirdVisitRate"]);
   }
 
   // ── IndexedDB 읽기 ──────────────────────────────────────────────
@@ -470,6 +509,14 @@
 
   function nonPrescriptionVisitDatesOf(rec) {
     return visitDatesOf(rec).filter(date => !isPrescriptionVisit(rec, date));
+  }
+
+  function visitOrdinalForDate(rec = {}, targetDate = "") {
+    const dates = nonPrescriptionVisitDatesOf(rec).filter(date => date <= targetDate);
+    if (!dates.includes(targetDate)) return 0;
+    const initials = newVisitDatesOf(rec).filter(date => date <= targetDate);
+    const courseStart = initials.filter(date => date <= targetDate).at(-1) || dates[0] || targetDate;
+    return dates.filter(date => date >= courseStart && date <= targetDate).length;
   }
 
   function isoWeekKey(dateStr) {
@@ -665,23 +712,13 @@
     }));
   }
 
-  async function loadPeriodComparison(anchorEnd, docFilter, comparisonUnit, graphUnit = "day") {
-    if (!["week", "month", "quarter", "year"].includes(comparisonUnit)) return null;
-    let current = null;
-    let previous = null;
-    if (comparisonUnit === "month") {
-      current = capRangeToYesterday(monthBoundsForValue($("comparisonCurrentMonth")?.value));
-      previous = capRangeToYesterday(monthBoundsForValue($("comparisonPreviousMonth")?.value));
-    } else if (comparisonUnit === "quarter") {
-      current = capRangeToYesterday(quarterBoundsForKey($("comparisonCurrentQuarter")?.value));
-      previous = capRangeToYesterday(quarterBoundsForKey($("comparisonPreviousQuarter")?.value));
-    }
-    if (!current || !previous) {
-      const fullCurrent = periodBoundsFor(anchorEnd, comparisonUnit);
-      current = { start: fullCurrent.start, end: minDateStr(anchorEnd, fullCurrent.end) };
-      previous = previousPeriodBounds(current.start, current.end, comparisonUnit);
-    }
-    const detailUnit = graphUnit || comparisonDetailUnit(comparisonUnit);
+  async function loadPeriodComparison(currentStart, currentEnd, docFilter, detailUnit = "day") {
+    const current = { start: currentStart, end: currentEnd };
+    const previousEnd = addDays(currentStart, -1);
+    const previous = {
+      start: addDays(previousEnd, -(rangeDays(currentStart, currentEnd) - 1)),
+      end: previousEnd
+    };
     const loader = SERVER_MODE
       ? (from, to) => loadServerStats(from, to, docFilter, detailUnit)
       : (from, to) => computeStats(from, to, docFilter, detailUnit);
@@ -697,8 +734,8 @@
     return dates.filter(d => d >= startDate && d <= endDate).length;
   }
 
-  function hasFullFollowupWindow(firstDate, statsEndDate, days = 21) {
-    return addDays(firstDate, days - 1) <= statsEndDate;
+  function hasFullFollowupWindow(firstDate, referenceDate, days = 21) {
+    return firstDate <= addDays(referenceDate, -days);
   }
 
   // ── 집계 ────────────────────────────────────────────────────────
@@ -778,6 +815,7 @@
     const newPatientSet = new Set();
     let visits = 0;
     let coreVisits = 0;
+    let prescriptionVisits = 0;
     let newPatients = 0;
     let followupEligibleNewPatients = 0;
     let returningPatients = 0;
@@ -788,6 +826,8 @@
     let simpleChunaTotal = 0;
     let complexChunaTotal = 0;
     const chunaPatientSet = new Set();
+    const simpleChunaPatientSet = new Set();
+    const complexChunaPatientSet = new Set();
     const pharmaPatientSet = new Set();
     const pharmaPackagePurchasePatientSet = new Set();
     const clinicDateSet = new Set();
@@ -796,6 +836,7 @@
     const weekdayDateSets = {};
     const treatmentComboCounts = {};
     const trendBuckets = {};
+    const visitStageCounts = { first: 0, second: 0, third: 0, fourthPlus: 0 };
 
     for (const rec of allRecords) {
       const dates = visitDatesOf(rec);
@@ -819,11 +860,17 @@
         trendBucket.visits += 1;
         trendBucket.dates.add(date);
         if (isPrescription) {
+          prescriptionVisits += 1;
           prescriptionPatientSet.add(pid);
           trendBucket.prescriptionPatientIds.add(pid);
         } else {
           matchedCore = true;
           coreVisits += 1;
+          const visitOrdinal = visitOrdinalForDate(rec, date);
+          if (visitOrdinal === 1) visitStageCounts.first += 1;
+          else if (visitOrdinal === 2) visitStageCounts.second += 1;
+          else if (visitOrdinal === 3) visitStageCounts.third += 1;
+          else if (visitOrdinal >= 4) visitStageCounts.fourthPlus += 1;
           clinicDateSet.add(date);
           trendBucket.coreVisits += 1;
           trendBucket.patientIds.add(pid);
@@ -841,11 +888,13 @@
           comboParts.push(t);
           if (!isPrescription && isSimpleChunaTreatment(t) && !countedSimpleChuna) {
             simpleChunaTotal += 1;
+            simpleChunaPatientSet.add(pid);
             trendBucket.simpleChunaTotal += 1;
             countedSimpleChuna = true;
           }
           if (!isPrescription && isComplexChunaTreatment(t) && !countedComplexChuna) {
             complexChunaTotal += 1;
+            complexChunaPatientSet.add(pid);
             trendBucket.complexChunaTotal += 1;
             countedComplexChuna = true;
           }
@@ -888,7 +937,7 @@
         newPatientSet.add(pid);
         const key = periodKey(firstDate, chartUnit);
         if (trendBuckets[key]) trendBuckets[key].newPatients += 1;
-        const isFollowupEligible = hasFullFollowupWindow(firstDate, end, 21);
+        const isFollowupEligible = hasFullFollowupWindow(firstDate, today(), 21);
         const nonPrescriptionDates = nonPrescriptionVisitDatesOf(rec);
         const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21);
         const isReturning = followupVisitCount >= 2;
@@ -944,14 +993,20 @@
     const simpleChunaRate = chunaTypeTotal ? simpleChunaTotal / chunaTypeTotal : 0;
     const complexChunaRate = chunaTypeTotal ? complexChunaTotal / chunaTypeTotal : 0;
     const pharmaPatientRate = patientSet.size ? pharmaPatientSet.size / patientSet.size : 0;
+    const prescriptionOnlyPatients = [...prescriptionPatientSet].filter(pid => !patientSet.has(pid)).length;
+    const newUniquePatients = [...newPatientSet].filter(pid => patientSet.has(pid)).length;
+    const simpleOnlyChunaPatients = [...simpleChunaPatientSet].filter(pid => !complexChunaPatientSet.has(pid)).length;
 
     return {
       uniquePatients: patientSet.size,
-      totalPatients: patientSet.size + prescriptionPatientSet.size,
+      totalPatients: patientSet.size + prescriptionOnlyPatients,
       visits,
       coreVisits,
+      prescriptionVisits,
       prescriptionPatients: prescriptionPatientSet.size,
+      prescriptionOnlyPatients,
       newPatients,
+      newUniquePatients,
       followupEligibleNewPatients,
       revisitPatients: Math.max(0, patientSet.size - newPatientSet.size),
       returnRate: followupEligibleNewPatients ? returningPatients / followupEligibleNewPatients : 0,
@@ -962,6 +1017,8 @@
       simpleChunaTotal,
       complexChunaTotal,
       chunaPatients: chunaPatientSet.size,
+      simpleOnlyChunaPatients,
+      complexChunaPatients: complexChunaPatientSet.size,
       chunaPatientRate,
       simpleChunaRate,
       complexChunaRate,
@@ -975,6 +1032,7 @@
       doctorCounts,
       weekdayCounts,
       treatmentComboCounts,
+      visitStageCounts,
       trendStats
     };
   }
@@ -1008,27 +1066,105 @@
   }
 
   // ── 렌더 ────────────────────────────────────────────────────────
-  function renderSummary(s) {
+  function summaryComparison(current, previous, options = {}) {
+    const currentValue = Number(current || 0);
+    const previousValue = Number(previous || 0);
+    const digits = Number(options.digits || 0);
+    const isRate = Boolean(options.rate);
+    const previousDisplay = isRate
+      ? `${(previousValue * 100).toFixed(digits)}%`
+      : previousValue.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    const difference = currentValue - previousValue;
+    if (Math.abs(difference) < 1e-12) {
+      return `<div class="metric-compare neutral"><span>― 0.0%</span><span class="metric-compare-previous">(이전 ${previousDisplay} · 동일)</span></div>`;
+    }
+    if (!previousValue && !isRate) {
+      return `<div class="metric-compare neutral"><span>― 비교 불가</span><span class="metric-compare-previous">(이전 ${previousDisplay})</span></div>`;
+    }
+    const changeText = isRate
+      ? `${Math.abs(difference * 100).toFixed(1)}%p`
+      : `${Math.abs((difference / previousValue) * 100).toFixed(1)}%`;
+    return `<div class="metric-compare ${difference > 0 ? "increase" : "decrease"}"><span>${difference > 0 ? "▲" : "▼"} ${changeText}</span><span class="metric-compare-previous">(이전 ${previousDisplay})</span></div>`;
+  }
+
+  function renderSummary(s, previous = {}) {
+    const previousTreatmentCounts = previous.treatmentCounts || {};
     $("summaryMetrics").innerHTML = `
-      <div class="metric"><div class="metric-label">총 진료 건수</div><div class="metric-value accent">${s.visits.toLocaleString()}</div><div class="metric-sub">약환 포함 연인원</div></div>
-      <div class="metric"><div class="metric-label">총 환자 수</div><div class="metric-value">${s.totalPatients.toLocaleString()}</div><div class="metric-sub">진료 환자 수 + 약환</div></div>
-      <div class="metric"><div class="metric-label">약환</div><div class="metric-value accent">${s.prescriptionPatients.toLocaleString()}</div><div class="metric-sub">주상병명 처방 실인원</div></div>
-      <div class="metric"><div class="metric-label">진료 환자 수</div><div class="metric-value">${s.uniquePatients.toLocaleString()}</div><div class="metric-sub">약환 제외 실인원</div></div>
-      <div class="metric"><div class="metric-label">초진(신환)</div><div class="metric-value gold">${s.newPatients.toLocaleString()}</div><div class="metric-sub">기간 내 초진 표시</div></div>
-      <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value">${s.revisitPatients.toLocaleString()}</div><div class="metric-sub">초진 표시 제외 실환자</div></div>
-      <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(s.returnRate * 100).toFixed(1)}%</div><div class="metric-sub">초진 후 3주 내 2회 이상</div></div>
-      <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(s.thirdVisitRate * 100).toFixed(1)}%</div><div class="metric-sub">초진 후 3주 내 3회 이상</div></div>
-      <div class="metric"><div class="metric-label">평균 방문 횟수</div><div class="metric-value accent">${s.avgVisitsPerPatient.toFixed(2)}</div><div class="metric-sub">약환 제외 진료 ÷ 진료 환자 수</div></div>
-      <div class="metric"><div class="metric-label">약침 합계</div><div class="metric-value gold">${s.pharmaTotal.toLocaleString()}</div><div class="metric-sub">약침1~4·L·자 (1회 진료=1)</div></div>
-      <div class="metric"><div class="metric-label">단순추나</div><div class="metric-value">${(s.treatmentCounts["단순추나"] || 0).toLocaleString()}</div><div class="metric-sub">단추/기존 추나 시행 건수</div></div>
-      <div class="metric"><div class="metric-label">복잡추나</div><div class="metric-value">${(s.treatmentCounts["복잡추나"] || 0).toLocaleString()}</div><div class="metric-sub">복추 시행 건수</div></div>
-      <div class="metric"><div class="metric-label">일평균 추나</div><div class="metric-value accent">${Number(s.avgChunaPerDay || 0).toFixed(1)}</div><div class="metric-sub">단추+복추 ÷ 진료일 ${Number(s.clinicDays || 0).toLocaleString()}일</div></div>
-      <div class="metric"><div class="metric-label">추나환자 비율</div><div class="metric-value">${(Number(s.chunaPatientRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">${Number(s.chunaPatients || 0).toLocaleString()}명 / 진료 환자 수</div></div>
-      <div class="metric"><div class="metric-label">복추/추나전체 비율</div><div class="metric-value">${(Number(s.complexChunaRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">복추 ${Number(s.complexChunaTotal || 0).toLocaleString()}건 / 추나전체 ${Number(s.chunaTotal || 0).toLocaleString()}건</div></div>
-      <div class="metric"><div class="metric-label">약침환자 비율</div><div class="metric-value gold">${(Number(s.pharmaPatientRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">${Number(s.pharmaPatients || 0).toLocaleString()}명 / 진료 환자 수</div></div>
-      <div class="metric"><div class="metric-label">일평균 약침환자수</div><div class="metric-value accent">${Number(s.avgPharmaPatientsPerDay || 0).toFixed(1)}</div><div class="metric-sub">약침 진료 건수 ÷ 진료일</div></div>
-      <div class="metric"><div class="metric-label">약침패키지 결제 환자수</div><div class="metric-value">${Number(s.pharmaPackagePurchasePatients || 0).toLocaleString()}</div><div class="metric-sub">기간 내 패키지 구매 기록</div></div>
+      <div class="metric"><div class="metric-label">총 진료 건수</div><div class="metric-value accent">${s.visits.toLocaleString()}</div><div class="metric-sub">약환 포함 연인원</div>${summaryComparison(s.visits, previous.visits)}</div>
+      <div class="metric"><div class="metric-label">총 환자 수</div><div class="metric-value">${s.totalPatients.toLocaleString()}</div><div class="metric-sub">진료 환자 수 + 약환</div>${summaryComparison(s.totalPatients, previous.totalPatients)}</div>
+      <div class="metric"><div class="metric-label">약환</div><div class="metric-value accent">${s.prescriptionPatients.toLocaleString()}</div><div class="metric-sub">주상병명 처방 실인원</div>${summaryComparison(s.prescriptionPatients, previous.prescriptionPatients)}</div>
+      <div class="metric"><div class="metric-label">진료 환자 수</div><div class="metric-value">${s.uniquePatients.toLocaleString()}</div><div class="metric-sub">약환 제외 실인원</div>${summaryComparison(s.uniquePatients, previous.uniquePatients)}</div>
+      <div class="metric"><div class="metric-label">초진(신환)</div><div class="metric-value gold">${s.newPatients.toLocaleString()}</div><div class="metric-sub">기간 내 초진 표시</div>${summaryComparison(s.newPatients, previous.newPatients)}</div>
+      <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value">${s.revisitPatients.toLocaleString()}</div><div class="metric-sub">초진 표시 제외 실환자</div>${summaryComparison(s.revisitPatients, previous.revisitPatients)}</div>
+      <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(Number(s.returnRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">최근 21일간은 제외</div>${summaryComparison(s.returnRate, previous.returnRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(Number(s.thirdVisitRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">최근 21일간은 제외</div>${summaryComparison(s.thirdVisitRate, previous.thirdVisitRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">평균 방문 횟수</div><div class="metric-value accent">${s.avgVisitsPerPatient.toFixed(2)}</div><div class="metric-sub">약환 제외 진료 ÷ 진료 환자 수</div>${summaryComparison(s.avgVisitsPerPatient, previous.avgVisitsPerPatient, { digits: 2 })}</div>
+      <div class="metric"><div class="metric-label">약침 합계</div><div class="metric-value gold">${s.pharmaTotal.toLocaleString()}</div><div class="metric-sub">약침1~4·L·자 (1회 진료=1)</div>${summaryComparison(s.pharmaTotal, previous.pharmaTotal)}</div>
+      <div class="metric"><div class="metric-label">단순추나</div><div class="metric-value">${(s.treatmentCounts["단순추나"] || 0).toLocaleString()}</div><div class="metric-sub">단추/기존 추나 시행 건수</div>${summaryComparison(s.treatmentCounts["단순추나"], previousTreatmentCounts["단순추나"])}</div>
+      <div class="metric"><div class="metric-label">복잡추나</div><div class="metric-value">${(s.treatmentCounts["복잡추나"] || 0).toLocaleString()}</div><div class="metric-sub">복추 시행 건수</div>${summaryComparison(s.treatmentCounts["복잡추나"], previousTreatmentCounts["복잡추나"])}</div>
+      <div class="metric"><div class="metric-label">일평균 추나</div><div class="metric-value accent">${Number(s.avgChunaPerDay || 0).toFixed(1)}</div><div class="metric-sub">단추+복추 ÷ 진료일 ${Number(s.clinicDays || 0).toLocaleString()}일</div>${summaryComparison(s.avgChunaPerDay, previous.avgChunaPerDay, { digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">추나환자 비율</div><div class="metric-value">${(Number(s.chunaPatientRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">${Number(s.chunaPatients || 0).toLocaleString()}명 / 진료 환자 수</div>${summaryComparison(s.chunaPatientRate, previous.chunaPatientRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">복추/추나전체 비율</div><div class="metric-value">${(Number(s.complexChunaRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">복추 ${Number(s.complexChunaTotal || 0).toLocaleString()}건 / 추나전체 ${Number(s.chunaTotal || 0).toLocaleString()}건</div>${summaryComparison(s.complexChunaRate, previous.complexChunaRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">약침환자 비율</div><div class="metric-value gold">${(Number(s.pharmaPatientRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">${Number(s.pharmaPatients || 0).toLocaleString()}명 / 진료 환자 수</div>${summaryComparison(s.pharmaPatientRate, previous.pharmaPatientRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">일평균 약침환자수</div><div class="metric-value accent">${Number(s.avgPharmaPatientsPerDay || 0).toFixed(1)}</div><div class="metric-sub">약침 진료 건수 ÷ 진료일</div>${summaryComparison(s.avgPharmaPatientsPerDay, previous.avgPharmaPatientsPerDay, { digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">약침패키지 결제 환자수</div><div class="metric-value">${Number(s.pharmaPackagePurchasePatients || 0).toLocaleString()}</div><div class="metric-sub">기간 내 패키지 구매 기록</div>${summaryComparison(s.pharmaPackagePurchasePatients, previous.pharmaPackagePurchasePatients)}</div>
     `;
+    renderSummaryBreakdowns(s);
+  }
+
+  function renderSummaryBreakdown(title, total, unit, items) {
+    const safeTotal = Math.max(0, Number(total || 0));
+    const segments = items.map(item => {
+      const value = Math.max(0, Number(item.value || 0));
+      const percent = safeTotal ? (value / safeTotal) * 100 : 0;
+      return { ...item, value, percent };
+    });
+    return `<div class="summary-breakdown">
+      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">총 ${safeTotal.toLocaleString()}${escapeHtml(unit)}</div></div>
+      <div class="summary-stacked-bar" role="img" aria-label="${escapeHtml(title)} 구성">
+        ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${item.value.toLocaleString()}${escapeHtml(unit)} (${item.percent.toFixed(1)}%)"></span>`).join("")}
+      </div>
+      <div class="summary-breakdown-legend">
+        ${segments.map(item => `<div class="summary-breakdown-item"><div class="summary-breakdown-label"><span class="summary-breakdown-dot" style="background:${item.color}"></span>${escapeHtml(item.label)}</div><div class="summary-breakdown-value">${item.value.toLocaleString()}${escapeHtml(unit)} · ${item.percent.toFixed(1)}%</div></div>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  function renderSummaryBreakdowns(s) {
+    const stages = s.visitStageCounts || {};
+    const prescriptionVisits = Number(s.prescriptionVisits ?? (Number(s.visits || 0) - Number(s.coreVisits || 0)));
+    const prescriptionOnlyPatients = Number(s.prescriptionOnlyPatients ?? s.prescriptionPatients ?? 0);
+    const newUniquePatients = Number(s.newUniquePatients ?? s.newPatients ?? 0);
+    const revisitUniquePatients = Math.max(0, Number(s.uniquePatients || 0) - newUniquePatients);
+    const totalPatients = Number(s.totalPatients || 0);
+    const complexChunaPatients = Math.min(totalPatients, Number(s.complexChunaPatients || 0));
+    const simpleChunaPatients = Math.max(0, Math.min(totalPatients - complexChunaPatients, Number(s.simpleOnlyChunaPatients ?? (Number(s.chunaPatients || 0) - complexChunaPatients))));
+    const regularChunaPatients = Math.max(0, totalPatients - simpleChunaPatients - complexChunaPatients);
+    const pharmaPatients = Math.min(totalPatients, Number(s.pharmaPatients || 0));
+    const regularPharmaPatients = Math.max(0, totalPatients - pharmaPatients);
+    $("summaryBreakdowns").innerHTML = [
+      renderSummaryBreakdown("총 진료 건수 구성", s.visits, "건", [
+        { label: "약환", value: prescriptionVisits, color: "#a78bfa" },
+        { label: "1회차", value: stages.first, color: "#ffca6a" },
+        { label: "2회차", value: stages.second, color: "#39a9f5" },
+        { label: "3회차", value: stages.third, color: "#fb7185" },
+        { label: "4회차 이상", value: stages.fourthPlus, color: "#4ade80" }
+      ]),
+      renderSummaryBreakdown("총 환자 수 구성", s.totalPatients, "명", [
+        { label: "약환", value: prescriptionOnlyPatients, color: "#a78bfa" },
+        { label: "초진", value: newUniquePatients, color: "#ffca6a" },
+        { label: "재진", value: revisitUniquePatients, color: "#39a9f5" }
+      ]),
+      renderSummaryBreakdown("총 환자 중 추나 환자", totalPatients, "명", [
+        { label: "일반 환자", value: regularChunaPatients, color: "#64748b" },
+        { label: "단순추나 환자", value: simpleChunaPatients, color: "#39a9f5" },
+        { label: "복합추나 환자", value: complexChunaPatients, color: "#fb7185" }
+      ]),
+      renderSummaryBreakdown("총 환자 중 약침 환자", totalPatients, "명", [
+        { label: "일반 환자", value: regularPharmaPatients, color: "#64748b" },
+        { label: "약침 환자", value: pharmaPatients, color: "#22c55e" }
+      ])
+    ].join("");
   }
 
   function formatStatValue(value, decimals = 0) {
@@ -1063,7 +1199,48 @@
   }
 
   function chartMetricValue(row, metric) {
-    return Number(row?.[metric.key] || 0);
+    if (!row || row[metric.key] === null || row[metric.key] === undefined) return null;
+    return Number(row[metric.key] || 0);
+  }
+
+  function trendPeriodEnd(key, unit) {
+    const text = String(key || "");
+    if (unit === "day" && /^\d{8}$/.test(text)) return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
+    if (unit === "month" && /^\d{6}$/.test(text)) return ymd(new Date(Number(text.slice(0, 4)), Number(text.slice(4, 6)), 0));
+    if (unit === "quarter" && /^\d{4}Q[1-4]$/.test(text)) return ymd(new Date(Number(text.slice(0, 4)), Number(text.slice(5, 6)) * 3, 0));
+    if (unit === "year" && /^\d{4}$/.test(text)) return `${text}-12-31`;
+    if (unit === "week" && /^\d{6}$/.test(text)) {
+      const year = Number(text.slice(0, 4));
+      const week = Number(text.slice(4, 6));
+      const jan4 = new Date(year, 0, 4);
+      const week1Monday = new Date(jan4);
+      week1Monday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+      week1Monday.setDate(week1Monday.getDate() + (week - 1) * 7 + 6);
+      return ymd(week1Monday);
+    }
+    return "";
+  }
+
+  function markRecentFollowupRates(rows = [], chartUnit = "week", cutoff = "") {
+    return rows.map(row => {
+      const periodEnd = trendPeriodEnd(row.key, chartUnit);
+      return { ...row, followupRecent: Boolean(periodEnd && periodEnd > cutoff) };
+    });
+  }
+
+  function isFollowupRateMetric(metric) {
+    return metric.key === "returnRate" || metric.key === "thirdVisitRate";
+  }
+
+  function followupSegmentRows(rows, metric, recentSegment) {
+    if (!isFollowupRateMetric(metric)) return rows;
+    const firstRecentIndex = rows.findIndex(row => row.followupRecent);
+    return rows.map((row, idx) => {
+      const keep = recentSegment
+        ? firstRecentIndex >= 0 && idx >= Math.max(0, firstRecentIndex - 1)
+        : !row.followupRecent;
+      return keep ? row : { ...row, [metric.key]: null };
+    });
   }
 
   function chartLinePath(rows, metric, yFn, xFn) {
@@ -1133,14 +1310,21 @@
           <line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
           ${countMetrics.length ? `<text class="chart-text" x="${pad.left}" y="14">일평균 인원</text>` : ""}
           ${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right}" y="14" text-anchor="end">비율</text>` : ""}
-          ${visibleMetrics.map(metric => `<path class="chart-line" d="${chartLinePath(rows, metric, metric.axis === "rate" ? yRate : yCount, x)}" stroke="${metric.color}"></path>`).join("")}
+          ${visibleMetrics.map(metric => {
+            const yFn = metric.axis === "rate" ? yRate : yCount;
+            if (!isFollowupRateMetric(metric)) return `<path class="chart-line" d="${chartLinePath(rows, metric, yFn, x)}" stroke="${metric.color}"></path>`;
+            const solidPath = chartLinePath(followupSegmentRows(rows, metric, false), metric, yFn, x);
+            const recentPath = chartLinePath(followupSegmentRows(rows, metric, true), metric, yFn, x);
+            return `<path class="chart-line" d="${solidPath}" stroke="${metric.color}"></path><path class="chart-line chart-line-recent" d="${recentPath}" stroke="${metric.color}"></path>`;
+          }).join("")}
           ${rows.map((r, idx) => `
             <g>
               ${visibleMetrics.map(metric => {
                 const value = chartMetricValue(r, metric);
                 if (value === null) return "";
                 const y = metric.axis === "rate" ? yRate(value) : yCount(value);
-                return `<circle class="chart-dot" cx="${x(idx)}" cy="${y}" r="4" fill="${metric.color}"><title>${r.key} ${metric.title(value)}</title></circle>`;
+                const isRecent = isFollowupRateMetric(metric) && r.followupRecent;
+                return `<circle class="chart-dot" cx="${x(idx)}" cy="${y}" r="4" fill="${metric.color}"><title>${r.key} ${metric.title(value)}${isRecent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle>`;
               }).join("")}
               ${xLabel({ ...r, idx })}
             </g>
@@ -1149,30 +1333,171 @@
       </div>
       <div class="chart-legend">
         ${visibleMetrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}</span>`).join("")}
+        ${visibleMetrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>최근 21일 점선</span>` : ""}
       </div>
     `;
   }
 
-  function renderPeriodComparisonChart(comparison, chartUnit = "week") {
-    const wrap = $("periodComparisonChartWrap");
-    const label = $("periodComparisonLabel");
-    if (!wrap) return;
-    if (!comparison) {
-      if (label) label.textContent = "주, 월, 분기, 년 단위에서 표시됩니다.";
-      wrap.innerHTML = `<div class="empty">비교할 기간 단위를 선택하세요.</div>`;
+  function renderCohortTrendChart(rows, chartUnit = "week") {
+    const wrap = $("cohortTrendWrap");
+    if (!wrap || !rows.length) {
+      if (wrap) wrap.innerHTML = `<div class="empty">데이터 없음</div>`;
+      return;
+    }
+    const returnMetric = CHART_METRICS.find(metric => metric.key === "returnRate");
+    const thirdMetric = CHART_METRICS.find(metric => metric.key === "thirdVisitRate");
+    const referenceDefinitions = {
+      newPatients: { label: "초진 환자 수", color: "#ffca6a", value: row => Number(row.newPatients || 0), format: value => `${value.toFixed(0)}명`, axis: "환자 수" },
+      avgVisitsPerDay: { label: "진료 환자", color: "#39a9f5", value: row => Number(row.avgVisitsPerDay || 0), format: value => `${value.toFixed(1)}명`, axis: "일평균 인원" },
+      avgNewPatientsPerDay: { label: "초진 일평균", color: "#ffca6a", value: row => Number(row.avgNewPatientsPerDay || 0), format: value => `${value.toFixed(1)}명`, axis: "일평균 인원" },
+      avgPrescriptionPatientsPerDay: { label: "약환", color: "#14b8a6", value: row => Number(row.avgPrescriptionPatientsPerDay || 0), format: value => `${value.toFixed(1)}명`, axis: "일평균 인원" },
+      avgChunaPerDay: { label: "추나", color: "#f97316", value: row => Number(row.avgChunaPerDay || 0), format: value => `${value.toFixed(1)}명`, axis: "일평균 인원" },
+      avgPharmaPatientsPerDay: { label: "약침", color: "#22c55e", value: row => Number(row.avgPharmaPatientsPerDay || 0), format: value => `${value.toFixed(1)}명`, axis: "일평균 인원" },
+      avgPharmaPackagePurchasePatientsPerDay: { label: "약침패키지", color: "#eab308", value: row => Number(row.avgPharmaPackagePurchasePatientsPerDay || 0), format: value => `${value.toFixed(1)}명`, axis: "일평균 인원" }
+    };
+    const reference = referenceDefinitions[cohortReferenceMetric] || referenceDefinitions.newPatients;
+    const width = Math.max(720, rows.length * 74 + 120);
+    const height = 350;
+    const pad = { top: 26, right: 66, bottom: 58, left: 58 };
+    const chartW = width - pad.left - pad.right;
+    const chartH = height - pad.top - pad.bottom;
+    const x = idx => pad.left + (rows.length === 1 ? chartW / 2 : (chartW * idx) / (rows.length - 1));
+    const maxReference = Math.max(1, ...rows.map(row => reference.value(row)));
+    const countTop = Math.max(1, Math.ceil(maxReference * 1.2));
+    const yCount = value => pad.top + chartH - (Number(value || 0) / countTop) * chartH;
+    const yRate = value => pad.top + chartH - Number(value || 0) * chartH;
+    const groupWidth = Math.min(54, Math.max(18, chartW / Math.max(1, rows.length) * 0.72));
+    const barWidth = Math.max(5, groupWidth / 3 - 2);
+    const labelFor = row => chartUnit === "week" ? isoWeekRangeLabel(row.key).replace(/[()]/g, "") : slotLabelForKey(row.key, chartUnit);
+    const showLabels = rows.length <= 12;
+    wrap.innerHTML = `<div class="chart-wrap"><svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="선택 지표와 초진 코호트 재진 삼진율 막대 비교">
+      ${[0, 0.25, 0.5, 0.75, 1].map(p => { const y = pad.top + chartH - p * chartH; return `<line class="chart-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}"></line><text class="chart-text" x="${width - pad.right + 10}" y="${y + 4}">${Math.round(p * 100)}%</text>`; }).join("")}
+      <line class="chart-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
+      <line class="chart-axis" x1="${width - pad.right}" y1="${pad.top}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
+      <line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
+      <text class="chart-text" x="${pad.left}" y="15">${reference.axis}</text><text class="chart-text" x="${width - pad.right}" y="15" text-anchor="end">재진·삼진율</text>
+      <text class="chart-text" x="${pad.left - 10}" y="${pad.top + 4}" text-anchor="end">${countTop}</text><text class="chart-text" x="${pad.left - 10}" y="${height - pad.bottom + 4}" text-anchor="end">0</text>
+      ${rows.map((row, idx) => {
+        const referenceValue = reference.value(row);
+        const returnRate = chartMetricValue(row, returnMetric) ?? 0;
+        const thirdRate = chartMetricValue(row, thirdMetric) ?? 0;
+        const values = [
+          { value: referenceValue, y: yCount(referenceValue), color: reference.color, label: reference.format(referenceValue), recent: false },
+          { value: returnRate, y: yRate(returnRate), color: returnMetric.color, label: `${(returnRate * 100).toFixed(1)}%`, recent: row.followupRecent },
+          { value: thirdRate, y: yRate(thirdRate), color: thirdMetric.color, label: `${(thirdRate * 100).toFixed(1)}%`, recent: row.followupRecent }
+        ];
+        return `<g>${values.map((item, barIdx) => { const bx = x(idx) + (barIdx - 1) * (barWidth + 2) - barWidth / 2; return `<rect x="${bx}" y="${item.y}" width="${barWidth}" height="${height - pad.bottom - item.y}" rx="3" fill="${item.color}" class="${item.recent ? "cohort-rate-bar-recent" : ""}"${item.recent ? ` stroke="${item.color}"` : ""}><title>${row.key} ${barIdx === 0 ? reference.label : barIdx === 1 ? "재진율" : "삼진율"} ${item.label}${item.recent ? " (추적 진행 중)" : ""}</title></rect>${showLabels && barIdx > 0 ? `<text class="chart-text" x="${bx + barWidth / 2}" y="${Math.max(pad.top + 10, item.y - 5)}" text-anchor="middle">${item.label}</text>` : ""}`; }).join("")}<text class="chart-text" x="${x(idx)}" y="${height - pad.bottom + 22}" text-anchor="middle">${labelFor(row)}</text></g>`;
+      }).join("")}
+    </svg></div><div class="chart-legend"><span class="legend-item"><span class="legend-swatch" style="background:${reference.color}"></span>${reference.label}</span><span class="legend-item"><span class="legend-swatch" style="background:${returnMetric.color}"></span>재진율 (초진 코호트)</span><span class="legend-item"><span class="legend-swatch" style="background:${thirdMetric.color}"></span>삼진율 (초진 코호트)</span></div>`;
+  }
+
+  function renderOperationalTrendChart(rows, chartUnit = "week") {
+    const wrap = $("weeklyChartWrap");
+    const visibleKeys = new Set(getVisibleChartMetricKeys());
+    const metrics = CHART_METRICS.filter(metric => visibleKeys.has(metric.key));
+    if (!metrics.length || !rows.length) {
+      wrap.innerHTML = `<div class="empty">표시할 운영 지표를 선택하세요.</div>`;
+      return;
+    }
+    const countMetrics = metrics.filter(metric => metric.axis === "count");
+    const rateMetrics = metrics.filter(metric => metric.axis === "rate");
+    const width = Math.max(760, rows.length * 72 + 120);
+    const pad = { left: 58, right: 58, bottom: 50 };
+    const chartW = width - pad.left - pad.right;
+    const x = idx => pad.left + (rows.length === 1 ? chartW / 2 : chartW * idx / (rows.length - 1));
+    const xLabels = rows.map((row, idx) => {
+      const axisLabel = chartUnit === "week" ? isoWeekRangeLabel(row.key).replace(/[()]/g, "") : slotLabelForKey(row.key, chartUnit);
+      return `<text class="chart-text" x="${x(idx)}" y="324" text-anchor="middle">${axisLabel}</text>`;
+    }).join("");
+    const legend = `<div class="chart-legend">${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : " (명)"}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
+
+    if (operationalTrendMode === "index") {
+      const normalizedByMetric = new Map();
+      const allIndexValues = [];
+      metrics.forEach(metric => {
+        const base = rows.map(row => chartMetricValue(row, metric)).find(value => value !== null && value !== 0) || 0;
+        const normalized = rows.map(row => {
+          const value = chartMetricValue(row, metric);
+          const indexValue = base && value !== null ? (value / base) * 100 : null;
+          if (indexValue !== null) allIndexValues.push(indexValue);
+          return { ...row, [metric.key]: indexValue };
+        });
+        normalizedByMetric.set(metric.key, { base, rows: normalized });
+      });
+      const rawMin = Math.min(100, ...allIndexValues), rawMax = Math.max(100, ...allIndexValues);
+      const minIndex = Math.max(0, Math.floor((rawMin * 0.9) / 10) * 10);
+      const maxIndex = Math.max(minIndex + 20, Math.ceil((rawMax * 1.1) / 10) * 10);
+      const panelTop = 24, panelH = 260;
+      const y = value => panelTop + panelH - ((Number(value) - minIndex) / (maxIndex - minIndex)) * panelH;
+      const svg = `<svg class="weekly-chart" viewBox="0 0 ${width} 340" role="img" aria-label="운영 지표 변화 비교">${[minIndex, (minIndex + maxIndex) / 2, maxIndex].map(value => `<line class="chart-grid" x1="${pad.left}" y1="${y(value)}" x2="${width - pad.right}" y2="${y(value)}"></line><text class="chart-text" x="${pad.left - 9}" y="${y(value) + 4}" text-anchor="end">${Math.round(value)}</text>`).join("")}<line x1="${pad.left}" y1="${y(100)}" x2="${width - pad.right}" y2="${y(100)}" stroke="rgba(255,202,106,0.65)" stroke-dasharray="4 5"></line><text class="chart-text" x="${pad.left}" y="15">변화 지수</text>${metrics.map(metric => { const item = normalizedByMetric.get(metric.key); const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, false) : item.rows; const recentRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, true) : []; return `<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${item.rows.map((row, idx) => { const indexValue = chartMetricValue(row, metric); const actualValue = chartMetricValue(rows[idx], metric); if (indexValue === null || actualValue === null) return ""; const recent = isFollowupRateMetric(metric) && row.followupRecent; return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(indexValue)}" r="3" fill="${metric.color}"><title>${row.key} ${metric.title(actualValue)} · 지수 ${indexValue.toFixed(1)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle>`; }).join("")}`; }).join("")}${xLabels}</svg>`;
+      wrap.innerHTML = `<div class="chart-wrap">${svg}</div>${legend}`;
       return;
     }
 
-    const unitName = { week: "주", month: "월", quarter: "분기", year: "년" }[chartUnit] || "기간";
-    if (label) {
-      label.textContent = `현재 ${unitName} ${comparison.current.start} ~ ${comparison.current.end} / 이전 ${unitName} ${comparison.previous.start} ~ ${comparison.previous.end}`;
-    }
+    const panelTop = 28, panelH = 260, height = 340;
+    const countValues = rows.flatMap(row => countMetrics.map(metric => chartMetricValue(row, metric) ?? 0));
+    const rateValues = rows.flatMap(row => rateMetrics.map(metric => chartMetricValue(row, metric) ?? 0));
+    const countTop = Math.max(1, Math.ceil(Math.max(1, ...countValues) * 1.15));
+    const rateTop = Math.min(1, Math.max(0.1, Math.ceil(Math.max(0.1, ...rateValues) * 10) / 10));
+    const yCount = value => panelTop + panelH - (Number(value || 0) / countTop) * panelH;
+    const yRate = value => panelTop + panelH - (Number(value || 0) / rateTop) * panelH;
+    const ticks = [0, .25, .5, .75, 1];
+    const gridAndAxes = `${ticks.map(p => {
+      const y = panelTop + panelH - p * panelH;
+      const countValue = countTop * p;
+      const rateValue = rateTop * p;
+      return `<line class="chart-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left - 9}" y="${y + 4}" text-anchor="end">${countValue.toFixed(countValue < 10 ? 1 : 0)}</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right + 9}" y="${y + 4}">${Math.round(rateValue * 100)}%</text>` : ""}`;
+    }).join("")}<line class="chart-axis" x1="${pad.left}" y1="${panelTop}" x2="${pad.left}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${width - pad.right}" y1="${panelTop}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${pad.left}" y1="${panelTop + panelH}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left}" y="16">일평균 인원</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right}" y="16" text-anchor="end">환자 비율</text>` : ""}`;
+    const series = metrics.map(metric => {
+      const y = metric.axis === "rate" ? yRate : yCount;
+      const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(rows, metric, false) : rows;
+      const recentRows = isFollowupRateMetric(metric) ? followupSegmentRows(rows, metric, true) : [];
+      return `<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${rows.map((row, idx) => {
+        const value = chartMetricValue(row, metric);
+        if (value === null) return "";
+        const recent = isFollowupRateMetric(metric) && row.followupRecent;
+        const valueLabel = metric.axis === "rate" ? `${(value * 100).toFixed(1)}%` : value.toFixed(1);
+        return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(value)}" r="3" fill="${metric.color}"><title>${row.key} ${metric.title(value)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle><text class="chart-value-label" x="${x(idx)}" y="${Math.max(panelTop + 10, y(value) - 7)}" text-anchor="middle" fill="${metric.color}">${valueLabel}</text>`;
+      }).join("")}`;
+    }).join("");
+    const svg = `<svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="운영 지표 좌우축 실제값 추이">${gridAndAxes}${series}${xLabels}</svg>`;
+    wrap.innerHTML = `<div class="chart-wrap">${svg}</div>${legend}`;
+  }
 
-    const currentRows = rowsForComparison(comparison.currentStats, comparison.current, comparison.detailUnit);
-    const previousRows = rowsForComparison(comparison.previousStats, comparison.previous, comparison.detailUnit);
-    const rowCount = Math.max(currentRows.length, previousRows.length);
-    if (!rowCount) {
-      wrap.innerHTML = `<div class="empty">데이터 없음</div>`;
+  function periodAverageValue(stats = {}, metric) {
+    const clinicDays = Number(stats.clinicDays || 0);
+    if (metric.key === "avgVisitsPerDay") return clinicDays ? Number(stats.coreVisits || 0) / clinicDays : 0;
+    if (metric.key === "avgNewPatientsPerDay") return clinicDays ? Number(stats.newPatients || 0) / clinicDays : 0;
+    if (metric.key === "avgPrescriptionPatientsPerDay") return clinicDays ? Number(stats.prescriptionPatients || 0) / clinicDays : 0;
+    if (metric.key === "avgChunaPerDay") return Number(stats.avgChunaPerDay || 0);
+    if (metric.key === "avgPharmaPatientsPerDay") return Number(stats.avgPharmaPatientsPerDay || 0);
+    if (metric.key === "avgPharmaPackagePurchasePatientsPerDay") return clinicDays ? Number(stats.pharmaPackagePurchasePatients || 0) / clinicDays : 0;
+    return Number(stats[metric.key] || 0);
+  }
+
+  function periodComparisonRangeLabel(range, metric) {
+    if (!isFollowupRateMetric(metric)) return `${range.start} ~ ${range.end}`;
+    const eligibleEnd = [range.end, addDays(today(), -21)].sort()[0];
+    return eligibleEnd < range.start ? "집계 대상 없음" : `${range.start} ~ ${eligibleEnd}`;
+  }
+
+  function formatPeriodAverage(value, metric) {
+    return metric.axis === "rate" ? `${(value * 100).toFixed(1)}%` : `${value.toFixed(1)}명`;
+  }
+
+  function periodAverageChange(current, previous, metric) {
+    const difference = current - previous;
+    if (Math.abs(difference) < 1e-12) return { text: "－ 0.0%", className: "neutral" };
+    if (metric.axis === "rate") return { text: `${difference > 0 ? "▲" : "▼"} ${Math.abs(difference * 100).toFixed(1)}%p`, className: difference > 0 ? "increase" : "decrease" };
+    if (!previous) return { text: "－ 비교 불가", className: "neutral" };
+    return { text: `${difference > 0 ? "▲" : "▼"} ${Math.abs((difference / previous) * 100).toFixed(1)}%`, className: difference > 0 ? "increase" : "decrease" };
+  }
+
+  function renderPeriodComparisonChart(comparison, chartUnit = "week") {
+    const wrap = $("periodComparisonChartWrap");
+    if (!wrap) return;
+    if (!comparison) {
+      wrap.innerHTML = `<div class="empty">비교할 기간 단위를 선택하세요.</div>`;
       return;
     }
 
@@ -1183,74 +1508,22 @@
       return;
     }
 
-    const width = Math.max(720, rowCount * 72 + 120);
-    const height = 340;
-    const pad = { top: 24, right: 66, bottom: 54, left: 58 };
-    const chartW = width - pad.left - pad.right;
-    const chartH = height - pad.top - pad.bottom;
-    const countMetrics = visibleMetrics.filter(metric => metric.axis === "count");
-    const rateMetrics = visibleMetrics.filter(metric => metric.axis === "rate");
-    const allRows = [...currentRows, ...previousRows];
-    const maxCount = Math.max(1, ...allRows.map(row => Math.max(0, ...countMetrics.map(metric => Number(row[metric.key] || 0)))));
-    const countTop = Math.ceil(maxCount * 1.15);
-    const maxRate = Math.max(0.1, ...allRows.map(row => Math.max(0, ...rateMetrics.map(metric => chartMetricValue(row, metric) ?? 0))));
-    const rateTop = Math.min(1, Math.max(0.1, Math.ceil(maxRate * 10) / 10));
-    const x = idx => pad.left + (rowCount === 1 ? chartW / 2 : (chartW * idx) / (rowCount - 1));
-    const yCount = value => pad.top + chartH - (value / countTop) * chartH;
-    const yRate = value => pad.top + chartH - (value / rateTop) * chartH;
-    const pathFor = (rows, metric) => chartLinePath(rows, metric, metric.axis === "rate" ? yRate : yCount, x);
-    const countTicks = [0, 0.25, 0.5, 0.75, 1].map(p => countTop * p);
-    const rateTicks = [0, 0.25, 0.5, 0.75, 1].map(p => rateTop * p);
-    const labels = Array.from({ length: rowCount }, (_, idx) => currentRows[idx]?.label || previousRows[idx]?.label || String(idx + 1));
-
-    wrap.innerHTML = `
-      <div class="chart-wrap">
-        <svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${unitName} 비교 그래프">
-          ${countTicks.map(t => {
-            const y = yCount(t);
-            return `
-              <line class="chart-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}"></line>
-              <text class="chart-text" x="${pad.left - 10}" y="${y + 4}" text-anchor="end">${t.toFixed(t < 10 ? 1 : 0)}</text>
-            `;
-          }).join("")}
-          ${rateMetrics.length ? rateTicks.map(t => {
-            const y = yRate(t);
-            return `<text class="chart-text" x="${width - pad.right + 10}" y="${y + 4}">${Math.round(t * 100)}%</text>`;
-          }).join("") : ""}
-          <line class="chart-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
-          ${rateMetrics.length ? `<line class="chart-axis" x1="${width - pad.right}" y1="${pad.top}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>` : ""}
-          <line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
-          ${countMetrics.length ? `<text class="chart-text" x="${pad.left}" y="14">인원</text>` : ""}
-          ${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right}" y="14" text-anchor="end">비율</text>` : ""}
-          ${visibleMetrics.map(metric => `
-            <path class="chart-line" d="${pathFor(currentRows, metric)}" stroke="${metric.color}"></path>
-            <path class="chart-line comparison-line-prev" d="${pathFor(previousRows, metric)}" stroke="${metric.color}"></path>
-          `).join("")}
-          ${Array.from({ length: rowCount }, (_, idx) => `
-            <g>
-              ${visibleMetrics.map(metric => {
-                const currentValue = chartMetricValue(currentRows[idx], metric);
-                const previousValue = chartMetricValue(previousRows[idx], metric);
-                const currentY = currentValue === null ? null : (metric.axis === "rate" ? yRate(currentValue) : yCount(currentValue));
-                const previousY = previousValue === null ? null : (metric.axis === "rate" ? yRate(previousValue) : yCount(previousValue));
-                const currentLabel = currentRows[idx]?.label || labels[idx];
-                const previousLabel = previousRows[idx]?.label || labels[idx];
-                return `
-                  ${currentValue === null ? "" : `<circle class="chart-dot" cx="${x(idx)}" cy="${currentY}" r="4" fill="${metric.color}"><title>현재 ${currentLabel} ${metric.title(currentValue)}</title></circle>`}
-                  ${previousValue === null ? "" : `<circle class="chart-dot comparison-dot-prev" cx="${x(idx)}" cy="${previousY}" r="3.5" stroke="${metric.color}"><title>이전 ${previousLabel} ${metric.title(previousValue)}</title></circle>`}
-                `;
-              }).join("")}
-              <text class="chart-text" x="${x(idx)}" y="${height - pad.bottom + 22}" text-anchor="middle">${labels[idx]}</text>
-            </g>
-          `).join("")}
-        </svg>
-      </div>
-      <div class="chart-legend">
-        <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span>현재 기간 실선</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:var(--muted)"></span>이전 기간 점선</span>
-        ${visibleMetrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}</span>`).join("")}
-      </div>
-    `;
+    wrap.innerHTML = `<div class="comparison-average-list">
+      ${visibleMetrics.map(metric => {
+        const previousValue = periodAverageValue(comparison.previousStats, metric);
+        const currentValue = periodAverageValue(comparison.currentStats, metric);
+        const maxValue = Math.max(previousValue, currentValue, 0.000001);
+        const change = periodAverageChange(currentValue, previousValue, metric);
+        const metricLabel = `${metric.label}${isFollowupRateMetric(metric) ? " (최근 21일간은 제외)" : ""}`;
+        const previousRangeLabel = periodComparisonRangeLabel(comparison.previous, metric);
+        const currentRangeLabel = periodComparisonRangeLabel(comparison.current, metric);
+        return `<div class="comparison-average-item">
+          <div class="comparison-average-head"><div class="comparison-average-title">${escapeHtml(metricLabel)}</div><div class="comparison-average-change ${change.className}">${change.text}</div></div>
+          <div class="comparison-average-bar-row"><div class="comparison-average-period">${previousRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(previousValue / maxValue) * 100}%;background:var(--muted)"></span></div><div class="comparison-average-value">${formatPeriodAverage(previousValue, metric)}</div></div>
+          <div class="comparison-average-bar-row"><div class="comparison-average-period">${currentRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(currentValue / maxValue) * 100}%;background:${metric.color}"></span></div><div class="comparison-average-value">${formatPeriodAverage(currentValue, metric)}</div></div>
+        </div>`;
+      }).join("")}
+    </div>`;
   }
 
   function escapeHtml(s) {
@@ -1375,14 +1648,14 @@
   let chartUnitTouched = false;
   let comparisonUnit = "week";
   let comparisonGraphUnit = "day";
+  const operationalTrendMode = "actual";
 
   async function refreshPeriodComparisonOnly() {
     if (!lastResult) return;
-    const comparison = await loadPeriodComparison(lastResult.end, $("doctorFilter").value, comparisonUnit, comparisonGraphUnit);
-    lastResult.comparisonUnit = comparisonUnit;
-    lastResult.comparisonGraphUnit = comparisonGraphUnit;
+    const comparison = await loadPeriodComparison(lastResult.start, lastResult.end, $("doctorFilter").value, lastResult.chartUnit || "day");
+    lastResult.comparisonUnit = "range";
     lastResult.comparison = comparison;
-    renderPeriodComparisonChart(comparison, comparisonUnit);
+    renderPeriodComparisonChart(comparison, "range");
   }
 
   function escapePeriodReportHtml(value) {
@@ -1393,19 +1666,6 @@
     return `${(Number(value || 0) * 100).toFixed(1)}%`;
   }
 
-  function periodComparisonText(current, previous, digits = 0) {
-    current = Number(current || 0);
-    previous = Number(previous || 0);
-    if (!previous) return current ? "이전 기간 0" : "이전 기간과 동일";
-    const change = ((current - previous) / previous) * 100;
-    return `${change >= 0 ? "▲" : "▼"} ${Math.abs(change).toFixed(1)}% · 이전 ${previous.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
-  }
-
-  function periodReportMetric(label, value, sub = "") {
-    const changeClass = periodReportChangeClass(sub);
-    return `<div class="period-report-metric"><div class="period-report-metric-label">${escapePeriodReportHtml(label)}</div><div class="period-report-metric-value">${escapePeriodReportHtml(value)}</div><div class="period-report-metric-sub period-report-change ${changeClass}">${escapePeriodReportHtml(sub)}</div></div>`;
-  }
-
   function periodReportChangeClass(text) {
     const value = String(text || "");
     if (value.includes("▲")) return "increase";
@@ -1413,120 +1673,66 @@
     return "neutral";
   }
 
-  function periodNeedComparisonText(currentRate, previousRate, previousCount) {
+  function periodFollowupComparisonText(currentRate, previousRate, previousDenominator) {
+    if (!Number(previousDenominator || 0)) return "－ 비교 불가";
     const pointChange = (Number(currentRate || 0) - Number(previousRate || 0)) * 100;
     const direction = pointChange > 0 ? "▲" : pointChange < 0 ? "▼" : "－";
-    return `${direction} ${Math.abs(pointChange).toFixed(1)}%p · 이전 ${Number(previousCount || 0).toLocaleString()}명 (${periodReportRate(previousRate)})`;
+    return `${direction} ${Math.abs(pointChange).toFixed(1)}%p`;
   }
 
   function renderPeriodReport(data) {
-    const stats = data.stats || {};
-    const previous = data.previousStats || {};
-    const stages = data.visitStages || {};
-    const previousStages = data.previousVisitStages || {};
     const followup = data.followup || {};
     const previousFollowup = data.previousFollowup || {};
-    const needs = data.followupNeeds || {};
-    const previousNeeds = data.previousFollowupNeeds || {};
-    const followupRows = ["all", "chuna", "noChuna", "simple", "complex"].map(key => followup[key]).filter(Boolean);
-    const treatmentRows = Object.entries(stats.treatmentCounts || {}).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    const doctorRows = Object.entries(stats.doctorCounts || {}).sort((a, b) => b[1] - a[1]);
-    const weekdayRows = ["월", "화", "수", "목", "금", "토", "일"].filter(day => Number(stats.weekdayCounts?.[day] || 0) > 0);
-    const currentDailyAverage = Number(stats.coreVisits || 0) / Math.max(1, Number(stats.clinicDays || 0));
-    const previousDailyAverage = Number(previous.coreVisits || 0) / Math.max(1, Number(previous.clinicDays || 0));
-    const pharmaPackageRate = Number(stats.pharmaPackagePurchasePatients || 0) / Math.max(1, Number(stats.uniquePatients || 0));
-    const managementRows = [
-      { label: "전체 · 재진 미도달", key: "noReturn", denominator: followup.all?.patients, previousDenominator: previousFollowup.all?.patients },
-      { label: "전체 · 재진 후 삼진 미도달", key: "noThirdVisit", denominator: followup.all?.returned, previousDenominator: previousFollowup.all?.returned },
-      { label: "추나군 · 재진 미도달", key: "chunaNoReturn", denominator: followup.chuna?.patients, previousDenominator: previousFollowup.chuna?.patients },
-      { label: "추나군 · 재진 후 삼진 미도달", key: "chunaNoThirdVisit", denominator: followup.chuna?.returned, previousDenominator: previousFollowup.chuna?.returned },
-      { label: "비추나군 · 재진 미도달", key: "noChunaNoReturn", denominator: followup.noChuna?.patients, previousDenominator: previousFollowup.noChuna?.patients },
-      { label: "비추나군 · 재진 후 삼진 미도달", key: "noChunaNoThirdVisit", denominator: followup.noChuna?.returned, previousDenominator: previousFollowup.noChuna?.returned }
-    ].map(row => ({
-      ...row,
-      count: Number(needs[row.key] || 0),
-      previousCount: Number(previousNeeds[row.key] || 0),
-      rate: row.denominator ? Number(needs[row.key] || 0) / Number(row.denominator) : 0,
-      previousRate: row.previousDenominator ? Number(previousNeeds[row.key] || 0) / Number(row.previousDenominator) : 0
-    }));
+    const followupRows = ["all", "chuna", "noChuna", "simple", "complex"]
+      .filter(key => followup[key])
+      .map(key => ({ ...followup[key], previous: previousFollowup[key] || {} }));
 
     $("periodReportResult").innerHTML = `
-      <div class="period-report-head">
-        <div><h2 class="period-report-title">경희홍익한의원 기간 리포트</h2><div class="period-report-period">${escapePeriodReportHtml(data.start)} ~ ${escapePeriodReportHtml(data.end)} · 이전 기간 ${escapePeriodReportHtml(data.previousStart)} ~ ${escapePeriodReportHtml(data.previousEnd)}</div></div>
-        <div class="period-report-period">생성 ${escapePeriodReportHtml(new Date(data.generatedAt).toLocaleString("ko-KR"))}</div>
-      </div>
-      <div class="period-report-metrics">
-        ${periodReportMetric("총 진료 건수", Number(stats.coreVisits || 0).toLocaleString(), periodComparisonText(stats.coreVisits, previous.coreVisits))}
-        ${periodReportMetric("진료 환자", Number(stats.uniquePatients || 0).toLocaleString(), periodComparisonText(stats.uniquePatients, previous.uniquePatients))}
-        ${periodReportMetric("초진", Number(stats.newPatients || 0).toLocaleString(), periodComparisonText(stats.newPatients, previous.newPatients))}
-        ${periodReportMetric("재진 환자", Number(stats.revisitPatients || 0).toLocaleString(), periodComparisonText(stats.revisitPatients, previous.revisitPatients))}
-        ${periodReportMetric("일평균 진료", currentDailyAverage.toFixed(1), periodComparisonText(currentDailyAverage, previousDailyAverage, 1))}
-        ${periodReportMetric("추나 시행", Number(stats.chunaTotal || 0).toLocaleString(), `환자 비율 ${periodReportRate(stats.chunaPatientRate)}`)}
-        ${periodReportMetric("약환", Number(stats.prescriptionPatients || 0).toLocaleString(), periodComparisonText(stats.prescriptionPatients, previous.prescriptionPatients))}
-        ${periodReportMetric("약침 시행", Number(stats.pharmaTotal || 0).toLocaleString(), `${Number(stats.pharmaPatients || 0).toLocaleString()}명 (${periodReportRate(stats.pharmaPatientRate)}) · ${periodComparisonText(stats.pharmaTotal, previous.pharmaTotal)}`)}
-        ${periodReportMetric("약침 패키지", Number(stats.pharmaPackagePurchasePatients || 0).toLocaleString(), `진료 환자 비율 ${periodReportRate(pharmaPackageRate)} · ${periodComparisonText(stats.pharmaPackagePurchasePatients, previous.pharmaPackagePurchasePatients)}`)}
-        ${periodReportMetric("평균 방문 횟수", Number(stats.avgVisitsPerPatient || 0).toFixed(2), periodComparisonText(stats.avgVisitsPerPatient, previous.avgVisitsPerPatient, 2))}
-      </div>
-      <div class="period-report-section"><h3>선택 기간 방문 단계</h3><div class="period-report-metrics">
-        ${periodReportMetric("1회차", Number(stages.first || 0).toLocaleString(), periodComparisonText(stages.first, previousStages.first))}
-        ${periodReportMetric("2회차", Number(stages.second || 0).toLocaleString(), periodComparisonText(stages.second, previousStages.second))}
-        ${periodReportMetric("3회차", Number(stages.third || 0).toLocaleString(), periodComparisonText(stages.third, previousStages.third))}
-        ${periodReportMetric("4회차 이상", Number(stages.fourthPlus || 0).toLocaleString(), periodComparisonText(stages.fourthPlus, previousStages.fourthPlus))}
-      </div></div>
       <div class="period-report-section"><h3>초진 코호트 재진·삼진율</h3>
         <div class="period-report-period">초진 기간 ${escapePeriodReportHtml(data.cohortStart)} ~ ${escapePeriodReportHtml(data.cohortEnd)} · 초진일부터 21일 추적</div>
-        <table><thead><tr><th>초진 치료</th><th>초진</th><th>재진 도달</th><th>재진율</th><th>삼진 도달</th><th>삼진율</th><th>재진→삼진</th></tr></thead><tbody>
-          ${followupRows.map(row => `<tr><td>${escapePeriodReportHtml(row.label)}</td><td>${Number(row.patients || 0).toLocaleString()}</td><td>${Number(row.returned || 0).toLocaleString()}</td><td>${periodReportRate(row.returnRate)}</td><td>${Number(row.thirdVisit || 0).toLocaleString()}</td><td>${periodReportRate(row.thirdVisitRate)}</td><td>${periodReportRate(row.returnToThirdRate)}</td></tr>`).join("")}
+        <table><thead><tr><th>초진 치료</th><th>초진</th><th>재진 도달</th><th>재진율</th><th>이전 기간 비교</th><th>삼진 도달</th><th>삼진율</th><th>이전 기간 비교</th></tr></thead><tbody>
+          ${followupRows.map(row => {
+            const returnComparison = periodFollowupComparisonText(row.returnRate, row.previous.returnRate, row.previous.patients);
+            const thirdComparison = periodFollowupComparisonText(row.thirdVisitRate, row.previous.thirdVisitRate, row.previous.patients);
+            return `<tr><td>${escapePeriodReportHtml(row.label)}</td><td>${Number(row.patients || 0).toLocaleString()}</td><td>${Number(row.returned || 0).toLocaleString()}</td><td>${periodReportRate(row.returnRate)}</td><td><span class="period-report-change ${periodReportChangeClass(returnComparison)}">${escapePeriodReportHtml(returnComparison)}</span></td><td>${Number(row.thirdVisit || 0).toLocaleString()}</td><td>${periodReportRate(row.thirdVisitRate)}</td><td><span class="period-report-change ${periodReportChangeClass(thirdComparison)}">${escapePeriodReportHtml(thirdComparison)}</span></td></tr>`;
+          }).join("")}
         </tbody></table>
         <div class="period-report-note">추나군은 초진 당일 단추·복추·기존 추나 중 하나 이상을 시행한 환자입니다. 이 수치는 관찰된 연관성이며 치료 효과의 인과관계를 의미하지 않습니다.</div>
-      </div>
-      <div class="period-report-columns">
-        <div class="period-report-section"><h3>관리 필요 현황</h3><table>
-          <thead><tr><th>구분</th><th>현재</th><th>이전 기간 비교</th></tr></thead>
-          <tbody>${managementRows.map(row => {
-            const comparison = periodNeedComparisonText(row.rate, row.previousRate, row.previousCount);
-            return `<tr><td>${escapePeriodReportHtml(row.label)}</td><td>${row.count.toLocaleString()}명 (${periodReportRate(row.rate)})</td><td><span class="period-report-change ${periodReportChangeClass(comparison)}">${escapePeriodReportHtml(comparison)}</span></td></tr>`;
-          }).join("")}</tbody>
-        </table></div>
-        <div class="period-report-section"><h3>요일별 진료</h3><table><thead><tr><th>요일</th><th>환자 수</th></tr></thead><tbody>${weekdayRows.map(day => `<tr><td>${day}요일</td><td>${Number(stats.weekdayCounts[day] || 0).toFixed(1)}</td></tr>`).join("")}</tbody></table></div>
-      </div>
-      <div class="period-report-columns">
-        <div class="period-report-section"><h3>치료 항목 상위 10</h3><table><thead><tr><th>치료</th><th>건수</th></tr></thead><tbody>${treatmentRows.map(([name, count]) => `<tr><td>${escapePeriodReportHtml(name)}</td><td>${Number(count || 0).toLocaleString()}</td></tr>`).join("")}</tbody></table></div>
-        <div class="period-report-section"><h3>원장별 진료 건수</h3><table><thead><tr><th>담당 원장</th><th>건수</th></tr></thead><tbody>${doctorRows.map(([name, count]) => `<tr><td>${escapePeriodReportHtml(name)}</td><td>${Number(count || 0).toLocaleString()}</td></tr>`).join("")}</tbody></table></div>
       </div>`;
   }
 
-  async function createPeriodReport() {
-    let start = $("startDate").value;
-    let end = $("endDate").value;
+  let periodReportRequestId = 0;
+
+  async function createPeriodReport(requestedStart, requestedEnd) {
+    let start = requestedStart || $("startDate").value;
+    let end = requestedEnd || $("endDate").value;
     if (!start || !end) {
       $("periodReportStatus").textContent = "시작일과 종료일을 확인해주세요.";
       $("periodReportStatus").classList.add("error");
       return;
     }
     if (start > end) [start, end] = [end, start];
-    $("periodReportCreateBtn").disabled = true;
+    const requestId = ++periodReportRequestId;
     $("periodReportPrintBtn").disabled = true;
     $("periodReportStatus").classList.remove("error");
-    $("periodReportStatus").textContent = "기간 리포트 집계 중...";
+    $("periodReportStatus").textContent = "";
     try {
       const res = await fetch(`/api/reports/period?${new URLSearchParams({ start, end })}`, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `리포트 생성 실패 (${res.status})`);
+      if (requestId !== periodReportRequestId) return;
       renderPeriodReport(data);
       $("periodReportPrintBtn").disabled = false;
-      $("periodReportStatus").textContent = "기간 리포트 생성 완료";
+      $("periodReportStatus").textContent = "";
     } catch (error) {
+      if (requestId !== periodReportRequestId) return;
       $("periodReportResult").innerHTML = "";
       $("periodReportStatus").textContent = error?.message || String(error);
       $("periodReportStatus").classList.add("error");
-    } finally {
-      $("periodReportCreateBtn").disabled = false;
     }
   }
 
   function printPeriodReport() {
-    if (!$("periodReportResult").innerHTML) return;
     document.body.classList.add("period-report-printing");
     window.print();
     setTimeout(() => document.body.classList.remove("period-report-printing"), 0);
@@ -1544,19 +1750,36 @@
     const unitLabel = { day: "일", week: "주", month: "월", quarter: "분기", year: "년" }[chartUnit] || "주";
     $("status").classList.remove("error");
     $("status").textContent = "";
+    $("periodReportPrintBtn").disabled = true;
     try {
-      const s = SERVER_MODE ? await loadServerStats(start, end, docFilter, chartUnit) : computeStats(start, end, docFilter, chartUnit);
-      const comparison = await loadPeriodComparison(end, docFilter, comparisonUnit, comparisonGraphUnit);
+      const previousEnd = addDays(start, -1);
+      const previousStart = addDays(previousEnd, -(rangeDays(start, end) - 1));
+      const statsLoader = SERVER_MODE
+        ? (from, to) => loadServerStats(from, to, docFilter, chartUnit)
+        : (from, to) => Promise.resolve(computeStats(from, to, docFilter, chartUnit));
+      const [s, previousStats] = await Promise.all([
+        statsLoader(start, end),
+        statsLoader(previousStart, previousEnd)
+      ]);
+      const trendRows = markRecentFollowupRates(s.trendStats, chartUnit, addDays(today(), -21));
+      const comparison = {
+        current: { start, end },
+        previous: { start: previousStart, end: previousEnd },
+        currentStats: s,
+        previousStats,
+        detailUnit: chartUnit
+      };
       const recordCount = SERVER_MODE ? Number(s.recordCount || 0) : allRecords.length;
       $("rangeLabel").textContent = `조회 기간: ${start} ~ ${end} · 원장: ${docLabel} · 그래프: ${unitLabel} 단위 (전체 ${recordCount.toLocaleString()}명 환자 기준)`;
-      renderSummary(s);
-      renderWeeklyChart(s.trendStats, chartUnit);
-      renderPeriodComparisonChart(comparison, comparisonUnit);
+      renderSummary(s, previousStats);
+      renderOperationalTrendChart(trendRows, chartUnit);
+      renderPeriodComparisonChart(comparison, "range");
       renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
       renderCountTable("doctorTableWrap", s.doctorCounts);
       renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"], valueHeader: "평균", decimals: 1 });
       renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
-      lastResult = { start, end, docLabel, chartUnit, comparisonUnit, comparisonGraphUnit, stats: s, comparison };
+      lastResult = { start, end, docLabel, chartUnit, comparisonUnit: "range", stats: s, trendRows, comparison };
+      $("periodReportPrintBtn").disabled = false;
     } catch (e) {
       $("status").textContent = "오류: " + (e?.message || e);
       $("status").classList.add("error");
@@ -1642,42 +1865,7 @@
   $("applyBtn").addEventListener("click", () => { chartUnitTouched = false; setPresetActive(""); run(); });
   $("doctorFilter").addEventListener("change", run);
   $("chartUnit").addEventListener("change", () => { chartUnitTouched = true; run(); });
-  $("comparisonUnitRow").addEventListener("click", async event => {
-    const button = event.target?.closest?.(".comparison-unit-btn");
-    if (!button) return;
-    setComparisonUnit(button.dataset.comparisonUnit || "week");
-    setComparisonGraphUnit(comparisonDetailUnit(comparisonUnit));
-    if (!lastResult) return;
-    try {
-      await refreshPeriodComparisonOnly();
-    } catch (e) {
-      $("status").textContent = "오류: " + (e?.message || e);
-      $("status").classList.add("error");
-    }
-  });
-  $("comparisonGraphUnit").addEventListener("change", async () => {
-    setComparisonGraphUnit($("comparisonGraphUnit").value);
-    if (!lastResult) return;
-    try {
-      await refreshPeriodComparisonOnly();
-    } catch (e) {
-      $("status").textContent = "오류: " + (e?.message || e);
-      $("status").classList.add("error");
-    }
-  });
-  ["comparisonPreviousMonth", "comparisonCurrentMonth", "comparisonPreviousQuarter", "comparisonCurrentQuarter"].forEach(id => {
-    $(id)?.addEventListener("change", async () => {
-      if (!lastResult) return;
-      try {
-        await refreshPeriodComparisonOnly();
-      } catch (e) {
-        $("status").textContent = "오류: " + (e?.message || e);
-        $("status").classList.add("error");
-      }
-    });
-  });
   $("csvBtn").addEventListener("click", downloadCsv);
-  $("periodReportCreateBtn").addEventListener("click", createPeriodReport);
   $("periodReportPrintBtn").addEventListener("click", printPeriodReport);
   renderChartMetricToggles();
   disableAutocomplete();
@@ -1686,15 +1874,13 @@
     if (!chip) return;
     chip.classList.toggle("active");
     if (lastResult) {
-      renderWeeklyChart(lastResult.stats.trendStats, lastResult.chartUnit);
+      renderOperationalTrendChart(lastResult.trendRows || lastResult.stats.trendStats, lastResult.chartUnit);
     }
   });
   $("periodComparisonMetricToggles").addEventListener("click", event => {
     const chip = event.target?.closest?.(".comparison-chart-metric-chip");
     if (!chip) return;
-    $("periodComparisonMetricToggles").querySelectorAll(".comparison-chart-metric-chip").forEach(other => {
-      other.classList.toggle("active", other === chip);
-    });
+    chip.classList.toggle("active");
     if (lastResult) renderPeriodComparisonChart(lastResult.comparison, lastResult.comparisonUnit);
   });
 

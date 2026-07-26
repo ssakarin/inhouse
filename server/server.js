@@ -925,8 +925,8 @@ function visitsWithinDays(dates, startDate, days) {
   return dates.filter(date => date >= startDate && date <= endDate).length;
 }
 
-function hasFullFollowupWindow(firstDate, statsEndDate, days = 21) {
-  return addDays(firstDate, days - 1) <= statsEndDate;
+function hasFullFollowupWindow(firstDate, referenceDate, days = 21) {
+  return firstDate <= addDays(referenceDate, -days);
 }
 
 function isoWeekKey(dateStr) {
@@ -1111,6 +1111,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const newPatientSet = new Set();
   let visits = 0;
   let coreVisits = 0;
+  let prescriptionVisits = 0;
   let newPatients = 0;
   let followupEligibleNewPatients = 0;
   let returningPatients = 0;
@@ -1121,6 +1122,8 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   let simpleChunaTotal = 0;
   let complexChunaTotal = 0;
   const chunaPatientSet = new Set();
+  const simpleChunaPatientSet = new Set();
+  const complexChunaPatientSet = new Set();
   const pharmaPatientSet = new Set();
   const pharmaPackagePurchasePatientSet = new Set();
   const clinicDateSet = new Set();
@@ -1129,6 +1132,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const weekdayDateSets = {};
   const treatmentComboCounts = {};
   const trendBuckets = {};
+  const visitStageCounts = { first: 0, second: 0, third: 0, fourthPlus: 0 };
   const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
 
   for (const record of records) {
@@ -1154,11 +1158,17 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       trendBucket.visits += 1;
       trendBucket.dates.add(date);
       if (isPrescription) {
+        prescriptionVisits += 1;
         prescriptionPatientSet.add(pid);
         trendBucket.prescriptionPatientIds.add(pid);
       } else {
         matchedCore = true;
         coreVisits += 1;
+        const visitOrdinal = visitOrdinalForDate(record, date);
+        if (visitOrdinal === 1) visitStageCounts.first += 1;
+        else if (visitOrdinal === 2) visitStageCounts.second += 1;
+        else if (visitOrdinal === 3) visitStageCounts.third += 1;
+        else if (visitOrdinal >= 4) visitStageCounts.fourthPlus += 1;
         clinicDateSet.add(date);
         trendBucket.coreVisits += 1;
         trendBucket.patientIds.add(pid);
@@ -1176,11 +1186,13 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
         comboParts.push(treatment);
         if (!isPrescription && isSimpleChunaTreatment(treatment) && !countedSimpleChuna) {
           simpleChunaTotal += 1;
+          simpleChunaPatientSet.add(pid);
           trendBucket.simpleChunaTotal += 1;
           countedSimpleChuna = true;
         }
         if (!isPrescription && isComplexChunaTreatment(treatment) && !countedComplexChuna) {
           complexChunaTotal += 1;
+          complexChunaPatientSet.add(pid);
           trendBucket.complexChunaTotal += 1;
           countedComplexChuna = true;
         }
@@ -1222,7 +1234,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       newPatientSet.add(pid);
       const key = periodKey(firstDate, chartUnit);
       if (trendBuckets[key]) trendBuckets[key].newPatients += 1;
-      const isFollowupEligible = hasFullFollowupWindow(firstDate, end, 21);
+      const isFollowupEligible = hasFullFollowupWindow(firstDate, getLocalDateKey(), 21);
       const nonPrescriptionDates = nonPrescriptionVisitDatesOf(record);
       const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21);
       const isReturning = followupVisitCount >= 2;
@@ -1278,15 +1290,21 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const simpleChunaRate = chunaTypeTotal ? simpleChunaTotal / chunaTypeTotal : 0;
   const complexChunaRate = chunaTypeTotal ? complexChunaTotal / chunaTypeTotal : 0;
   const pharmaPatientRate = patientSet.size ? pharmaPatientSet.size / patientSet.size : 0;
+  const prescriptionOnlyPatients = [...prescriptionPatientSet].filter(pid => !patientSet.has(pid)).length;
+  const newUniquePatients = [...newPatientSet].filter(pid => patientSet.has(pid)).length;
+  const simpleOnlyChunaPatients = [...simpleChunaPatientSet].filter(pid => !complexChunaPatientSet.has(pid)).length;
 
   return {
     recordCount: records.length,
     uniquePatients: patientSet.size,
-    totalPatients: patientSet.size + prescriptionPatientSet.size,
+    totalPatients: patientSet.size + prescriptionOnlyPatients,
     visits,
     coreVisits,
+    prescriptionVisits,
     prescriptionPatients: prescriptionPatientSet.size,
+    prescriptionOnlyPatients,
     newPatients,
+    newUniquePatients,
     followupEligibleNewPatients,
     revisitPatients: Math.max(0, patientSet.size - newPatientSet.size),
     returnRate: followupEligibleNewPatients ? returningPatients / followupEligibleNewPatients : 0,
@@ -1297,6 +1315,8 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     simpleChunaTotal,
     complexChunaTotal,
     chunaPatients: chunaPatientSet.size,
+    simpleOnlyChunaPatients,
+    complexChunaPatients: complexChunaPatientSet.size,
     chunaPatientRate,
     simpleChunaRate,
     complexChunaRate,
@@ -1310,6 +1330,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     doctorCounts,
     weekdayCounts,
     treatmentComboCounts,
+    visitStageCounts,
     trendStats
   };
 }
@@ -1377,8 +1398,8 @@ function computePeriodClinicReport(start, end) {
   const previousCohortEnd = shiftReportDate(previousEnd, -21);
   const stats = computeClinicStats({ start, end, chartUnit: "day" });
   const previousStats = computeClinicStats({ start: previousStart, end: previousEnd, chartUnit: "day" });
-  const stagePatientSets = { first: new Set(), second: new Set(), third: new Set(), fourthPlus: new Set() };
-  const previousStagePatientSets = { first: new Set(), second: new Set(), third: new Set(), fourthPlus: new Set() };
+  const stagePatientSets = { first: new Set(), second: new Set(), third: new Set(), fourthPlusVisits: 0 };
+  const previousStagePatientSets = { first: new Set(), second: new Set(), third: new Set(), fourthPlusVisits: 0 };
   const groups = {
     all: createFollowupGroup("전체"),
     chuna: createFollowupGroup("추나 시행"),
@@ -1402,7 +1423,7 @@ function computePeriodClinicReport(start, end) {
       if (ordinal === 1) targetSets.first.add(pid);
       else if (ordinal === 2) targetSets.second.add(pid);
       else if (ordinal === 3) targetSets.third.add(pid);
-      else if (ordinal >= 4) targetSets.fourthPlus.add(pid);
+      else if (ordinal >= 4) targetSets.fourthPlusVisits += 1;
     };
     for (const date of nonPrescriptionVisitDatesOf(record).filter(date => date >= start && date <= end)) {
       addVisitStage(date, stagePatientSets);
@@ -1454,13 +1475,13 @@ function computePeriodClinicReport(start, end) {
       first: stagePatientSets.first.size,
       second: stagePatientSets.second.size,
       third: stagePatientSets.third.size,
-      fourthPlus: stagePatientSets.fourthPlus.size
+      fourthPlus: stagePatientSets.fourthPlusVisits
     },
     previousVisitStages: {
       first: previousStagePatientSets.first.size,
       second: previousStagePatientSets.second.size,
       third: previousStagePatientSets.third.size,
-      fourthPlus: previousStagePatientSets.fourthPlus.size
+      fourthPlus: previousStagePatientSets.fourthPlusVisits
     },
     followup: Object.fromEntries(Object.entries(groups).map(([key, group]) => [key, finishFollowupGroup(group)])),
     previousFollowup: Object.fromEntries(Object.entries(previousGroups).map(([key, group]) => [key, finishFollowupGroup(group)])),
