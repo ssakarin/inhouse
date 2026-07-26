@@ -93,7 +93,10 @@
   .metric-value { color: var(--green); font-size: 28px; font-weight: 900; margin-top: 6px; }
   .metric-value.gold { color: var(--gold); }
   .metric-value.accent { color: var(--accent); }
+  .metric-total-average { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; }
+  .metric-average { color: inherit; font-size: 13px; font-weight: 900; }
   .metric-sub { color: var(--muted); font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .summary-value-guide { color: var(--muted); font-size: 11px; font-weight: 800; }
   .metric-compare { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 17px; margin-top: 8px; font-size: 11px; font-weight: 900; }
   .metric-compare.increase { color: var(--danger); }
   .metric-compare.decrease { color: var(--accent); }
@@ -319,7 +322,10 @@
   </div>
 
   <div class="card">
-    <div class="card-title">기간 요약</div>
+    <div class="card-title-row">
+      <div class="card-title">기간 요약</div>
+      <div class="summary-value-guide">수량: 기간 합계 / 진료일당 평균 · 증감: 평균 기준 · 비율: 퍼센트포인트 기준</div>
+    </div>
     <div class="metrics" id="summaryMetrics"></div>
     <div class="summary-breakdowns" id="summaryBreakdowns"></div>
   </div>
@@ -829,6 +835,7 @@
     const simpleChunaPatientSet = new Set();
     const complexChunaPatientSet = new Set();
     const pharmaPatientSet = new Set();
+    const pharmaTypesByPatient = new Map();
     const pharmaPackagePurchasePatientSet = new Set();
     const clinicDateSet = new Set();
     const doctorCounts = {};
@@ -905,14 +912,18 @@
             trendBucket.chunaPatientIds.add(pid);
             countedChuna = true;
           }
-          if (isPharmaTreatment(t) && !countedPharma) {
-            pharmaTotal += 1;
-            trendBucket.pharmaTotal += 1;
+          if (isPharmaTreatment(t)) {
             if (!isPrescription) {
               pharmaPatientSet.add(pid);
+              if (!pharmaTypesByPatient.has(pid)) pharmaTypesByPatient.set(pid, new Set());
+              pharmaTypesByPatient.get(pid).add(t);
               trendBucket.pharmaPatientIds.add(pid);
             }
-            countedPharma = true;
+            if (!countedPharma) {
+              pharmaTotal += 1;
+              trendBucket.pharmaTotal += 1;
+              countedPharma = true;
+            }
           }
         }
         const combo = [...new Set(comboParts)].sort((a, b) => a.localeCompare(b, "ko")).join(" + ");
@@ -996,6 +1007,11 @@
     const prescriptionOnlyPatients = [...prescriptionPatientSet].filter(pid => !patientSet.has(pid)).length;
     const newUniquePatients = [...newPatientSet].filter(pid => patientSet.has(pid)).length;
     const simpleOnlyChunaPatients = [...simpleChunaPatientSet].filter(pid => !complexChunaPatientSet.has(pid)).length;
+    const pharmaPatientTypeCounts = {};
+    for (const types of pharmaTypesByPatient.values()) {
+      const label = types.size >= 2 ? "약침 2종 이상" : [...types][0];
+      if (label) pharmaPatientTypeCounts[label] = (pharmaPatientTypeCounts[label] || 0) + 1;
+    }
 
     return {
       uniquePatients: patientSet.size,
@@ -1023,6 +1039,7 @@
       simpleChunaRate,
       complexChunaRate,
       pharmaPatients: pharmaPatientSet.size,
+      pharmaPatientTypeCounts,
       pharmaPatientRate,
       avgChunaPerDay: chunaTotal / clinicDays,
       avgPharmaPatientsPerDay: pharmaTotal / clinicDays,
@@ -1073,7 +1090,7 @@
     const isRate = Boolean(options.rate);
     const previousDisplay = isRate
       ? `${(previousValue * 100).toFixed(digits)}%`
-      : previousValue.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+      : `${previousValue.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}${options.suffix || ""}`;
     const difference = currentValue - previousValue;
     if (Math.abs(difference) < 1e-12) {
       return `<div class="metric-compare neutral"><span>― 0.0%</span><span class="metric-compare-previous">(이전 ${previousDisplay} · 동일)</span></div>`;
@@ -1088,31 +1105,37 @@
   }
 
   function renderSummary(s, previous = {}) {
-    const previousTreatmentCounts = previous.treatmentCounts || {};
+    const totalAverage = total => {
+      const value = Number(total || 0);
+      const clinicDays = Number(s.clinicDays || 0);
+      const average = clinicDays ? value / clinicDays : 0;
+      return `<span>${value.toLocaleString()}</span><span class="metric-average">/ ${average.toFixed(1)}</span>`;
+    };
+    const averageComparison = (currentTotal, previousTotal) => {
+      const currentDays = Number(s.clinicDays || 0);
+      const previousDays = Number(previous.clinicDays || 0);
+      const currentAverage = currentDays ? Number(currentTotal || 0) / currentDays : 0;
+      const previousAverage = previousDays ? Number(previousTotal || 0) / previousDays : 0;
+      return summaryComparison(currentAverage, previousAverage, { digits: 1 });
+    };
     $("summaryMetrics").innerHTML = `
-      <div class="metric"><div class="metric-label">총 진료 건수</div><div class="metric-value accent">${s.visits.toLocaleString()}</div><div class="metric-sub">약환 포함 연인원</div>${summaryComparison(s.visits, previous.visits)}</div>
-      <div class="metric"><div class="metric-label">총 환자 수</div><div class="metric-value">${s.totalPatients.toLocaleString()}</div><div class="metric-sub">진료 환자 수 + 약환</div>${summaryComparison(s.totalPatients, previous.totalPatients)}</div>
-      <div class="metric"><div class="metric-label">약환</div><div class="metric-value accent">${s.prescriptionPatients.toLocaleString()}</div><div class="metric-sub">주상병명 처방 실인원</div>${summaryComparison(s.prescriptionPatients, previous.prescriptionPatients)}</div>
-      <div class="metric"><div class="metric-label">진료 환자 수</div><div class="metric-value">${s.uniquePatients.toLocaleString()}</div><div class="metric-sub">약환 제외 실인원</div>${summaryComparison(s.uniquePatients, previous.uniquePatients)}</div>
-      <div class="metric"><div class="metric-label">초진(신환)</div><div class="metric-value gold">${s.newPatients.toLocaleString()}</div><div class="metric-sub">기간 내 초진 표시</div>${summaryComparison(s.newPatients, previous.newPatients)}</div>
-      <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value">${s.revisitPatients.toLocaleString()}</div><div class="metric-sub">초진 표시 제외 실환자</div>${summaryComparison(s.revisitPatients, previous.revisitPatients)}</div>
-      <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(Number(s.returnRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">최근 21일간은 제외</div>${summaryComparison(s.returnRate, previous.returnRate, { rate: true, digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(Number(s.thirdVisitRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">최근 21일간은 제외</div>${summaryComparison(s.thirdVisitRate, previous.thirdVisitRate, { rate: true, digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">평균 방문 횟수</div><div class="metric-value accent">${s.avgVisitsPerPatient.toFixed(2)}</div><div class="metric-sub">약환 제외 진료 ÷ 진료 환자 수</div>${summaryComparison(s.avgVisitsPerPatient, previous.avgVisitsPerPatient, { digits: 2 })}</div>
-      <div class="metric"><div class="metric-label">약침 합계</div><div class="metric-value gold">${s.pharmaTotal.toLocaleString()}</div><div class="metric-sub">약침1~4·L·자 (1회 진료=1)</div>${summaryComparison(s.pharmaTotal, previous.pharmaTotal)}</div>
-      <div class="metric"><div class="metric-label">단순추나</div><div class="metric-value">${(s.treatmentCounts["단순추나"] || 0).toLocaleString()}</div><div class="metric-sub">단추/기존 추나 시행 건수</div>${summaryComparison(s.treatmentCounts["단순추나"], previousTreatmentCounts["단순추나"])}</div>
-      <div class="metric"><div class="metric-label">복잡추나</div><div class="metric-value">${(s.treatmentCounts["복잡추나"] || 0).toLocaleString()}</div><div class="metric-sub">복추 시행 건수</div>${summaryComparison(s.treatmentCounts["복잡추나"], previousTreatmentCounts["복잡추나"])}</div>
-      <div class="metric"><div class="metric-label">일평균 추나</div><div class="metric-value accent">${Number(s.avgChunaPerDay || 0).toFixed(1)}</div><div class="metric-sub">단추+복추 ÷ 진료일 ${Number(s.clinicDays || 0).toLocaleString()}일</div>${summaryComparison(s.avgChunaPerDay, previous.avgChunaPerDay, { digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">추나환자 비율</div><div class="metric-value">${(Number(s.chunaPatientRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">${Number(s.chunaPatients || 0).toLocaleString()}명 / 진료 환자 수</div>${summaryComparison(s.chunaPatientRate, previous.chunaPatientRate, { rate: true, digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">복추/추나전체 비율</div><div class="metric-value">${(Number(s.complexChunaRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">복추 ${Number(s.complexChunaTotal || 0).toLocaleString()}건 / 추나전체 ${Number(s.chunaTotal || 0).toLocaleString()}건</div>${summaryComparison(s.complexChunaRate, previous.complexChunaRate, { rate: true, digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">약침환자 비율</div><div class="metric-value gold">${(Number(s.pharmaPatientRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">${Number(s.pharmaPatients || 0).toLocaleString()}명 / 진료 환자 수</div>${summaryComparison(s.pharmaPatientRate, previous.pharmaPatientRate, { rate: true, digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">일평균 약침환자수</div><div class="metric-value accent">${Number(s.avgPharmaPatientsPerDay || 0).toFixed(1)}</div><div class="metric-sub">약침 진료 건수 ÷ 진료일</div>${summaryComparison(s.avgPharmaPatientsPerDay, previous.avgPharmaPatientsPerDay, { digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">약침패키지 결제 환자수</div><div class="metric-value">${Number(s.pharmaPackagePurchasePatients || 0).toLocaleString()}</div><div class="metric-sub">기간 내 패키지 구매 기록</div>${summaryComparison(s.pharmaPackagePurchasePatients, previous.pharmaPackagePurchasePatients)}</div>
+      <div class="metric"><div class="metric-label">진료일</div><div class="metric-value">${Number(s.clinicDays || 0).toLocaleString()}일</div><div class="metric-sub">선택 기간 중 진료 기록이 있는 날짜 수</div>${summaryComparison(s.clinicDays, previous.clinicDays, { suffix: "일" })}</div>
+      <div class="metric"><div class="metric-label">진료 건수</div><div class="metric-value metric-total-average accent">${totalAverage(s.visits)}</div><div class="metric-sub">약환을 포함한 전체 진료 기록 수</div>${averageComparison(s.visits, previous.visits)}</div>
+      <div class="metric"><div class="metric-label">환자 수</div><div class="metric-value metric-total-average">${totalAverage(s.totalPatients)}</div><div class="metric-sub">진료 환자와 약환 전용 환자를 합친 실인원</div>${averageComparison(s.totalPatients, previous.totalPatients)}</div>
+      <div class="metric"><div class="metric-label">약환</div><div class="metric-value metric-total-average accent">${totalAverage(s.prescriptionPatients)}</div><div class="metric-sub">주상병명 처방 기록이 있는 실인원</div>${averageComparison(s.prescriptionPatients, previous.prescriptionPatients)}</div>
+      <div class="metric"><div class="metric-label">진료 환자 수</div><div class="metric-value metric-total-average">${totalAverage(s.uniquePatients)}</div><div class="metric-sub">약환 전용 환자를 제외한 진료 실인원</div>${averageComparison(s.uniquePatients, previous.uniquePatients)}</div>
+      <div class="metric"><div class="metric-label">초진</div><div class="metric-value metric-total-average gold">${totalAverage(s.newPatients)}</div><div class="metric-sub">선택 기간 중 초진으로 기록된 환자</div>${averageComparison(s.newPatients, previous.newPatients)}</div>
+      <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value metric-total-average">${totalAverage(s.revisitPatients)}</div><div class="metric-sub">초진 표시가 없는 진료 실인원</div>${averageComparison(s.revisitPatients, previous.revisitPatients)}</div>
+      <div class="metric"><div class="metric-label">약침 건수</div><div class="metric-value metric-total-average gold">${totalAverage(s.pharmaTotal)}</div><div class="metric-sub">약침1~4·L·자 시행 수 · 진료 1회당 1건</div>${averageComparison(s.pharmaTotal, previous.pharmaTotal)}</div>
+      <div class="metric"><div class="metric-label">추나 건수</div><div class="metric-value metric-total-average accent">${totalAverage(s.chunaTotal)}</div><div class="metric-sub">단순·복잡추나 시행 수 · 진료 1회당 1건</div>${averageComparison(s.chunaTotal, previous.chunaTotal)}</div>
+      <div class="metric"><div class="metric-label">약침패키지 결제 환자수</div><div class="metric-value metric-total-average">${totalAverage(s.pharmaPackagePurchasePatients)}</div><div class="metric-sub">선택 기간 중 약침 패키지를 결제한 실인원</div>${averageComparison(s.pharmaPackagePurchasePatients, previous.pharmaPackagePurchasePatients)}</div>
+      <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(Number(s.returnRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">조회일 기준 최근 21일 초진 제외 · 이전 대비 %p</div>${summaryComparison(s.returnRate, previous.returnRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(Number(s.thirdVisitRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">조회일 기준 최근 21일 초진 제외 · 이전 대비 %p</div>${summaryComparison(s.thirdVisitRate, previous.thirdVisitRate, { rate: true, digits: 1 })}</div>
     `;
     renderSummaryBreakdowns(s);
   }
 
-  function renderSummaryBreakdown(title, total, unit, items) {
+  function renderSummaryBreakdown(title, total, unit, items, highlight = null) {
     const safeTotal = Math.max(0, Number(total || 0));
     const segments = items.map(item => {
       const value = Math.max(0, Number(item.value || 0));
@@ -1120,7 +1143,7 @@
       return { ...item, value, percent };
     });
     return `<div class="summary-breakdown">
-      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">총 ${safeTotal.toLocaleString()}${escapeHtml(unit)}</div></div>
+      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlight ? `${escapeHtml(highlight.label)} ${Number(highlight.value || 0).toLocaleString()}${escapeHtml(unit)} · ${safeTotal ? ((Number(highlight.value || 0) / safeTotal) * 100).toFixed(1) : "0.0"}%` : `총 ${safeTotal.toLocaleString()}${escapeHtml(unit)}`}</div></div>
       <div class="summary-stacked-bar" role="img" aria-label="${escapeHtml(title)} 구성">
         ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${item.value.toLocaleString()}${escapeHtml(unit)} (${item.percent.toFixed(1)}%)"></span>`).join("")}
       </div>
@@ -1137,11 +1160,17 @@
     const newUniquePatients = Number(s.newUniquePatients ?? s.newPatients ?? 0);
     const revisitUniquePatients = Math.max(0, Number(s.uniquePatients || 0) - newUniquePatients);
     const totalPatients = Number(s.totalPatients || 0);
-    const complexChunaPatients = Math.min(totalPatients, Number(s.complexChunaPatients || 0));
-    const simpleChunaPatients = Math.max(0, Math.min(totalPatients - complexChunaPatients, Number(s.simpleOnlyChunaPatients ?? (Number(s.chunaPatients || 0) - complexChunaPatients))));
-    const regularChunaPatients = Math.max(0, totalPatients - simpleChunaPatients - complexChunaPatients);
-    const pharmaPatients = Math.min(totalPatients, Number(s.pharmaPatients || 0));
-    const regularPharmaPatients = Math.max(0, totalPatients - pharmaPatients);
+    const clinicPatients = Number(s.uniquePatients || 0);
+    const complexChunaPatients = Math.min(clinicPatients, Number(s.complexChunaPatients || 0));
+    const simpleChunaPatients = Math.max(0, Math.min(clinicPatients - complexChunaPatients, Number(s.simpleOnlyChunaPatients ?? (Number(s.chunaPatients || 0) - complexChunaPatients))));
+    const regularChunaPatients = Math.max(0, clinicPatients - simpleChunaPatients - complexChunaPatients);
+    const pharmaPatients = Math.min(clinicPatients, Number(s.pharmaPatients || 0));
+    const regularPharmaPatients = Math.max(0, clinicPatients - pharmaPatients);
+    const pharmaPatientTypeCounts = s.pharmaPatientTypeCounts || {};
+    const pharmaTypeColors = { "약침1": "#22c55e", "약침2": "#39a9f5", "약침3": "#a78bfa", "약침4": "#f97316", "약침L": "#eab308", "약침자": "#fb7185", "약침 2종 이상": "#ef4444" };
+    const pharmaTypeItems = ["약침1", "약침2", "약침3", "약침4", "약침L", "약침자", "약침 2종 이상"]
+      .map(label => ({ label, value: Number(pharmaPatientTypeCounts[label] || 0), color: pharmaTypeColors[label] }))
+      .filter(item => item.value > 0);
     $("summaryBreakdowns").innerHTML = [
       renderSummaryBreakdown("총 진료 건수 구성", s.visits, "건", [
         { label: "약환", value: prescriptionVisits, color: "#a78bfa" },
@@ -1155,15 +1184,15 @@
         { label: "초진", value: newUniquePatients, color: "#ffca6a" },
         { label: "재진", value: revisitUniquePatients, color: "#39a9f5" }
       ]),
-      renderSummaryBreakdown("총 환자 중 추나 환자", totalPatients, "명", [
+      renderSummaryBreakdown("진료 환자 중 추나 환자", clinicPatients, "명", [
         { label: "일반 환자", value: regularChunaPatients, color: "#64748b" },
         { label: "단순추나 환자", value: simpleChunaPatients, color: "#39a9f5" },
         { label: "복합추나 환자", value: complexChunaPatients, color: "#fb7185" }
-      ]),
-      renderSummaryBreakdown("총 환자 중 약침 환자", totalPatients, "명", [
+      ], { label: "추나 합계", value: simpleChunaPatients + complexChunaPatients }),
+      renderSummaryBreakdown("진료 환자 중 약침 환자", clinicPatients, "명", [
         { label: "일반 환자", value: regularPharmaPatients, color: "#64748b" },
-        { label: "약침 환자", value: pharmaPatients, color: "#22c55e" }
-      ])
+        ...(pharmaTypeItems.length ? pharmaTypeItems : [{ label: "약침 환자", value: pharmaPatients, color: "#22c55e" }])
+      ], { label: "약침 합계", value: pharmaPatients })
     ].join("");
   }
 

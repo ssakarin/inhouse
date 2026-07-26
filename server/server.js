@@ -1125,6 +1125,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const simpleChunaPatientSet = new Set();
   const complexChunaPatientSet = new Set();
   const pharmaPatientSet = new Set();
+  const pharmaTypesByPatient = new Map();
   const pharmaPackagePurchasePatientSet = new Set();
   const clinicDateSet = new Set();
   const doctorCounts = {};
@@ -1203,14 +1204,18 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
           trendBucket.chunaPatientIds.add(pid);
           countedChuna = true;
         }
-        if (isPharmaTreatment(treatment) && !countedPharma) {
-          pharmaTotal += 1;
-          trendBucket.pharmaTotal += 1;
+        if (isPharmaTreatment(treatment)) {
           if (!isPrescription) {
             pharmaPatientSet.add(pid);
+            if (!pharmaTypesByPatient.has(pid)) pharmaTypesByPatient.set(pid, new Set());
+            pharmaTypesByPatient.get(pid).add(treatment);
             trendBucket.pharmaPatientIds.add(pid);
           }
-          countedPharma = true;
+          if (!countedPharma) {
+            pharmaTotal += 1;
+            trendBucket.pharmaTotal += 1;
+            countedPharma = true;
+          }
         }
       }
       const combo = [...new Set(comboParts)].sort((a, b) => a.localeCompare(b, "ko")).join(" + ");
@@ -1293,6 +1298,11 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const prescriptionOnlyPatients = [...prescriptionPatientSet].filter(pid => !patientSet.has(pid)).length;
   const newUniquePatients = [...newPatientSet].filter(pid => patientSet.has(pid)).length;
   const simpleOnlyChunaPatients = [...simpleChunaPatientSet].filter(pid => !complexChunaPatientSet.has(pid)).length;
+  const pharmaPatientTypeCounts = {};
+  for (const types of pharmaTypesByPatient.values()) {
+    const label = types.size >= 2 ? "약침 2종 이상" : [...types][0];
+    if (label) pharmaPatientTypeCounts[label] = (pharmaPatientTypeCounts[label] || 0) + 1;
+  }
 
   return {
     recordCount: records.length,
@@ -1321,6 +1331,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     simpleChunaRate,
     complexChunaRate,
     pharmaPatients: pharmaPatientSet.size,
+    pharmaPatientTypeCounts,
     pharmaPatientRate,
     avgChunaPerDay: chunaTotal / clinicDays,
     avgPharmaPatientsPerDay: pharmaTotal / clinicDays,
