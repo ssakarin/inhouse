@@ -1703,6 +1703,20 @@ function backupPatients(records, reason) {
   return file;
 }
 
+function backupDischargedPatients(date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) throw new Error("date must be YYYY-MM-DD");
+  const records = getStateValue(`dischargedPatients/${date}`) || {};
+  const payload = {
+    date,
+    backedUpAt: new Date().toISOString(),
+    count: Object.keys(records).length,
+    dischargedPatients: records
+  };
+  const file = path.join(BACKUP_DIR, `discharged-patients-${date}.json.enc`);
+  fs.writeFileSync(file, encrypt(JSON.stringify(payload, null, 2)), "utf8");
+  return { ok: true, date, count: payload.count, file: path.basename(file) };
+}
+
 function parseBackupTimestampFromName(name) {
   const match = name.match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3}))?Z/);
   if (!match) return null;
@@ -3244,6 +3258,12 @@ async function handleApi(req, res, pathname) {
       "X-Backup-File": path.basename(file)
     });
     res.end(body);
+    return true;
+  }
+
+  if (pathname === "/api/backup/discharged-patients" && req.method === "POST") {
+    const { date } = (await readJson(req)) || {};
+    jsonResponse(res, 200, backupDischargedPatients(String(date || "")));
     return true;
   }
 

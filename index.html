@@ -16902,9 +16902,14 @@
 
   function getAutoClearVisitDate(bed, todayKey = getTodayKey()) {
     const bedDate = String(bed?.visitDate || getVisitDateFromTimestamp(bed?.timestamp) || '').trim();
-    return /^\d{4}-\d{2}-\d{2}$/.test(bedDate) && bedDate < todayKey
+    return /^\d{4}-\d{2}-\d{2}$/.test(bedDate) && bedDate <= todayKey
       ? bedDate
       : getPreviousDateKey();
+  }
+
+  function getBedAutoClearRunKey(date = new Date()) {
+    const dateKey = getDateKeyFromDate(date);
+    return date.getHours() >= 23 ? `${dateKey}-23` : `${getPreviousDateKey(date)}-23`;
   }
 
   async function claimBedForMidnightClear(bedNo, visitDate) {
@@ -16918,15 +16923,24 @@
     return result.committed && result.snapshot.val()?.midnightClearClaimId === claimId;
   }
 
+  async function backupDischargedPatientsToServer(date) {
+    const response = await fetch('/api/backup/discharged-patients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ date })
+    });
+    if (!response.ok) throw new Error(`퇴실환자 백업 실패 (${response.status})`);
+    return response.json();
+  }
+
   async function clearBedsLeftFromPreviousDate() {
     if (midnightBedClearRunning) return;
     const todayKey = getTodayKey();
+    const clearThroughDate = new Date().getHours() >= 23 ? todayKey : getPreviousDateKey();
     const staleBeds = getAllBedEntries().filter(({ bed }) => {
       const bedDate = String(bed?.visitDate || getVisitDateFromTimestamp(bed?.timestamp) || '').trim();
-      return bedDate && bedDate < todayKey;
+      return bedDate && bedDate <= clearThroughDate;
     });
-    if (!staleBeds.length) return;
-
     midnightBedClearRunning = true;
     try {
       for (const { bedNo, bed } of staleBeds) {
@@ -16939,16 +16953,22 @@
           console.error(`[midnight] ${getBedLabel(bedNo)} auto-clear failed`, error);
         }
       }
+      try {
+        const backup = await backupDischargedPatientsToServer(clearThroughDate);
+        console.info(`[23:00] discharged patients backed up: ${backup.file} (${backup.count})`);
+      } catch (error) {
+        console.error('[23:00] discharged patients backup failed', error);
+      }
     } finally {
       midnightBedClearRunning = false;
     }
   }
 
-  let lastMidnightBedClearDate = getTodayKey();
+  let lastMidnightBedClearDate = '';
   setInterval(() => {
-    const todayKey = getTodayKey();
-    if (todayKey === lastMidnightBedClearDate) return;
-    lastMidnightBedClearDate = todayKey;
+    const runKey = getBedAutoClearRunKey();
+    if (runKey === lastMidnightBedClearDate) return;
+    lastMidnightBedClearDate = runKey;
     clearBedsLeftFromPreviousDate();
   }, 1000);
   setTimeout(clearBedsLeftFromPreviousDate, 1500);
