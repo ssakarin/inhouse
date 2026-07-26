@@ -1925,8 +1925,7 @@
   $("globalVisitPatientList").addEventListener("click", event => {
     const item = event.target.closest("[data-global-patient-id]");
     if (item) {
-      selectPatientFull(item.dataset.globalPatientId);
-      setPatientFindTab("search");
+      selectPatientFull(item.dataset.globalPatientId, false);
     }
   });
   document.querySelectorAll("[data-find-tab]").forEach(button => {

@@ -1733,9 +1733,25 @@
   }
 
   function printPeriodReport() {
+    const start = lastResult?.start || $("startDate").value;
+    const end = lastResult?.end || $("endDate").value;
+    const originalTitle = document.title;
+    if (start && end) document.title = `${start}_${end}`;
     document.body.classList.add("period-report-printing");
-    window.print();
-    setTimeout(() => document.body.classList.remove("period-report-printing"), 0);
+    const cleanup = () => {
+      window.removeEventListener("afterprint", cleanup);
+      document.body.classList.remove("period-report-printing");
+      document.title = originalTitle;
+    };
+    window.addEventListener("afterprint", cleanup, { once: true });
+    try {
+      window.print();
+      setTimeout(cleanup, 0);
+    } catch (error) {
+      window.removeEventListener("afterprint", cleanup);
+      cleanup();
+      throw error;
+    }
   }
 
   async function run() {
