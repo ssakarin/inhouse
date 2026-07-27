@@ -142,6 +142,8 @@
   .chart-section-title { color: var(--gold); font-size: 14px; font-weight: 900; margin: 18px 0 8px; }
   .chart-subtitle { color: var(--muted); font-size: 12px; font-weight: 900; margin-bottom: 8px; }
   .chart-divider { height: 1px; background: var(--line); margin: 18px 0 0; }
+  .assignment-table-wrap { max-height: 520px; overflow: auto; }
+  .assignment-table-wrap th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
   .comparison-line-prev { stroke-dasharray: 7 7; opacity: 0.68; }
   .comparison-dot-prev { fill: var(--panel); stroke-width: 2.5; opacity: 0.85; }
   .chart-line-recent { stroke-dasharray: 6 6; opacity: 0.78; }
@@ -351,6 +353,18 @@
     <div id="periodComparisonChartWrap"></div>
   </div>
 
+  <div class="card">
+    <div class="card-title">시간대별 환자 수</div>
+    <div class="chart-subtitle" id="hourlyPatientSubtitle"></div>
+    <div id="hourlyPatientChartWrap"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">날짜별 간호사 배정표</div>
+    <div class="chart-subtitle">선택 기간의 방문 날짜와 담당 간호사를 기준으로 집계합니다.</div>
+    <div id="nurseAssignmentTableWrap"></div>
+  </div>
+
   <div class="grid2">
     <div class="card">
       <div class="card-title">치료별 횟수</div>
@@ -466,6 +480,18 @@
     return local.toISOString().slice(0, 10);
   }
   const today = () => ymd(new Date());
+  function getSeoulHourFromTimestamp(timestamp) {
+    const value = Number(timestamp || 0);
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    const hour = Number(new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      hour: "2-digit",
+      hourCycle: "h23"
+    }).format(date));
+    return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : null;
+  }
   function addDays(dateStr, n) {
     const d = new Date(dateStr + "T00:00:00");
     d.setDate(d.getDate() + n);
@@ -844,6 +870,9 @@
     const treatmentComboCounts = {};
     const trendBuckets = {};
     const visitStageCounts = { first: 0, second: 0, third: 0, fourthPlus: 0 };
+    const hourlyPatientCounts = Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0]));
+    const nurseAssignmentsByDate = {};
+    let unknownTimeVisits = 0;
 
     for (const rec of allRecords) {
       const dates = visitDatesOf(rec);
@@ -855,6 +884,12 @@
         const entry = (rec.visitHistory || {})[date] || {};
         const doc = String(entry.doctorName || "").trim();
         if (docFilter && doc !== docFilter) continue;   // 원장 필터
+        const visitHour = getSeoulHourFromTimestamp(entry.timestamp);
+        if (visitHour === null) unknownTimeVisits += 1;
+        else hourlyPatientCounts[String(visitHour).padStart(2, "0")] += 1;
+        const nurseName = String(entry.nurseName || "").trim() || "미지정";
+        if (!nurseAssignmentsByDate[date]) nurseAssignmentsByDate[date] = {};
+        nurseAssignmentsByDate[date][nurseName] = (nurseAssignmentsByDate[date][nurseName] || 0) + 1;
         const isPrescription = isPrescriptionVisit(rec, date);
         visits += 1;
         const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
@@ -1050,6 +1085,9 @@
       weekdayCounts,
       treatmentComboCounts,
       visitStageCounts,
+      hourlyPatientCounts,
+      unknownTimeVisits,
+      nurseAssignmentsByDate,
       trendStats
     };
   }
@@ -1225,6 +1263,71 @@
         </tbody>
       </table>
     `;
+  }
+
+  function renderHourlyPatientChart(counts = {}, unknownCount = 0) {
+    const wrap = $("hourlyPatientChartWrap");
+    if (!wrap) return;
+    const rows = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      count: Number(counts[String(hour).padStart(2, "0")] || 0)
+    }));
+    const knownTotal = rows.reduce((sum, row) => sum + row.count, 0);
+    const subtitle = $("hourlyPatientSubtitle");
+    if (subtitle) subtitle.textContent = `등록시간이 저장된 방문 ${knownTotal.toLocaleString()}건${unknownCount ? ` · 시간 정보 없는 방문 ${Number(unknownCount).toLocaleString()}건 제외` : ""}`;
+    if (!knownTotal) {
+      wrap.innerHTML = `<div class="empty">선택 기간에 시간 정보가 저장된 방문이 없습니다.</div>`;
+      return;
+    }
+
+    const width = 960;
+    const height = 310;
+    const pad = { left: 48, right: 18, top: 28, bottom: 42 };
+    const chartW = width - pad.left - pad.right;
+    const chartH = height - pad.top - pad.bottom;
+    const maxCount = Math.max(...rows.map(row => row.count), 1);
+    const top = Math.max(5, Math.ceil(maxCount / 5) * 5);
+    const slotW = chartW / rows.length;
+    const barW = Math.max(8, slotW * 0.66);
+    const y = value => pad.top + chartH - (value / top) * chartH;
+    wrap.innerHTML = `<div class="chart-wrap"><svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="시간대별 환자 수 막대그래프">
+      ${[0, 0.25, 0.5, 0.75, 1].map(rate => {
+        const value = top * rate;
+        const gy = y(value);
+        return `<line class="chart-grid" x1="${pad.left}" y1="${gy}" x2="${width - pad.right}" y2="${gy}"></line><text class="chart-text" x="${pad.left - 9}" y="${gy + 4}" text-anchor="end">${Math.round(value)}</text>`;
+      }).join("")}
+      <line class="chart-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
+      <line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
+      ${rows.map((row, index) => {
+        const x = pad.left + index * slotW + (slotW - barW) / 2;
+        const barY = y(row.count);
+        return `<g><rect x="${x}" y="${barY}" width="${barW}" height="${height - pad.bottom - barY}" rx="3" fill="rgba(57,169,245,0.72)"><title>${String(row.hour).padStart(2, "0")}:00~${String((row.hour + 1) % 24).padStart(2, "0")}:00 · ${row.count}명</title></rect>${row.count ? `<text class="chart-value-label" x="${x + barW / 2}" y="${Math.max(pad.top + 10, barY - 6)}" text-anchor="middle" fill="#39a9f5">${row.count}</text>` : ""}<text class="chart-text" x="${x + barW / 2}" y="${height - pad.bottom + 20}" text-anchor="middle">${String(row.hour).padStart(2, "0")}</text></g>`;
+      }).join("")}
+      <text class="chart-text" x="${pad.left}" y="15">환자 수</text>
+      <text class="chart-text" x="${width - pad.right}" y="${height - 7}" text-anchor="end">시간 (Asia/Seoul)</text>
+    </svg></div>`;
+  }
+
+  function renderNurseAssignmentTable(assignmentsByDate = {}) {
+    const wrap = $("nurseAssignmentTableWrap");
+    if (!wrap) return;
+    const dates = Object.keys(assignmentsByDate || {}).sort();
+    const nurses = [...new Set(dates.flatMap(date => Object.keys(assignmentsByDate[date] || {})))]
+      .sort((a, b) => a === "미지정" ? 1 : b === "미지정" ? -1 : a.localeCompare(b, "ko"));
+    if (!dates.length || !nurses.length) {
+      wrap.innerHTML = `<div class="empty">선택 기간에 간호사 배정 기록이 없습니다.</div>`;
+      return;
+    }
+    const totals = Object.fromEntries(nurses.map(name => [name, 0]));
+    dates.forEach(date => nurses.forEach(name => { totals[name] += Number(assignmentsByDate[date]?.[name] || 0); }));
+    wrap.innerHTML = `<div class="assignment-table-wrap"><table>
+      <thead><tr><th>날짜</th>${nurses.map(name => `<th class="num">${escapeHtml(name)}</th>`).join("")}<th class="num">합계</th></tr></thead>
+      <tbody>${dates.map(date => {
+        const rowTotal = nurses.reduce((sum, name) => sum + Number(assignmentsByDate[date]?.[name] || 0), 0);
+        return `<tr><td>${escapeHtml(date)}</td>${nurses.map(name => `<td class="num">${Number(assignmentsByDate[date]?.[name] || 0).toLocaleString()}</td>`).join("")}<td class="num">${rowTotal.toLocaleString()}</td></tr>`;
+      }).join("")}</tbody>
+      <tfoot><tr><th>합계</th>${nurses.map(name => `<th class="num">${totals[name].toLocaleString()}</th>`).join("")}<th class="num">${Object.values(totals).reduce((sum, value) => sum + value, 0).toLocaleString()}</th></tr></tfoot>
+    </table></div>`;
   }
 
   function chartMetricValue(row, metric) {
@@ -1819,6 +1922,8 @@
       renderSummary(s, previousStats);
       renderOperationalTrendChart(trendRows, chartUnit);
       renderPeriodComparisonChart(comparison, "range");
+      renderHourlyPatientChart(s.hourlyPatientCounts, s.unknownTimeVisits);
+      renderNurseAssignmentTable(s.nurseAssignmentsByDate);
       renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
       renderCountTable("doctorTableWrap", s.doctorCounts);
       renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"], valueHeader: "평균", decimals: 1 });

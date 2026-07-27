@@ -17454,6 +17454,39 @@
     return '';
   }
 
+  function parseImportVisitTimestamp(date, timeValue) {
+    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || ''));
+    if (!dateMatch) return 0;
+
+    const raw = String(timeValue ?? '').trim();
+    if (!raw) return 0;
+    let hour = 0;
+    let minute = 0;
+    let second = 0;
+    if (/^\d+(\.\d+)?$/.test(raw)) {
+      const numeric = Number(raw);
+      if (!Number.isFinite(numeric)) return 0;
+      const fraction = ((numeric % 1) + 1) % 1;
+      const totalSeconds = Math.round(fraction * 86400) % 86400;
+      hour = Math.floor(totalSeconds / 3600);
+      minute = Math.floor((totalSeconds % 3600) / 60);
+      second = totalSeconds % 60;
+    } else {
+      const normalized = raw.replace(/\s+/g, ' ').trim();
+      const match = normalized.match(/(\d{1,2})\s*(?::|시)\s*(\d{1,2})(?:\s*(?::|분)\s*(\d{1,2}))?/);
+      if (!match) return 0;
+      hour = Number(match[1]);
+      minute = Number(match[2]);
+      second = Number(match[3] || 0);
+      if (/오후|\bpm\b/i.test(normalized) && hour < 12) hour += 12;
+      if (/오전|\bam\b/i.test(normalized) && hour === 12) hour = 0;
+    }
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) return 0;
+
+    const [, year, month, day] = dateMatch.map(Number);
+    return Date.UTC(year, month - 1, day, hour - 9, minute, second);
+  }
+
   let chartImportRunning = false;
   let chartImportStartedAt = 0;
   let chartImportElapsedTimer = null;
@@ -17552,6 +17585,7 @@
       const colSex    = colAgeSex ?? detectColumn(headers, ['성별','Sex','Gender']);
       const colDiag   = detectColumn(headers, ['주상병명']);
       const colDate   = detectColumn(headers, ['진료일자','진료일','내원일']);
+      const colReceptionTime = detectColumn(headers, ['접수시각','접수시간','등록시각','등록시간']);
       const colVisit  = detectColumn(headers, ['초재진','초진재진','초진/재진','초진','재진','진료구분','구분','초재진구분']);
       const colDoctor = detectColumn(headers, ['진료의사','진료의','담당의','담당원장']);
       const colPhone  = detectColumn(headers, ['연락처','전화번호','휴대폰','핸드폰','휴대전화','전화','Tel','TEL','Mobile','Phone']);
@@ -17625,6 +17659,10 @@
         const chiefComplaint = colDiag   ? String(row[colDiag]   || '').trim() : '';
         const doctorName     = colDoctor ? String(row[colDoctor] || '').trim() : '';
         const visitDate      = colDate   ? parseImportDate(row[colDate]) : '';
+        const receptionTimeValue = colReceptionTime ? row[colReceptionTime] : '';
+        const visitTimestamp = visitDate
+          ? parseImportVisitTimestamp(visitDate, receptionTimeValue)
+          : 0;
         const visitText      = colVisit  ? String(row[colVisit]  || '').trim() : '';
         const visitType      = visitText.includes('초') ? '초진' : (visitText.includes('재') ? '재진' : '');
         const phone          = colPhone  ? String(row[colPhone]  || '').trim() : '';
@@ -17641,7 +17679,13 @@
         if (chiefComplaint) agg.chiefComplaint = chiefComplaint;
         if (doctorName) agg.doctorName = doctorName;
         if (visitType) agg.visitType = visitType;
-        if (visitDate) agg.visitEntries.push({ date: visitDate, visitType, doctorName, chiefComplaint });
+        if (visitDate) agg.visitEntries.push({
+          date: visitDate,
+          visitType,
+          doctorName,
+          chiefComplaint,
+          ...(visitTimestamp ? { timestamp: visitTimestamp } : {})
+        });
         byChart.set(chartNameKey, agg);
       }
 

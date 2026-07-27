@@ -1027,6 +1027,19 @@ function collectStatsDoctors() {
   `).all().map(row => row.doctorName);
 }
 
+function getSeoulHourFromTimestamp(timestamp) {
+  const value = Number(timestamp || 0);
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const hour = Number(new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    hourCycle: "h23"
+  }).format(date));
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : null;
+}
+
 function noFollowupNewPatientsFromRecords(records, docFilter = "", maxDaysAgo = 20) {
   const todayStr = ymd(new Date());
   const safeMaxDaysAgo = Math.max(7, Math.min(365, Number.parseInt(maxDaysAgo, 10) || 20));
@@ -1134,6 +1147,9 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const treatmentComboCounts = {};
   const trendBuckets = {};
   const visitStageCounts = { first: 0, second: 0, third: 0, fourthPlus: 0 };
+  const hourlyPatientCounts = Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0]));
+  const nurseAssignmentsByDate = {};
+  let unknownTimeVisits = 0;
   const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
 
   for (const record of records) {
@@ -1147,6 +1163,12 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       const entry = getVisitRecord(record, date);
       const doctorName = normalizeSearchText(entry.doctorName || record.doctorName);
       if (docFilter && doctorName !== docFilter) continue;
+      const visitHour = getSeoulHourFromTimestamp(entry.timestamp);
+      if (visitHour === null) unknownTimeVisits += 1;
+      else hourlyPatientCounts[String(visitHour).padStart(2, "0")] += 1;
+      const nurseName = normalizeSearchText(entry.nurseName) || "미지정";
+      if (!nurseAssignmentsByDate[date]) nurseAssignmentsByDate[date] = {};
+      nurseAssignmentsByDate[date][nurseName] = (nurseAssignmentsByDate[date][nurseName] || 0) + 1;
       const isPrescription = isPrescriptionVisit(record, date);
       visits += 1;
       const treatments = Array.isArray(entry.treatments) ? entry.treatments : [];
@@ -1342,6 +1364,9 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     weekdayCounts,
     treatmentComboCounts,
     visitStageCounts,
+    hourlyPatientCounts,
+    unknownTimeVisits,
+    nurseAssignmentsByDate,
     trendStats
   };
 }
