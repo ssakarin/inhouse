@@ -8788,6 +8788,7 @@
     renderStaffControls();
     try {
       await updateLocalNodeChild('staff/nurses', key, { vacation: Boolean(checked) });
+      if (prev && !checked) await alignReturningNurseAssignmentCount(key);
       showToast(checked ? '간호사 자리비움 처리 완료' : '간호사 자리비움 해제 완료');
     } catch (e) {
       console.error(e);
@@ -9674,12 +9675,16 @@
 
   function createChartVisitEntry(source = {}) {
     const date = source.visitDate || getVisitDateFromTimestamp(source.timestamp);
+    const timestamp = Number(source.timestamp || 0);
     return {
       date,
+      ...(timestamp ? { timestamp } : {}),
       visitType: source.visitType || '',
       treatments: Array.isArray(source.treatments) ? source.treatments : [],
       bodyParts: normalizeBodyParts(source.bodyParts),
       doctorName: source.doctorName || '',
+      nurseId: source.nurseId || '',
+      nurseName: source.nurseName || '',
       chiefComplaint: source.chiefComplaint || '',
       memo2: source.memo2 || ''
     };
@@ -9690,11 +9695,15 @@
     const pushEntry = (entry) => {
       if (!entry?.date) return;
       const hasMemo2 = Object.prototype.hasOwnProperty.call(entry, 'memo2');
+      const timestamp = Number(entry.timestamp || 0);
       entries.push({
         date: String(entry.date),
+        ...(timestamp ? { timestamp } : {}),
         treatments: Array.isArray(entry.treatments) ? entry.treatments : [],
         bodyParts: normalizeBodyParts(entry.bodyParts),
         doctorName: entry.doctorName || '',
+        nurseId: entry.nurseId || '',
+        nurseName: entry.nurseName || '',
         visitType: entry.visitType || '',
         chiefComplaint: entry.chiefComplaint || '',
         ...(hasMemo2 ? { memo2: entry.memo2 || '' } : {})
@@ -9726,12 +9735,16 @@
         treatments: preferNonEmptyValue(incoming.treatments, saved.treatments),
         bodyParts: normalizeBodyParts(preferNonEmptyValue(incoming.bodyParts, saved.bodyParts)),
         doctorName: preferNonEmptyValue(incoming.doctorName, saved.doctorName) || '',
+        nurseId: preferNonEmptyValue(incoming.nurseId, saved.nurseId) || '',
+        nurseName: preferNonEmptyValue(incoming.nurseName, saved.nurseName) || '',
         visitType: preferNonEmptyValue(incoming.visitType, saved.visitType) || '',
         chiefComplaint: preferNonEmptyValue(incoming.chiefComplaint, saved.chiefComplaint) || ''
       };
       if (Object.prototype.hasOwnProperty.call(saved, 'memo2') || Object.prototype.hasOwnProperty.call(incoming, 'memo2')) {
         merged.memo2 = preferNonEmptyValue(incoming.memo2, saved.memo2) || '';
       }
+      const timestamp = Number(preferNonEmptyValue(incoming.timestamp, saved.timestamp) || 0);
+      if (timestamp) merged.timestamp = timestamp;
       return merged;
     };
 
@@ -11470,6 +11483,47 @@
       counts[nurseId] = (counts[nurseId] || 0) + 1;
     });
     return counts;
+  }
+
+  async function alignReturningNurseAssignmentCount(nurseId) {
+    nurseId = String(nurseId || '');
+    if (!nurseId) return false;
+
+    try {
+      const dateKey = getTodayKey();
+      const current = await localStateGet('settings/nurseRoundRobinState');
+      const baseState = current && typeof current === 'object' ? current : {};
+      if (String(baseState.lastDate || '') !== dateKey) return false;
+
+      const todayAssignments = baseState.todayAssignments && typeof baseState.todayAssignments === 'object'
+        ? { ...baseState.todayAssignments }
+        : {};
+      const otherActiveNurseIds = getActiveRoundRobinNurses()
+        .map(([id]) => String(id))
+        .filter(id => id && id !== nurseId);
+      if (!otherActiveNurseIds.length) return false;
+
+      const averageCount = Math.floor(
+        otherActiveNurseIds.reduce((sum, id) => sum + Number(todayAssignments[id] || 0), 0)
+        / otherActiveNurseIds.length
+      );
+      const previousCount = Number(todayAssignments[nurseId] || 0);
+      if (averageCount <= previousCount) return false;
+
+      todayAssignments[nurseId] = averageCount;
+      const count = Object.values(todayAssignments).reduce((sum, value) => sum + Number(value || 0), 0);
+      await localStatePut('settings/nurseRoundRobinState', {
+        ...baseState,
+        lastDate: dateKey,
+        count,
+        todayAssignments,
+        updatedAt: Date.now()
+      });
+      return true;
+    } catch (e) {
+      console.error('간호사 자리비움 해제 카운터 보정 실패', e);
+      return false;
+    }
   }
 
   function getRoundRobinStartOffset(state = {}, nurses = [], dateKey = getTodayKey()) {
@@ -14678,6 +14732,8 @@
         treatments: bed.treatments || [],
         bodyParts: normalizeBodyParts(bed.bodyParts),
         doctorName: bed.doctorName || '',
+        nurseId: bed.nurseId || '',
+        nurseName: bed.nurseName || '',
         visitEntry: createChartVisitEntry({ ...bed, visitDate: visitDate || '' }),
         appointmentDates: normalizeAppointmentDates(patient || {}),
         appointmentDate: normalizeAppointmentDates(patient || {})[0] || '',
@@ -16840,6 +16896,8 @@
           next.treatments = latestVisit.treatments || [];
           next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
           next.doctorName = latestVisit.doctorName || '';
+          next.nurseId = latestVisit.nurseId || '';
+          next.nurseName = latestVisit.nurseName || '';
           next.visitType = latestVisit.visitType || next.visitType || '';
           next.memo2 = latestVisit.memo2 || getMemo2ForDate(next, latestDate || getMemo2HistoryDate(data));
         }
@@ -16874,6 +16932,8 @@
             next.treatments = latestVisit.treatments || [];
             next.bodyParts = normalizeBodyParts(latestVisit.bodyParts);
             next.doctorName = latestVisit.doctorName || '';
+            next.nurseId = latestVisit.nurseId || '';
+            next.nurseName = latestVisit.nurseName || '';
             next.visitType = latestVisit.visitType || next.visitType || '';
             next.memo2 = latestVisit.memo2 || getMemo2ForDate(next, latestDate || getMemo2HistoryDate(data));
           }
