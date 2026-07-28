@@ -13793,7 +13793,7 @@
     return false;
   }
 
-  // 현재 치료를 맡은 원장의 다음 시술을 안내(간호사는 안내하지 않음).
+  // 현재 치료를 맡은 원장의 시술 순서 첫 항목을 모든 fixed bed에 동일하게 안내한다.
   // 판단 기준은 치료실알림 보드에 떠 있는 원장 시술 알림: 같은 원장의 남은 알림 중
   // 가장 먼저 뜬 알림(타임스탬프가 빠른 것)부터 표시한다.
   function getNextStaffTaskInfo(currentBedNo, bed) {
@@ -13803,9 +13803,8 @@
     const doctorId = bed.doctorId || '';
     if (!doctorId) return null;
 
-    // 보드에 떠 있는 동일 원장의 남은 시술 알림 목록
-    const items = getDoctorProcedureAlertItems(doctorId)
-      .filter(it => it.bedNo !== currentBedNo);
+    // 현재 베드를 제외하지 않고 보드에 떠 있는 동일 원장의 전체 순서를 사용한다.
+    const items = getDoctorProcedureAlertItems(doctorId);
 
     if (!items.length) return null;
     const next = items[0];
