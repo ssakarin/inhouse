@@ -661,11 +661,15 @@ function patientsByVisitMonth(month) {
     const chartNo = normalizeChartNo(row.chart_no);
     const patientId = normalizeSearchText(row.patient_id || chartNo);
     if (!chartNo || !patientId) continue;
+    const fullRecord = getPatientById(patientId) || {};
+    const fullVisit = fullRecord.visitHistory?.[row.visit_date] || {};
     const patient = patientsById.get(patientId) || {
       patientId,
       chartNo,
-      name: row.name || "",
-      phone: row.phone || "",
+      name: row.name || fullRecord.name || "",
+      phone: row.phone || getPatientPhone(fullRecord) || "",
+      age: fullRecord.age || "",
+      gender: fullRecord.gender || "",
       visitDates: [],
       visitHistory: {}
     };
@@ -673,7 +677,10 @@ function patientsByVisitMonth(month) {
     patient.visitHistory[row.visit_date] = {
       doctorName: row.doctor_name || "",
       visitType: row.visit_type || "",
-      chiefComplaint: row.chief_complaint || ""
+      chiefComplaint: row.chief_complaint || "",
+      ...(Number(fullVisit.timestamp || 0) ? { timestamp: Number(fullVisit.timestamp) } : {}),
+      nurseId: fullVisit.nurseId || "",
+      nurseName: fullVisit.nurseName || ""
     };
     patientsById.set(patientId, patient);
   }
