@@ -1353,7 +1353,13 @@
     const source = monthData?.patients || latestIndexedValue;
     return source
       .filter(patient => visitDatesFromRecord(patient).includes(date))
-      .sort(compareChartNo);
+      .sort((a, b) => {
+        const aTime = Number(a.visitHistory?.[date]?.timestamp || 0);
+        const bTime = Number(b.visitHistory?.[date]?.timestamp || 0);
+        if (aTime && bTime && aTime !== bTime) return aTime - bTime;
+        if (aTime !== bTime) return aTime ? -1 : 1;
+        return compareChartNo(a, b);
+      });
   }
 
   function renderGlobalVisitPatientList(date = selectedGlobalVisitDate) {
