@@ -1155,6 +1155,10 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const trendBuckets = {};
   const visitStageCounts = { first: 0, second: 0, third: 0, fourthPlus: 0 };
   const hourlyPatientCounts = Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0]));
+  const hourlyPatientCountsByDayType = {
+    weekday: Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0])),
+    saturday: Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0]))
+  };
   const nurseAssignmentsByDate = {};
   let unknownTimeVisits = 0;
   const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
@@ -1172,7 +1176,18 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       if (docFilter && doctorName !== docFilter) continue;
       const visitHour = getSeoulHourFromTimestamp(entry.timestamp);
       if (visitHour === null) unknownTimeVisits += 1;
-      else hourlyPatientCounts[String(visitHour).padStart(2, "0")] += 1;
+      else {
+        const hourKey = String(visitHour).padStart(2, "0");
+        hourlyPatientCounts[hourKey] += 1;
+        const day = new Date(`${date}T00:00:00`).getDay();
+        if (day >= 1 && day <= 5) {
+          const clinicHourKey = String(Math.min(18, Math.max(9, visitHour))).padStart(2, "0");
+          hourlyPatientCountsByDayType.weekday[clinicHourKey] += 1;
+        } else if (day === 6) {
+          const clinicHourKey = String(Math.min(14, Math.max(9, visitHour))).padStart(2, "0");
+          hourlyPatientCountsByDayType.saturday[clinicHourKey] += 1;
+        }
+      }
       const nurseName = normalizeSearchText(entry.nurseName) || "미지정";
       if (!nurseAssignmentsByDate[date]) nurseAssignmentsByDate[date] = {};
       nurseAssignmentsByDate[date][nurseName] = (nurseAssignmentsByDate[date][nurseName] || 0) + 1;
@@ -1372,6 +1387,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     treatmentComboCounts,
     visitStageCounts,
     hourlyPatientCounts,
+    hourlyPatientCountsByDayType,
     unknownTimeVisits,
     nurseAssignmentsByDate,
     trendStats

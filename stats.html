@@ -129,6 +129,11 @@
   .status { color: var(--gold); font-size: 12px; font-weight: 800; }
   .status.error { color: var(--danger); }
   .chart-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .hourly-chart-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .hourly-chart-panel { min-width: 0; }
+  .hourly-chart-panel-title { margin: 0 0 6px; color: var(--text); font-size: 13px; font-weight: 900; text-align: center; }
+  .hourly-chart-panel .weekly-chart { min-width: 500px; height: 310px; }
+  @media (max-width: 900px) { .hourly-chart-grid { grid-template-columns: 1fr; } }
   .weekly-chart { min-width: 720px; width: 100%; height: 340px; display: block; }
   .chart-axis, .chart-grid { stroke: rgba(255,255,255,0.16); stroke-width: 1; }
   .chart-grid { stroke-dasharray: 4 6; }
@@ -871,6 +876,10 @@
     const trendBuckets = {};
     const visitStageCounts = { first: 0, second: 0, third: 0, fourthPlus: 0 };
     const hourlyPatientCounts = Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0]));
+    const hourlyPatientCountsByDayType = {
+      weekday: Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0])),
+      saturday: Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0]))
+    };
     const nurseAssignmentsByDate = {};
     let unknownTimeVisits = 0;
 
@@ -886,7 +895,18 @@
         if (docFilter && doc !== docFilter) continue;   // 원장 필터
         const visitHour = getSeoulHourFromTimestamp(entry.timestamp);
         if (visitHour === null) unknownTimeVisits += 1;
-        else hourlyPatientCounts[String(visitHour).padStart(2, "0")] += 1;
+        else {
+          const hourKey = String(visitHour).padStart(2, "0");
+          hourlyPatientCounts[hourKey] += 1;
+          const day = new Date(date + "T00:00:00").getDay();
+          if (day >= 1 && day <= 5) {
+            const clinicHourKey = String(Math.min(18, Math.max(9, visitHour))).padStart(2, "0");
+            hourlyPatientCountsByDayType.weekday[clinicHourKey] += 1;
+          } else if (day === 6) {
+            const clinicHourKey = String(Math.min(14, Math.max(9, visitHour))).padStart(2, "0");
+            hourlyPatientCountsByDayType.saturday[clinicHourKey] += 1;
+          }
+        }
         const nurseName = String(entry.nurseName || "").trim() || "미지정";
         if (!nurseAssignmentsByDate[date]) nurseAssignmentsByDate[date] = {};
         nurseAssignmentsByDate[date][nurseName] = (nurseAssignmentsByDate[date][nurseName] || 0) + 1;
@@ -1086,6 +1106,7 @@
       treatmentComboCounts,
       visitStageCounts,
       hourlyPatientCounts,
+      hourlyPatientCountsByDayType,
       unknownTimeVisits,
       nurseAssignmentsByDate,
       trendStats
@@ -1265,47 +1286,32 @@
     `;
   }
 
-  function renderHourlyPatientChart(counts = {}, unknownCount = 0) {
+  function renderHourlyPatientChart(countsByDayType = {}, unknownCount = 0) {
     const wrap = $("hourlyPatientChartWrap");
     if (!wrap) return;
-    const rows = Array.from({ length: 24 }, (_, hour) => ({
-      hour,
-      count: Number(counts[String(hour).padStart(2, "0")] || 0)
-    }));
-    const knownTotal = rows.reduce((sum, row) => sum + row.count, 0);
+    const configs = [
+      { key: "weekday", title: "평일 (월~금)", startHour: 9, endHour: 18, endLabel: "18:30", color: "#39a9f5" },
+      { key: "saturday", title: "토요일", startHour: 9, endHour: 14, endLabel: "14:30", color: "#ffca6a" }
+    ];
+    const knownTotal = Object.values(countsByDayType).reduce((total, counts) => total + Object.values(counts || {}).reduce((sum, value) => sum + Number(value || 0), 0), 0);
     const subtitle = $("hourlyPatientSubtitle");
-    if (subtitle) subtitle.textContent = `등록시간이 저장된 방문 ${knownTotal.toLocaleString()}건${unknownCount ? ` · 시간 정보 없는 방문 ${Number(unknownCount).toLocaleString()}건 제외` : ""}`;
+    if (subtitle) subtitle.textContent = `평일 09:00~18:30 · 토요일 09:00~14:30 · 시간 확인 방문 ${knownTotal.toLocaleString()}건${unknownCount ? ` · 시간 정보 없는 방문 ${Number(unknownCount).toLocaleString()}건 제외` : ""}`;
     if (!knownTotal) {
-      wrap.innerHTML = `<div class="empty">선택 기간에 시간 정보가 저장된 방문이 없습니다.</div>`;
+      wrap.innerHTML = `<div class="empty">선택 기간에 시간 정보가 저장된 평일·토요일 방문이 없습니다.</div>`;
       return;
     }
-
-    const width = 960;
-    const height = 310;
-    const pad = { left: 48, right: 18, top: 28, bottom: 42 };
-    const chartW = width - pad.left - pad.right;
-    const chartH = height - pad.top - pad.bottom;
-    const maxCount = Math.max(...rows.map(row => row.count), 1);
-    const top = Math.max(5, Math.ceil(maxCount / 5) * 5);
-    const slotW = chartW / rows.length;
-    const barW = Math.max(8, slotW * 0.66);
-    const y = value => pad.top + chartH - (value / top) * chartH;
-    wrap.innerHTML = `<div class="chart-wrap"><svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="시간대별 환자 수 막대그래프">
-      ${[0, 0.25, 0.5, 0.75, 1].map(rate => {
-        const value = top * rate;
-        const gy = y(value);
-        return `<line class="chart-grid" x1="${pad.left}" y1="${gy}" x2="${width - pad.right}" y2="${gy}"></line><text class="chart-text" x="${pad.left - 9}" y="${gy + 4}" text-anchor="end">${Math.round(value)}</text>`;
-      }).join("")}
-      <line class="chart-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
-      <line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
-      ${rows.map((row, index) => {
-        const x = pad.left + index * slotW + (slotW - barW) / 2;
-        const barY = y(row.count);
-        return `<g><rect x="${x}" y="${barY}" width="${barW}" height="${height - pad.bottom - barY}" rx="3" fill="rgba(57,169,245,0.72)"><title>${String(row.hour).padStart(2, "0")}:00~${String((row.hour + 1) % 24).padStart(2, "0")}:00 · ${row.count}명</title></rect>${row.count ? `<text class="chart-value-label" x="${x + barW / 2}" y="${Math.max(pad.top + 10, barY - 6)}" text-anchor="middle" fill="#39a9f5">${row.count}</text>` : ""}<text class="chart-text" x="${x + barW / 2}" y="${height - pad.bottom + 20}" text-anchor="middle">${String(row.hour).padStart(2, "0")}</text></g>`;
-      }).join("")}
-      <text class="chart-text" x="${pad.left}" y="15">환자 수</text>
-      <text class="chart-text" x="${width - pad.right}" y="${height - 7}" text-anchor="end">시간 (Asia/Seoul)</text>
-    </svg></div>`;
+    wrap.innerHTML = `<div class="hourly-chart-grid">${configs.map(config => {
+      const rows = Array.from({ length: config.endHour - config.startHour + 1 }, (_, index) => { const hour = config.startHour + index; return { hour, count: Number(countsByDayType[config.key]?.[String(hour).padStart(2, "0")] || 0) }; });
+      const width = 560, height = 310, pad = { left: 46, right: 16, top: 28, bottom: 44 };
+      const chartW = width - pad.left - pad.right, chartH = height - pad.top - pad.bottom;
+      const top = Math.max(5, Math.ceil(Math.max(...rows.map(row => row.count), 1) / 5) * 5);
+      const slotW = chartW / rows.length, barW = Math.max(10, slotW * .64), y = value => pad.top + chartH - value / top * chartH;
+      return `<div class="hourly-chart-panel"><div class="hourly-chart-panel-title">${config.title}</div><div class="chart-wrap"><svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${config.title} 시간대별 환자 수 막대그래프">
+        ${[0, .25, .5, .75, 1].map(rate => { const value = top * rate, gy = y(value); return `<line class="chart-grid" x1="${pad.left}" y1="${gy}" x2="${width - pad.right}" y2="${gy}"></line><text class="chart-text" x="${pad.left - 8}" y="${gy + 4}" text-anchor="end">${Math.round(value)}</text>`; }).join("")}
+        <line class="chart-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line><line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
+        ${rows.map((row, index) => { const x = pad.left + index * slotW + (slotW - barW) / 2, barY = y(row.count), from = `${String(row.hour).padStart(2, "0")}:00`, to = row.hour === config.endHour ? config.endLabel : `${String(row.hour + 1).padStart(2, "0")}:00`; return `<g><rect x="${x}" y="${barY}" width="${barW}" height="${height - pad.bottom - barY}" rx="3" fill="${config.color}" opacity=".76"><title>${from}~${to} · ${row.count}명</title></rect>${row.count ? `<text class="chart-value-label" x="${x + barW / 2}" y="${Math.max(pad.top + 10, barY - 6)}" text-anchor="middle" fill="${config.color}">${row.count}</text>` : ""}<text class="chart-text" x="${x + barW / 2}" y="${height - pad.bottom + 20}" text-anchor="middle">${String(row.hour).padStart(2, "0")}</text></g>`; }).join("")}
+        <text class="chart-text" x="${pad.left}" y="15">환자 수</text></svg></div></div>`;
+    }).join("")}</div>`;
   }
 
   function renderNurseAssignmentTable(assignmentsByDate = {}) {
@@ -1922,7 +1928,7 @@
       renderSummary(s, previousStats);
       renderOperationalTrendChart(trendRows, chartUnit);
       renderPeriodComparisonChart(comparison, "range");
-      renderHourlyPatientChart(s.hourlyPatientCounts, s.unknownTimeVisits);
+      renderHourlyPatientChart(s.hourlyPatientCountsByDayType || {}, s.unknownTimeVisits);
       renderNurseAssignmentTable(s.nurseAssignmentsByDate);
       renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
       renderCountTable("doctorTableWrap", s.doctorCounts);
