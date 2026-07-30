@@ -7431,7 +7431,7 @@
     const baseline = baselineRaw === '' || baselineRaw == null ? NaN : Number(baselineRaw);
     if (!Number.isFinite(baseline)) return { min: 0.5, max: absoluteMax };
     return {
-      min: Math.max(0.5, baseline - changeLimit),
+      min: 0.5,
       max: Math.min(absoluteMax, baseline + changeLimit)
     };
   }
