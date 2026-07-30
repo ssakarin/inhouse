@@ -2808,6 +2808,78 @@
     padding: 9px 8px;
     text-align: center;
   }
+  .spine-force-stepper {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) 48px;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .spine-force-stepper input[type="number"] {
+    min-width: 0;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  .spine-force-stepper input[type="number"]::-webkit-inner-spin-button,
+  .spine-force-stepper input[type="number"]::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+  .spine-force-step-btn {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0;
+    border: 1px solid rgba(57,169,245,0.55);
+    border-radius: 10px;
+    background: rgba(57,169,245,0.16);
+    color: var(--text);
+    font: 900 26px/1 'Noto Sans KR', sans-serif;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .spine-force-step-btn:active {
+    background: rgba(57,169,245,0.34);
+    transform: scale(0.96);
+  }
+  .spine-history {
+    display: grid;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.10);
+  }
+  .spine-history-title {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 900;
+  }
+  .spine-history-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .spine-history-card {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 10px;
+    background: rgba(16,27,45,0.58);
+  }
+  .spine-history-date {
+    margin-bottom: 6px;
+    color: rgb(57,169,245);
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .spine-history-line {
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 560px) {
+    .spine-history-list { grid-template-columns: 1fr; }
+  }
   .package-balance-strip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -7208,6 +7280,7 @@
   const spineSettingsByGrid = {};
   const spinePatientIdentityByGrid = {};
   let activeSpineGridId = '';
+  let activeSpineForceBaseline = null;
 
   function getSettingsPatientIdentity(values = {}) {
     const patientKey = String(values?.patientKey || '').trim();
@@ -7239,7 +7312,7 @@
     return Math.round(Math.max(min, Math.min(max, num)) * 2) / 2;
   }
 
-  function normalizeSpineSettings(value) {
+  function normalizeSpineSettingsEntry(value) {
     const v = value && typeof value === 'object' ? value : {};
     const legacyCondition = SPINE_CONDITION_OPTIONS.some(o => o.key === v.condition) ? v.condition : '';
     const legacyRotation = (v.rotation === '' || v.rotation == null) ? null : (SPINE_ROTATION_OPTIONS.includes(Number(v.rotation)) ? Number(v.rotation) : null);
@@ -7256,6 +7329,30 @@
       lumbarRotation: validRotation(v.lumbarRotation) ?? legacyRotation,
       updatedAt: Number(v.updatedAt || 0) || null
     };
+  }
+
+  function normalizeSpineSettings(value) {
+    const v = value && typeof value === 'object' ? value : {};
+    const normalized = normalizeSpineSettingsEntry(v);
+    const history = {};
+    const historySource = v.history && typeof v.history === 'object' && !Array.isArray(v.history) ? v.history : {};
+    Object.entries(historySource).forEach(([date, entry]) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) history[String(date)] = normalizeSpineSettingsEntry(entry);
+    });
+    if (!Object.keys(history).length && normalized.updatedAt && hasAnySpineSetting(normalized)) {
+      history[getVisitDateFromTimestamp(normalized.updatedAt)] = { ...normalized };
+    }
+    return { ...normalized, history };
+  }
+
+  function hasBedSpineSettingsChanged(bed = {}) {
+    return Boolean(bed?.spineSettingsAdjusted);
+  }
+
+  function getBedTreatmentDisplayName(bed, treatment) {
+    return String(treatment || '').trim() === '스파인' && hasBedSpineSettingsChanged(bed)
+      ? '스파인(설정)'
+      : treatment;
   }
 
   function getSpineSettingsFromPatient(data = {}) {
@@ -7306,9 +7403,37 @@
 
   function setSpineSettingsForGrid(gridId, value) {
     const normalized = normalizeSpineSettings({ ...value, updatedAt: Date.now() });
-    spineSettingsByGrid[gridId] = normalized;
+    const date = getSpineSettingsDateForGrid(gridId);
+    const entry = normalizeSpineSettingsEntry(normalized);
+    spineSettingsByGrid[gridId] = {
+      ...normalized,
+      history: { ...(normalized.history || {}), [date]: entry }
+    };
     window.updateSpineChip(gridId);
-    return normalized;
+    return spineSettingsByGrid[gridId];
+  }
+
+  function getSpineSettingsDateForGrid(gridId) {
+    const patientKey = getPatientKeyForCreditGrid(gridId);
+    const bedNo = getBedNoForCreditGrid(gridId);
+    const scope = getScopeFromGridId(gridId);
+    const source = (bedNo ? getBedData(bedNo) : null)
+      || (patientKey ? patientsByKey.get(patientKey) : null)
+      || (scope ? selectedChartPatientByScope[scope] : null)
+      || {};
+    return getMemo2HistoryDate(source);
+  }
+
+  function getSpineForceAllowedRange(field) {
+    const absoluteMax = field === 'cervicalForce' ? 16 : 50;
+    const changeLimit = field === 'cervicalForce' ? 1 : 2;
+    const baselineRaw = activeSpineForceBaseline?.[field];
+    const baseline = baselineRaw === '' || baselineRaw == null ? NaN : Number(baselineRaw);
+    if (!Number.isFinite(baseline)) return { min: 0.5, max: absoluteMax };
+    return {
+      min: Math.max(0.5, baseline - changeLimit),
+      max: Math.min(absoluteMax, baseline + changeLimit)
+    };
   }
 
   function resetSpineSettings(gridId) {
@@ -7325,9 +7450,11 @@
       if (patientKey) {
         const bedStillHasPatient = bedNo
           && String(getBedData(bedNo)?.patientKey || '') === String(patientKey);
+        const currentBed = bedStillHasPatient ? getBedData(bedNo) : null;
+        const bedSpinePatch = currentBed ? { spineSettings, spineSettingsAdjusted: true } : null;
         await Promise.all([
           updatePatient(patientKey, { spineSettings }),
-          bedStillHasPatient ? updateBedRecord(bedNo, { spineSettings }) : Promise.resolve()
+          bedSpinePatch ? updateBedRecord(bedNo, bedSpinePatch) : Promise.resolve()
         ]);
         patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), spineSettings });
         renderBedMonitors();
@@ -7343,6 +7470,11 @@
     beginSettingsPopupSession('spine', gridId);
     const overlay = document.getElementById('spineSettingsOverlay');
     if (!overlay) return;
+    const settings = getSpineSettingsForGrid(gridId);
+    activeSpineForceBaseline = {
+      cervicalForce: settings.cervicalForce,
+      lumbarForce: settings.lumbarForce
+    };
     renderSpineSettingsPopup();
     overlay.classList.add('show');
   };
@@ -7350,7 +7482,10 @@
   window.closeSpineSettingsPopup = async function() {
     const gridId = activeSpineGridId;
     if (!gridId) return;
-    if (await finishSettingsPopupSave('spine', gridId)) activeSpineGridId = '';
+    if (await finishSettingsPopupSave('spine', gridId)) {
+      activeSpineGridId = '';
+      activeSpineForceBaseline = null;
+    }
   };
 
   window.retrySpineSettingsSave = async function() {
@@ -7374,6 +7509,7 @@
   }
 
   function renderSpineSidePanel(title, levelGroup, levels, forceField, forceMax, conditionField, rotationField, settings) {
+    const forceRange = getSpineForceAllowedRange(forceField);
     return `
       <div class="spine-settings-panel">
         <div class="spine-settings-panel-title">${escapeHtml(title)}</div>
@@ -7383,10 +7519,14 @@
             ${levels.map(level => `<button type="button" class="spine-toggle-btn${settings[levelGroup].includes(level) ? ' is-active' : ''}" onclick="toggleSpineLevel('${levelGroup}','${level}')">${escapeHtml(level)}</button>`).join('')}
           </div>
         </div>
-        <label class="spine-settings-field">
+        <div class="spine-settings-field">
           <span>${escapeHtml(title)} Force</span>
-          <input type="number" inputmode="decimal" step="0.5" min="0.5" max="${forceMax}" value="${settings[forceField] ?? ''}" onchange="setSpineForce('${forceField}', this.value)">
-        </label>
+          <div class="spine-force-stepper">
+            <button type="button" class="spine-force-step-btn" aria-label="${escapeHtml(title)} Force 0.5 감소" onclick="adjustSpineForce('${forceField}', -0.5)">−</button>
+            <input type="number" inputmode="decimal" step="0.5" min="${forceRange.min}" max="${forceRange.max}" value="${settings[forceField] ?? ''}" onchange="setSpineForce('${forceField}', this.value)">
+            <button type="button" class="spine-force-step-btn" aria-label="${escapeHtml(title)} Force 0.5 증가" onclick="adjustSpineForce('${forceField}', 0.5)">+</button>
+          </div>
+        </div>
         <div class="spine-settings-section">
           <div class="spine-settings-label">협착증 / 디스크</div>
           <div class="spine-settings-toggle-group">
@@ -7411,6 +7551,38 @@
       <div class="spine-settings-split">
         ${renderSpineSidePanel('경추', 'cervicalLevels', SPINE_CERVICAL_LEVELS, 'cervicalForce', 16, 'cervicalCondition', 'cervicalRotation', s)}
         ${renderSpineSidePanel('요추', 'lumbarLevels', SPINE_LUMBAR_LEVELS, 'lumbarForce', 50, 'lumbarCondition', 'lumbarRotation', s)}
+      </div>
+      ${renderSpineSettingsHistory(s)}`;
+  }
+
+  function formatSpineHistorySide(label, levels, force, condition, rotation) {
+    const conditionLabel = SPINE_CONDITION_OPTIONS.find(option => option.key === condition)?.label || '';
+    const parts = [
+      levels?.length ? levels.join(', ') : '',
+      force != null ? `Force ${force}` : '',
+      conditionLabel,
+      rotation != null ? `회전 ${rotation}` : ''
+    ].filter(Boolean);
+    return `${label}: ${parts.length ? parts.join(' · ') : '설정 없음'}`;
+  }
+
+  function renderSpineSettingsHistory(settings) {
+    const rows = Object.entries(settings.history || {})
+      .filter(([date, entry]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && hasAnySpineSetting(entry || {}))
+      .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+      .slice(0, 4);
+    if (!rows.length) return '';
+    return `
+      <div class="spine-history">
+        <div class="spine-history-title">최근 스파인 설정</div>
+        <div class="spine-history-list">
+          ${rows.map(([date, entry]) => `
+            <div class="spine-history-card">
+              <div class="spine-history-date">${escapeHtml(date)}</div>
+              <div class="spine-history-line">${escapeHtml(formatSpineHistorySide('경추', entry.cervicalLevels, entry.cervicalForce, entry.cervicalCondition, entry.cervicalRotation))}</div>
+              <div class="spine-history-line">${escapeHtml(formatSpineHistorySide('요추', entry.lumbarLevels, entry.lumbarForce, entry.lumbarCondition, entry.lumbarRotation))}</div>
+            </div>`).join('')}
+        </div>
       </div>`;
   }
 
@@ -7429,8 +7601,21 @@
     const gridId = activeSpineGridId;
     if (!gridId) return;
     const s = getSpineSettingsForGrid(gridId);
-    const max = field === 'cervicalForce' ? 16 : 50;
-    const next = rawValue === '' ? null : clampSpineForce(rawValue, 0.5, max);
+    const range = getSpineForceAllowedRange(field);
+    const next = rawValue === '' ? null : clampSpineForce(rawValue, range.min, range.max);
+    setSpineSettingsForGrid(gridId, { ...s, [field]: next });
+    await persistSpineSettings(gridId);
+    renderSpineSettingsPopup();
+  };
+
+  window.adjustSpineForce = async function(field, delta) {
+    const gridId = activeSpineGridId;
+    if (!gridId) return;
+    const s = getSpineSettingsForGrid(gridId);
+    const range = getSpineForceAllowedRange(field);
+    const current = Number(s[field]);
+    const base = Number.isFinite(current) ? current : 0;
+    const next = clampSpineForce(base + Number(delta || 0), range.min, range.max);
     setSpineSettingsForGrid(gridId, { ...s, [field]: next });
     await persistSpineSettings(gridId);
     renderSpineSettingsPopup();
@@ -8396,7 +8581,7 @@
   };
 
   function getTreatmentBadgeClass(treatment) {
-    const name = String(treatment || '').trim().toLowerCase();
+    const name = String(treatment || '').trim().replace(/\(설정\)$/, '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
     if (name === '물리치료' || name === 'sw' || name === '아이스팩' || name === '테이핑') return 'treatment-physical';
     if (name === '적외선') return 'treatment-infrared';
@@ -8431,12 +8616,13 @@
     );
     const renderTreatmentName = (name) => {
       const cleanName = normalizeTreatmentNameForColor(name);
+      const displayName = getBedTreatmentDisplayName(getBedData(Number(item?.bedNo)), cleanName);
       const suffix = cleanName && cleanName !== name ? name.slice(cleanName.length).trim() : '';
       const colorClass = doctorRoomTreatmentTextClass(name);
       if (!suffix) {
-        return `<span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${colorClass}">${escapeHtml(name)}</span>`;
+        return `<span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${colorClass}">${escapeHtml(displayName)}</span>`;
       }
-      return `<span class="doctor-room-alert-treatment-wrap"><span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${colorClass}">${escapeHtml(cleanName)}</span><span class="doctor-room-alert-cleanup-text">${escapeHtml(suffix)}</span></span>`;
+      return `<span class="doctor-room-alert-treatment-wrap"><span class="upcoming-time treatment-badge doctor-room-alert-treatment-text ${colorClass}">${escapeHtml(displayName)}</span><span class="doctor-room-alert-cleanup-text">${escapeHtml(suffix)}</span></span>`;
     };
     const bedLabel = item?.bedLabel || (item?.bedNo ? String(item.bedNo) : '');
     const patientName = options.includePatientName ? String(item?.name || '').trim() : '';
@@ -11674,6 +11860,7 @@
       targetTreatmentCount: getVisitGoal(data),
       visitCountAdjustment: normalizeVisitCountAdjustment(data.visitCountAdjustment),
       spineSettings: data.spineSettings || {},
+      spineSettingsAdjusted: false,
       packages,
       ...getPCreditsFromPackages(packages),
       age: data.age || '',
@@ -12605,7 +12792,7 @@
       .map(item => item.html)
       .join('');
     const getTreatmentBadgeClass = (treatment) => {
-    const name = String(treatment || '').trim().toLowerCase();
+    const name = String(treatment || '').trim().replace(/\(설정\)$/, '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
       if (name === '물리치료' || name === 'sw' || name === '아이스팩' || name === '테이핑') return 'treatment-physical';
     if (name === '적외선') return 'treatment-infrared';
@@ -12628,7 +12815,10 @@
     };
     const renderTreatmentBadges = (item) => {
       const names = getItemTreatmentNames(item);
-      return names.length ? names.map(renderTreatmentBadge).join('') : renderTreatmentBadge(item.treatment);
+      const bed = getBedData(Number(item?.bedNo));
+      return names.length
+        ? names.map(name => renderTreatmentBadge(getBedTreatmentDisplayName(bed, name))).join('')
+        : renderTreatmentBadge(getBedTreatmentDisplayName(bed, item.treatment));
     };
     const renderNurseBadge = (nurseName) => {
       const label = String(nurseName || '').trim();
@@ -12790,7 +12980,9 @@
         const nurseBadge = renderNurseBadge(item.nurseName);
         const currentTreatmentHtml = nurseBadge ? renderTreatmentBadges(item) : '';
         const countdownHtml = item.alertPending ? '' : `<span class="upcoming-countdown-chip">${Math.max(0, Math.ceil(Number(item.remaining) || 0))}</span>`;
-        const nextTreatmentHtml = item.nextTreatment ? renderTreatmentBadge(item.nextTreatment) : '';
+        const nextTreatmentHtml = item.nextTreatment
+          ? renderTreatmentBadge(getBedTreatmentDisplayName(getBedData(Number(item?.bedNo)), item.nextTreatment))
+          : '';
         const completeHtml = item.alertPending ? renderTreatmentCompleteLabel(item) : '';
         const patientLineHtml = `<span class="upcoming-main-text">${escapeHtml(item.bedLabel)}</span>`;
         return {
@@ -13448,7 +13640,7 @@
       const treatmentClass = getTreatmentBadgeClass(treatment);
       const runningClass = shouldBlinkTreatmentChip(treatments, currentIndex, index, bed.running) ? ' running' : '';
       const addedClass = addedIndexes.has(index) ? ' added' : '';
-      const content = escapeHtml(treatment);
+      const content = escapeHtml(getBedTreatmentDisplayName(bed, treatment));
       return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${addedClass}" ${bedTreatmentChipAttrs(bedNo, index)}>${content}</span>`;
     }).join('');
   }
@@ -15769,7 +15961,8 @@
       chiefComplaint: bed.chiefComplaint || '',
       memo2: bed.memo2 || '',
       bodyParts: normalizeBodyParts(bed.bodyParts),
-      pCredits: getPCreditsFromPatient(bed.patientKey ? patientsByKey.get(bed.patientKey) : {})
+      pCredits: getPCreditsFromPatient(bed.patientKey ? patientsByKey.get(bed.patientKey) : {}),
+      spineSettingsChanged: hasBedSpineSettingsChanged(bed)
     };
   }
 
@@ -15791,7 +15984,7 @@
       const treatmentClass = getTreatmentBadgeClass(treatment);
       const runningClass = shouldBlinkTreatmentChip(status.treatments, status.currentIndex, index, status.stageState === 'running') ? ' running' : '';
       const addedClass = addedIndexes.has(index) ? ' added' : '';
-      const content = escapeHtml(treatment);
+      const content = escapeHtml(String(treatment || '').trim() === '스파인' && status.spineSettingsChanged ? '스파인(설정)' : treatment);
       return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${addedClass}">${content}</span>`;
     }).join('') : '<span class="bed-treatment-chip waiting">치료 미선택</span>';
     const densityClass = status.treatments.length >= 9
