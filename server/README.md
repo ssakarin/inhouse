@@ -114,6 +114,13 @@ When `index.html` is opened through this local server:
 - Real-time bed state is stored in encrypted `app_state`.
 - Timer and bed-state changes are pushed to connected clients through SSE.
 
+## 기간 요약 데이터 추출 (stats.html)
+
+`stats.html`의 "주간/월간/분기 요약" 버튼을 누르면 기간 요약·기간 추이·기간 비교·시간대별 환자 수
+데이터(전체 + 원장별)를 텍스트로 모아 모달에 보여줍니다. 환자 개인정보는 포함되지 않습니다.
+API 키나 과금 없이, "데이터 복사" 버튼으로 복사한 뒤 Claude.ai(기존 로그인 계정) 등에 붙여넣어
+분석을 요청하는 방식입니다.
+
 ## API
 
 - `GET /api/health`
@@ -127,6 +134,7 @@ When `index.html` is opened through this local server:
 - `GET /api/state/:key`
 - `PUT /api/state/:key`
 - `DELETE /api/state/:key`
+- `GET /api/ai/period-summary-prompt` - 기간 요약 데이터 추출 텍스트 생성 (`?period=week|month|quarter`)
 
 Import accepts either a JSON array or:
 

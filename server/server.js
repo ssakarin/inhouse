@@ -882,6 +882,16 @@ function addDays(dateStr, n) {
   return ymd(d);
 }
 
+function shiftYear(dateStr, years) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ""));
+  if (!match) return dateStr;
+  const year = Number(match[1]) + years;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const daysInTargetMonth = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, daysInTargetMonth)).padStart(2, "0")}`;
+}
+
 function visitDatesOf(record = {}) {
   const dates = Array.isArray(record.visitDates) ? record.visitDates.map(String) : [];
   Object.keys(record.visitHistory || {}).forEach(date => dates.push(String(date)));
@@ -1561,6 +1571,229 @@ function computePeriodClinicReport(start, end) {
       noChunaNoThirdVisit: Math.max(0, previousGroups.noChuna.returned - previousGroups.noChuna.thirdVisit)
     }
   };
+}
+
+const AI_PERIOD_PRESETS = { week: 7, month: 30, quarter: 90, year: 365 };
+const AI_PERIOD_LABELS = { week: "주간", month: "월간", quarter: "분기", year: "연간" };
+
+// CHART_METRICS(stats.html)와 동일한 지표 목록 — 기간 추이·기간 비교에서 동일하게 사용
+const AI_TREND_METRICS = [
+  { key: "avgVisitsPerDay", label: "진료환자(일평균)", rate: false },
+  { key: "avgNewPatientsPerDay", label: "초진(일평균)", rate: false },
+  { key: "avgPrescriptionPatientsPerDay", label: "약환(일평균)", rate: false },
+  { key: "avgChunaPerDay", label: "추나(일평균)", rate: false },
+  { key: "avgPharmaPatientsPerDay", label: "약침(일평균)", rate: false },
+  { key: "avgPharmaPackagePurchasePatientsPerDay", label: "약침패키지(일평균)", rate: false },
+  { key: "returnRate", label: "재진율", rate: true },
+  { key: "thirdVisitRate", label: "삼진율", rate: true },
+  { key: "chunaPatientRate", label: "추나비율", rate: true },
+  { key: "complexChunaRate", label: "복추비율", rate: true },
+  { key: "pharmaPatientRate", label: "약침비율", rate: true }
+];
+
+function aiPeriodRange(period) {
+  const normalizedPeriod = AI_PERIOD_PRESETS[period] ? period : "week";
+  const end = addDays(ymd(new Date()), -1); // 오늘 제외 → 어제까지
+  if (normalizedPeriod === "year") {
+    const start = `${end.slice(0, 4)}-01-01`; // 연간 요약: 올해 1월 1일부터 조회 시점(어제)까지
+    const days = Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1;
+    return { period: normalizedPeriod, start, end, days };
+  }
+  const days = AI_PERIOD_PRESETS[normalizedPeriod];
+  const start = addDays(end, -(days - 1));
+  return { period: normalizedPeriod, start, end, days };
+}
+
+// stats.html의 periodAverageValue()와 동일한 계산식 — 기간 비교(현재/직전/1년전 평균값)에 사용
+function periodAverageValueServer(stats = {}, key) {
+  const clinicDays = Number(stats.clinicDays || 0);
+  if (key === "avgVisitsPerDay") return clinicDays ? Number(stats.coreVisits || 0) / clinicDays : 0;
+  if (key === "avgNewPatientsPerDay") return clinicDays ? Number(stats.newPatients || 0) / clinicDays : 0;
+  if (key === "avgPrescriptionPatientsPerDay") return clinicDays ? Number(stats.prescriptionPatients || 0) / clinicDays : 0;
+  if (key === "avgChunaPerDay") return Number(stats.avgChunaPerDay || 0);
+  if (key === "avgPharmaPatientsPerDay") return Number(stats.avgPharmaPatientsPerDay || 0);
+  if (key === "avgPharmaPackagePurchasePatientsPerDay") return clinicDays ? Number(stats.pharmaPackagePurchasePatients || 0) / clinicDays : 0;
+  return Number(stats[key] || 0);
+}
+
+function buildPeriodDataExport(period) {
+  const { period: normalizedPeriod, start, end, days } = aiPeriodRange(period);
+  const previousEnd = addDays(start, -1);
+  const previousStart = addDays(previousEnd, -(days - 1));
+  const yearAgoStart = shiftYear(start, -1);
+  const yearAgoEnd = shiftYear(end, -1);
+  const chartUnit = days <= 30 ? "day" : days <= 90 ? "week" : "month"; // stats.html presetChartUnit()과 동일한 단위 규칙
+
+  const doctors = ["허진혁", "김상준"];
+  const scopeNames = ["전체", ...doctors];
+  const scopes = {};
+  for (const scopeName of scopeNames) {
+    const docFilter = scopeName === "전체" ? "" : scopeName;
+    scopes[scopeName] = {
+      current: computeClinicStats({ start, end, chartUnit, docFilter }),
+      previous: computeClinicStats({ start: previousStart, end: previousEnd, chartUnit, docFilter }),
+      yearAgo: computeClinicStats({ start: yearAgoStart, end: yearAgoEnd, chartUnit, docFilter })
+    };
+  }
+
+  return {
+    period: normalizedPeriod,
+    range: { start, end },
+    previousRange: { start: previousStart, end: previousEnd },
+    yearAgoRange: { start: yearAgoStart, end: yearAgoEnd },
+    chartUnit,
+    scopeNames,
+    scopes
+  };
+}
+
+function pct(value) {
+  return `${(Number(value || 0) * 100).toFixed(1)}%`;
+}
+
+function formatPeriodSummarySection(scopeName, current, previous) {
+  const stages = current.visitStageCounts || {};
+  const prescriptionVisits = Number(current.prescriptionVisits ?? (Number(current.visits || 0) - Number(current.coreVisits || 0)));
+  const prescriptionOnlyPatients = Number(current.prescriptionOnlyPatients ?? current.prescriptionPatients ?? 0);
+  const newUniquePatients = Number(current.newUniquePatients ?? current.newPatients ?? 0);
+  const revisitUniquePatients = Math.max(0, Number(current.uniquePatients || 0) - newUniquePatients);
+  const clinicPatients = Number(current.uniquePatients || 0);
+  const complexChunaPatients = Math.min(clinicPatients, Number(current.complexChunaPatients || 0));
+  const simpleChunaPatients = Math.max(0, Math.min(clinicPatients - complexChunaPatients, Number(current.simpleOnlyChunaPatients ?? (Number(current.chunaPatients || 0) - complexChunaPatients))));
+  const regularChunaPatients = Math.max(0, clinicPatients - simpleChunaPatients - complexChunaPatients);
+  const pharmaPatients = Math.min(clinicPatients, Number(current.pharmaPatients || 0));
+  const regularPharmaPatients = Math.max(0, clinicPatients - pharmaPatients);
+  const pharmaTypeText = Object.entries(current.pharmaPatientTypeCounts || {})
+    .filter(([, count]) => Number(count) > 0)
+    .map(([name, count]) => `${name} ${count}명`)
+    .join(", ") || "(없음)";
+
+  return `## 기간 요약 - ${scopeName} (이번 기간 / 직전 기간)
+- 진료일: ${current.clinicDays} / ${previous.clinicDays}
+- 진료 건수: ${current.visits} / ${previous.visits}
+- 환자 수: ${current.totalPatients} / ${previous.totalPatients}
+- 약환: ${current.prescriptionPatients} / ${previous.prescriptionPatients}
+- 진료 환자 수(약환 제외): ${current.uniquePatients} / ${previous.uniquePatients}
+- 초진: ${current.newPatients} / ${previous.newPatients}
+- 재진 환자: ${current.revisitPatients} / ${previous.revisitPatients}
+- 약침 건수: ${current.pharmaTotal} / ${previous.pharmaTotal}
+- 추나 건수: ${current.chunaTotal} / ${previous.chunaTotal}
+- 약침패키지 결제 환자수: ${current.pharmaPackagePurchasePatients} / ${previous.pharmaPackagePurchasePatients}
+- 재진율(21일 추적): ${pct(current.returnRate)} / ${pct(previous.returnRate)}
+- 삼진율(21일 추적): ${pct(current.thirdVisitRate)} / ${pct(previous.thirdVisitRate)}
+- 총 진료 건수 구성(이번 기간): 약환 ${prescriptionVisits}건, 1회차 ${stages.first || 0}건, 2회차 ${stages.second || 0}건, 3회차 ${stages.third || 0}건, 4회차 이상 ${stages.fourthPlus || 0}건
+- 총 환자 수 구성(이번 기간): 약환 ${prescriptionOnlyPatients}명, 초진 ${newUniquePatients}명, 재진 ${revisitUniquePatients}명
+- 추나 환자 구성(진료 환자 ${clinicPatients}명 중, 이번 기간): 일반 ${regularChunaPatients}명, 단순추나 ${simpleChunaPatients}명, 복합추나 ${complexChunaPatients}명
+- 약침 환자 구성(진료 환자 ${clinicPatients}명 중, 이번 기간): 일반 ${regularPharmaPatients}명, 약침 시행 ${pharmaPatients}명 (${pharmaTypeText})`;
+}
+
+const AI_CHART_UNIT_LABELS = { day: "일", week: "주", month: "월" };
+
+function formatPeriodTrendSection(scopeName, current, chartUnit) {
+  const rows = current.trendStats || [];
+  const unitLabel = AI_CHART_UNIT_LABELS[chartUnit] || "일";
+  if (!rows.length) return `## 기간 추이 (단위: ${unitLabel}) - ${scopeName}\n(데이터 없음)`;
+  const header = ["구간", ...AI_TREND_METRICS.map(metric => metric.label)].join(" | ");
+  const lines = rows.map(row => {
+    const cells = AI_TREND_METRICS.map(metric => {
+      const value = Number(row[metric.key] || 0);
+      return metric.rate ? pct(value) : value.toFixed(1);
+    });
+    return [row.key, ...cells].join(" | ");
+  });
+  return `## 기간 추이 (단위: ${unitLabel}) - ${scopeName}\n${header}\n${lines.join("\n")}`;
+}
+
+function formatPeriodComparisonSection(scopeName, current, previous, yearAgo) {
+  const lines = AI_TREND_METRICS.map(metric => {
+    const currentValue = periodAverageValueServer(current, metric.key);
+    const previousValue = periodAverageValueServer(previous, metric.key);
+    const yearAgoValue = periodAverageValueServer(yearAgo, metric.key);
+    const fmt = value => metric.rate ? pct(value) : value.toFixed(1);
+    return `- ${metric.label}: 현재 ${fmt(currentValue)} / 직전 ${fmt(previousValue)} / 1년전 ${fmt(yearAgoValue)}`;
+  });
+  return `## 기간 비교 (현재/직전/1년전 평균값) - ${scopeName}\n${lines.join("\n")}`;
+}
+
+function formatHourlyPatientSection(scopeName, current) {
+  const byType = current.hourlyPatientCountsByDayType || {};
+  const weekdayText = Object.entries(byType.weekday || {})
+    .filter(([hour]) => Number(hour) >= 9 && Number(hour) <= 18)
+    .map(([hour, count]) => `${Number(hour)}시 ${count}명`)
+    .join(", ") || "(데이터 없음)";
+  const saturdayText = Object.entries(byType.saturday || {})
+    .filter(([hour]) => Number(hour) >= 9 && Number(hour) <= 14)
+    .map(([hour, count]) => `${Number(hour)}시 ${count}명`)
+    .join(", ") || "(데이터 없음)";
+  return `## 시간대별 환자 수 - ${scopeName}\n- 평일(09~18시): ${weekdayText}\n- 토요일(09~14시): ${saturdayText}`;
+}
+
+function formatNurseAssignmentSection(current) {
+  const assignments = current.nurseAssignmentsByDate || {};
+  const dates = Object.keys(assignments).sort();
+  if (!dates.length) return `## 날짜별 간호사 배정 - 전체\n(데이터 없음)`;
+  const nurses = [...new Set(dates.flatMap(date => Object.keys(assignments[date] || {})))]
+    .sort((a, b) => a === "미지정" ? 1 : b === "미지정" ? -1 : a.localeCompare(b, "ko"));
+  const header = ["날짜", ...nurses, "합계"].join(" | ");
+  const lines = dates.map(date => {
+    const counts = nurses.map(name => Number(assignments[date]?.[name] || 0));
+    const rowTotal = counts.reduce((sum, value) => sum + value, 0);
+    return [date, ...counts, rowTotal].join(" | ");
+  });
+  return `## 날짜별 간호사 배정 - 전체\n${header}\n${lines.join("\n")}`;
+}
+
+function formatCountsSection(title, counts = {}, unit = "건") {
+  const entries = Object.entries(counts || {}).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return `## ${title} - 전체\n(데이터 없음)`;
+  return `## ${title} - 전체\n${entries.map(([name, count]) => `- ${name}: ${count}${unit}`).join("\n")}`;
+}
+
+function formatWeekdaySection(current) {
+  const order = ["월", "화", "수", "목", "금", "토", "일"];
+  const counts = current.weekdayCounts || {};
+  const lines = order.filter(day => counts[day] !== undefined).map(day => `- ${day}: ${Number(counts[day] || 0).toFixed(1)}건`);
+  if (!lines.length) return `## 요일별 평균 진료 건수 - 전체\n(데이터 없음)`;
+  return `## 요일별 평균 진료 건수 - 전체\n${lines.join("\n")}`;
+}
+
+function formatPeriodDataExportText(bundle) {
+  const periodLabel = AI_PERIOD_LABELS[bundle.period] || "기간";
+  const doctorList = bundle.scopeNames.filter(name => name !== "전체");
+  const unitLabel = AI_CHART_UNIT_LABELS[bundle.chartUnit] || "일";
+  const header = `# ${periodLabel} 데이터 추출
+- 이번 기간: ${bundle.range.start} ~ ${bundle.range.end}
+- 직전 기간(같은 길이): ${bundle.previousRange.start} ~ ${bundle.previousRange.end}
+- 전년 동기: ${bundle.yearAgoRange.start} ~ ${bundle.yearAgoRange.end}
+- 기간 추이 단위: ${unitLabel}
+- 원장: ${doctorList.length ? doctorList.join(", ") : "(등록된 원장 없음)"}
+- 환자 이름·연락처 등 개인정보는 포함되어 있지 않습니다.`;
+
+  const sections = [header];
+  for (const scopeName of bundle.scopeNames) {
+    const { current, previous } = bundle.scopes[scopeName];
+    sections.push(formatPeriodSummarySection(scopeName, current, previous));
+  }
+  for (const scopeName of bundle.scopeNames) {
+    const { current } = bundle.scopes[scopeName];
+    sections.push(formatPeriodTrendSection(scopeName, current, bundle.chartUnit));
+  }
+  for (const scopeName of bundle.scopeNames) {
+    const { current, previous, yearAgo } = bundle.scopes[scopeName];
+    sections.push(formatPeriodComparisonSection(scopeName, current, previous, yearAgo));
+  }
+  for (const scopeName of bundle.scopeNames) {
+    const { current } = bundle.scopes[scopeName];
+    sections.push(formatHourlyPatientSection(scopeName, current));
+  }
+
+  const overall = bundle.scopes["전체"].current;
+  sections.push(formatNurseAssignmentSection(overall));
+  sections.push(formatCountsSection("원장별 진료 건수", overall.doctorCounts, "건"));
+  sections.push(formatCountsSection("치료별 횟수", overall.treatmentCounts, "건"));
+  sections.push(formatWeekdaySection(overall));
+
+  return sections.join("\n\n");
 }
 
 function getPatientById(patientId) {
@@ -3139,6 +3372,22 @@ async function handleApi(req, res, pathname) {
     const start = requestUrl.searchParams.get("start") || "";
     const end = requestUrl.searchParams.get("end") || "";
     jsonResponse(res, 200, computePeriodClinicReport(start, end));
+    return true;
+  }
+
+  if (pathname === "/api/ai/period-summary-prompt" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const period = AI_PERIOD_PRESETS[requestUrl.searchParams.get("period")] ? requestUrl.searchParams.get("period") : "week";
+    const bundle = buildPeriodDataExport(period);
+    const prompt = formatPeriodDataExportText(bundle);
+    jsonResponse(res, 200, {
+      ok: true,
+      period,
+      range: bundle.range,
+      previousRange: bundle.previousRange,
+      yearAgoRange: bundle.yearAgoRange,
+      prompt
+    });
     return true;
   }
 

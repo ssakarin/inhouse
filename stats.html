@@ -282,6 +282,55 @@
     body.period-report-printing th { color: #555; }
     body.period-report-printing td, body.period-report-printing th { border-color: #ccc; }
   }
+
+  .ai-summary-btn { border-color: rgba(255,202,106,0.6); color: var(--gold); }
+  .ai-summary-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(4,9,16,0.72);
+    z-index: 200;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 16px;
+    overflow-y: auto;
+  }
+  .ai-summary-modal-backdrop.open { display: flex; }
+  .ai-summary-modal {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    width: min(760px, 100%);
+    padding: 20px;
+    max-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+  }
+  .ai-summary-modal-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .ai-summary-modal-title { color: var(--gold); font-weight: 900; font-size: 16px; }
+  .ai-summary-modal-close { border: none; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; padding: 4px 8px; cursor: pointer; }
+  .ai-summary-modal-close:hover { color: var(--text); }
+  .ai-summary-modal-range { color: var(--muted); font-size: 12px; font-weight: 800; margin-bottom: 14px; }
+  .ai-summary-modal-body { overflow-y: auto; padding-right: 4px; }
+  .ai-summary-loading { color: var(--muted); font-size: 13px; font-weight: 800; padding: 30px 0; text-align: center; }
+  .ai-summary-error { color: var(--danger); font-size: 13px; font-weight: 800; white-space: pre-wrap; padding: 16px 0; }
+  .ai-summary-hint { color: var(--muted); font-size: 12px; font-weight: 700; margin-bottom: 10px; line-height: 1.5; }
+  .ai-summary-prompt {
+    width: 100%;
+    min-height: 320px;
+    resize: vertical;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 12px;
+  }
+  .ai-summary-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .ai-summary-copy-btn { border-color: rgba(74,222,128,0.55); color: var(--green); }
+  .ai-summary-copy-btn.copied { border-color: rgba(74,222,128,0.9); background: rgba(74,222,128,0.15); }
 </style>
 </head>
 <body>
@@ -297,10 +346,10 @@
 
   <div class="card" id="statsFilterCard">
     <div class="controls">
-      <label class="field-label">원장
-        <select id="doctorFilter"><option value="">전체</option></select>
-      </label>
-      <button id="csvBtn" style="border-color:rgba(57,169,245,0.6);color:var(--accent)">CSV 다운로드</button>
+      <button class="ai-summary-btn" data-ai-period="week">주간 요약</button>
+      <button class="ai-summary-btn" data-ai-period="month">월간 요약</button>
+      <button class="ai-summary-btn" data-ai-period="quarter">분기 요약</button>
+      <button class="ai-summary-btn" data-ai-period="year">연간 요약</button>
     </div>
   </div>
 
@@ -326,6 +375,11 @@
     </div>
     <div class="range-label" id="rangeLabel"></div>
     <div class="status" id="status"></div>
+    <div class="controls" style="margin-top:10px">
+      <label class="field-label">원장
+        <select id="doctorFilter"><option value="">전체</option></select>
+      </label>
+    </div>
   </div>
 
   <div class="card">
@@ -387,6 +441,17 @@
       <div class="card-title">치료조합 Top 10</div>
       <div id="comboTableWrap"></div>
     </div>
+  </div>
+</div>
+
+<div class="ai-summary-modal-backdrop" id="aiSummaryBackdrop">
+  <div class="ai-summary-modal">
+    <div class="ai-summary-modal-head">
+      <div class="ai-summary-modal-title" id="aiSummaryTitle">기간 요약</div>
+      <button class="ai-summary-modal-close" id="aiSummaryCloseBtn" type="button" aria-label="닫기">&times;</button>
+    </div>
+    <div class="ai-summary-modal-range" id="aiSummaryRange"></div>
+    <div class="ai-summary-modal-body" id="aiSummaryBody"></div>
   </div>
 </div>
 
@@ -751,19 +816,25 @@
 
   async function loadPeriodComparison(currentStart, currentEnd, docFilter, detailUnit = "day") {
     const current = { start: currentStart, end: currentEnd };
+    const includeYearAgo = currentEnd < addMonths(currentStart, 12);
     const previousEnd = addDays(currentStart, -1);
     const previous = {
       start: addDays(previousEnd, -(rangeDays(currentStart, currentEnd) - 1)),
       end: previousEnd
     };
+    const yearAgo = {
+      start: addMonths(currentStart, -12),
+      end: addMonths(currentEnd, -12)
+    };
     const loader = SERVER_MODE
       ? (from, to) => loadServerStats(from, to, docFilter, detailUnit)
       : (from, to) => computeStats(from, to, docFilter, detailUnit);
-    const [currentStats, previousStats] = await Promise.all([
+    const [currentStats, previousStats, yearAgoStats] = await Promise.all([
       loader(current.start, current.end),
-      loader(previous.start, previous.end)
+      loader(previous.start, previous.end),
+      includeYearAgo ? loader(yearAgo.start, yearAgo.end) : Promise.resolve(null)
     ]);
-    return { current, previous, currentStats, previousStats, detailUnit };
+    return { current, previous, yearAgo: includeYearAgo ? yearAgo : null, currentStats, previousStats, yearAgoStats, detailUnit };
   }
 
   function visitsWithinDays(dates, startDate, days) {
@@ -1649,16 +1720,20 @@
     wrap.innerHTML = `<div class="comparison-average-list">
       ${visibleMetrics.map(metric => {
         const previousValue = periodAverageValue(comparison.previousStats, metric);
+        const hasYearAgo = Boolean(comparison.yearAgo && comparison.yearAgoStats);
+        const yearAgoValue = hasYearAgo ? periodAverageValue(comparison.yearAgoStats, metric) : 0;
         const currentValue = periodAverageValue(comparison.currentStats, metric);
-        const maxValue = Math.max(previousValue, currentValue, 0.000001);
+        const maxValue = Math.max(previousValue, yearAgoValue, currentValue, 0.000001);
         const change = periodAverageChange(currentValue, previousValue, metric);
         const metricLabel = `${metric.label}${isFollowupRateMetric(metric) ? " (최근 21일간은 제외)" : ""}`;
         const previousRangeLabel = periodComparisonRangeLabel(comparison.previous, metric);
+        const yearAgoRangeLabel = hasYearAgo ? periodComparisonRangeLabel(comparison.yearAgo, metric) : "";
         const currentRangeLabel = periodComparisonRangeLabel(comparison.current, metric);
         return `<div class="comparison-average-item">
           <div class="comparison-average-head"><div class="comparison-average-title">${escapeHtml(metricLabel)}</div><div class="comparison-average-change ${change.className}">${change.text}</div></div>
-          <div class="comparison-average-bar-row"><div class="comparison-average-period">${previousRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(previousValue / maxValue) * 100}%;background:var(--muted)"></span></div><div class="comparison-average-value">${formatPeriodAverage(previousValue, metric)}</div></div>
-          <div class="comparison-average-bar-row"><div class="comparison-average-period">${currentRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(currentValue / maxValue) * 100}%;background:${metric.color}"></span></div><div class="comparison-average-value">${formatPeriodAverage(currentValue, metric)}</div></div>
+          <div class="comparison-average-bar-row"><div class="comparison-average-period">현재 · ${currentRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(currentValue / maxValue) * 100}%;background:var(--accent)"></span></div><div class="comparison-average-value">${formatPeriodAverage(currentValue, metric)}</div></div>
+          <div class="comparison-average-bar-row"><div class="comparison-average-period">직전 · ${previousRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(previousValue / maxValue) * 100}%;background:var(--green)"></span></div><div class="comparison-average-value">${formatPeriodAverage(previousValue, metric)}</div></div>
+          ${hasYearAgo ? `<div class="comparison-average-bar-row"><div class="comparison-average-period">1년 전 · ${yearAgoRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(yearAgoValue / maxValue) * 100}%;background:var(--gold)"></span></div><div class="comparison-average-value">${formatPeriodAverage(yearAgoValue, metric)}</div></div>` : ""}
         </div>`;
       }).join("")}
     </div>`;
@@ -1908,19 +1983,25 @@
     try {
       const previousEnd = addDays(start, -1);
       const previousStart = addDays(previousEnd, -(rangeDays(start, end) - 1));
+      const includeYearAgo = end < addMonths(start, 12);
+      const yearAgoStart = addMonths(start, -12);
+      const yearAgoEnd = addMonths(end, -12);
       const statsLoader = SERVER_MODE
         ? (from, to) => loadServerStats(from, to, docFilter, chartUnit)
         : (from, to) => Promise.resolve(computeStats(from, to, docFilter, chartUnit));
-      const [s, previousStats] = await Promise.all([
+      const [s, previousStats, yearAgoStats] = await Promise.all([
         statsLoader(start, end),
-        statsLoader(previousStart, previousEnd)
+        statsLoader(previousStart, previousEnd),
+        includeYearAgo ? statsLoader(yearAgoStart, yearAgoEnd) : Promise.resolve(null)
       ]);
       const trendRows = markRecentFollowupRates(s.trendStats, chartUnit, addDays(today(), -21));
       const comparison = {
         current: { start, end },
         previous: { start: previousStart, end: previousEnd },
+        yearAgo: includeYearAgo ? { start: yearAgoStart, end: yearAgoEnd } : null,
         currentStats: s,
         previousStats,
+        yearAgoStats,
         detailUnit: chartUnit
       };
       const recordCount = SERVER_MODE ? Number(s.recordCount || 0) : allRecords.length;
@@ -1940,62 +2021,6 @@
       $("status").textContent = "오류: " + (e?.message || e);
       $("status").classList.add("error");
     }
-  }
-
-  // ── CSV 다운로드 ────────────────────────────────────────────────
-  function csvEscape(v) {
-    const s = String(v ?? "");
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  }
-  function downloadCsv() {
-    if (!lastResult) { $("status").textContent = "먼저 조회를 실행하세요."; return; }
-    const { start, end, docLabel, chartUnit, stats } = lastResult;
-    const trendLabel = { day: "일별", week: "주차별", month: "월별", quarter: "분기별", year: "연도별" }[chartUnit] || "기간별";
-    const lines = [];
-    lines.push(["구분", "항목", "값"].map(csvEscape).join(","));
-    lines.push(["기간", "시작", start].map(csvEscape).join(","));
-    lines.push(["기간", "종료", end].map(csvEscape).join(","));
-    lines.push(["기간", "원장", docLabel].map(csvEscape).join(","));
-    lines.push(["요약", "총 진료 건수", stats.visits].map(csvEscape).join(","));
-    lines.push(["요약", "총 환자 수", stats.totalPatients].map(csvEscape).join(","));
-    lines.push(["요약", "약환", stats.prescriptionPatients].map(csvEscape).join(","));
-    lines.push(["요약", "진료 환자 수", stats.uniquePatients].map(csvEscape).join(","));
-    lines.push(["요약", "초진(신환)", stats.newPatients].map(csvEscape).join(","));
-    lines.push(["요약", "재진 환자", stats.revisitPatients].map(csvEscape).join(","));
-    lines.push(["요약", "재진율", `${(stats.returnRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
-    lines.push(["요약", "삼진율", `${(stats.thirdVisitRate * 100).toFixed(1)}%`].map(csvEscape).join(","));
-    lines.push(["요약", "평균 방문 횟수", stats.avgVisitsPerPatient.toFixed(2)].map(csvEscape).join(","));
-    lines.push(["요약", "약침 합계", stats.pharmaTotal].map(csvEscape).join(","));
-    lines.push(["요약", "일평균 추나(단추+복추)", Number(stats.avgChunaPerDay || 0).toFixed(1)].map(csvEscape).join(","));
-    lines.push(["요약", "추나환자 비율", `${(Number(stats.chunaPatientRate || 0) * 100).toFixed(1)}%`].map(csvEscape).join(","));
-    lines.push(["요약", "복추/추나전체 비율", `${(Number(stats.complexChunaRate || 0) * 100).toFixed(1)}%`].map(csvEscape).join(","));
-    lines.push(["요약", "약침환자 비율", `${(Number(stats.pharmaPatientRate || 0) * 100).toFixed(1)}%`].map(csvEscape).join(","));
-    lines.push(["요약", "일평균 약침환자수", Number(stats.avgPharmaPatientsPerDay || 0).toFixed(1)].map(csvEscape).join(","));
-    lines.push(["요약", "약침패키지 결제 환자수", Number(stats.pharmaPackagePurchasePatients || 0)].map(csvEscape).join(","));
-    stats.trendStats.forEach(row => {
-      CHART_METRICS.forEach(metric => {
-        const rawValue = Number(row[metric.key] || 0);
-        const value = metric.axis === "rate" ? `${(rawValue * 100).toFixed(1)}%` : rawValue.toFixed(2);
-        lines.push([trendLabel, `${row.key} ${metric.label}`, value].map(csvEscape).join(","));
-      });
-    });
-    Object.entries(stats.treatmentCounts).sort((a, b) => b[1] - a[1])
-      .forEach(([name, c]) => lines.push(["치료별", name, c].map(csvEscape).join(",")));
-    Object.entries(stats.doctorCounts).sort((a, b) => b[1] - a[1])
-      .forEach(([name, c]) => lines.push(["원장별", name, c].map(csvEscape).join(",")));
-    ["월", "화", "수", "목", "금", "토", "일"]
-      .filter(day => stats.weekdayCounts[day])
-      .forEach(day => lines.push(["요일별 평균", day, Number(stats.weekdayCounts[day] || 0).toFixed(1)].map(csvEscape).join(",")));
-    Object.entries(stats.treatmentComboCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)
-      .forEach(([name, c]) => lines.push(["치료조합 Top 10", name, c].map(csvEscape).join(",")));
-    const csv = "﻿" + lines.join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `진료통계_${start}_${end}_${docLabel}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
   }
 
   async function reload() {
@@ -2021,7 +2046,6 @@
   $("applyBtn").addEventListener("click", () => { chartUnitTouched = false; setPresetActive(""); run(); });
   $("doctorFilter").addEventListener("change", run);
   $("chartUnit").addEventListener("change", () => { chartUnitTouched = true; run(); });
-  $("csvBtn").addEventListener("click", downloadCsv);
   $("periodReportPrintBtn").addEventListener("click", printPeriodReport);
   renderChartMetricToggles();
   disableAutocomplete();
@@ -2038,6 +2062,68 @@
     if (!chip) return;
     chip.classList.toggle("active");
     if (lastResult) renderPeriodComparisonChart(lastResult.comparison, lastResult.comparisonUnit);
+  });
+
+  // ── 기간 요약 데이터 추출 (복사 → Claude.ai 등에 붙여넣기) ──────────
+  const AI_SUMMARY_LABELS = { week: "주간", month: "월간", quarter: "분기", year: "연간" };
+  let lastAiExportText = "";
+
+  function closeAiSummary() {
+    $("aiSummaryBackdrop").classList.remove("open");
+  }
+
+  async function copyAiPrompt() {
+    const btn = $("aiSummaryCopyBtn");
+    try {
+      await navigator.clipboard.writeText(lastAiExportText);
+      btn.textContent = "복사됨!";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "데이터 복사"; btn.classList.remove("copied"); }, 1500);
+    } catch (error) {
+      $("aiSummaryPromptBox").select();
+      alert("자동 복사에 실패했습니다. 텍스트가 선택되었으니 Ctrl+C로 복사해주세요.");
+    }
+  }
+
+  async function openAiSummary(period) {
+    const label = AI_SUMMARY_LABELS[period] || "기간";
+    $("aiSummaryTitle").textContent = `${label} 요약`;
+    $("aiSummaryRange").textContent = "";
+    $("aiSummaryBackdrop").classList.add("open");
+    if (!SERVER_MODE) {
+      $("aiSummaryBody").innerHTML = `<div class="ai-summary-error">이 기능은 서버 모드(http)에서만 사용할 수 있습니다.</div>`;
+      return;
+    }
+    $("aiSummaryBody").innerHTML = `<div class="ai-summary-loading">${label} 데이터를 모으는 중입니다...</div>`;
+    try {
+      const res = await fetch(`/api/ai/period-summary-prompt?${new URLSearchParams({ period })}`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `데이터 생성 실패 (${res.status})`);
+      lastAiExportText = data.prompt || "";
+      $("aiSummaryRange").textContent = `이번 기간 ${data.range.start} ~ ${data.range.end} · 직전 기간 ${data.previousRange.start} ~ ${data.previousRange.end} · 전년 동기 ${data.yearAgoRange.start} ~ ${data.yearAgoRange.end}`;
+      $("aiSummaryBody").innerHTML = `
+        <div class="ai-summary-hint">기간 요약·기간 추이·기간 비교·시간대별 환자 수(전체 + 원장별)와 날짜별 간호사 배정·원장별 진료 건수·치료별 횟수·요일별 평균 진료 건수(전체) 데이터를 모았습니다. 아래 내용을 복사해 Claude.ai 등에 붙여넣어 분석을 요청할 수 있습니다. 환자 개인정보는 포함되어 있지 않습니다.</div>
+        <textarea class="ai-summary-prompt" id="aiSummaryPromptBox" readonly></textarea>
+        <div class="ai-summary-actions">
+          <button class="ai-summary-copy-btn" id="aiSummaryCopyBtn" type="button">데이터 복사</button>
+        </div>
+      `;
+      $("aiSummaryPromptBox").value = lastAiExportText;
+      $("aiSummaryCopyBtn").addEventListener("click", copyAiPrompt);
+    } catch (error) {
+      $("aiSummaryBody").innerHTML = `<div class="ai-summary-error">${escapeHtml(error?.message || String(error))}</div>`;
+    }
+  }
+
+  document.querySelectorAll("[data-ai-period]").forEach(btn => {
+    btn.addEventListener("click", () => openAiSummary(btn.dataset.aiPeriod));
+  });
+  $("aiSummaryCloseBtn").addEventListener("click", closeAiSummary);
+  $("aiSummaryBackdrop").addEventListener("click", event => {
+    if (event.target === $("aiSummaryBackdrop")) closeAiSummary();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && $("aiSummaryBackdrop").classList.contains("open")) closeAiSummary();
   });
 
   // 초기: 최근 30일 전체를 기본 로드
