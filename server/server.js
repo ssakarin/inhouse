@@ -1604,6 +1604,21 @@ function aiPeriodRange(period) {
   return { period: normalizedPeriod, start, end, days };
 }
 
+function aiTrendRangeStart(period, end) {
+  const endDate = new Date(`${end}T00:00:00`);
+  if (period === "week") {
+    const monday = new Date(endDate);
+    monday.setDate(endDate.getDate() - ((endDate.getDay() + 6) % 7) - 77);
+    return ymd(monday); // 현재 주를 포함한 최근 12주
+  }
+  if (period === "month") return ymd(new Date(endDate.getFullYear(), endDate.getMonth() - 11, 1));
+  if (period === "quarter") {
+    const quarterStartMonth = Math.floor(endDate.getMonth() / 3) * 3;
+    return ymd(new Date(endDate.getFullYear(), quarterStartMonth - 21, 1)); // 현재 분기를 포함한 최근 8분기
+  }
+  return `${endDate.getFullYear() - 2}-01-01`;
+}
+
 // stats.html의 periodAverageValue()와 동일한 계산식 — 기간 비교(현재/직전/1년전 평균값)에 사용
 function periodAverageValueServer(stats = {}, key) {
   const clinicDays = Number(stats.clinicDays || 0);
@@ -1618,11 +1633,23 @@ function periodAverageValueServer(stats = {}, key) {
 
 function buildPeriodDataExport(period) {
   const { period: normalizedPeriod, start, end, days } = aiPeriodRange(period);
-  const previousEnd = addDays(start, -1);
-  const previousStart = addDays(previousEnd, -(days - 1));
+  const previousEnd = normalizedPeriod === "year" ? shiftYear(end, -1) : addDays(start, -1);
+  const previousStart = normalizedPeriod === "year" ? shiftYear(start, -1) : addDays(previousEnd, -(days - 1));
   const yearAgoStart = shiftYear(start, -1);
   const yearAgoEnd = shiftYear(end, -1);
-  const chartUnit = days <= 30 ? "day" : days <= 90 ? "week" : "month"; // stats.html presetChartUnit()과 동일한 단위 규칙
+  const chartUnit = normalizedPeriod === "week" ? "week"
+    : normalizedPeriod === "month" ? "month"
+    : normalizedPeriod === "quarter" ? "quarter"
+    : "year";
+  const trendStart = aiTrendRangeStart(normalizedPeriod, end);
+  const baselineRange = normalizedPeriod === "week"
+    ? { start: addDays(previousEnd, -27), end: previousEnd, label: "직전 4주 기준" }
+    : normalizedPeriod === "month"
+      ? { start: addDays(previousEnd, -89), end: previousEnd, label: "직전 3개월 기준" }
+      : null;
+  const annualBaselineRanges = normalizedPeriod === "year"
+    ? [1, 2, 3].map(years => ({ start: shiftYear(start, -years), end: shiftYear(end, -years) }))
+    : [];
 
   const doctors = ["허진혁", "김상준"];
   const scopeNames = ["전체", ...doctors];
@@ -1632,7 +1659,10 @@ function buildPeriodDataExport(period) {
     scopes[scopeName] = {
       current: computeClinicStats({ start, end, chartUnit, docFilter }),
       previous: computeClinicStats({ start: previousStart, end: previousEnd, chartUnit, docFilter }),
-      yearAgo: computeClinicStats({ start: yearAgoStart, end: yearAgoEnd, chartUnit, docFilter })
+      yearAgo: computeClinicStats({ start: yearAgoStart, end: yearAgoEnd, chartUnit, docFilter }),
+      baseline: baselineRange ? computeClinicStats({ start: baselineRange.start, end: baselineRange.end, chartUnit, docFilter }) : null,
+      annualBaseline: annualBaselineRanges.map(range => computeClinicStats({ start: range.start, end: range.end, chartUnit, docFilter })),
+      trend: computeClinicStats({ start: trendStart, end, chartUnit, docFilter })
     };
   }
 
@@ -1641,6 +1671,9 @@ function buildPeriodDataExport(period) {
     range: { start, end },
     previousRange: { start: previousStart, end: previousEnd },
     yearAgoRange: { start: yearAgoStart, end: yearAgoEnd },
+    baselineRange,
+    annualBaselineRanges,
+    trendRange: { start: trendStart, end },
     chartUnit,
     scopeNames,
     scopes
@@ -1687,7 +1720,7 @@ function formatPeriodSummarySection(scopeName, current, previous) {
 - 약침 환자 구성(진료 환자 ${clinicPatients}명 중, 이번 기간): 일반 ${regularPharmaPatients}명, 약침 시행 ${pharmaPatients}명 (${pharmaTypeText})`;
 }
 
-const AI_CHART_UNIT_LABELS = { day: "일", week: "주", month: "월" };
+const AI_CHART_UNIT_LABELS = { day: "일", week: "주", month: "월", quarter: "분기", year: "년" };
 
 function formatPeriodTrendSection(scopeName, current, chartUnit) {
   const rows = current.trendStats || [];
@@ -1704,15 +1737,29 @@ function formatPeriodTrendSection(scopeName, current, chartUnit) {
   return `## 기간 추이 (단위: ${unitLabel}) - ${scopeName}\n${header}\n${lines.join("\n")}`;
 }
 
-function formatPeriodComparisonSection(scopeName, current, previous, yearAgo) {
+function formatPeriodComparisonSection(scopeName, bundle, scope) {
+  const { current, previous, yearAgo, baseline, annualBaseline = [] } = scope;
   const lines = AI_TREND_METRICS.map(metric => {
     const currentValue = periodAverageValueServer(current, metric.key);
     const previousValue = periodAverageValueServer(previous, metric.key);
     const yearAgoValue = periodAverageValueServer(yearAgo, metric.key);
     const fmt = value => metric.rate ? pct(value) : value.toFixed(1);
+    if (bundle.period === "year") {
+      const values = annualBaseline.map(stats => periodAverageValueServer(stats, metric.key));
+      const threeYearAverage = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+      return `- ${metric.label}: 올해 누계 ${fmt(currentValue)} / 전년 동일 누계 ${fmt(previousValue)} / 최근 3개년 동일 누계 평균 ${fmt(threeYearAverage)}`;
+    }
+    if (baseline) {
+      const baselineValue = periodAverageValueServer(baseline, metric.key);
+      return `- ${metric.label}: 현재 ${fmt(currentValue)} / ${bundle.baselineRange.label} ${fmt(baselineValue)} / 1년전 ${fmt(yearAgoValue)} / 직전 ${fmt(previousValue)}(참고)`;
+    }
     return `- ${metric.label}: 현재 ${fmt(currentValue)} / 직전 ${fmt(previousValue)} / 1년전 ${fmt(yearAgoValue)}`;
   });
-  return `## 기간 비교 (현재/직전/1년전 평균값) - ${scopeName}\n${lines.join("\n")}`;
+  const heading = bundle.period === "week" ? "현재/직전 4주 기준/1년전/직전"
+    : bundle.period === "month" ? "현재/직전 3개월 기준/1년전/직전"
+    : bundle.period === "year" ? "올해 누계/전년 동일 누계/최근 3개년 평균"
+    : "현재/직전/1년전";
+  return `## 기간 비교 (${heading}) - ${scopeName}\n${lines.join("\n")}`;
 }
 
 function formatHourlyPatientSection(scopeName, current) {
@@ -1764,7 +1811,8 @@ function formatPeriodDataExportText(bundle) {
   const header = `# ${periodLabel} 데이터 추출
 - 이번 기간: ${bundle.range.start} ~ ${bundle.range.end}
 - 직전 기간(같은 길이): ${bundle.previousRange.start} ~ ${bundle.previousRange.end}
-- 전년 동기: ${bundle.yearAgoRange.start} ~ ${bundle.yearAgoRange.end}
+- 전년 동기: ${bundle.yearAgoRange.start} ~ ${bundle.yearAgoRange.end}${bundle.baselineRange ? `\n- ${bundle.baselineRange.label}: ${bundle.baselineRange.start} ~ ${bundle.baselineRange.end}` : ""}${bundle.period === "year" ? `\n- 최근 3개년 평균: 전년도부터 3년 전까지 각각 같은 누계 기간` : ""}
+- 장기 추이 범위: ${bundle.trendRange.start} ~ ${bundle.trendRange.end}
 - 기간 추이 단위: ${unitLabel}
 - 원장: ${doctorList.length ? doctorList.join(", ") : "(등록된 원장 없음)"}
 - 환자 이름·연락처 등 개인정보는 포함되어 있지 않습니다.`;
@@ -1775,12 +1823,11 @@ function formatPeriodDataExportText(bundle) {
     sections.push(formatPeriodSummarySection(scopeName, current, previous));
   }
   for (const scopeName of bundle.scopeNames) {
-    const { current } = bundle.scopes[scopeName];
-    sections.push(formatPeriodTrendSection(scopeName, current, bundle.chartUnit));
+    const { trend } = bundle.scopes[scopeName];
+    sections.push(formatPeriodTrendSection(scopeName, trend, bundle.chartUnit));
   }
   for (const scopeName of bundle.scopeNames) {
-    const { current, previous, yearAgo } = bundle.scopes[scopeName];
-    sections.push(formatPeriodComparisonSection(scopeName, current, previous, yearAgo));
+    sections.push(formatPeriodComparisonSection(scopeName, bundle, bundle.scopes[scopeName]));
   }
   for (const scopeName of bundle.scopeNames) {
     const { current } = bundle.scopes[scopeName];
@@ -3386,6 +3433,8 @@ async function handleApi(req, res, pathname) {
       range: bundle.range,
       previousRange: bundle.previousRange,
       yearAgoRange: bundle.yearAgoRange,
+      baselineRange: bundle.baselineRange,
+      trendRange: bundle.trendRange,
       prompt
     });
     return true;
