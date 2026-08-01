@@ -141,7 +141,7 @@
     <div class="tool-row">
       <button class="good" id="slackBackupBtn" type="button">슬랙 백업</button>
     </div>
-    <div class="note">Slack 공개 채널 메시지를 읽어 <strong>slack_backups</strong> 폴더에 텍스트 파일로 저장합니다.</div>
+    <div class="note">Slack 공개 채널 메시지와 스레드 답글을 읽어 <strong>C:\backup\slack</strong> 폴더에 텍스트 파일로 저장합니다.</div>
     <div class="status" id="slackBackupStatus">대기 중</div>
   </div>
 
@@ -151,19 +151,8 @@
       <select class="search-input" id="doctor1SlackMonthSelect" aria-label="저장할 달"></select>
       <button class="good" id="doctor1SlackDownloadBtn" type="button">진료원장1 txt 저장</button>
     </div>
-    <div class="note">Slack 채널 <strong>#진료원장1</strong>의 선택한 달 전체 채팅을 txt 파일로 저장합니다.</div>
+    <div class="note">Slack 채널 <strong>#진료원장1</strong>의 선택한 달 전체 채팅과 각 메시지에 달린 스레드 답글을 txt 파일로 저장합니다.</div>
     <div class="status" id="doctor1SlackStatus">대기 중</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">온라인관리 최근 채팅</div>
-    <div class="tool-row">
-      <input class="search-input" id="onlineSlackDaysInput" type="number" min="1" max="30" step="1" value="2" aria-label="최근 일수">
-      <button class="good" id="onlineSlackBtn" type="button">온라인관리 채팅 가져오기</button>
-    </div>
-    <div class="note">기본값은 최근 2일이며 최대 30일까지 조회합니다.</div>
-    <div class="status" id="onlineSlackStatus">대기 중</div>
-    <div class="message-output" id="onlineSlackResult"></div>
   </div>
 
   <div class="card">
@@ -256,10 +245,6 @@
   const doctor1SlackMonthSelect = document.getElementById("doctor1SlackMonthSelect");
   const doctor1SlackDownloadBtn = document.getElementById("doctor1SlackDownloadBtn");
   const doctor1SlackStatus = document.getElementById("doctor1SlackStatus");
-  const onlineSlackDaysInput = document.getElementById("onlineSlackDaysInput");
-  const onlineSlackBtn = document.getElementById("onlineSlackBtn");
-  const onlineSlackStatus = document.getElementById("onlineSlackStatus");
-  const onlineSlackResult = document.getElementById("onlineSlackResult");
   const thirdVisitSyncBtn = document.getElementById("thirdVisitSyncBtn");
   const thirdVisitSyncStatus = document.getElementById("thirdVisitSyncStatus");
   const thirdVisitSyncResult = document.getElementById("thirdVisitSyncResult");
@@ -302,9 +287,10 @@
       if (!res.ok || !data.ok) throw new Error(data.error || `백업 실패 (${res.status})`);
       const lines = [
         "백업 완료",
-        `파일: slack_backups/${data.filename}`,
+        `파일: C:\\backup\\slack\\${data.filename}`,
         `채널: ${Number(data.channels || 0).toLocaleString()}개`,
-        `메시지: ${Number(data.messages || 0).toLocaleString()}개`
+        `전체 메시지: ${Number(data.messages || 0).toLocaleString()}개`,
+        `스레드 답글: ${Number(data.threadReplies || 0).toLocaleString()}개`
       ];
       if (Array.isArray(data.errors) && data.errors.length) {
         lines.push("", "일부 채널 오류:", ...data.errors);
@@ -370,59 +356,6 @@
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-
-  function setOnlineSlackStatus(text, type = "") {
-    onlineSlackStatus.className = "status" + (type ? ` ${type}` : "");
-    onlineSlackStatus.textContent = text;
-  }
-
-  function renderOnlineSlackMessages(messages) {
-    if (!messages.length) {
-      onlineSlackResult.innerHTML = "";
-      setOnlineSlackStatus("조회된 메시지가 없습니다.");
-      return;
-    }
-    onlineSlackResult.innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th>시간</th>
-            <th>작성자</th>
-            <th>내용</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${messages.map(message => `
-            <tr>
-              <td class="message-time">${escapeHtml(message.time || "-")}</td>
-              <td class="message-user">${escapeHtml(message.user || "-")}</td>
-              <td class="message-text">${escapeHtml(message.text || "")}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    `;
-  }
-
-  async function loadOnlineSlackMessages() {
-    const days = Math.min(30, Math.max(1, Number.parseInt(onlineSlackDaysInput.value, 10) || 2));
-    onlineSlackDaysInput.value = String(days);
-    onlineSlackBtn.disabled = true;
-    onlineSlackResult.innerHTML = "";
-    setOnlineSlackStatus(`#온라인관리 최근 ${days}일 채팅 조회 중...`);
-    try {
-      const res = await fetch(`/api/slack/online-management?days=${encodeURIComponent(days)}`, { cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error(data.error || `조회 실패 (${res.status})`);
-      const messages = Array.isArray(data.messages) ? data.messages : [];
-      renderOnlineSlackMessages(messages);
-      setOnlineSlackStatus(`#${data.channel || "온라인관리"}: ${messages.length.toLocaleString()}개 메시지`, "good");
-    } catch (error) {
-      setOnlineSlackStatus(error?.message || String(error), "error");
-    } finally {
-      onlineSlackBtn.disabled = false;
-    }
   }
 
   function setNoFollowupStatus(text, type = "") {
@@ -1748,10 +1681,6 @@ const DISEASE = [
   renderDoctor1SlackMonthOptions();
   backupBtn.addEventListener("click", runSlackBackup);
   doctor1SlackDownloadBtn.addEventListener("click", downloadDoctor1SlackMonthText);
-  onlineSlackBtn.addEventListener("click", loadOnlineSlackMessages);
-  onlineSlackDaysInput.addEventListener("keydown", event => {
-    if (event.key === "Enter") loadOnlineSlackMessages();
-  });
   noFollowupSearchBtn.addEventListener("click", searchNoFollowupPatients);
   noFollowupResult.addEventListener("click", async event => {
     const button = event.target.closest(".message-copy-btn");

@@ -2159,6 +2159,22 @@ async function readSlackChannelMessages(channelId, options = {}) {
   return messages;
 }
 
+async function readSlackThreadReplies(channelId, threadTs) {
+  const replies = [];
+  let cursor = "";
+  do {
+    const data = await slackApi("conversations.replies", {
+      channel: channelId,
+      ts: threadTs,
+      limit: 1000,
+      cursor
+    });
+    replies.push(...(Array.isArray(data.messages) ? data.messages : []));
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return replies.filter(message => message.ts !== threadTs);
+}
+
 function formatSlackTimestamp(ts) {
   const seconds = Number.parseFloat(ts || "0");
   if (!Number.isFinite(seconds) || seconds <= 0) return "";
@@ -2238,11 +2254,27 @@ async function readSlackChannelMonthText(channelName, monthValue) {
     inclusive: true
   });
   const rows = [...messages].reverse();
+  const repliesByThread = new Map();
+  const threadErrors = [];
+  let threadReplyCount = 0;
+  for (const message of rows) {
+    if (Number(message.reply_count || 0) <= 0 || !message.ts) continue;
+    try {
+      const replies = await readSlackThreadReplies(channel.id, message.ts);
+      repliesByThread.set(message.ts, replies);
+      threadReplyCount += replies.length;
+    } catch (error) {
+      threadErrors.push(`스레드 ${message.ts} 조회 실패: ${error.message}`);
+      repliesByThread.set(message.ts, []);
+    }
+  }
   const lines = [
     `=== Slack Channel Export: #${channel.name || safeChannelName} ===`,
     `Month: ${month}`,
     `Range: ${ymd(start)} 00:00:00 ~ ${ymd(new Date(end.getTime() - 1))} 23:59:59`,
-    `Messages: ${rows.length}`,
+    `Channel messages: ${rows.length}`,
+    `Thread replies: ${threadReplyCount}`,
+    `Total messages: ${rows.length + threadReplyCount}`,
     `Exported: ${new Date().toLocaleString("ko-KR")}`,
     ""
   ];
@@ -2251,13 +2283,22 @@ async function readSlackChannelMonthText(channelName, monthValue) {
   } else {
     for (const message of rows) {
       lines.push(`[${formatSlackTimestamp(message.ts)}] ${slackMessageUser(message)}: ${slackMessageText(message)}`);
+      for (const reply of repliesByThread.get(message.ts) || []) {
+        lines.push(`  ↳ [${formatSlackTimestamp(reply.ts)}] ${slackMessageUser(reply)}: ${slackMessageText(reply)}`);
+      }
     }
+  }
+  if (threadErrors.length) {
+    lines.push("", "=== Thread Errors ===", ...threadErrors);
   }
   return {
     ok: true,
     channel: channel.name || safeChannelName,
     month,
-    messages: rows.length,
+    messages: rows.length + threadReplyCount,
+    channelMessages: rows.length,
+    threadReplies: threadReplyCount,
+    threadErrors,
     text: lines.join("\r\n")
   };
 }
@@ -2573,6 +2614,7 @@ async function backupSlackText() {
   ];
   const errors = [];
   let messageCount = 0;
+  let threadReplyCount = 0;
   const channels = await listSlackChannels();
 
   for (const channel of channels) {
@@ -2586,9 +2628,22 @@ async function backupSlackText() {
         }
       }
       const messages = await readSlackChannelMessages(channel.id);
-      messageCount += messages.length;
+      const repliesByThread = new Map();
+      for (const message of messages) {
+        if (Number(message.reply_count || 0) <= 0 || !message.ts) continue;
+        try {
+          const replies = await readSlackThreadReplies(channel.id, message.ts);
+          repliesByThread.set(message.ts, replies);
+          threadReplyCount += replies.length;
+        } catch (error) {
+          errors.push(`#${channelName} 스레드 ${message.ts} 백업 실패: ${error.message}`);
+          repliesByThread.set(message.ts, []);
+        }
+      }
+      const channelReplyCount = [...repliesByThread.values()].reduce((sum, replies) => sum + replies.length, 0);
+      messageCount += messages.length + channelReplyCount;
       lines.push("==========================================");
-      lines.push(`채널: #${channelName} (${messages.length}개 메시지)`);
+      lines.push(`채널: #${channelName} (기본 메시지 ${messages.length}개 · 스레드 답글 ${channelReplyCount}개)`);
       lines.push("==========================================");
       if (!messages.length) {
         lines.push("(대화 내용이 없습니다.)", "");
@@ -2596,6 +2651,10 @@ async function backupSlackText() {
       }
       for (const message of [...messages].reverse()) {
         lines.push(`[${formatSlackTimestamp(message.ts)}] ${slackMessageUser(message)}: ${slackMessageText(message)}`);
+        const replies = repliesByThread.get(message.ts) || [];
+        for (const reply of replies) {
+          lines.push(`  ↳ [${formatSlackTimestamp(reply.ts)}] ${slackMessageUser(reply)}: ${slackMessageText(reply)}`);
+        }
       }
       lines.push("");
     } catch (error) {
@@ -2620,6 +2679,7 @@ async function backupSlackText() {
     filename: path.basename(file),
     channels: channels.length,
     messages: messageCount,
+    threadReplies: threadReplyCount,
     errors,
     retention
   };
