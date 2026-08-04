@@ -1593,7 +1593,15 @@ const AI_TREND_METRICS = [
 
 function aiPeriodRange(period) {
   const normalizedPeriod = AI_PERIOD_PRESETS[period] ? period : "week";
-  const end = addDays(ymd(new Date()), -1); // 오늘 제외 → 어제까지
+  const today = ymd(new Date());
+  if (normalizedPeriod === "week") {
+    const todayDate = new Date(`${today}T00:00:00`);
+    const daysSinceMonday = (todayDate.getDay() + 6) % 7;
+    const end = addDays(today, -(daysSinceMonday + 1));
+    const start = addDays(end, -6);
+    return { period: normalizedPeriod, start, end, days: 7 };
+  }
+  const end = addDays(today, -1); // 주간 외 기간은 오늘 제외 → 어제까지
   if (normalizedPeriod === "year") {
     const start = `${end.slice(0, 4)}-01-01`; // 연간 요약: 올해 1월 1일부터 조회 시점(어제)까지
     const days = Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1;
@@ -1835,10 +1843,7 @@ function formatPeriodDataExportText(bundle) {
   }
 
   const overall = bundle.scopes["전체"].current;
-  sections.push(formatNurseAssignmentSection(overall));
   sections.push(formatCountsSection("원장별 진료 건수", overall.doctorCounts, "건"));
-  sections.push(formatCountsSection("치료별 횟수", overall.treatmentCounts, "건"));
-  sections.push(formatWeekdaySection(overall));
 
   return sections.join("\n\n");
 }

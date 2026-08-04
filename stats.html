@@ -2072,16 +2072,43 @@
     $("aiSummaryBackdrop").classList.remove("open");
   }
 
+  async function copyTextToClipboard(text, sourceElement = null) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch {
+        // 권한 거부 시 아래의 일반 HTTP 호환 방식으로 다시 시도한다.
+      }
+    }
+
+    const textarea = sourceElement || document.createElement("textarea");
+    const temporary = !sourceElement;
+    if (temporary) {
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+    }
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    const copied = document.execCommand("copy");
+    if (temporary) textarea.remove();
+    if (!copied) throw new Error("브라우저가 클립보드 복사를 허용하지 않았습니다.");
+  }
+
   async function copyAiPrompt() {
     const btn = $("aiSummaryCopyBtn");
     try {
-      await navigator.clipboard.writeText(lastAiExportText);
+      await copyTextToClipboard(lastAiExportText, $("aiSummaryPromptBox"));
       btn.textContent = "복사됨!";
       btn.classList.add("copied");
       setTimeout(() => { btn.textContent = "데이터 복사"; btn.classList.remove("copied"); }, 1500);
     } catch (error) {
       $("aiSummaryPromptBox").select();
-      alert("자동 복사에 실패했습니다. 텍스트가 선택되었으니 Ctrl+C로 복사해주세요.");
+      alert(`${error?.message || "자동 복사에 실패했습니다."}\n텍스트가 선택되었으니 Ctrl+C로 복사해주세요.`);
     }
   }
 
@@ -2103,7 +2130,7 @@
       const baselineText = data.baselineRange ? ` · ${data.baselineRange.label} ${data.baselineRange.start} ~ ${data.baselineRange.end}` : "";
       $("aiSummaryRange").textContent = `이번 기간 ${data.range.start} ~ ${data.range.end} · 직전 기간 ${data.previousRange.start} ~ ${data.previousRange.end} · 전년 동기 ${data.yearAgoRange.start} ~ ${data.yearAgoRange.end}${baselineText}`;
       $("aiSummaryBody").innerHTML = `
-        <div class="ai-summary-hint">기간별 변동성을 보정한 비교 기준과 장기 추이, 기간 요약·시간대별 환자 수(전체 + 원장별), 날짜별 간호사 배정·원장별 진료 건수·치료별 횟수·요일별 평균 진료 건수를 모았습니다. 아래 내용을 복사해 AI에 붙여넣어 분석을 요청할 수 있습니다. 환자 개인정보는 포함되어 있지 않습니다.</div>
+        <div class="ai-summary-hint">기간별 변동성을 보정한 비교 기준과 장기 추이, 기간 요약·시간대별 환자 수(전체 + 원장별), 원장별 진료 건수를 모았습니다. 아래 내용을 복사해 AI에 붙여넣어 분석을 요청할 수 있습니다. 환자 개인정보는 포함되어 있지 않습니다.</div>
         <textarea class="ai-summary-prompt" id="aiSummaryPromptBox" readonly></textarea>
         <div class="ai-summary-actions">
           <button class="ai-summary-copy-btn" id="aiSummaryCopyBtn" type="button">데이터 복사</button>
