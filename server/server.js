@@ -36,6 +36,8 @@ const db = new DatabaseSync(DB_PATH);
 const stateValueCache = new Map();
 let patientCache = null;
 let patientChartIndex = null;
+let patientDataRevision = 0;
+let deskWeeklyWidgetCache = null;
 db.exec(`
   PRAGMA auto_vacuum = INCREMENTAL;
   PRAGMA journal_mode = WAL;
@@ -466,6 +468,8 @@ function indexCachedPatient(record) {
   const chartNo = normalizeChartNo(record.chartNo);
   if (!patientChartIndex.has(chartNo)) patientChartIndex.set(chartNo, new Set());
   patientChartIndex.get(chartNo).add(record.patientId);
+  patientDataRevision += 1;
+  deskWeeklyWidgetCache = null;
 }
 
 function removeCachedPatient(patientId) {
@@ -480,16 +484,22 @@ function removeCachedPatient(patientId) {
     }
   }
   patientCache.delete(normalizedId);
+  patientDataRevision += 1;
+  deskWeeklyWidgetCache = null;
 }
 
 function clearPatientCache() {
   patientCache = new Map();
   patientChartIndex = new Map();
+  patientDataRevision += 1;
+  deskWeeklyWidgetCache = null;
 }
 
 function invalidatePatientCache() {
   patientCache = null;
   patientChartIndex = null;
+  patientDataRevision += 1;
+  deskWeeklyWidgetCache = null;
 }
 
 // 대량 import/삭제 후 호출: 빈 페이지를 OS로 반환(incremental_vacuum)하고
@@ -944,6 +954,136 @@ function visitsWithinDays(dates, startDate, days) {
 
 function hasFullFollowupWindow(firstDate, referenceDate, days = 21) {
   return firstDate <= addDays(referenceDate, -days);
+}
+
+const DESK_WEEKLY_WIDGET_CACHE_MS = 5 * 60 * 1000;
+
+function computeDeskWeeklyWidget() {
+  ensurePatientCache();
+  const today = getLocalDateKey();
+  const currentEnd = addDays(today, -1);
+  const currentStart = addDays(currentEnd, -13);
+  const currentPatientIds = new Set();
+  const currentClinicDates = new Set();
+  let currentVisits = 0;
+  let currentChunaVisits = 0;
+  let currentNewPatients = 0;
+  let currentReturningPatients = 0;
+  let currentThirdVisitPatients = 0;
+
+  const comparisonWeeks = Array.from({ length: 4 }, (_, index) => {
+    const end = addDays(currentStart, -(index * 14 + 1));
+    return { start: addDays(end, -13), end, patientIds: new Set(), clinicDates: new Set(), visits: 0, chunaVisits: 0, newPatients: 0, returningPatients: 0, thirdVisitPatients: 0 };
+  });
+
+  for (const record of patientCache.values()) {
+    const patientId = String(record.patientId || record.chartNo || record.name || "");
+    if (!patientId) continue;
+    const treatmentDates = nonPrescriptionVisitDatesOf(record);
+    const currentTreatmentDates = treatmentDates.filter(date => date >= currentStart && date <= currentEnd);
+    if (currentTreatmentDates.length) {
+      currentPatientIds.add(patientId);
+      currentVisits += currentTreatmentDates.length;
+      currentTreatmentDates.forEach(date => currentClinicDates.add(date));
+      currentChunaVisits += currentTreatmentDates.filter(date => {
+        const treatments = Array.isArray(getVisitRecord(record, date).treatments) ? getVisitRecord(record, date).treatments : [];
+        return treatments.some(raw => {
+          const treatment = normalizeTreatmentStatName(raw);
+          return isSimpleChunaTreatment(treatment) || isComplexChunaTreatment(treatment);
+        });
+      }).length;
+    }
+    comparisonWeeks.forEach(week => {
+      const weekTreatmentDates = treatmentDates.filter(date => date >= week.start && date <= week.end);
+      if (!weekTreatmentDates.length) return;
+      week.patientIds.add(patientId);
+      week.visits += weekTreatmentDates.length;
+      week.chunaVisits += weekTreatmentDates.filter(date => {
+        const treatments = Array.isArray(getVisitRecord(record, date).treatments) ? getVisitRecord(record, date).treatments : [];
+        return treatments.some(raw => {
+          const treatment = normalizeTreatmentStatName(raw);
+          return isSimpleChunaTreatment(treatment) || isComplexChunaTreatment(treatment);
+        });
+      }).length;
+      weekTreatmentDates.forEach(date => week.clinicDates.add(date));
+    });
+
+    for (const firstDate of newVisitDatesOf(record)) {
+      if (isPrescriptionVisit(record, firstDate)) continue;
+      if (firstDate >= currentStart && firstDate <= currentEnd) {
+        currentNewPatients += 1;
+        const currentFollowupCount = treatmentDates.filter(date => date >= firstDate && date <= currentEnd).length;
+        if (currentFollowupCount >= 2) currentReturningPatients += 1;
+        if (currentFollowupCount >= 3) currentThirdVisitPatients += 1;
+      }
+      comparisonWeeks.forEach(week => {
+        if (firstDate < week.start || firstDate > week.end) return;
+        week.newPatients += 1;
+        const comparisonFollowupCount = treatmentDates.filter(date => date >= firstDate && date <= week.end).length;
+        if (comparisonFollowupCount >= 2) week.returningPatients += 1;
+        if (comparisonFollowupCount >= 3) week.thirdVisitPatients += 1;
+      });
+
+    }
+  }
+
+  const currentClinicDays = Math.max(1, currentClinicDates.size);
+  const comparisonClinicDays = Math.max(1, comparisonWeeks.reduce((sum, week) => sum + week.clinicDates.size, 0));
+  const comparisonVisits = comparisonWeeks.reduce((sum, week) => sum + week.visits, 0);
+  const comparisonChunaVisits = comparisonWeeks.reduce((sum, week) => sum + week.chunaVisits, 0);
+  const comparisonNewPatients = comparisonWeeks.reduce((sum, week) => sum + week.newPatients, 0);
+  const comparison = {
+    start: comparisonWeeks.at(-1)?.start || "",
+    end: comparisonWeeks[0]?.end || "",
+    clinicDays: comparisonClinicDays,
+    averagePatientsPerDay: comparisonVisits / comparisonClinicDays,
+    averageChunaPerDay: comparisonChunaVisits / comparisonClinicDays,
+    averageNewPatientsPerDay: comparisonNewPatients / comparisonClinicDays,
+    newPatients: comparisonNewPatients,
+    returningPatients: comparisonWeeks.reduce((sum, week) => sum + week.returningPatients, 0),
+    thirdVisitPatients: comparisonWeeks.reduce((sum, week) => sum + week.thirdVisitPatients, 0)
+  };
+  comparison.returnRate = comparison.newPatients ? comparison.returningPatients / comparison.newPatients : 0;
+  comparison.thirdVisitRate = comparison.newPatients ? comparison.thirdVisitPatients / comparison.newPatients : 0;
+  const currentReturnRate = currentNewPatients ? currentReturningPatients / currentNewPatients : 0;
+  const currentThirdVisitRate = currentNewPatients ? currentThirdVisitPatients / currentNewPatients : 0;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    current: {
+      start: currentStart,
+      end: currentEnd,
+      clinicDays: currentClinicDays,
+      patients: currentPatientIds.size,
+      visits: currentVisits,
+      chunaVisits: currentChunaVisits,
+      averagePatientsPerDay: currentVisits / currentClinicDays,
+      averageChunaPerDay: currentChunaVisits / currentClinicDays,
+      averageNewPatientsPerDay: currentNewPatients / currentClinicDays,
+      newPatients: currentNewPatients,
+      returningPatients: currentReturningPatients,
+      thirdVisitPatients: currentThirdVisitPatients,
+      returnRate: currentReturnRate,
+      thirdVisitRate: currentThirdVisitRate,
+      returnDeltaPp: (currentReturnRate - comparison.returnRate) * 100,
+      thirdVisitDeltaPp: (currentThirdVisitRate - comparison.thirdVisitRate) * 100,
+      patientDifference: currentVisits / currentClinicDays - comparison.averagePatientsPerDay,
+      newPatientDifference: currentNewPatients / currentClinicDays - comparison.averageNewPatientsPerDay
+    },
+    comparison
+  };
+}
+
+function getDeskWeeklyWidget() {
+  const now = Date.now();
+  if (deskWeeklyWidgetCache
+      && deskWeeklyWidgetCache.revision === patientDataRevision
+      && now - deskWeeklyWidgetCache.createdAt < DESK_WEEKLY_WIDGET_CACHE_MS) {
+    return deskWeeklyWidgetCache.value;
+  }
+  const value = computeDeskWeeklyWidget();
+  deskWeeklyWidgetCache = { revision: patientDataRevision, createdAt: now, value };
+  return value;
 }
 
 function isoWeekKey(dateStr) {
@@ -3466,6 +3606,11 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/stats/doctors" && req.method === "GET") {
     jsonResponse(res, 200, collectStatsDoctors());
+    return true;
+  }
+
+  if (pathname === "/api/dashboard/weekly" && req.method === "GET") {
+    jsonResponse(res, 200, getDeskWeeklyWidget());
     return true;
   }
 

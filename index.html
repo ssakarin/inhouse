@@ -175,6 +175,155 @@
   body.app-role-desk .header-desk-controls {
     display: flex;
   }
+  .desk-weekly-widget-wrap {
+    display: none;
+    position: relative;
+    flex: 0 0 auto;
+  }
+  body.app-mode-input .desk-weekly-widget-wrap,
+  body.app-role-desk .desk-weekly-widget-wrap {
+    display: block;
+  }
+  .desk-weekly-widget {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.075);
+    color: var(--text2);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .16s ease, border-color .16s ease, transform .16s ease;
+  }
+  .desk-weekly-widget:hover,
+  .desk-weekly-widget[aria-expanded="true"] {
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(255,255,255,0.30);
+  }
+  .desk-weekly-widget:active { transform: translateY(1px); }
+  .desk-weekly-widget.loading { opacity: .68; }
+  .desk-weekly-metric {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .desk-weekly-metric svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    opacity: .76;
+  }
+  .desk-weekly-value { color: #fff; }
+  .desk-weekly-divider {
+    width: 1px;
+    height: 19px;
+    background: rgba(255,255,255,0.17);
+  }
+  .desk-weekly-rate.return,
+  .desk-weekly-rate.third { color: #fff; }
+  .desk-weekly-rate.trend-up { color: #60a5fa; }
+  .desk-weekly-rate.trend-down { color: #fb7185; }
+  .desk-weekly-rate.trend-flat { color: #fff; }
+  .desk-weekly-trend {
+    display: inline-block;
+    margin-left: 2px;
+    font-size: 12px;
+  }
+  .desk-weekly-trend.up,
+  .desk-weekly-trend.down,
+  .desk-weekly-trend.flat { color: inherit; }
+  .desk-weekly-chevron {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    transition: transform .16s ease;
+  }
+  .desk-weekly-widget[aria-expanded="true"] .desk-weekly-chevron { transform: rotate(180deg); }
+  .desk-weekly-popover {
+    display: none;
+    position: absolute;
+    z-index: 1200;
+    top: calc(100% + 10px);
+    right: 0;
+    width: min(410px, calc(100vw - 32px));
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,0.17);
+    border-radius: 14px;
+    background: rgba(24, 27, 31, 0.98);
+    box-shadow: 0 18px 50px rgba(0,0,0,.45);
+    color: var(--text2);
+    text-align: left;
+  }
+  .desk-weekly-popover.open { display: block; }
+  .desk-weekly-popover-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .desk-weekly-popover-title strong { color: #fff; font-size: 16px; }
+  .desk-weekly-period { color: var(--text3); font-size: 11px; }
+  .desk-weekly-section {
+    padding: 12px 0;
+    border-top: 1px solid rgba(255,255,255,0.10);
+  }
+  .desk-weekly-section:first-of-type { border-top: 0; padding-top: 0; }
+  .desk-weekly-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .desk-weekly-badge {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(34,197,94,.12);
+    border: 1px solid rgba(34,197,94,.26);
+    color: #63d98a;
+    font-size: 10px;
+  }
+  .desk-weekly-rows { display: grid; gap: 7px; }
+  .desk-weekly-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .desk-weekly-row strong { color: #fff; font-size: 15px; }
+  .desk-weekly-row .comparison { min-width: 94px; color: #fff; text-align: right; font-size: 11px; }
+  .desk-weekly-row .comparison.positive { color: #60a5fa; }
+  .desk-weekly-row .comparison.negative { color: #fb7185; }
+  .desk-weekly-followup-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+  }
+  .desk-weekly-followup-card {
+    padding: 9px 7px;
+    border-radius: 9px;
+    background: rgba(255,255,255,.055);
+    text-align: center;
+  }
+  .desk-weekly-followup-card span { display: block; color: var(--text3); font-size: 10px; }
+  .desk-weekly-followup-card strong { display: block; margin-top: 3px; color: #fff; font-size: 17px; }
+  .desk-weekly-note { margin-top: 8px; color: var(--text3); font-size: 10px; line-height: 1.45; }
+  .desk-weekly-error { padding: 14px 0 4px; color: #fb9b8b; font-size: 12px; text-align: center; }
+  @media (max-width: 1500px) {
+    .desk-weekly-widget { gap: 7px; padding-inline: 8px; font-size: 12px; }
+    .desk-weekly-widget .desk-weekly-label { display: none; }
+  }
   .header-notify-controls {
     display: none;
     align-items: center;
@@ -5109,6 +5258,25 @@
         <button type="button" class="desk-excel-add-btn" id="deskChartImportBtn" onclick="document.getElementById('deskChartImportInput').click()">엑셀추가</button>
         <input id="deskChartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
           onchange="importChartFileFromDesk(this.files?.[0]); this.value='';">
+        <div class="desk-weekly-widget-wrap" id="deskWeeklyWidgetWrap">
+          <button class="desk-weekly-widget loading" id="deskWeeklyWidget" type="button" aria-expanded="false" aria-controls="deskWeeklyPopover" title="어제까지 최근 14일 재진·삼진율">
+            <span class="desk-weekly-metric" title="최근 14일 실제 진료일 기준 일평균">진료 <span class="desk-weekly-value" id="deskWeeklyAveragePatients">-</span></span>
+            <span class="desk-weekly-divider" aria-hidden="true"></span>
+            <span class="desk-weekly-rate return" title="직전 4개 14일 구간 대비 재진율 변화">재진 <span class="desk-weekly-trend flat" id="deskWeeklyReturnTrend">→</span><span id="deskWeeklyReturnChange">-</span></span>
+            <span class="desk-weekly-divider" aria-hidden="true"></span>
+            <span class="desk-weekly-rate third" title="직전 4개 14일 구간 대비 삼진율 변화">삼진 <span class="desk-weekly-trend flat" id="deskWeeklyThirdTrend">→</span><span id="deskWeeklyThirdChange">-</span></span>
+            <svg class="desk-weekly-chevron" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+          <div class="desk-weekly-popover" id="deskWeeklyPopover" role="dialog" aria-label="최근 14일간 현황 상세">
+            <div class="desk-weekly-popover-title">
+              <strong>최근 14일간 현황</strong>
+              <span class="desk-weekly-period" id="deskWeeklyCurrentPeriod">불러오는 중</span>
+            </div>
+            <div id="deskWeeklyPopoverBody">
+              <div class="desk-weekly-note">통계를 불러오고 있습니다.</div>
+            </div>
+          </div>
+        </div>
         <button class="nurse-quick-btn nurse-quick-btn-desk" id="nurseQuickBtnDesk" type="button" onclick="toggleNurseQuickPopover(event)">간호사</button>
         <label class="rr-setting desk-auto-bed-toggle">
           <span class="rr-setting-text">자동배정</span>
@@ -18577,6 +18745,136 @@
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 2500);
   }
+
+  function formatDeskWeeklyDate(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return '-';
+    return `${Number(match[2])}/${Number(match[3])}`;
+  }
+
+  function formatDeskWeeklyPeriod(start, end) {
+    return `${formatDeskWeeklyDate(start)}~${formatDeskWeeklyDate(end)}`;
+  }
+
+  function deskWeeklyDifference(value, unit = '명') {
+    const safe = Number(value || 0);
+    const rounded = Math.abs(safe) < 0.05 ? 0 : Math.round(safe * 10) / 10;
+    return `${rounded > 0 ? '+' : ''}${rounded.toLocaleString('ko-KR')}${unit}`;
+  }
+
+  function deskWeeklyPercentChange(currentValue, comparisonValue) {
+    const current = Number(currentValue || 0);
+    const comparison = Number(comparisonValue || 0);
+    if (!comparison) return null;
+    return ((current - comparison) / Math.abs(comparison)) * 100;
+  }
+
+  function formatDeskWeeklyChange(value) {
+    if (value === null || !Number.isFinite(Number(value))) return '—';
+    return deskWeeklyDifference(Number(value), '%');
+  }
+
+  function setDeskWeeklyTrend(id, delta, hasComparison) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const value = Number(delta || 0);
+    const direction = !hasComparison || Math.abs(value) < 0.05 ? 'flat' : value > 0 ? 'up' : 'down';
+    el.className = `desk-weekly-trend ${direction}`;
+    el.textContent = direction === 'up' ? '↗' : direction === 'down' ? '↘' : '→';
+    el.title = hasComparison ? `직전 4개 14일 구간 가중평균 대비 ${deskWeeklyDifference(value, '%')}` : '비교 표본 없음';
+    const metric = el.closest('.desk-weekly-rate');
+    metric?.classList.remove('trend-up', 'trend-down', 'trend-flat');
+    metric?.classList.add(`trend-${direction}`);
+  }
+
+  function deskWeeklyComparisonClass(value) {
+    const safe = Number(value || 0);
+    if (Math.abs(safe) < 0.05) return '';
+    return safe > 0 ? 'positive' : 'negative';
+  }
+
+  function renderDeskWeeklyWidget(data) {
+    const current = data?.current || {};
+    const comparison = data?.comparison || {};
+    const widget = document.getElementById('deskWeeklyWidget');
+    const body = document.getElementById('deskWeeklyPopoverBody');
+    if (!widget || !body) return;
+
+    const hasCurrentCohort = Number(current.newPatients || 0) > 0;
+    const hasComparisonCohort = Number(comparison.newPatients || 0) > 0;
+    document.getElementById('deskWeeklyAveragePatients').textContent = `${Number(current.averagePatientsPerDay || 0).toFixed(1)}명`;
+    document.getElementById('deskWeeklyReturnChange').textContent = hasCurrentCohort && hasComparisonCohort
+      ? `${Math.abs(Number(current.returnDeltaPp || 0)).toFixed(1)}%`
+      : '—';
+    document.getElementById('deskWeeklyThirdChange').textContent = hasCurrentCohort && hasComparisonCohort
+      ? `${Math.abs(Number(current.thirdVisitDeltaPp || 0)).toFixed(1)}%`
+      : '—';
+    setDeskWeeklyTrend('deskWeeklyReturnTrend', current.returnDeltaPp, hasCurrentCohort && hasComparisonCohort);
+    setDeskWeeklyTrend('deskWeeklyThirdTrend', current.thirdVisitDeltaPp, hasCurrentCohort && hasComparisonCohort);
+    document.getElementById('deskWeeklyCurrentPeriod').textContent = `${formatDeskWeeklyPeriod(current.start, current.end)} · 어제까지`;
+    widget.classList.remove('loading');
+
+    const currentPatientDiff = Number(current.patientDifference || 0);
+    const currentNewDiff = Number(current.newPatientDifference || 0);
+    const currentChunaDiff = Number(current.averageChunaPerDay || 0) - Number(comparison.averageChunaPerDay || 0);
+    const returnDelta = Number(current.returnDeltaPp || 0);
+    const thirdDelta = Number(current.thirdVisitDeltaPp || 0);
+    const patientChangePercent = deskWeeklyPercentChange(current.averagePatientsPerDay, comparison.averagePatientsPerDay);
+    const newPatientChangePercent = deskWeeklyPercentChange(current.averageNewPatientsPerDay, comparison.averageNewPatientsPerDay);
+    const chunaChangePercent = deskWeeklyPercentChange(current.averageChunaPerDay, comparison.averageChunaPerDay);
+
+    body.innerHTML = `
+      <section class="desk-weekly-section">
+        <div class="desk-weekly-section-title"><span class="desk-weekly-period" style="margin-left:auto">진료일 ${Number(current.clinicDays || 0)}일 · 직전 4개 14일 구간 일평균 대비</span></div>
+        <div class="desk-weekly-rows">
+          <div class="desk-weekly-row"><span>진료 일평균</span><strong>${Number(current.averagePatientsPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentPatientDiff)}">${Number(comparison.averagePatientsPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(patientChangePercent)}</span></div>
+          <div class="desk-weekly-row"><span>초진 일평균</span><strong>${Number(current.averageNewPatientsPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentNewDiff)}">${Number(comparison.averageNewPatientsPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(newPatientChangePercent)}</span></div>
+          <div class="desk-weekly-row"><span>추나 일평균 <small>(복추+단추)</small></span><strong>${Number(current.averageChunaPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentChunaDiff)}">${Number(comparison.averageChunaPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(chunaChangePercent)}</span></div>
+          <div class="desk-weekly-row"><span>재진율</span><strong>${hasCurrentCohort ? `${(Number(current.returnRate || 0) * 100).toFixed(1)}% <small>(${Number(current.returningPatients || 0)}/${Number(current.newPatients || 0)}명)</small>` : '—'}</strong><span class="comparison ${deskWeeklyComparisonClass(returnDelta)}">${hasComparisonCohort ? `${(Number(comparison.returnRate || 0) * 100).toFixed(1)}% · ${formatDeskWeeklyChange(returnDelta)}` : '—'}</span></div>
+          <div class="desk-weekly-row"><span>삼진율</span><strong>${hasCurrentCohort ? `${(Number(current.thirdVisitRate || 0) * 100).toFixed(1)}% <small>(${Number(current.thirdVisitPatients || 0)}/${Number(current.newPatients || 0)}명)</small>` : '—'}</strong><span class="comparison ${deskWeeklyComparisonClass(thirdDelta)}">${hasComparisonCohort ? `${(Number(comparison.thirdVisitRate || 0) * 100).toFixed(1)}% · ${formatDeskWeeklyChange(thirdDelta)}` : '—'}</span></div>
+        </div>
+      </section>`;
+  }
+
+  async function refreshDeskWeeklyWidget() {
+    const serverMode = location.protocol === 'http:' || location.protocol === 'https:';
+    if (!serverMode || !document.getElementById('deskWeeklyWidget')) return;
+    try {
+      const response = await fetch('/api/dashboard/weekly', { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      renderDeskWeeklyWidget(await response.json());
+    } catch (error) {
+      console.error('주간 현황을 불러오지 못했습니다.', error);
+      document.getElementById('deskWeeklyWidget')?.classList.remove('loading');
+      const body = document.getElementById('deskWeeklyPopoverBody');
+      if (body) body.innerHTML = '<div class="desk-weekly-error">주간 통계를 불러오지 못했습니다.<br>잠시 후 다시 시도합니다.</div>';
+    }
+  }
+
+  function closeDeskWeeklyPopover() {
+    document.getElementById('deskWeeklyPopover')?.classList.remove('open');
+    document.getElementById('deskWeeklyWidget')?.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleDeskWeeklyPopover(event) {
+    event?.stopPropagation();
+    const popover = document.getElementById('deskWeeklyPopover');
+    const widget = document.getElementById('deskWeeklyWidget');
+    if (!popover || !widget) return;
+    const opening = !popover.classList.contains('open');
+    closeNurseQuickPopover?.();
+    popover.classList.toggle('open', opening);
+    widget.setAttribute('aria-expanded', opening ? 'true' : 'false');
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('deskWeeklyWidget')?.addEventListener('click', toggleDeskWeeklyPopover);
+    document.getElementById('deskWeeklyPopover')?.addEventListener('click', event => event.stopPropagation());
+    refreshDeskWeeklyWidget();
+    document.addEventListener('click', event => {
+      if (!event.target.closest?.('#deskWeeklyWidgetWrap')) closeDeskWeeklyPopover();
+    });
+  });
 
   // 엔터키로 전송
   function disableAutocomplete(root = document) {
