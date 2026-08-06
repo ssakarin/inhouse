@@ -18826,7 +18826,7 @@
 
     body.innerHTML = `
       <section class="desk-weekly-section">
-        <div class="desk-weekly-section-title"><span class="desk-weekly-period" style="margin-left:auto">진료일 ${Number(current.clinicDays || 0)}일 · 직전 2개 14일 구간 일평균 대비</span></div>
+        <div class="desk-weekly-section-title"><span class="desk-weekly-period" style="margin-left:auto">진료일 ${Number(current.clinicDays || 0)}일 · 직전 28일 구간 일평균 대비</span></div>
         <div class="desk-weekly-rows">
           <div class="desk-weekly-row"><span>진료 일평균</span><strong>${Number(current.averagePatientsPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentPatientDiff)}">${Number(comparison.averagePatientsPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(patientChangePercent)}</span></div>
           <div class="desk-weekly-row"><span>초진 일평균</span><strong>${Number(current.averageNewPatientsPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentNewDiff)}">${Number(comparison.averageNewPatientsPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(newPatientChangePercent)}</span></div>
