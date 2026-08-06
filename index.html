@@ -270,6 +270,29 @@
     margin-bottom: 12px;
   }
   .desk-weekly-popover-title strong { color: #fff; font-size: 16px; }
+  .desk-weekly-range-toggle {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: auto;
+    padding: 2px;
+    border-radius: 7px;
+    background: rgba(255,255,255,.07);
+  }
+  .desk-weekly-range-btn {
+    padding: 3px 8px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text3);
+    font: inherit;
+    font-size: 10px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .desk-weekly-range-btn.active {
+    background: rgba(255,255,255,.16);
+    color: #fff;
+  }
   .desk-weekly-period { color: var(--text3); font-size: 11px; }
   .desk-weekly-section {
     padding: 12px 0;
@@ -5270,7 +5293,11 @@
           </button>
           <div class="desk-weekly-popover" id="deskWeeklyPopover" role="dialog" aria-label="최근 14일간 현황 상세">
             <div class="desk-weekly-popover-title">
-              <strong>최근 14일간 현황</strong>
+              <strong id="deskWeeklyPopoverHeading">최근 14일간 현황</strong>
+              <div class="desk-weekly-range-toggle" aria-label="현황 기간 선택">
+                <button class="desk-weekly-range-btn" type="button" data-days="7">7일</button>
+                <button class="desk-weekly-range-btn active" type="button" data-days="14">14일</button>
+              </div>
               <span class="desk-weekly-period" id="deskWeeklyCurrentPeriod">불러오는 중</span>
             </div>
             <div id="deskWeeklyPopoverBody">
@@ -18757,6 +18784,12 @@
     return `${formatDeskWeeklyDate(start)}~${formatDeskWeeklyDate(end)}`;
   }
 
+  const DESK_WEEKLY_RANGE_STORAGE_KEY = 'inhouse:deskWeeklyRangeDays';
+  let deskWeeklyRangeDays = (() => {
+    try { return localStorage.getItem(DESK_WEEKLY_RANGE_STORAGE_KEY) === '7' ? 7 : 14; }
+    catch { return 14; }
+  })();
+
   function deskWeeklyDifference(value, unit = '명') {
     const safe = Number(value || 0);
     const rounded = Math.abs(safe) < 0.05 ? 0 : Math.round(safe * 10) / 10;
@@ -18782,7 +18815,7 @@
     const direction = !hasComparison || Math.abs(value) < 0.05 ? 'flat' : value > 0 ? 'up' : 'down';
     el.className = `desk-weekly-trend ${direction}`;
     el.textContent = direction === 'up' ? '↗' : direction === 'down' ? '↘' : '→';
-    el.title = hasComparison ? `직전 2개 14일 구간 가중평균 대비 ${deskWeeklyDifference(value, '%')}` : '비교 표본 없음';
+    el.title = hasComparison ? `직전 28일 구간 가중평균 대비 ${deskWeeklyDifference(value, '%')}` : '비교 표본 없음';
     const metric = el.closest('.desk-weekly-rate');
     metric?.classList.remove('trend-up', 'trend-down', 'trend-flat');
     metric?.classList.add(`trend-${direction}`);
@@ -18797,9 +18830,19 @@
   function renderDeskWeeklyWidget(data) {
     const current = data?.current || {};
     const comparison = data?.comparison || {};
+    const rangeDays = Number(data?.rangeDays) === 7 ? 7 : 14;
     const widget = document.getElementById('deskWeeklyWidget');
     const body = document.getElementById('deskWeeklyPopoverBody');
     if (!widget || !body) return;
+
+    deskWeeklyRangeDays = rangeDays;
+    document.getElementById('deskWeeklyPopoverHeading').textContent = `최근 ${rangeDays}일간 현황`;
+    widget.title = `어제까지 최근 ${rangeDays}일 재진·삼진율`;
+    widget.querySelector('.desk-weekly-rate.return')?.setAttribute('title', `직전 28일 구간 대비 최근 ${rangeDays}일 재진율 변화`);
+    widget.querySelector('.desk-weekly-rate.third')?.setAttribute('title', `직전 28일 구간 대비 최근 ${rangeDays}일 삼진율 변화`);
+    document.querySelectorAll('.desk-weekly-range-btn').forEach(button => {
+      button.classList.toggle('active', Number(button.dataset.days) === rangeDays);
+    });
 
     const hasCurrentCohort = Number(current.newPatients || 0) > 0;
     const hasComparisonCohort = Number(comparison.newPatients || 0) > 0;
@@ -18826,7 +18869,7 @@
 
     body.innerHTML = `
       <section class="desk-weekly-section">
-        <div class="desk-weekly-section-title"><span class="desk-weekly-period" style="margin-left:auto">진료일 ${Number(current.clinicDays || 0)}일 · 직전 28일 구간 일평균 대비</span></div>
+        <div class="desk-weekly-section-title"><span class="desk-weekly-period" style="margin-left:auto">직전 28일 일평균 대비</span></div>
         <div class="desk-weekly-rows">
           <div class="desk-weekly-row"><span>진료 일평균</span><strong>${Number(current.averagePatientsPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentPatientDiff)}">${Number(comparison.averagePatientsPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(patientChangePercent)}</span></div>
           <div class="desk-weekly-row"><span>초진 일평균</span><strong>${Number(current.averageNewPatientsPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentNewDiff)}">${Number(comparison.averageNewPatientsPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(newPatientChangePercent)}</span></div>
@@ -18841,7 +18884,7 @@
     const serverMode = location.protocol === 'http:' || location.protocol === 'https:';
     if (!serverMode || !document.getElementById('deskWeeklyWidget')) return;
     try {
-      const response = await fetch('/api/dashboard/weekly', { cache: 'no-store' });
+      const response = await fetch(`/api/dashboard/weekly?days=${deskWeeklyRangeDays}`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       renderDeskWeeklyWidget(await response.json());
     } catch (error) {
@@ -18850,6 +18893,18 @@
       const body = document.getElementById('deskWeeklyPopoverBody');
       if (body) body.innerHTML = '<div class="desk-weekly-error">주간 통계를 불러오지 못했습니다.<br>잠시 후 다시 시도합니다.</div>';
     }
+  }
+
+  function selectDeskWeeklyRange(days) {
+    const nextDays = Number(days) === 7 ? 7 : 14;
+    if (nextDays === deskWeeklyRangeDays && !document.getElementById('deskWeeklyWidget')?.classList.contains('loading')) return;
+    deskWeeklyRangeDays = nextDays;
+    try { localStorage.setItem(DESK_WEEKLY_RANGE_STORAGE_KEY, String(nextDays)); } catch {}
+    document.querySelectorAll('.desk-weekly-range-btn').forEach(button => {
+      button.classList.toggle('active', Number(button.dataset.days) === nextDays);
+    });
+    document.getElementById('deskWeeklyWidget')?.classList.add('loading');
+    refreshDeskWeeklyWidget();
   }
 
   function closeDeskWeeklyPopover() {
@@ -18871,6 +18926,10 @@
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('deskWeeklyWidget')?.addEventListener('click', toggleDeskWeeklyPopover);
     document.getElementById('deskWeeklyPopover')?.addEventListener('click', event => event.stopPropagation());
+    document.querySelectorAll('.desk-weekly-range-btn').forEach(button => {
+      button.addEventListener('click', () => selectDeskWeeklyRange(button.dataset.days));
+      button.classList.toggle('active', Number(button.dataset.days) === deskWeeklyRangeDays);
+    });
     refreshDeskWeeklyWidget();
     document.addEventListener('click', event => {
       if (!event.target.closest?.('#deskWeeklyWidgetWrap')) closeDeskWeeklyPopover();

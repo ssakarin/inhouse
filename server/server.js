@@ -958,11 +958,12 @@ function hasFullFollowupWindow(firstDate, referenceDate, days = 21) {
 
 const DESK_WEEKLY_WIDGET_CACHE_MS = 5 * 60 * 1000;
 
-function computeDeskWeeklyWidget() {
+function computeDeskWeeklyWidget(rangeDays = 14) {
   ensurePatientCache();
+  const safeRangeDays = Number(rangeDays) === 7 ? 7 : 14;
   const today = getLocalDateKey();
   const currentEnd = addDays(today, -1);
-  const currentStart = addDays(currentEnd, -13);
+  const currentStart = addDays(currentEnd, -(safeRangeDays - 1));
   const currentPatientIds = new Set();
   const currentClinicDates = new Set();
   let currentVisits = 0;
@@ -971,9 +972,10 @@ function computeDeskWeeklyWidget() {
   let currentReturningPatients = 0;
   let currentThirdVisitPatients = 0;
 
-  const comparisonWeeks = Array.from({ length: 2 }, (_, index) => {
-    const end = addDays(currentStart, -(index * 14 + 1));
-    return { start: addDays(end, -13), end, patientIds: new Set(), clinicDates: new Set(), visits: 0, chunaVisits: 0, newPatients: 0, returningPatients: 0, thirdVisitPatients: 0 };
+  const comparisonPeriodCount = 28 / safeRangeDays;
+  const comparisonWeeks = Array.from({ length: comparisonPeriodCount }, (_, index) => {
+    const end = addDays(currentStart, -(index * safeRangeDays + 1));
+    return { start: addDays(end, -(safeRangeDays - 1)), end, patientIds: new Set(), clinicDates: new Set(), visits: 0, chunaVisits: 0, newPatients: 0, returningPatients: 0, thirdVisitPatients: 0 };
   });
 
   for (const record of patientCache.values()) {
@@ -1050,6 +1052,7 @@ function computeDeskWeeklyWidget() {
 
   return {
     generatedAt: new Date().toISOString(),
+    rangeDays: safeRangeDays,
     current: {
       start: currentStart,
       end: currentEnd,
@@ -1074,15 +1077,17 @@ function computeDeskWeeklyWidget() {
   };
 }
 
-function getDeskWeeklyWidget() {
+function getDeskWeeklyWidget(rangeDays = 14) {
   const now = Date.now();
+  const safeRangeDays = Number(rangeDays) === 7 ? 7 : 14;
   if (deskWeeklyWidgetCache
       && deskWeeklyWidgetCache.revision === patientDataRevision
+      && deskWeeklyWidgetCache.rangeDays === safeRangeDays
       && now - deskWeeklyWidgetCache.createdAt < DESK_WEEKLY_WIDGET_CACHE_MS) {
     return deskWeeklyWidgetCache.value;
   }
-  const value = computeDeskWeeklyWidget();
-  deskWeeklyWidgetCache = { revision: patientDataRevision, createdAt: now, value };
+  const value = computeDeskWeeklyWidget(safeRangeDays);
+  deskWeeklyWidgetCache = { revision: patientDataRevision, rangeDays: safeRangeDays, createdAt: now, value };
   return value;
 }
 
@@ -3610,7 +3615,8 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname === "/api/dashboard/weekly" && req.method === "GET") {
-    jsonResponse(res, 200, getDeskWeeklyWidget());
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, getDeskWeeklyWidget(requestUrl.searchParams.get("days")));
     return true;
   }
 
