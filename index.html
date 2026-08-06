@@ -226,6 +226,17 @@
     height: 19px;
     background: rgba(255,255,255,0.17);
   }
+  .desk-weekly-range-label {
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(255,255,255,.10);
+    color: var(--text2);
+    font-size: 10px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .desk-weekly-range-label:hover { background: rgba(255,255,255,.20); color: #fff; }
   .desk-weekly-rate.return,
   .desk-weekly-rate.third { color: #fff; }
   .desk-weekly-rate.trend-up { color: #fb7185; }
@@ -5284,6 +5295,8 @@
           onchange="importChartFileFromDesk(this.files?.[0]); this.value='';">
         <div class="desk-weekly-widget-wrap" id="deskWeeklyWidgetWrap">
           <button class="desk-weekly-widget loading" id="deskWeeklyWidget" type="button" aria-expanded="false" aria-controls="deskWeeklyPopover" title="어제까지 최근 14일 재진·삼진율">
+            <span class="desk-weekly-range-label" id="deskWeeklyRangeLabel" title="클릭하여 7일/14일 전환">14일</span>
+            <span class="desk-weekly-divider" aria-hidden="true"></span>
             <span class="desk-weekly-metric" title="최근 14일 실제 진료일 기준 일평균">진료 <span class="desk-weekly-value" id="deskWeeklyAveragePatients">-</span></span>
             <span class="desk-weekly-divider" aria-hidden="true"></span>
             <span class="desk-weekly-rate return" title="직전 2개 14일 구간 대비 재진율 변화">재진 <span class="desk-weekly-trend flat" id="deskWeeklyReturnTrend">→</span><span id="deskWeeklyReturnChange">-</span></span>
@@ -18837,7 +18850,9 @@
 
     deskWeeklyRangeDays = rangeDays;
     document.getElementById('deskWeeklyPopoverHeading').textContent = `최근 ${rangeDays}일간 현황`;
+    document.getElementById('deskWeeklyRangeLabel').textContent = `${rangeDays}일`;
     widget.title = `어제까지 최근 ${rangeDays}일 재진·삼진율`;
+    widget.querySelector('.desk-weekly-metric')?.setAttribute('title', `최근 ${rangeDays}일 실제 진료일 기준 일평균`);
     widget.querySelector('.desk-weekly-rate.return')?.setAttribute('title', `직전 28일 구간 대비 최근 ${rangeDays}일 재진율 변화`);
     widget.querySelector('.desk-weekly-rate.third')?.setAttribute('title', `직전 28일 구간 대비 최근 ${rangeDays}일 삼진율 변화`);
     document.querySelectorAll('.desk-weekly-range-btn').forEach(button => {
@@ -18925,6 +18940,10 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('deskWeeklyWidget')?.addEventListener('click', toggleDeskWeeklyPopover);
+    document.getElementById('deskWeeklyRangeLabel')?.addEventListener('click', event => {
+      event.stopPropagation();
+      selectDeskWeeklyRange(deskWeeklyRangeDays === 7 ? 14 : 7);
+    });
     document.getElementById('deskWeeklyPopover')?.addEventListener('click', event => event.stopPropagation());
     document.querySelectorAll('.desk-weekly-range-btn').forEach(button => {
       button.addEventListener('click', () => selectDeskWeeklyRange(button.dataset.days));
