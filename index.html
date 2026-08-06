@@ -5263,9 +5263,9 @@
           <button class="desk-weekly-widget loading" id="deskWeeklyWidget" type="button" aria-expanded="false" aria-controls="deskWeeklyPopover" title="어제까지 최근 14일 재진·삼진율">
             <span class="desk-weekly-metric" title="최근 14일 실제 진료일 기준 일평균">진료 <span class="desk-weekly-value" id="deskWeeklyAveragePatients">-</span></span>
             <span class="desk-weekly-divider" aria-hidden="true"></span>
-            <span class="desk-weekly-rate return" title="직전 4개 14일 구간 대비 재진율 변화">재진 <span class="desk-weekly-trend flat" id="deskWeeklyReturnTrend">→</span><span id="deskWeeklyReturnChange">-</span></span>
+            <span class="desk-weekly-rate return" title="직전 2개 14일 구간 대비 재진율 변화">재진 <span class="desk-weekly-trend flat" id="deskWeeklyReturnTrend">→</span><span id="deskWeeklyReturnChange">-</span></span>
             <span class="desk-weekly-divider" aria-hidden="true"></span>
-            <span class="desk-weekly-rate third" title="직전 4개 14일 구간 대비 삼진율 변화">삼진 <span class="desk-weekly-trend flat" id="deskWeeklyThirdTrend">→</span><span id="deskWeeklyThirdChange">-</span></span>
+            <span class="desk-weekly-rate third" title="직전 2개 14일 구간 대비 삼진율 변화">삼진 <span class="desk-weekly-trend flat" id="deskWeeklyThirdTrend">→</span><span id="deskWeeklyThirdChange">-</span></span>
             <svg class="desk-weekly-chevron" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
           </button>
           <div class="desk-weekly-popover" id="deskWeeklyPopover" role="dialog" aria-label="최근 14일간 현황 상세">
@@ -18782,7 +18782,7 @@
     const direction = !hasComparison || Math.abs(value) < 0.05 ? 'flat' : value > 0 ? 'up' : 'down';
     el.className = `desk-weekly-trend ${direction}`;
     el.textContent = direction === 'up' ? '↗' : direction === 'down' ? '↘' : '→';
-    el.title = hasComparison ? `직전 4개 14일 구간 가중평균 대비 ${deskWeeklyDifference(value, '%')}` : '비교 표본 없음';
+    el.title = hasComparison ? `직전 2개 14일 구간 가중평균 대비 ${deskWeeklyDifference(value, '%')}` : '비교 표본 없음';
     const metric = el.closest('.desk-weekly-rate');
     metric?.classList.remove('trend-up', 'trend-down', 'trend-flat');
     metric?.classList.add(`trend-${direction}`);
@@ -18826,7 +18826,7 @@
 
     body.innerHTML = `
       <section class="desk-weekly-section">
-        <div class="desk-weekly-section-title"><span class="desk-weekly-period" style="margin-left:auto">진료일 ${Number(current.clinicDays || 0)}일 · 직전 4개 14일 구간 일평균 대비</span></div>
+        <div class="desk-weekly-section-title"><span class="desk-weekly-period" style="margin-left:auto">진료일 ${Number(current.clinicDays || 0)}일 · 직전 2개 14일 구간 일평균 대비</span></div>
         <div class="desk-weekly-rows">
           <div class="desk-weekly-row"><span>진료 일평균</span><strong>${Number(current.averagePatientsPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentPatientDiff)}">${Number(comparison.averagePatientsPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(patientChangePercent)}</span></div>
           <div class="desk-weekly-row"><span>초진 일평균</span><strong>${Number(current.averageNewPatientsPerDay || 0).toFixed(1)}명</strong><span class="comparison ${deskWeeklyComparisonClass(currentNewDiff)}">${Number(comparison.averageNewPatientsPerDay || 0).toFixed(1)}명 · ${formatDeskWeeklyChange(newPatientChangePercent)}</span></div>

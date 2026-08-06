@@ -971,7 +971,7 @@ function computeDeskWeeklyWidget() {
   let currentReturningPatients = 0;
   let currentThirdVisitPatients = 0;
 
-  const comparisonWeeks = Array.from({ length: 4 }, (_, index) => {
+  const comparisonWeeks = Array.from({ length: 2 }, (_, index) => {
     const end = addDays(currentStart, -(index * 14 + 1));
     return { start: addDays(end, -13), end, patientIds: new Set(), clinicDates: new Set(), visits: 0, chunaVisits: 0, newPatients: 0, returningPatients: 0, thirdVisitPatients: 0 };
   });
