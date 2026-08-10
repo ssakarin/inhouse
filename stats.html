@@ -67,6 +67,7 @@
   .card-title { color: var(--gold); font-weight: 900; font-size: 14px; margin-bottom: 12px; }
   .card-title-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
   .card-title-row .card-title { margin-bottom: 0; }
+  .trend-title-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .preset-btn.active { border-color: rgba(255,202,106,0.75); background: rgba(255,202,106,0.15); color: var(--gold); }
   .date-input { display: flex; align-items: center; gap: 6px; }
@@ -90,6 +91,7 @@
     padding: 14px;
   }
   .metric-label { color: var(--muted); font-size: 12px; font-weight: 900; }
+  .metric-label-note { display: inline-block; margin-left: 4px; padding: 2px 5px; border: 1px solid var(--line); border-radius: 999px; color: var(--gold); font-size: 10px; vertical-align: 1px; }
   .metric-value { color: var(--green); font-size: 28px; font-weight: 900; margin-top: 6px; }
   .metric-value.gold { color: var(--gold); }
   .metric-value.accent { color: var(--accent); }
@@ -393,16 +395,17 @@
 
   <div class="card">
     <div class="card-title-row">
-      <div class="card-title">기간 추이</div>
-      <label class="field-label">그래프 단위
-        <select id="chartUnit">
-          <option value="day">일</option>
-          <option value="week">주</option>
-          <option value="month">월</option>
-          <option value="quarter">분기</option>
-          <option value="year">년</option>
-        </select>
-      </label>
+      <div class="trend-title-controls"><div class="card-title">기간 추이</div>
+        <label class="field-label">그래프 단위
+          <select id="chartUnit">
+            <option value="day">일</option>
+            <option value="week">주</option>
+            <option value="month">월</option>
+            <option value="quarter">분기</option>
+            <option value="year">년</option>
+          </select>
+        </label>
+      </div>
     </div>
     <div class="chart-toggle-row" id="chartMetricToggles"></div>
     <div id="weeklyChartWrap"></div>
@@ -496,8 +499,12 @@
   }
 
   function renderChartMetricToggles() {
-    renderMetricToggles("chartMetricToggles", "chart-metric-chip", ["returnRate", "thirdVisitRate"]);
-    renderMetricToggles("periodComparisonMetricToggles", "comparison-chart-metric-chip", ["avgVisitsPerDay", "avgNewPatientsPerDay", "returnRate", "thirdVisitRate"]);
+    const chipMetrics = [
+      ...CHART_METRICS.filter(metric => metric.key === "returnRate" || metric.key === "thirdVisitRate"),
+      ...CHART_METRICS.filter(metric => metric.key !== "returnRate" && metric.key !== "thirdVisitRate")
+    ];
+    renderMetricToggles("chartMetricToggles", "chart-metric-chip", ["avgNewPatientsPerDay", "returnRate", "thirdVisitRate"], chipMetrics);
+    renderMetricToggles("periodComparisonMetricToggles", "comparison-chart-metric-chip", ["returnRate", "thirdVisitRate", "avgVisitsPerDay", "avgNewPatientsPerDay", "avgChunaPerDay", "avgPharmaPatientsPerDay"], chipMetrics);
   }
 
   // ── IndexedDB 읽기 ──────────────────────────────────────────────
@@ -837,8 +844,9 @@
     return { current, previous, yearAgo: includeYearAgo ? yearAgo : null, currentStats, previousStats, yearAgoStats, detailUnit };
   }
 
-  function visitsWithinDays(dates, startDate, days) {
-    const endDate = addDays(startDate, days - 1);
+  function visitsWithinDays(dates, startDate, days, referenceDate = "") {
+    const followupEnd = addDays(startDate, days - 1);
+    const endDate = referenceDate && referenceDate < followupEnd ? referenceDate : followupEnd;
     return dates.filter(d => d >= startDate && d <= endDate).length;
   }
 
@@ -928,6 +936,9 @@
     let followupEligibleNewPatients = 0;
     let returningPatients = 0;
     let thirdVisitPatients = 0;
+    let matureFollowupEligibleNewPatients = 0;
+    let matureReturningPatients = 0;
+    let matureThirdVisitPatients = 0;
     const treatmentCounts = {};
     let pharmaTotal = 0;       // 약침 합계 (약침1~4·L·자)
     let chunaTotal = 0;
@@ -1074,19 +1085,23 @@
         newPatientSet.add(pid);
         const key = periodKey(firstDate, chartUnit);
         if (trendBuckets[key]) trendBuckets[key].newPatients += 1;
-        const isFollowupEligible = hasFullFollowupWindow(firstDate, today(), 21);
         const nonPrescriptionDates = nonPrescriptionVisitDatesOf(rec);
-        const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21);
+        // 기간 종료 뒤의 재진은 과거 기간 수치에 소급 반영하지 않는다.
+        const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21, end);
         const isReturning = followupVisitCount >= 2;
         const isThirdVisit = followupVisitCount >= 3;
         if (trendBuckets[key]) {
           if (isReturning) trendBuckets[key].returningPatients += 1;
           if (isThirdVisit) trendBuckets[key].thirdVisitPatients += 1;
         }
-        if (!isFollowupEligible) continue;
         followupEligibleNewPatients += 1;
         if (isReturning) returningPatients += 1;
         if (isThirdVisit) thirdVisitPatients += 1;
+        if (hasFullFollowupWindow(firstDate, today(), 21)) {
+          matureFollowupEligibleNewPatients += 1;
+          if (isReturning) matureReturningPatients += 1;
+          if (isThirdVisit) matureThirdVisitPatients += 1;
+        }
         if (trendBuckets[key]) trendBuckets[key].followupEligibleNewPatients += 1;
       }
     }
@@ -1153,6 +1168,8 @@
       revisitPatients: Math.max(0, patientSet.size - newPatientSet.size),
       returnRate: followupEligibleNewPatients ? returningPatients / followupEligibleNewPatients : 0,
       thirdVisitRate: followupEligibleNewPatients ? thirdVisitPatients / followupEligibleNewPatients : 0,
+      matureReturnRate: matureFollowupEligibleNewPatients ? matureReturningPatients / matureFollowupEligibleNewPatients : 0,
+      matureThirdVisitRate: matureFollowupEligibleNewPatients ? matureThirdVisitPatients / matureFollowupEligibleNewPatients : 0,
       avgVisitsPerPatient: patientSet.size ? coreVisits / patientSet.size : 0,
       pharmaTotal,
       chunaTotal,
@@ -1259,8 +1276,10 @@
       <div class="metric"><div class="metric-label">약침 건수</div><div class="metric-value metric-total-average gold">${totalAverage(s.pharmaTotal)}</div><div class="metric-sub">약침1~4·L·자 시행 수 · 진료 1회당 1건</div>${averageComparison(s.pharmaTotal, previous.pharmaTotal)}</div>
       <div class="metric"><div class="metric-label">추나 건수</div><div class="metric-value metric-total-average accent">${totalAverage(s.chunaTotal)}</div><div class="metric-sub">단순·복잡추나 시행 수 · 진료 1회당 1건</div>${averageComparison(s.chunaTotal, previous.chunaTotal)}</div>
       <div class="metric"><div class="metric-label">약침패키지 결제 환자수</div><div class="metric-value metric-total-average">${totalAverage(s.pharmaPackagePurchasePatients)}</div><div class="metric-sub">선택 기간 중 약침 패키지를 결제한 실인원</div>${averageComparison(s.pharmaPackagePurchasePatients, previous.pharmaPackagePurchasePatients)}</div>
-      <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(Number(s.returnRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">조회일 기준 최근 21일 초진 제외 · 이전 대비 %p</div>${summaryComparison(s.returnRate, previous.returnRate, { rate: true, digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(Number(s.thirdVisitRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">조회일 기준 최근 21일 초진 제외 · 이전 대비 %p</div>${summaryComparison(s.thirdVisitRate, previous.thirdVisitRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(Number(s.returnRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">현재 날짜 기준 최근 21일 초진 포함</div>${summaryComparison(s.returnRate, previous.returnRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(Number(s.thirdVisitRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">현재 날짜 기준 최근 21일 초진 포함</div>${summaryComparison(s.thirdVisitRate, previous.thirdVisitRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">재진율 <span class="metric-label-note">(최근 21일 제외)</span></div><div class="metric-value accent">${(Number(s.matureReturnRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">현재 날짜 기준 최근 21일 초진 제외</div>${summaryComparison(s.matureReturnRate, previous.matureReturnRate, { rate: true, digits: 1 })}</div>
+      <div class="metric"><div class="metric-label">삼진율 <span class="metric-label-note">(최근 21일 제외)</span></div><div class="metric-value">${(Number(s.matureThirdVisitRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">현재 날짜 기준 최근 21일 초진 제외</div>${summaryComparison(s.matureThirdVisitRate, previous.matureThirdVisitRate, { rate: true, digits: 1 })}</div>
     `;
     renderSummaryBreakdowns(s);
   }
@@ -1685,9 +1704,7 @@
   }
 
   function periodComparisonRangeLabel(range, metric) {
-    if (!isFollowupRateMetric(metric)) return `${range.start} ~ ${range.end}`;
-    const eligibleEnd = [range.end, addDays(today(), -21)].sort()[0];
-    return eligibleEnd < range.start ? "집계 대상 없음" : `${range.start} ~ ${eligibleEnd}`;
+    return `${range.start} ~ ${range.end}`;
   }
 
   function formatPeriodAverage(value, metric) {
@@ -1710,8 +1727,9 @@
       return;
     }
 
-    const visibleMetricKeys = new Set(getVisibleChartMetricKeys("periodComparisonMetricToggles", ".comparison-chart-metric-chip"));
-    const visibleMetrics = CHART_METRICS.filter(metric => visibleMetricKeys.has(metric.key));
+    const visibleMetricKeys = getVisibleChartMetricKeys("periodComparisonMetricToggles", ".comparison-chart-metric-chip");
+    const metricByKey = new Map(CHART_METRICS.map(metric => [metric.key, metric]));
+    const visibleMetrics = visibleMetricKeys.map(key => metricByKey.get(key)).filter(Boolean);
     if (!visibleMetrics.length) {
       wrap.innerHTML = `<div class="empty">표시할 그래프 항목을 선택하세요.</div>`;
       return;
@@ -1725,7 +1743,7 @@
         const currentValue = periodAverageValue(comparison.currentStats, metric);
         const maxValue = Math.max(previousValue, yearAgoValue, currentValue, 0.000001);
         const change = periodAverageChange(currentValue, previousValue, metric);
-        const metricLabel = `${metric.label}${isFollowupRateMetric(metric) ? " (최근 21일간은 제외)" : ""}`;
+        const metricLabel = `${metric.label}${isFollowupRateMetric(metric) ? " (최근 21일 초진 포함 · 기간 종료일까지 관찰)" : ""}`;
         const previousRangeLabel = periodComparisonRangeLabel(comparison.previous, metric);
         const yearAgoRangeLabel = hasYearAgo ? periodComparisonRangeLabel(comparison.yearAgo, metric) : "";
         const currentRangeLabel = periodComparisonRangeLabel(comparison.current, metric);
@@ -1987,8 +2005,8 @@
       const yearAgoStart = addMonths(start, -12);
       const yearAgoEnd = addMonths(end, -12);
       const statsLoader = SERVER_MODE
-        ? (from, to) => loadServerStats(from, to, docFilter, chartUnit)
-        : (from, to) => Promise.resolve(computeStats(from, to, docFilter, chartUnit));
+        ? (from, to, unit = chartUnit) => loadServerStats(from, to, docFilter, unit)
+        : (from, to, unit = chartUnit) => Promise.resolve(computeStats(from, to, docFilter, unit));
       const [s, previousStats, yearAgoStats] = await Promise.all([
         statsLoader(start, end),
         statsLoader(previousStart, previousEnd),

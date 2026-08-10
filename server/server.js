@@ -947,8 +947,9 @@ function nonPrescriptionVisitDatesOf(record = {}) {
   return visitDatesOf(record).filter(date => !isPrescriptionVisit(record, date));
 }
 
-function visitsWithinDays(dates, startDate, days) {
-  const endDate = addDays(startDate, days - 1);
+function visitsWithinDays(dates, startDate, days, referenceDate = "") {
+  const followupEnd = addDays(startDate, days - 1);
+  const endDate = referenceDate && referenceDate < followupEnd ? referenceDate : followupEnd;
   return dates.filter(date => date >= startDate && date <= endDate).length;
 }
 
@@ -1291,6 +1292,9 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   let followupEligibleNewPatients = 0;
   let returningPatients = 0;
   let thirdVisitPatients = 0;
+  let matureFollowupEligibleNewPatients = 0;
+  let matureReturningPatients = 0;
+  let matureThirdVisitPatients = 0;
   const treatmentCounts = {};
   let pharmaTotal = 0;
   let chunaTotal = 0;
@@ -1438,19 +1442,23 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       newPatientSet.add(pid);
       const key = periodKey(firstDate, chartUnit);
       if (trendBuckets[key]) trendBuckets[key].newPatients += 1;
-      const isFollowupEligible = hasFullFollowupWindow(firstDate, getLocalDateKey(), 21);
       const nonPrescriptionDates = nonPrescriptionVisitDatesOf(record);
-      const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21);
+      // Freeze historical rates at this requested period's end date.
+      const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21, end);
       const isReturning = followupVisitCount >= 2;
       const isThirdVisit = followupVisitCount >= 3;
       if (trendBuckets[key]) {
         if (isReturning) trendBuckets[key].returningPatients += 1;
         if (isThirdVisit) trendBuckets[key].thirdVisitPatients += 1;
       }
-      if (!isFollowupEligible) continue;
       followupEligibleNewPatients += 1;
       if (isReturning) returningPatients += 1;
       if (isThirdVisit) thirdVisitPatients += 1;
+      if (hasFullFollowupWindow(firstDate, getLocalDateKey(), 21)) {
+        matureFollowupEligibleNewPatients += 1;
+        if (isReturning) matureReturningPatients += 1;
+        if (isThirdVisit) matureThirdVisitPatients += 1;
+      }
       if (trendBuckets[key]) trendBuckets[key].followupEligibleNewPatients += 1;
     }
   }
@@ -1518,6 +1526,8 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     revisitPatients: Math.max(0, patientSet.size - newPatientSet.size),
     returnRate: followupEligibleNewPatients ? returningPatients / followupEligibleNewPatients : 0,
     thirdVisitRate: followupEligibleNewPatients ? thirdVisitPatients / followupEligibleNewPatients : 0,
+    matureReturnRate: matureFollowupEligibleNewPatients ? matureReturningPatients / matureFollowupEligibleNewPatients : 0,
+    matureThirdVisitRate: matureFollowupEligibleNewPatients ? matureThirdVisitPatients / matureFollowupEligibleNewPatients : 0,
     avgVisitsPerPatient: patientSet.size ? coreVisits / patientSet.size : 0,
     pharmaTotal,
     chunaTotal,
