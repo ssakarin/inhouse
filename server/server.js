@@ -380,6 +380,17 @@ function assertValidChartNo(chartNo) {
   throw error;
 }
 
+function assertValidChartNoRecord(record) {
+  if (!record || typeof record !== "object" || !Object.prototype.hasOwnProperty.call(record, "chartNo")) return;
+  const chartNo = normalizeChartNo(record.chartNo);
+  if (chartNo) assertValidChartNo(chartNo);
+}
+
+function assertValidChartNoCollection(records) {
+  if (!records || typeof records !== "object") return;
+  for (const record of Object.values(records)) assertValidChartNoRecord(record);
+}
+
 function normalizeSearchText(value) {
   return String(value || "").trim();
 }
@@ -3443,6 +3454,7 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/beds/update" && req.method === "POST") {
     const { bedNo, patch } = (await readJson(req)) || {};
+    assertValidChartNoRecord(patch);
     const previousBeds = cloneJson(getBedsState());
     const beds = cloneJson(previousBeds) || {};
     const key = String(bedNo);
@@ -3460,6 +3472,7 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/beds/update-child" && req.method === "POST") {
     const { bedNo, childKey, patch } = (await readJson(req)) || {};
+    assertValidChartNoRecord(patch);
     const previousBeds = cloneJson(getBedsState());
     const beds = cloneJson(previousBeds) || {};
     const key = String(bedNo);
@@ -3495,6 +3508,7 @@ async function handleApi(req, res, pathname) {
   // client can re-run its mutator and retry (= runTransaction).
   if (pathname === "/api/beds/cas" && req.method === "POST") {
     const { expectedVersion, beds } = (await readJson(req)) || {};
+    assertValidChartNoCollection(beds);
     const current = getBedsVersion();
     if (typeof expectedVersion === "number" && expectedVersion !== current) {
       jsonResponse(res, 409, { ok: false, conflict: true, version: current, beds: getBedsState() });
@@ -3526,6 +3540,7 @@ async function handleApi(req, res, pathname) {
     let previousChild = childKey ? map[childKey] : null;
     if (op === "merge") {
       const patch = { ...(body.patch || {}) };
+      if (key === "patients" || key.startsWith("dischargedPatients/")) assertValidChartNoRecord(patch);
       if (key === "patients" && (patch.credit === null || patch.credit === undefined)) delete patch.credit;
       const previous = map[childKey] || {};
       const next = { ...previous, ...patch };
@@ -3535,6 +3550,7 @@ async function handleApi(req, res, pathname) {
       }
       map[childKey] = next;
     } else if (op === "push") {
+      if (key === "patients" || key.startsWith("dischargedPatients/")) assertValidChartNoRecord(body.value);
       childKey = `loc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       previousChild = null;
       map[childKey] = body.value ?? null;
@@ -3894,6 +3910,10 @@ async function handleApi(req, res, pathname) {
     if (req.method === "PUT") {
       const payload = await readJson(req);
       const value = Object.prototype.hasOwnProperty.call(payload || {}, "value") ? payload.value : payload;
+      const stateKey = normalizeStateKey(key);
+      if (stateKey === "patients" || stateKey === "beds" || stateKey.startsWith("dischargedPatients/")) {
+        assertValidChartNoCollection(value);
+      }
       const saved = setStateValue(key, value);
       sseBroadcastState(normalizeStateKey(key), saved);
       jsonResponse(res, 200, { key: normalizeStateKey(key), value: saved });
@@ -3902,6 +3922,10 @@ async function handleApi(req, res, pathname) {
     if (req.method === "PATCH") {
       const payload = await readJson(req);
       const patch = Object.prototype.hasOwnProperty.call(payload || {}, "value") ? payload.value : payload;
+      const stateKey = normalizeStateKey(key);
+      if (stateKey === "patients" || stateKey === "beds" || stateKey.startsWith("dischargedPatients/")) {
+        assertValidChartNoCollection(patch);
+      }
       const value = patchObject(getStateValue(key), patch);
       const saved = setStateValue(key, value);
       sseBroadcastState(normalizeStateKey(key), saved);

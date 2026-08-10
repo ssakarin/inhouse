@@ -9619,6 +9619,11 @@
     if (!patient?.patientId) return false;
     const currentChartNo = normalizeChartNo(patient.chartNo || '');
     const normalizedNextChartNo = normalizeChartNo(nextChartNo || '');
+    // Allow repairing legacy board data such as "6958\\" to "6958" without
+    // permitting a real chart-number change for an identified patient.
+    if (!/^\d+$/.test(currentChartNo)
+      && /^\d+$/.test(normalizedNextChartNo)
+      && currentChartNo.replace(/\D/g, '') === normalizedNextChartNo) return false;
     return Boolean(currentChartNo && normalizedNextChartNo && currentChartNo !== normalizedNextChartNo);
   }
 
@@ -9661,6 +9666,11 @@
     const spineSettings = getSpineSettingsForGrid(ids.treatmentGrid);
 
     if (!name) { showToast('❗ 성함을 입력해주세요'); return; }
+    if (chartNo && !isValidChartNo(chartNo)) {
+      showToast('차트번호는 숫자만 입력해주세요');
+      document.getElementById(ids.chartNo)?.focus();
+      return;
+    }
     if (scope !== 'desk' && treatments.length === 0) { showToast('❗ 진료 종류를 선택해주세요'); return; }
 
     // 차트번호 조회로 기존 환자가 자동 선택돼도, 입력한 이름이 다르면
@@ -9704,7 +9714,7 @@
 
     try {
       const now = new Date();
-      await pushPatient({
+      const realtimePatient = {
         name,
         treatments,
         timestamp: now.getTime(),
@@ -9732,10 +9742,10 @@
         memo2History: memo2Patch.memo2History,
         spineSettings,
         ...packagePayload
-      });
+      };
 
       if (chartNo) {
-        await window.saveChartPatient?.({
+        const chartSaved = await window.saveChartPatient?.({
           patientId,
           chartNo,
           name,
@@ -9749,7 +9759,13 @@
           targetTreatmentCount,
           visitCountAdjustment
         });
+        if (chartSaved === false) {
+          showToast('차트 저장에 실패하여 환자를 등록하지 않았습니다');
+          return;
+        }
       }
+
+      await pushPatient(realtimePatient);
 
       // 초기화
       document.getElementById(ids.name).value = '';
@@ -11271,6 +11287,11 @@
     const text = String(value ?? '').trim();
     if (!/^\d+$/.test(text)) return text;
     return text.replace(/^0+(?=\d)/, '');
+  }
+
+  function isValidChartNo(value) {
+    const text = String(value ?? '').trim();
+    return !text || /^\d+$/.test(text);
   }
 
   function filterChartNoInput(event) {
