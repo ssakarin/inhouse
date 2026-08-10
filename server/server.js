@@ -2077,6 +2077,9 @@ function assertExistingPatientChartNo(patientId, chartNo) {
   const existing = getPatientById(normalizedPatientId);
   const existingChartNo = normalizeChartNo(existing?.chartNo);
   if (!existingChartNo || existingChartNo === normalizedChartNo) return;
+  if (!/^\d+$/.test(existingChartNo)
+    && /^\d+$/.test(normalizedChartNo)
+    && existingChartNo.replace(/\D/g, "") === normalizedChartNo) return;
 
   const error = new Error(
     `환자 내부 ID ${normalizedPatientId}는 차트번호 ${existingChartNo}에 연결되어 있어 ${normalizedChartNo}로 저장할 수 없습니다.`

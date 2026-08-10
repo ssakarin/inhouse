@@ -14003,8 +14003,12 @@
       ...(recentVisitLabel ? [recentVisitLabel] : [])
     ].map(value => `<span class="bed-meta-chip">${escapeHtml(value)}</span>`).join('');
     const showMovePanel = showClearButton && contextIsBedMoveTarget(bedNo);
+    const chartCorrectionButton = !isValidChartNo(bed.chartNo)
+      ? `<button class="bed-move-btn" type="button" onclick="correctInvalidBedChartNo(${bedNo})">차트번호 정정</button>`
+      : '';
     const actionButtons = showClearButton ? `
       <div class="bed-detail-actions">
+        ${chartCorrectionButton}
         <button class="bed-move-btn" type="button" onclick="toggleBedMovePanel(${bedNo})">베드 이동</button>
         <button class="bed-clear-btn" type="button" onclick="confirmClearBedNumber(${bedNo})">베드 비우기</button>
       </div>` : '';
@@ -15215,6 +15219,44 @@
       resetSpineSettings('bedTreatmentGrid');
     }
     return true;
+  };
+
+  window.correctInvalidBedChartNo = async (bedNo) => {
+    const bed = getBedData(Number(bedNo));
+    if (!bed || isValidChartNo(bed.chartNo)) return false;
+    const currentChartNo = String(bed.chartNo || '').trim();
+    const suggestedChartNo = currentChartNo.replace(/\D/g, '');
+    const nextChartNo = normalizeChartNo(window.prompt('정정할 차트번호를 입력하세요.', suggestedChartNo) || '');
+    if (!isValidChartNo(nextChartNo) || !nextChartNo) {
+      showToast('차트번호는 숫자만 입력해주세요');
+      return false;
+    }
+    if (currentChartNo.replace(/\D/g, '') !== nextChartNo) {
+      showToast('숫자 부분이 같은 경우에만 정정할 수 있습니다');
+      return false;
+    }
+
+    try {
+      const chartSaved = await window.saveChartPatient?.({
+        ...bed,
+        patientId: bed.patientId || '',
+        chartNo: nextChartNo,
+        name: bed.name || ''
+      });
+      if (chartSaved === false) throw new Error('chart save failed');
+
+      await updateBedRecord(Number(bedNo), { chartNo: nextChartNo });
+      if (bed.patientKey) await updatePatient(bed.patientKey, { chartNo: nextChartNo });
+      showToast(`차트번호를 ${nextChartNo}번으로 정정했습니다`);
+      renderBedMonitors();
+      renderBedDetail();
+      renderReceiveBedDetail();
+      return true;
+    } catch (error) {
+      console.error('차트번호 정정 실패', error);
+      showToast('차트번호 정정에 실패했습니다');
+      return false;
+    }
   };
 
   window.restoreRecentlyClearedBedPatient = async (bedNo) => {
