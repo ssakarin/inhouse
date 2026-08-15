@@ -508,6 +508,22 @@
     padding: 8px 10px;
   }
   .day-patient-main { font-weight: 900; }
+  .day-patient-new-badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    margin-left: 5px;
+    padding: 0 5px;
+    border: 1px solid rgba(255,202,106,0.58);
+    border-radius: 6px;
+    background: rgba(255,202,106,0.14);
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    vertical-align: middle;
+  }
   .day-patient-sub { color: var(--muted); font-size: 11px; font-weight: 800; }
   .file-input { display: none; }
   .restore-progress-overlay {
@@ -1173,6 +1189,17 @@
     return [...new Set(dates.filter(Boolean))].sort();
   }
 
+  function isNewVisitOnDate(patient = {}, date = "") {
+    const dates = visitDatesFromRecord(patient);
+    const explicitNewVisitDates = dates.filter(visitDate => {
+      const visitType = String(patient.visitHistory?.[visitDate]?.visitType || "").trim().replace(/\s+/g, "");
+      return visitType.includes("초");
+    });
+    return explicitNewVisitDates.length
+      ? explicitNewVisitDates.includes(date)
+      : dates[0] === date;
+  }
+
   function getLatestVisitDate(patient = {}) {
     const dates = visitDatesFromRecord(patient);
     return dates[dates.length - 1] || "";
@@ -1380,6 +1407,9 @@
       <div class="day-patient-list">
         ${rows.map(patient => {
           const record = patient.visitHistory?.[date] || {};
+          const newVisitBadge = isNewVisitOnDate(patient, date)
+            ? `<span class="day-patient-new-badge" aria-label="초진">초</span>`
+            : "";
           const visitMeta = [
             formatVisitTime(record.timestamp),
             record.doctorName || patient.doctorName || "담당원장 -",
@@ -1388,7 +1418,7 @@
           return `
             <button class="day-patient-item" type="button" data-global-patient-id="${escapeHtml(patientIdentity(patient))}">
               <span>
-                <span class="day-patient-main">${escapeHtml(patient.name || "(이름 없음)")}</span>
+                <span class="day-patient-main">${escapeHtml(patient.name || "(이름 없음)")}${newVisitBadge}</span>
                 <span class="day-patient-sub">${escapeHtml(patientSubText(patient) || "-")}</span>
               </span>
               <span class="day-patient-sub">${escapeHtml(visitMeta)}</span>
