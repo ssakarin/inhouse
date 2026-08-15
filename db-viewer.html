@@ -1190,14 +1190,8 @@
   }
 
   function isNewVisitOnDate(patient = {}, date = "") {
-    const dates = visitDatesFromRecord(patient);
-    const explicitNewVisitDates = dates.filter(visitDate => {
-      const visitType = String(patient.visitHistory?.[visitDate]?.visitType || "").trim().replace(/\s+/g, "");
-      return visitType.includes("초");
-    });
-    return explicitNewVisitDates.length
-      ? explicitNewVisitDates.includes(date)
-      : dates[0] === date;
+    const visitType = String(patient.visitHistory?.[date]?.visitType || "").trim().replace(/\s+/g, "");
+    return visitType.includes("초");
   }
 
   function getLatestVisitDate(patient = {}) {
