@@ -149,6 +149,8 @@
   .chart-section-title { color: var(--gold); font-size: 14px; font-weight: 900; margin: 18px 0 8px; }
   .chart-subtitle { color: var(--muted); font-size: 12px; font-weight: 900; margin-bottom: 8px; }
   .chart-divider { height: 1px; background: var(--line); margin: 18px 0 0; }
+  .table-expand-row { display: flex; justify-content: center; margin-top: 10px; }
+  .table-expand-btn { min-width: 132px; color: var(--accent); }
   .comparison-line-prev { stroke-dasharray: 7 7; opacity: 0.68; }
   .comparison-dot-prev { fill: var(--panel); stroke-width: 2.5; opacity: 0.85; }
   .chart-line-recent { stroke-dasharray: 6 6; opacity: 0.78; }
@@ -426,16 +428,16 @@
       <div id="treatmentTableWrap"></div>
     </div>
     <div class="card">
+      <div class="card-title">치료조합 Top 10</div>
+      <div id="comboTableWrap"></div>
+    </div>
+    <div class="card">
       <div class="card-title">원장별 진료 건수</div>
       <div id="doctorTableWrap"></div>
     </div>
     <div class="card">
       <div class="card-title">요일별 평균 진료 건수</div>
       <div id="weekdayTableWrap"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">치료조합 Top 10</div>
-      <div id="comboTableWrap"></div>
     </div>
   </div>
 </div>
@@ -1345,28 +1347,34 @@
       : number.toLocaleString();
   }
 
-  function renderCountTable(wrapId, counts, { gold = false, limit = 0, order = null, valueHeader = "건수", decimals = 0 } = {}) {
+  function renderCountTable(wrapId, counts, { gold = false, limit = 0, expandable = false, order = null, valueHeader = "건수", decimals = 0 } = {}) {
     const entries = order
       ? order.map(name => [name, counts[name] || 0]).filter(([, count]) => count > 0)
       : Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    const rows = limit ? entries.slice(0, limit) : entries;
     const wrap = $(wrapId);
-    if (!rows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
-    const max = Math.max(1, ...rows.map(([, count]) => Number(count) || 0));
-    wrap.innerHTML = `
-      <table>
-        <thead><tr><th>항목</th><th class="num">${valueHeader}</th><th class="bar-cell"></th></tr></thead>
-        <tbody>
-          ${rows.map(([name, count]) => `
-            <tr${gold && name.includes("약침") ? ' class="highlight"' : ""}>
-              <td>${escapeHtml(name)}</td>
-              <td class="num">${formatStatValue(count, decimals)}</td>
-              <td class="bar-cell"><div class="bar${gold && name.includes("약침") ? " gold" : ""}" style="width:${Math.round((count / max) * 100)}%"></div></td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    `;
+    if (!entries.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
+    const canExpand = expandable && limit > 0 && entries.length > limit;
+    const draw = expanded => {
+      const rows = limit && !expanded ? entries.slice(0, limit) : entries;
+      const max = Math.max(1, ...rows.map(([, count]) => Number(count) || 0));
+      wrap.innerHTML = `
+        <table>
+          <thead><tr><th>항목</th><th class="num">${valueHeader}</th><th class="bar-cell"></th></tr></thead>
+          <tbody>
+            ${rows.map(([name, count]) => `
+              <tr${gold && name.includes("약침") ? ' class="highlight"' : ""}>
+                <td>${escapeHtml(name)}</td>
+                <td class="num">${formatStatValue(count, decimals)}</td>
+                <td class="bar-cell"><div class="bar${gold && name.includes("약침") ? " gold" : ""}" style="width:${Math.round((count / max) * 100)}%"></div></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        ${canExpand ? `<div class="table-expand-row"><button class="table-expand-btn" type="button">${expanded ? "접기" : `전체 ${entries.length}개 펼치기`}</button></div>` : ""}
+      `;
+      if (canExpand) wrap.querySelector(".table-expand-btn").addEventListener("click", () => draw(!expanded));
+    };
+    draw(false);
   }
 
   function renderHourlyPatientChart(countsByDayType = {}, unknownCount = 0) {
@@ -1999,7 +2007,7 @@
       renderOperationalTrendChart(trendRows, chartUnit);
       renderPeriodComparisonChart(comparison, "range");
       renderHourlyPatientChart(s.hourlyPatientCountsByDayType || {}, s.unknownTimeVisits);
-      renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true });
+      renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true, limit: 10, expandable: true });
       renderCountTable("doctorTableWrap", s.doctorCounts);
       renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"], valueHeader: "평균", decimals: 1 });
       renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
