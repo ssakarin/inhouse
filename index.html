@@ -2468,6 +2468,15 @@
     line-height: 1;
     vertical-align: 2px;
   }
+  .bed-name .appointment-r-badge,
+  .bed-status-no .appointment-r-badge {
+    width: 14px;
+    height: 14px;
+    margin-left: 3px;
+    border-width: 1px;
+    font-size: 8px;
+    vertical-align: 3px;
+  }
   .alert-card-title-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .appointment-date-buttons { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
   .appointment-date-buttons .alert-card-action { color: #fcd34d; }
@@ -16485,6 +16494,7 @@
       assignmentAlerting: Boolean(assignmentAlert),
       name: bed.name,
       patientKey: bed.patientKey || '',
+      chartNo: normalizeChartNo(bed.chartNo || patient?.chartNo || ''),
       doctorName: bed.doctorName || '',
       nurseName: bed.nurseName || '',
       treatment: treatment || '치료 미선택',
