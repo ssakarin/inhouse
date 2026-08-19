@@ -539,6 +539,33 @@ function listPatients() {
   return [...patientCache.values()].sort(patientSort);
 }
 
+function listUpcomingAppointments() {
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const byDate = new Map();
+  for (const patient of listPatients()) {
+    const dates = [...new Set([
+      ...(Array.isArray(patient.appointmentDates) ? patient.appointmentDates : []),
+      patient.appointmentDate || ""
+    ].map(value => String(value || "").trim()).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= todayKey))];
+    for (const date of dates) {
+      if (!byDate.has(date)) byDate.set(date, []);
+      byDate.get(date).push({
+        patientId: patient.patientId || "",
+        chartNo: patient.chartNo || "",
+        name: patient.name || "환자",
+        phone: getPatientPhone(patient),
+        confirmedAt: patient.appointmentConfirmedAt || null
+      });
+    }
+  }
+  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, patients]) => ({
+    date,
+    count: patients.length,
+    patients: patients.sort(patientSort)
+  }));
+}
+
 function countPatients() {
   if (patientCache) return patientCache.size;
   return Number(statements.countPatients.get()?.count || 0);
@@ -3619,6 +3646,11 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/patients/count" && req.method === "GET") {
     jsonResponse(res, 200, { count: countPatients() });
+    return true;
+  }
+
+  if (pathname === "/api/appointments/upcoming" && req.method === "GET") {
+    jsonResponse(res, 200, listUpcomingAppointments());
     return true;
   }
 

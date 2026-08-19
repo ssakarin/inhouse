@@ -221,6 +221,11 @@
     opacity: .76;
   }
   .desk-weekly-value { color: #fff; }
+  .desk-weekly-label {
+    color: var(--text2);
+    font-size: 11px;
+    font-weight: 800;
+  }
   .desk-weekly-divider {
     width: 1px;
     height: 19px;
@@ -237,6 +242,7 @@
     transition: background .15s ease, color .15s ease;
   }
   .desk-weekly-range-label:hover { background: rgba(255,255,255,.20); color: #fff; }
+  .desk-weekly-rate.chuna,
   .desk-weekly-rate.return,
   .desk-weekly-rate.third { color: #fff; }
   .desk-weekly-rate.trend-up { color: #fb7185; }
@@ -250,6 +256,14 @@
   .desk-weekly-trend.up,
   .desk-weekly-trend.down,
   .desk-weekly-trend.flat { color: inherit; }
+  .desk-weekly-direction {
+    display: none;
+    margin-left: 3px;
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .desk-weekly-direction.up { display: inline; color: #fb7185; }
+  .desk-weekly-direction.down { display: inline; color: #60a5fa; }
   .desk-weekly-chevron {
     width: 14px;
     height: 14px;
@@ -357,7 +371,6 @@
   .desk-weekly-error { padding: 14px 0 4px; color: #fb9b8b; font-size: 12px; text-align: center; }
   @media (max-width: 1500px) {
     .desk-weekly-widget { gap: 7px; padding-inline: 8px; font-size: 12px; }
-    .desk-weekly-widget .desk-weekly-label { display: none; }
   }
   .header-notify-controls {
     display: none;
@@ -2441,6 +2454,68 @@
   body.app-mode-notify .receive-waiting-card {
     display: none;
   }
+  .appointment-r-badge {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-left: 4px;
+    border: 1.5px solid #fcd34d;
+    border-radius: 50%;
+    color: #fcd34d;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    vertical-align: 2px;
+  }
+  .alert-card-title-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .appointment-date-buttons { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .appointment-date-buttons .alert-card-action { color: #fcd34d; }
+  .appointment-process-popup { width: min(460px, calc(100vw - 30px)); }
+  .appointment-process-info { margin: 12px 0; padding: 12px; border-radius: 10px; background: var(--surface2); color: var(--text2); }
+  .appointment-process-date { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface2); color: var(--text); font: inherit; }
+  .appointment-process-actions { display: grid; gap: 8px; margin-top: 12px; }
+  .appointment-process-actions button { padding: 11px; border: 0; border-radius: 9px; font: 900 13px/1 inherit; cursor: pointer; }
+  .appointment-confirm-btn { background: var(--accent); color: var(--bg); }
+  .appointment-decline-btn { background: rgba(251,113,133,.15); color: #fb7185; }
+  .notify-weekly-widget {
+    display: none;
+    width: max-content;
+    max-width: 100%;
+    cursor: default;
+  }
+  .notify-alert-toolbar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+  }
+  body.app-mode-notify .notify-alert-toolbar,
+  body.app-mode-notify .notify-weekly-widget { display: flex; }
+  .notify-list-toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: rgba(255,255,255,0.045);
+  }
+  .notify-list-toggle-btn {
+    border: 0;
+    border-radius: 6px;
+    padding: 6px 11px;
+    background: transparent;
+    color: var(--text3);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .notify-list-toggle-btn.active {
+    background: var(--accent);
+    color: var(--bg);
+  }
   @media (min-width: 860px) {
     body.app-mode-notify {
       min-height: 100vh;
@@ -2483,12 +2558,12 @@
     /* 치료실알림: 치료알림 / 원장1 / 원장2 영역을 고정 크기로, 각자 스크롤 */
     body.app-mode-notify .receive-detail-column > .receive-alert-card {
       display: grid;
-      grid-template-rows: minmax(0, 1.45fr) minmax(0, 0.8fr);
+      grid-template-rows: auto minmax(0, 1.45fr) minmax(0, 0.8fr);
       gap: 10px;
       overflow: hidden;
     }
     body.app-mode-notify .receive-detail-column > .receive-alert-card.notify-doctor-expanded {
-      grid-template-rows: minmax(0, 0.65fr) minmax(0, 1.65fr);
+      grid-template-rows: auto minmax(0, 0.65fr) minmax(0, 1.65fr);
     }
     body.app-mode-notify .receive-alert-toggle-row {
       display: none;
@@ -2506,10 +2581,10 @@
       margin-top: 0;
       overflow: hidden;
     }
-    body.app-mode-notify .receive-alert-card.notify-doctor-expanded > #receiveUpcomingAlerts {
+    body.app-mode-notify .receive-alert-card.notify-show-waiting > #receiveUpcomingAlerts {
       display: none;
     }
-    body.app-mode-notify .receive-alert-card.notify-doctor-expanded > .notify-waiting-list {
+    body.app-mode-notify .receive-alert-card.notify-show-waiting > .notify-waiting-list {
       display: flex;
       flex-direction: column;
       align-items: stretch;
@@ -2520,7 +2595,7 @@
       overflow-x: hidden;
       scrollbar-gutter: stable;
     }
-    body.app-mode-notify .receive-alert-card.notify-doctor-expanded > .notify-waiting-list .waiting-item {
+    body.app-mode-notify .receive-alert-card.notify-show-waiting > .notify-waiting-list .waiting-item {
       flex: 0 0 auto;
     }
     body.app-mode-notify .doctor-alert-box {
@@ -5294,14 +5369,12 @@
         <input id="deskChartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
           onchange="importChartFileFromDesk(this.files?.[0]); this.value='';">
         <div class="desk-weekly-widget-wrap" id="deskWeeklyWidgetWrap">
-          <button class="desk-weekly-widget loading" id="deskWeeklyWidget" type="button" aria-expanded="false" aria-controls="deskWeeklyPopover" title="어제까지 최근 14일 재진·삼진율">
-            <span class="desk-weekly-range-label" id="deskWeeklyRangeLabel" title="클릭하여 7일/14일 전환">14일</span>
+          <button class="desk-weekly-widget loading" id="deskWeeklyWidget" type="button" aria-expanded="false" aria-controls="deskWeeklyPopover" title="어제까지 최근 현황">
+            <span class="desk-weekly-metric" title="최근 14일 실제 진료일 기준 일평균"><span class="desk-weekly-label">진료</span><span class="desk-weekly-value" id="deskWeeklyAveragePatients">-</span><span class="desk-weekly-direction" id="deskWeeklyPatientsDirection" aria-hidden="true"></span></span>
             <span class="desk-weekly-divider" aria-hidden="true"></span>
-            <span class="desk-weekly-metric" title="최근 14일 실제 진료일 기준 일평균"><span class="desk-weekly-value" id="deskWeeklyAveragePatients">-</span></span>
+            <span class="desk-weekly-rate chuna" title="최근 14일 실제 진료일 기준 추나 평균 횟수"><span class="desk-weekly-label">추나</span> <span id="deskWeeklyAverageChuna">-</span><span class="desk-weekly-direction" id="deskWeeklyChunaDirection" aria-hidden="true"></span></span>
             <span class="desk-weekly-divider" aria-hidden="true"></span>
-            <span class="desk-weekly-rate return" title="직전 2개 14일 구간 대비 재진율 변화"><span class="desk-weekly-trend flat" id="deskWeeklyReturnTrend">→</span><span id="deskWeeklyReturnChange">-</span></span>
-            <span class="desk-weekly-divider" aria-hidden="true"></span>
-            <span class="desk-weekly-rate third" title="직전 2개 14일 구간 대비 삼진율 변화"><span class="desk-weekly-trend flat" id="deskWeeklyThirdTrend">→</span><span id="deskWeeklyThirdChange">-</span></span>
+            <span class="desk-weekly-rate third" title="최근 14일 삼진율"><span class="desk-weekly-label">삼진</span> <span id="deskWeeklyThirdRate">-</span><span class="desk-weekly-direction" id="deskWeeklyThirdDirection" aria-hidden="true"></span></span>
             <svg class="desk-weekly-chevron" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
           </button>
           <div class="desk-weekly-popover" id="deskWeeklyPopover" role="dialog" aria-label="최근 14일간 현황 상세">
@@ -5437,7 +5510,10 @@
         <div class="card">
           <div class="card-label alert-card-title">
             <span>알림</span>
-            <button type="button" class="alert-card-action" onclick="openDischargedPatientsPopup()">퇴실환자</button>
+            <div class="alert-card-title-actions">
+              <div class="appointment-date-buttons" id="deskAppointmentDateButtons"></div>
+              <button type="button" class="alert-card-action" onclick="openDischargedPatientsPopup()">퇴실환자</button>
+            </div>
           </div>
           <div class="upcoming-list" id="inputUpcomingAlerts"></div>
         </div>
@@ -5516,6 +5592,19 @@
           <div class="waiting-list waiting-list--compact" id="receiveWaitingList" ondragover="handleWaitingListDragOver(event)" ondrop="handleWaitingListDrop(event)"></div>
         </div>
         <div class="card receive-alert-card">
+          <div class="notify-alert-toolbar">
+            <div class="desk-weekly-widget notify-weekly-widget loading" id="notifyWeeklyWidget" title="어제까지 최근 현황">
+              <span class="desk-weekly-metric" title="최근 14일 실제 진료일 기준 일평균"><span class="desk-weekly-label">진료</span><span class="desk-weekly-value" id="notifyWeeklyAveragePatients">-</span><span class="desk-weekly-direction" id="notifyWeeklyPatientsDirection" aria-hidden="true"></span></span>
+              <span class="desk-weekly-divider" aria-hidden="true"></span>
+              <span class="desk-weekly-rate chuna" title="최근 14일 실제 진료일 기준 추나 평균 횟수"><span class="desk-weekly-label">추나</span> <span id="notifyWeeklyAverageChuna">-</span><span class="desk-weekly-direction" id="notifyWeeklyChunaDirection" aria-hidden="true"></span></span>
+              <span class="desk-weekly-divider" aria-hidden="true"></span>
+              <span class="desk-weekly-rate third" title="최근 14일 삼진율"><span class="desk-weekly-label">삼진</span> <span id="notifyWeeklyThirdRate">-</span><span class="desk-weekly-direction" id="notifyWeeklyThirdDirection" aria-hidden="true"></span></span>
+            </div>
+            <div class="notify-list-toggle" role="group" aria-label="알림 또는 대기 목록 선택">
+              <button class="notify-list-toggle-btn active" type="button" data-notify-list-view="alerts" onclick="setNotifyListView('alerts')">알림</button>
+              <button class="notify-list-toggle-btn" type="button" data-notify-list-view="waiting" onclick="setNotifyListView('waiting')">대기</button>
+            </div>
+          </div>
           <div class="receive-alert-toggle-row">
             <button type="button" class="receive-alert-toggle-btn" data-alert-view-button="doctor" onclick="setReceiveAlertView('doctor')">원장알림</button>
             <button type="button" class="receive-alert-toggle-btn" data-alert-view-button="general" onclick="setReceiveAlertView('general')">일반알림</button>
@@ -5759,6 +5848,28 @@
     <div class="credit-popup-actions">
       <button class="popup-close" type="button" onclick="closeDischargedPatientsPopup()">닫기</button>
     </div>
+  </div>
+</div>
+
+<div class="notif-overlay" id="appointmentProcessOverlay" onclick="closeAppointmentProcessPopup()">
+  <div class="notif-popup appointment-process-popup" onclick="event.stopPropagation()">
+    <div class="popup-name">예약 상담 처리</div>
+    <div class="appointment-process-info" id="appointmentProcessInfo"></div>
+    <label class="popup-label" for="appointmentProcessDate">예약 날짜</label>
+    <input class="appointment-process-date" id="appointmentProcessDate" type="date">
+    <div class="appointment-process-actions">
+      <button class="appointment-confirm-btn" type="button" onclick="completeAppointmentRequest('confirm')">예약 후 마감</button>
+      <button class="appointment-decline-btn" type="button" onclick="completeAppointmentRequest('decline')">예약하지 않고 마감</button>
+      <button class="popup-close" type="button" onclick="closeAppointmentProcessPopup()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="notif-overlay" id="appointmentListOverlay" onclick="closeAppointmentListPopup()">
+  <div class="notif-popup discharged-popup" onclick="event.stopPropagation()">
+    <div class="popup-name" id="appointmentListHeading">예약환자</div>
+    <div class="discharged-list" id="appointmentPatientList"></div>
+    <div class="credit-popup-actions"><button class="popup-close" type="button" onclick="closeAppointmentListPopup()">닫기</button></div>
   </div>
 </div>
 
@@ -11289,6 +11400,17 @@
     return text.replace(/^0+(?=\d)/, '');
   }
 
+  function renderTodayAppointmentBadge(data = {}, patientKey = '') {
+    const chartNo = normalizeChartNo(data.chartNo || '');
+    const confirmedInLongTermDb = chartNo && upcomingAppointmentGroups.some(group =>
+      group.date === getTodayKey() && group.patients.some(patient => normalizeChartNo(patient.chartNo || '') === chartNo)
+    );
+    if (!normalizeAppointmentDates(data).includes(getTodayKey()) && !confirmedInLongTermDb) return '';
+    const isPendingRequest = patientKey && appointmentDeskAlertItems.has(String(patientKey));
+    if (isPendingRequest && !data.appointmentConfirmedAt) return '';
+    return '<span class="appointment-r-badge" title="오늘 예약환자" aria-label="오늘 예약환자">R</span>';
+  }
+
   function isValidChartNo(value) {
     const text = String(value ?? '').trim();
     return !text || /^\d+$/.test(text);
@@ -12558,7 +12680,7 @@
             <div class="waiting-hold-order">${holdOrder}</div>
           </div>
           <div>
-            <div class="waiting-name">${escapeHtml(bed?.name || '')}</div>
+            <div class="waiting-name">${escapeHtml(bed?.name || '')}${renderTodayAppointmentBadge(bed || {}, bed?.patientKey || '')}</div>
             <div class="waiting-info">${heldChips}</div>
           </div>
         </div>`;
@@ -12573,7 +12695,7 @@
         <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" oncontextmenu="confirmPurgeWaitingPatient(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)">
           <div class="waiting-rank">${index + 1}</div>
           <div>
-            <div class="waiting-name">${escapeHtml(data.name)}</div>
+            <div class="waiting-name">${escapeHtml(data.name)}${renderTodayAppointmentBadge(data, key)}</div>
             ${infoChips ? `<div class="waiting-info">${infoChips}</div>` : ''}
           </div>
         </div>`;
@@ -12913,6 +13035,7 @@
     const date = appointmentDate || normalizeAppointmentDates(data || {})[0] || '';
     if (!date) return false;
     const alert = data?.appointmentAlerts?.[date] || (data?.appointmentAlert?.date === date ? data.appointmentAlert : {});
+    if (data?.appointmentConfirmedAt && !alert.date) return false;
     if (alert.date && alert.date !== date) return true;
     if (field === 'clinicDismissed' && (alert.clinicDismissed === true || alert.receiveDismissed === true || alert.notifyDismissed === true)) return false;
     return alert[field] !== true;
@@ -13000,6 +13123,16 @@
     receiveAlertView = view === 'general' ? 'general' : 'doctor';
     localStorage.setItem('receiveAlertView', receiveAlertView);
     updateReceiveAlertView();
+  };
+
+  window.setNotifyListView = (view) => {
+    const showWaiting = view === 'waiting';
+    document.querySelector('.receive-alert-card')?.classList.toggle('notify-show-waiting', showWaiting);
+    document.querySelectorAll('[data-notify-list-view]').forEach(button => {
+      const active = button.dataset.notifyListView === (showWaiting ? 'waiting' : 'alerts');
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
   };
 
   window.toggleNotifyDoctorAlertExpanded = (event) => {
@@ -13147,7 +13280,7 @@
     const appointmentAlertItems = getVisibleAppointmentAlertItems('input').map(item => ({
       timestamp: Number(item.timestamp || 0),
       html: `
-      <div class="upcoming-item assignment" onclick="dismissAppointmentAlert('${escapeHtml(item.patientKey)}')">
+      <div class="upcoming-item assignment" onclick="openAppointmentProcessPopup('${escapeHtml(item.patientKey)}')">
         <div class="upcoming-time">예약</div>
         <div>
           <div class="upcoming-main">${escapeHtml(item.name)} ${escapeHtml([item.dates.map(formatAppointmentDate).filter(Boolean).join(', '), item.undecided ? '미정' : ''].filter(Boolean).join(' '))}</div>
@@ -13324,6 +13457,149 @@
       showToast('호출 확인 실패');
     }
   };
+
+  let activeAppointmentRequestKey = '';
+  let upcomingAppointmentGroups = [];
+
+  async function refreshDeskAppointmentButtons() {
+    const wrap = document.getElementById('deskAppointmentDateButtons');
+    if (!wrap || !SERVER_MODE) return;
+    try {
+      const response = await fetch('/api/appointments/upcoming', { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const groups = await response.json();
+      const today = getTodayKey();
+      const todayGroup = groups.find(group => group.date === today) || { date: today, count: 0, patients: [] };
+      upcomingAppointmentGroups = [todayGroup];
+      wrap.innerHTML = `<button class="alert-card-action" type="button" onclick="openAppointmentListPopup('${today}')">오늘 예약 ${Number(todayGroup.count || 0)}명</button>`;
+      renderWaitingList();
+      renderBedMonitors();
+    } catch (error) {
+      console.error('예약 현황을 불러오지 못했습니다.', error);
+    }
+  }
+  window.refreshDeskAppointmentButtons = refreshDeskAppointmentButtons;
+
+  window.openAppointmentProcessPopup = (patientKey) => {
+    const patient = patientsByKey.get(patientKey) || {};
+    const request = appointmentDeskAlertItems.get(patientKey) || (normalizeAppointmentDates(patient).length || patient.appointmentUndecided ? {
+      patientKey,
+      name: patient.name || '환자',
+      chartNo: patient.chartNo || '',
+      dates: normalizeAppointmentDates(patient),
+      undecided: Boolean(patient.appointmentUndecided)
+    } : null);
+    if (!request) {
+      showToast('예약 요청 정보를 찾을 수 없습니다');
+      return;
+    }
+    activeAppointmentRequestKey = patientKey;
+    const dates = normalizeAppointmentDates(request.dates || []);
+    document.getElementById('appointmentProcessInfo').innerHTML = `
+      <strong>${escapeHtml(request.name || '환자')}</strong>${request.chartNo ? ` · ${escapeHtml(request.chartNo)}` : ''}<br>
+      요청 날짜: ${escapeHtml([dates.map(formatAppointmentDate).join(', '), request.undecided ? '미정' : ''].filter(Boolean).join(' ') || '미정')}`;
+    const input = document.getElementById('appointmentProcessDate');
+    input.min = getTodayKey();
+    input.value = dates[0] || '';
+    document.getElementById('appointmentProcessOverlay')?.classList.add('show');
+  };
+
+  window.closeAppointmentProcessPopup = () => {
+    document.getElementById('appointmentProcessOverlay')?.classList.remove('show');
+    activeAppointmentRequestKey = '';
+  };
+
+  async function saveAppointmentDecisionToLongTerm(source, appointmentDates, result, requestedDates) {
+    const chartNo = normalizeChartNo(source.chartNo || '');
+    if (!chartNo) throw new Error('차트번호가 없어 장기 DB에 저장할 수 없습니다');
+    const existing = source.patientId
+      ? (await lookupChartPatientById(source.patientId) || {})
+      : ((await lookupChartPatients(chartNo)).find(item => String(item.name || '').trim() === String(source.name || '').trim()) || {});
+    const history = Array.isArray(existing.appointmentHistory) ? existing.appointmentHistory : [];
+    const decidedAt = Date.now();
+    const payload = {
+      ...existing,
+      patientId: source.patientId || existing.patientId || '',
+      chartNo,
+      name: source.name || existing.name || '',
+      appointmentDates,
+      appointmentDate: appointmentDates[0] || null,
+      appointmentConfirmedAt: appointmentDates.length ? decidedAt : null,
+      appointmentHistory: [...history, {
+        requestedDates,
+        confirmedDate: appointmentDates[0] || '',
+        result,
+        processedAt: decidedAt
+      }]
+    };
+    if (!await saveChartPatient(payload)) throw new Error('장기 DB 저장 실패');
+  }
+
+  window.completeAppointmentRequest = async (action) => {
+    const patientKey = activeAppointmentRequestKey;
+    const request = appointmentDeskAlertItems.get(patientKey);
+    if (!patientKey || !request) return;
+    const source = { ...(patientsByKey.get(patientKey) || {}), ...request };
+    const requestedDates = normalizeAppointmentDates(request.dates || []);
+    const selectedDate = document.getElementById('appointmentProcessDate')?.value || '';
+    if (action !== 'decline' && !/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      showToast('예약 날짜를 선택해주세요');
+      return;
+    }
+    const appointmentDates = action === 'decline' ? [] : [selectedDate];
+    const result = action === 'decline' ? 'declined' : requestedDates.includes(selectedDate) ? 'confirmed' : 'changed';
+    try {
+      await saveAppointmentDecisionToLongTerm(source, appointmentDates, result, requestedDates);
+      const resolvedAppointmentAlerts = Object.fromEntries(appointmentDates.map(date => [date, {
+        date,
+        deskDismissed: true,
+        clinicDismissed: true,
+        receiveDismissed: true,
+        notifyDismissed: true
+      }]));
+      const patch = {
+        appointmentDates,
+        appointmentDate: appointmentDates[0] || '',
+        appointmentAlerts: resolvedAppointmentAlerts,
+        appointmentAlert: appointmentDates.length ? resolvedAppointmentAlerts[appointmentDates[0]] : null,
+        appointmentUndecided: false,
+        appointmentUndecidedAlert: null,
+        appointmentConfirmedAt: appointmentDates.length ? Date.now() : null
+      };
+      await updatePatient(patientKey, patch);
+      patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), ...patch });
+      appointmentDeskAlertItems.delete(patientKey);
+      renderUpcomingAlerts();
+      await removeAppointmentDeskAlert(patientKey);
+      closeAppointmentProcessPopup();
+      const bedEntry = getAllBedEntries().find(entry => String(entry.bed?.patientKey || '') === String(patientKey));
+      if (bedEntry) {
+        Object.assign(bedEntry.bed, patch);
+        try {
+          await updateBedRecord(bedEntry.bedNo, patch);
+        } catch (bedError) {
+          console.error('예약 처리 후 베드 표시 동기화 실패', bedError);
+        }
+      }
+      await refreshDeskAppointmentButtons();
+      showToast(action !== 'decline' ? `${source.name || '환자'}님 ${formatAppointmentDate(selectedDate)} 예약 완료` : `${source.name || '환자'}님 예약 없이 진료 마감`);
+    } catch (error) {
+      console.error('예약 상담 처리 실패', error);
+      showToast(error.message || '예약 처리 실패');
+    }
+  };
+
+  window.openAppointmentListPopup = (date) => {
+    const group = upcomingAppointmentGroups.find(item => item.date === date);
+    if (!group) return;
+    document.getElementById('appointmentListHeading').textContent = `${formatAppointmentDate(date)} 예약환자 ${group.count}명`;
+    document.getElementById('appointmentPatientList').innerHTML = group.patients.length ? group.patients.map(patient => `
+      <div class="discharged-item"><div><strong>${escapeHtml(patient.name || '환자')}</strong>${patient.chartNo ? `<div class="upcoming-sub">${escapeHtml(patient.chartNo)}</div>` : ''}</div></div>`
+    ).join('') : '<div class="empty-state"><div class="empty-icon">✓</div><div class="empty-text">오늘 예약환자가 없습니다</div></div>';
+    document.getElementById('appointmentListOverlay')?.classList.add('show');
+  };
+
+  window.closeAppointmentListPopup = () => document.getElementById('appointmentListOverlay')?.classList.remove('show');
 
   window.dismissAppointmentAlert = async (patientKey, appointmentDate = '') => {
     const field = getAppointmentAlertDismissField();
@@ -14159,7 +14435,7 @@
             <div class="bed-summary">
               <div>
                 <div class="bed-name-row">
-                  <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}</div>
+                  <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}${renderTodayAppointmentBadge(bed, bed.patientKey || '')}</div>
                   ${getBedNameMetaChips(bed, bedNo)}
                 </div>
               </div>
@@ -14185,7 +14461,7 @@
         <div class="bed-summary">
           <div>
             <div class="bed-name-row">
-              <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}</div>
+              <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}${renderTodayAppointmentBadge(bed, bed.patientKey || '')}</div>
             </div>
           </div>
           <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
@@ -16208,6 +16484,7 @@
       alerting: Boolean(bed.lastAlertId || assignmentAlert),
       assignmentAlerting: Boolean(assignmentAlert),
       name: bed.name,
+      patientKey: bed.patientKey || '',
       doctorName: bed.doctorName || '',
       nurseName: bed.nurseName || '',
       treatment: treatment || '치료 미선택',
@@ -16230,6 +16507,7 @@
       appointmentDate,
       appointmentDateCount: appointmentDates.length,
       appointmentUndecided: Boolean(appointmentSource.appointmentUndecided),
+      appointmentConfirmedAt: appointmentSource.appointmentConfirmedAt || null,
       chiefComplaint: bed.chiefComplaint || '',
       memo2: bed.memo2 || '',
       bodyParts: normalizeBodyParts(bed.bodyParts),
@@ -16398,7 +16676,7 @@
     return `
       <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${contextHandler}>
         <div class="bed-status-top">
-          <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(monitorLabel)} ${escapeHtml(status.name)}`}</span>
+          <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(monitorLabel)} ${escapeHtml(status.name)}`}${renderTodayAppointmentBadge(status, status.patientKey)}</span>
           ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
         ${compact ? '' : (infoChips ? `<div class="bed-status-info${infoDensityClass}">${infoChips}</div>` : '')}
@@ -18903,6 +19181,18 @@
     return safe > 0 ? 'positive' : 'negative';
   }
 
+  function setDeskWeeklyDirection(id, change, threshold, hasEnoughData, unit = '%') {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const value = Number(change);
+    const direction = hasEnoughData && Number.isFinite(value) && Math.abs(value) >= threshold
+      ? (value > 0 ? 'up' : 'down')
+      : '';
+    el.className = `desk-weekly-direction${direction ? ` ${direction}` : ''}`;
+    el.textContent = direction === 'up' ? '↑' : direction === 'down' ? '↓' : '';
+    el.title = direction ? `직전 대비 ${deskWeeklyDifference(value, unit)}` : '';
+  }
+
   function renderDeskWeeklyWidget(data) {
     const current = data?.current || {};
     const comparison = data?.comparison || {};
@@ -18913,26 +19203,55 @@
 
     deskWeeklyRangeDays = rangeDays;
     document.getElementById('deskWeeklyPopoverHeading').textContent = `최근 ${rangeDays}일간 현황`;
-    document.getElementById('deskWeeklyRangeLabel').textContent = `${rangeDays}일`;
-    widget.title = `어제까지 최근 ${rangeDays}일 재진·삼진율`;
+    widget.title = `어제까지 최근 ${rangeDays}일 현황`;
     widget.querySelector('.desk-weekly-metric')?.setAttribute('title', `최근 ${rangeDays}일 실제 진료일 기준 일평균`);
-    widget.querySelector('.desk-weekly-rate.return')?.setAttribute('title', `직전 28일 구간 대비 최근 ${rangeDays}일 재진율 변화`);
-    widget.querySelector('.desk-weekly-rate.third')?.setAttribute('title', `직전 28일 구간 대비 최근 ${rangeDays}일 삼진율 변화`);
+    widget.querySelector('.desk-weekly-rate.chuna')?.setAttribute('title', `최근 ${rangeDays}일 실제 진료일 기준 추나 평균 횟수`);
+    widget.querySelector('.desk-weekly-rate.third')?.setAttribute('title', `최근 ${rangeDays}일 삼진율`);
     document.querySelectorAll('.desk-weekly-range-btn').forEach(button => {
       button.classList.toggle('active', Number(button.dataset.days) === rangeDays);
     });
 
     const hasCurrentCohort = Number(current.newPatients || 0) > 0;
     const hasComparisonCohort = Number(comparison.newPatients || 0) > 0;
+    const patientChangePercent = deskWeeklyPercentChange(current.averagePatientsPerDay, comparison.averagePatientsPerDay);
+    const chunaChangePercent = deskWeeklyPercentChange(current.averageChunaPerDay, comparison.averageChunaPerDay);
+    const thirdDelta = Number(current.thirdVisitDeltaPp || 0);
     document.getElementById('deskWeeklyAveragePatients').textContent = `${Number(current.averagePatientsPerDay || 0).toFixed(1)}명`;
-    document.getElementById('deskWeeklyReturnChange').textContent = hasCurrentCohort && hasComparisonCohort
-      ? `${Math.abs(Number(current.returnDeltaPp || 0)).toFixed(1)}%`
+    document.getElementById('deskWeeklyAverageChuna').textContent = `${Number(current.averageChunaPerDay || 0).toFixed(1)}회`;
+    document.getElementById('deskWeeklyThirdRate').textContent = hasCurrentCohort
+      ? `${(Number(current.thirdVisitRate || 0) * 100).toFixed(1)}%`
       : '—';
-    document.getElementById('deskWeeklyThirdChange').textContent = hasCurrentCohort && hasComparisonCohort
-      ? `${Math.abs(Number(current.thirdVisitDeltaPp || 0)).toFixed(1)}%`
-      : '—';
-    setDeskWeeklyTrend('deskWeeklyReturnTrend', current.returnDeltaPp, hasCurrentCohort && hasComparisonCohort);
-    setDeskWeeklyTrend('deskWeeklyThirdTrend', current.thirdVisitDeltaPp, hasCurrentCohort && hasComparisonCohort);
+    setDeskWeeklyDirection('deskWeeklyPatientsDirection', patientChangePercent, 5, patientChangePercent !== null);
+    setDeskWeeklyDirection('deskWeeklyChunaDirection', chunaChangePercent, 5, chunaChangePercent !== null);
+    setDeskWeeklyDirection(
+      'deskWeeklyThirdDirection',
+      thirdDelta,
+      3,
+      Number(current.newPatients || 0) >= 10 && Number(comparison.newPatients || 0) >= 10,
+      '%p'
+    );
+    const notifyWidget = document.getElementById('notifyWeeklyWidget');
+    if (notifyWidget) {
+      notifyWidget.title = widget.title;
+      notifyWidget.querySelector('.desk-weekly-metric')?.setAttribute('title', `최근 ${rangeDays}일 실제 진료일 기준 일평균`);
+      notifyWidget.querySelector('.desk-weekly-rate.chuna')?.setAttribute('title', `최근 ${rangeDays}일 실제 진료일 기준 추나 평균 횟수`);
+      notifyWidget.querySelector('.desk-weekly-rate.third')?.setAttribute('title', `최근 ${rangeDays}일 삼진율`);
+      document.getElementById('notifyWeeklyAveragePatients').textContent = `${Number(current.averagePatientsPerDay || 0).toFixed(1)}명`;
+      document.getElementById('notifyWeeklyAverageChuna').textContent = `${Number(current.averageChunaPerDay || 0).toFixed(1)}회`;
+      document.getElementById('notifyWeeklyThirdRate').textContent = hasCurrentCohort
+        ? `${(Number(current.thirdVisitRate || 0) * 100).toFixed(1)}%`
+        : '—';
+      setDeskWeeklyDirection('notifyWeeklyPatientsDirection', patientChangePercent, 5, patientChangePercent !== null);
+      setDeskWeeklyDirection('notifyWeeklyChunaDirection', chunaChangePercent, 5, chunaChangePercent !== null);
+      setDeskWeeklyDirection(
+        'notifyWeeklyThirdDirection',
+        thirdDelta,
+        3,
+        Number(current.newPatients || 0) >= 10 && Number(comparison.newPatients || 0) >= 10,
+        '%p'
+      );
+      notifyWidget.classList.remove('loading');
+    }
     document.getElementById('deskWeeklyCurrentPeriod').textContent = `${formatDeskWeeklyPeriod(current.start, current.end)} · 어제까지`;
     widget.classList.remove('loading');
 
@@ -18940,10 +19259,7 @@
     const currentNewDiff = Number(current.newPatientDifference || 0);
     const currentChunaDiff = Number(current.averageChunaPerDay || 0) - Number(comparison.averageChunaPerDay || 0);
     const returnDelta = Number(current.returnDeltaPp || 0);
-    const thirdDelta = Number(current.thirdVisitDeltaPp || 0);
-    const patientChangePercent = deskWeeklyPercentChange(current.averagePatientsPerDay, comparison.averagePatientsPerDay);
     const newPatientChangePercent = deskWeeklyPercentChange(current.averageNewPatientsPerDay, comparison.averageNewPatientsPerDay);
-    const chunaChangePercent = deskWeeklyPercentChange(current.averageChunaPerDay, comparison.averageChunaPerDay);
 
     body.innerHTML = `
       <section class="desk-weekly-section">
@@ -18968,6 +19284,7 @@
     } catch (error) {
       console.error('주간 현황을 불러오지 못했습니다.', error);
       document.getElementById('deskWeeklyWidget')?.classList.remove('loading');
+      document.getElementById('notifyWeeklyWidget')?.classList.remove('loading');
       const body = document.getElementById('deskWeeklyPopoverBody');
       if (body) body.innerHTML = '<div class="desk-weekly-error">주간 통계를 불러오지 못했습니다.<br>잠시 후 다시 시도합니다.</div>';
     }
@@ -19002,11 +19319,9 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    window.setNotifyListView?.('alerts');
+    window.refreshDeskAppointmentButtons?.();
     document.getElementById('deskWeeklyWidget')?.addEventListener('click', toggleDeskWeeklyPopover);
-    document.getElementById('deskWeeklyRangeLabel')?.addEventListener('click', event => {
-      event.stopPropagation();
-      selectDeskWeeklyRange(deskWeeklyRangeDays === 7 ? 14 : 7);
-    });
     document.getElementById('deskWeeklyPopover')?.addEventListener('click', event => event.stopPropagation());
     document.querySelectorAll('.desk-weekly-range-btn').forEach(button => {
       button.addEventListener('click', () => selectDeskWeeklyRange(button.dataset.days));
