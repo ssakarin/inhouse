@@ -9907,7 +9907,11 @@
           memo2,
           memo2History: memo2Patch.memo2History,
           targetTreatmentCount,
-          visitCountAdjustment
+          visitCountAdjustment,
+          visitEntry: createChartVisitEntry({
+            ...realtimePatient,
+            visitDate: getTodayKey()
+          })
         });
         if (chartSaved === false) {
           showToast('차트 저장에 실패하여 환자를 등록하지 않았습니다');
@@ -9916,6 +9920,7 @@
       }
 
       await pushPatient(realtimePatient);
+      window.refreshDeskAppointmentButtons?.();
 
       // 초기화
       document.getElementById(ids.name).value = '';
@@ -19417,6 +19422,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     window.setNotifyListView?.('alerts');
     window.refreshDeskAppointmentButtons?.();
+    window.setInterval(() => window.refreshDeskAppointmentButtons?.(), 10000);
     document.getElementById('deskWeeklyWidget')?.addEventListener('click', toggleDeskWeeklyPopover);
     document.getElementById('deskWeeklyPopover')?.addEventListener('click', event => event.stopPropagation());
     document.querySelectorAll('.desk-weekly-range-btn').forEach(button => {
