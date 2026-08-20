@@ -2477,6 +2477,7 @@
     font-size: 8px;
     vertical-align: 3px;
   }
+  .notify-reserved-patient-name { color: #fcd34d; }
   .alert-card-title-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .appointment-date-buttons { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
   .appointment-date-buttons .alert-card-action { color: #fcd34d; }
@@ -11409,14 +11410,19 @@
     return text.replace(/^0+(?=\d)/, '');
   }
 
-  function renderTodayAppointmentBadge(data = {}, patientKey = '') {
+  function isTodayAppointmentPatient(data = {}, patientKey = '') {
     const chartNo = normalizeChartNo(data.chartNo || '');
     const confirmedInLongTermDb = chartNo && upcomingAppointmentGroups.some(group =>
       group.date === getTodayKey() && group.patients.some(patient => normalizeChartNo(patient.chartNo || '') === chartNo)
     );
-    if (!normalizeAppointmentDates(data).includes(getTodayKey()) && !confirmedInLongTermDb) return '';
+    if (!normalizeAppointmentDates(data).includes(getTodayKey()) && !confirmedInLongTermDb) return false;
     const isPendingRequest = patientKey && appointmentDeskAlertItems.has(String(patientKey));
-    if (isPendingRequest && !data.appointmentConfirmedAt) return '';
+    if (isPendingRequest && !data.appointmentConfirmedAt) return false;
+    return true;
+  }
+
+  function renderTodayAppointmentBadge(data = {}, patientKey = '') {
+    if (!isTodayAppointmentPatient(data, patientKey)) return '';
     return '<span class="appointment-r-badge" title="오늘 예약환자" aria-label="오늘 예약환자">R</span>';
   }
 
@@ -16682,11 +16688,15 @@
     const staffHtml = [
       status.memo2 ? `<span class="bed-meta-chip bed-meta-chip--flex">메모2있음</span>` : ''
     ].filter(Boolean).join('');
-    const compactName = `${getCompactBedMarker(status.bedNo)} ${status.name}`;
+    const notifyReserved = isReceive && window.currentMode === 'notify' && isTodayAppointmentPatient(status, status.patientKey);
+    const patientNameHtml = `<span${notifyReserved ? ' class="notify-reserved-patient-name"' : ''}>${escapeHtml(status.name)}</span>`;
+    const monitorNameHtml = compact
+      ? `${escapeHtml(getCompactBedMarker(status.bedNo))} ${patientNameHtml}`
+      : `${escapeHtml(monitorLabel)} ${patientNameHtml}`;
     return `
       <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${contextHandler}>
         <div class="bed-status-top">
-          <span class="bed-status-no">${compact ? escapeHtml(compactName) : `${escapeHtml(monitorLabel)} ${escapeHtml(status.name)}`}${renderTodayAppointmentBadge(status, status.patientKey)}</span>
+          <span class="bed-status-no">${monitorNameHtml}${notifyReserved ? '' : renderTodayAppointmentBadge(status, status.patientKey)}</span>
           ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
         ${compact ? '' : (infoChips ? `<div class="bed-status-info${infoDensityClass}">${infoChips}</div>` : '')}
