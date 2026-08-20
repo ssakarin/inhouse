@@ -12280,7 +12280,8 @@
 
     if (hasSpine || (hasChunaTreatment && hasBench)) {
       if (!getBedDataForRouting(15, routingBeds)) {
-        await window.moveOrSwapBed(bedNo, 15);
+        const moved = await window.moveOrSwapBed(bedNo, 15, { requireEmptyTarget: true });
+        if (!moved) await moveToHoldBed(bedNo, 15);
       } else {
         await moveToHoldBed(bedNo, 15, routingBeds);
       }
@@ -12291,7 +12292,8 @@
       const targetBedNo = 101;
       if (bedNo === targetBedNo) return;
       if (!getBedDataForRouting(targetBedNo, routingBeds)) {
-        await window.moveOrSwapBed(bedNo, targetBedNo);
+        const moved = await window.moveOrSwapBed(bedNo, targetBedNo, { requireEmptyTarget: true });
+        if (!moved) await moveToHoldBed(bedNo, targetBedNo);
       } else {
         await moveToHoldBed(bedNo, targetBedNo, routingBeds);
       }
@@ -12303,7 +12305,8 @@
       const docBedNo = getDoctorBedNoForPatient(nextBed.doctorId);
       if (docBedNo) {
         if (!getBedDataForRouting(docBedNo, routingBeds)) {
-          await window.moveOrSwapBed(bedNo, docBedNo);
+          const moved = await window.moveOrSwapBed(bedNo, docBedNo, { requireEmptyTarget: true });
+          if (!moved) await moveToHoldBed(bedNo, docBedNo);
         } else {
           await moveToHoldBed(bedNo, docBedNo, routingBeds);
         }
@@ -12313,10 +12316,40 @@
 
   // 목적지(원장실/스파인실)가 차있어서 못 옮기는 경우, 빈 임시 베드에 잠시 보관해둔다.
   async function moveToHoldBed(bedNo, pendingTargetBedNo, bedsSnapshot = null) {
-    const holdBedNo = findEmptyHoldBedNoForRouting(bedsSnapshot);
-    if (!holdBedNo) return; // 임시 베드도 다 찼으면 그냥 현재 자리에 둔다
-    const moved = await window.moveOrSwapBed(bedNo, holdBedNo);
-    if (moved) await updateBedRecord(holdBedNo, { pendingTargetBedNo, holdQueuedAt: Date.now() });
+    bedNo = Number(bedNo);
+    pendingTargetBedNo = Number(pendingTargetBedNo);
+    let selectedHoldBedNo = null;
+    const queuedAt = Date.now();
+    const result = await runBedsRecordTransaction((beds) => {
+      beds = beds || {};
+      const movingBed = beds[String(bedNo)];
+      if (!movingBed || isCleaningBed(movingBed)) return undefined;
+      selectedHoldBedNo = HOLD_BED_NUMBERS.find(no => !beds[String(no)]) || null;
+      if (!selectedHoldBedNo) return undefined;
+      beds[String(selectedHoldBedNo)] = {
+        ...movingBed,
+        pendingTargetBedNo,
+        holdQueuedAt: queuedAt
+      };
+      if (HOLD_BED_NUMBERS.includes(bedNo) || bedNo >= 101 || bedNo === 15) {
+        delete beds[String(bedNo)];
+      } else {
+        beds[String(bedNo)] = createBedCleaningRecord(bedNo, movingBed, selectedHoldBedNo);
+      }
+      return beds;
+    });
+    if (!result.committed || !selectedHoldBedNo) return false;
+    const movedBeds = result.snapshot.val() || {};
+    const movedBed = movedBeds[String(selectedHoldBedNo)];
+    await Promise.allSettled([
+      updatePatientBedNoForBed(bedNo, movedBeds[String(bedNo)]),
+      updatePatientBedNoForBed(selectedHoldBedNo, movedBed),
+      movedBed?.patientKey
+        ? remapBedAssignmentAlertForMovedPatient(movedBed.patientKey, movedBed, selectedHoldBedNo)
+        : Promise.resolve()
+    ]);
+    remapLocalAlertBedNo(movedBed?.lastAlertId, selectedHoldBedNo);
+    return selectedHoldBedNo;
   }
 
   async function assignWaitingPatientToHoldBed(patientKey, data, pendingTargetBedNo) {
@@ -12365,7 +12398,7 @@
         const targetBedNo = Number(bed?.pendingTargetBedNo);
         if (!targetBedNo) continue;
         if (getBedData(targetBedNo)) continue;
-        const moved = await window.moveOrSwapBed(bedNo, targetBedNo, { silent: true });
+        const moved = await window.moveOrSwapBed(bedNo, targetBedNo, { silent: true, requireEmptyTarget: true });
         if (moved) await updateBedRecord(targetBedNo, { pendingTargetBedNo: null });
       }
     } finally {
@@ -15860,6 +15893,7 @@
       if (!movingBed) return;
 
       const targetBed = beds[toKey] || null;
+      if (targetBed && options.requireEmptyTarget) return undefined;
       if (targetBed) {
         beds[fromKey] = targetBed;
         beds[toKey] = movingBed;
