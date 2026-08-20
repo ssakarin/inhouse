@@ -2478,6 +2478,35 @@
     vertical-align: 3px;
   }
   .notify-reserved-patient-name { color: #fcd34d; }
+  .initial-visit-badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    margin-left: 4px;
+    padding: 0 2px;
+    border: 1.5px solid #c4b5fd;
+    border-radius: 50%;
+    color: #c4b5fd;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1;
+    vertical-align: 2px;
+  }
+  .bed-name .initial-visit-badge,
+  .bed-status-no .initial-visit-badge {
+    min-width: 14px;
+    width: 14px;
+    height: 14px;
+    margin-left: 3px;
+    padding: 0;
+    border-width: 1px;
+    font-size: 7px;
+    vertical-align: 3px;
+  }
+  body.app-mode-notify .waiting-name.initial-visit-name { color: #c4b5fd; }
+  body.app-mode-notify .waiting-name .initial-visit-badge { display: none; }
+  .notify-initial-patient-name { color: #c4b5fd; }
   .alert-card-title-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .appointment-date-buttons { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
   .appointment-date-buttons .alert-card-action { color: #fcd34d; }
@@ -11426,6 +11455,16 @@
     return '<span class="appointment-r-badge" title="오늘 예약환자" aria-label="오늘 예약환자">R</span>';
   }
 
+  function isInitialVisitPatient(data = {}) {
+    return String(data.visitType || '').trim() === '초진';
+  }
+
+  function renderInitialVisitBadge(data = {}) {
+    return isInitialVisitPatient(data)
+      ? '<span class="initial-visit-badge" title="초진환자" aria-label="초진환자">초</span>'
+      : '';
+  }
+
   function isValidChartNo(value) {
     const text = String(value ?? '').trim();
     return !text || /^\d+$/.test(text);
@@ -12728,7 +12767,7 @@
             <div class="waiting-hold-order">${holdOrder}</div>
           </div>
           <div>
-            <div class="waiting-name">${escapeHtml(bed?.name || '')}${renderTodayAppointmentBadge(bed || {}, bed?.patientKey || '')}</div>
+            <div class="waiting-name${isInitialVisitPatient(bed) ? ' initial-visit-name' : ''}">${escapeHtml(bed?.name || '')}${renderTodayAppointmentBadge(bed || {}, bed?.patientKey || '')}${renderInitialVisitBadge(bed || {})}</div>
             <div class="waiting-info">${heldChips}</div>
           </div>
         </div>`;
@@ -12743,7 +12782,7 @@
         <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" oncontextmenu="confirmPurgeWaitingPatient(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)">
           <div class="waiting-rank">${index + 1}</div>
           <div>
-            <div class="waiting-name">${escapeHtml(data.name)}${renderTodayAppointmentBadge(data, key)}</div>
+            <div class="waiting-name${isInitialVisitPatient(data) ? ' initial-visit-name' : ''}">${escapeHtml(data.name)}${renderTodayAppointmentBadge(data, key)}${renderInitialVisitBadge(data)}</div>
             ${infoChips ? `<div class="waiting-info">${infoChips}</div>` : ''}
           </div>
         </div>`;
@@ -14483,7 +14522,7 @@
             <div class="bed-summary">
               <div>
                 <div class="bed-name-row">
-                  <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}${renderTodayAppointmentBadge(bed, bed.patientKey || '')}</div>
+                  <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}${renderTodayAppointmentBadge(bed, bed.patientKey || '')}${renderInitialVisitBadge(bed)}</div>
                   ${getBedNameMetaChips(bed, bedNo)}
                 </div>
               </div>
@@ -14509,7 +14548,7 @@
         <div class="bed-summary">
           <div>
             <div class="bed-name-row">
-              <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}${renderTodayAppointmentBadge(bed, bed.patientKey || '')}</div>
+              <div class="bed-name">${escapeHtml(maskPatientDisplayName(bed.name))}${renderTodayAppointmentBadge(bed, bed.patientKey || '')}${renderInitialVisitBadge(bed)}</div>
             </div>
           </div>
           <div class="bed-time">${escapeHtml(bed.timeStr || '')}</div>
@@ -16722,15 +16761,18 @@
     const staffHtml = [
       status.memo2 ? `<span class="bed-meta-chip bed-meta-chip--flex">메모2있음</span>` : ''
     ].filter(Boolean).join('');
-    const notifyReserved = isReceive && window.currentMode === 'notify' && isTodayAppointmentPatient(status, status.patientKey);
-    const patientNameHtml = `<span${notifyReserved ? ' class="notify-reserved-patient-name"' : ''}>${escapeHtml(status.name)}</span>`;
+    const isNotifyMode = isReceive && window.currentMode === 'notify';
+    const notifyInitial = isNotifyMode && isInitialVisitPatient(status);
+    const notifyReserved = isNotifyMode && isTodayAppointmentPatient(status, status.patientKey);
+    const notifyNameClass = notifyInitial ? 'notify-initial-patient-name' : notifyReserved ? 'notify-reserved-patient-name' : '';
+    const patientNameHtml = `<span${notifyNameClass ? ` class="${notifyNameClass}"` : ''}>${escapeHtml(status.name)}</span>`;
     const monitorNameHtml = compact
       ? `${escapeHtml(getCompactBedMarker(status.bedNo))} ${patientNameHtml}`
       : `${escapeHtml(monitorLabel)} ${patientNameHtml}`;
     return `
       <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${contextHandler}>
         <div class="bed-status-top">
-          <span class="bed-status-no">${monitorNameHtml}${notifyReserved ? '' : renderTodayAppointmentBadge(status, status.patientKey)}</span>
+          <span class="bed-status-no">${monitorNameHtml}${isNotifyMode ? '' : `${renderTodayAppointmentBadge(status, status.patientKey)}${renderInitialVisitBadge(status)}`}</span>
           ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
         ${compact ? '' : (infoChips ? `<div class="bed-status-info${infoDensityClass}">${infoChips}</div>` : '')}
