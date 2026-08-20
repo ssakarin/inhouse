@@ -2195,11 +2195,50 @@ function mergePatientImportRecord(record = {}, preserveExistingSettings = false)
 }
 
 function mergePatientPutRecord(existing = {}, record = {}, identity = {}) {
-  return {
+  const merged = {
     ...existing,
     ...record,
     ...identity
   };
+  const history = [];
+  const historyKeys = new Set();
+  for (const entry of [
+    ...(Array.isArray(existing.appointmentHistory) ? existing.appointmentHistory : []),
+    ...(Array.isArray(record.appointmentHistory) ? record.appointmentHistory : [])
+  ]) {
+    if (!entry || typeof entry !== "object") continue;
+    const key = JSON.stringify([
+      String(entry.confirmedDate || ""),
+      String(entry.result || ""),
+      Number(entry.processedAt || 0),
+      Array.isArray(entry.requestedDates) ? entry.requestedDates : []
+    ]);
+    if (historyKeys.has(key)) continue;
+    historyKeys.add(key);
+    history.push(entry);
+  }
+  const confirmedDates = new Set(history
+    .map(entry => String(entry.confirmedDate || "").trim())
+    .filter(Boolean));
+  const legacyDates = [...new Set([
+    ...(Array.isArray(existing.appointmentDates) ? existing.appointmentDates : []),
+    existing.appointmentDate || ""
+  ].map(value => String(value || "").trim())
+    .filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value)))];
+  const migratedAt = Number(existing.appointmentConfirmedAt || 0) || Date.now();
+  for (const date of legacyDates) {
+    if (confirmedDates.has(date)) continue;
+    history.push({
+      requestedDates: [date],
+      confirmedDate: date,
+      result: "confirmed",
+      processedAt: migratedAt,
+      migratedFromCurrentAppointment: true
+    });
+    confirmedDates.add(date);
+  }
+  if (history.length) merged.appointmentHistory = history;
+  return merged;
 }
 
 function savePatient(record) {

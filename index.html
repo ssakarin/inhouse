@@ -13558,7 +13558,7 @@
       const today = getTodayKey();
       const todayGroup = groups.find(group => group.date === today) || { date: today, count: 0, visitedCount: 0, patients: [] };
       upcomingAppointmentGroups = [todayGroup];
-      wrap.innerHTML = `<button class="alert-card-action" type="button" onclick="openAppointmentListPopup('${today}')">오늘 예약 ${Number(todayGroup.visitedCount || 0)}/${Number(todayGroup.count || 0)}</button>`;
+      wrap.innerHTML = `<button class="alert-card-action" type="button" onclick="openAppointmentListPopup('${today}')">오늘 예약 ${Number(todayGroup.count || 0)}명</button>`;
       renderWaitingList();
       renderBedMonitors();
     } catch (error) {
@@ -13604,6 +13604,18 @@
       : ((await lookupChartPatients(chartNo)).find(item => String(item.name || '').trim() === String(source.name || '').trim()) || {});
     const history = Array.isArray(existing.appointmentHistory) ? existing.appointmentHistory : [];
     const decidedAt = Date.now();
+    const recordedHistoryDates = new Set(history
+      .map(entry => String(entry?.confirmedDate || '').trim())
+      .filter(Boolean));
+    const nextConfirmedDate = appointmentDates[0] || '';
+    const legacyHistory = normalizeAppointmentDates(existing)
+      .filter(date => date !== nextConfirmedDate && !recordedHistoryDates.has(date))
+      .map(date => ({
+        requestedDates: [date],
+        confirmedDate: date,
+        result: 'confirmed',
+        processedAt: Number(existing.appointmentConfirmedAt || 0) || decidedAt
+      }));
     const payload = {
       ...existing,
       patientId: source.patientId || existing.patientId || '',
@@ -13612,7 +13624,7 @@
       appointmentDates,
       appointmentDate: appointmentDates[0] || null,
       appointmentConfirmedAt: appointmentDates.length ? decidedAt : null,
-      appointmentHistory: [...history, {
+      appointmentHistory: [...history, ...legacyHistory, {
         requestedDates,
         confirmedDate: appointmentDates[0] || '',
         result,
