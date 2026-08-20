@@ -544,10 +544,14 @@ function listUpcomingAppointments() {
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const byDate = new Map();
   for (const patient of listPatients()) {
+    const historyDates = (Array.isArray(patient.appointmentHistory) ? patient.appointmentHistory : [])
+      .map(entry => String(entry?.confirmedDate || "").trim());
     const dates = [...new Set([
       ...(Array.isArray(patient.appointmentDates) ? patient.appointmentDates : []),
-      patient.appointmentDate || ""
+      patient.appointmentDate || "",
+      ...historyDates
     ].map(value => String(value || "").trim()).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= todayKey))];
+    const visitDates = new Set(visitDatesOf(patient));
     for (const date of dates) {
       if (!byDate.has(date)) byDate.set(date, []);
       byDate.get(date).push({
@@ -555,13 +559,15 @@ function listUpcomingAppointments() {
         chartNo: patient.chartNo || "",
         name: patient.name || "환자",
         phone: getPatientPhone(patient),
-        confirmedAt: patient.appointmentConfirmedAt || null
+        confirmedAt: patient.appointmentConfirmedAt || null,
+        visited: visitDates.has(date)
       });
     }
   }
   return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, patients]) => ({
     date,
     count: patients.length,
+    visitedCount: patients.filter(patient => patient.visited).length,
     patients: patients.sort(patientSort)
   }));
 }

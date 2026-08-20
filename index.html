@@ -13556,9 +13556,9 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const groups = await response.json();
       const today = getTodayKey();
-      const todayGroup = groups.find(group => group.date === today) || { date: today, count: 0, patients: [] };
+      const todayGroup = groups.find(group => group.date === today) || { date: today, count: 0, visitedCount: 0, patients: [] };
       upcomingAppointmentGroups = [todayGroup];
-      wrap.innerHTML = `<button class="alert-card-action" type="button" onclick="openAppointmentListPopup('${today}')">오늘 예약 ${Number(todayGroup.count || 0)}명</button>`;
+      wrap.innerHTML = `<button class="alert-card-action" type="button" onclick="openAppointmentListPopup('${today}')">오늘 예약 ${Number(todayGroup.visitedCount || 0)}/${Number(todayGroup.count || 0)}</button>`;
       renderWaitingList();
       renderBedMonitors();
     } catch (error) {
