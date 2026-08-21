@@ -64,6 +64,11 @@ db.exec(`
     doctor_name TEXT,
     visit_type TEXT,
     chief_complaint TEXT,
+    diagnosis_code TEXT,
+    total_fee REAL,
+    claim_amount REAL,
+    insured_copay REAL,
+    noncovered_amount REAL,
     PRIMARY KEY (patient_id, visit_date)
   );
   CREATE INDEX IF NOT EXISTS idx_patients_chart_no ON patients (chart_no);
@@ -168,6 +173,11 @@ function ensurePatientIdentitySchema() {
         doctor_name TEXT,
         visit_type TEXT,
         chief_complaint TEXT,
+        diagnosis_code TEXT,
+        total_fee REAL,
+        claim_amount REAL,
+        insured_copay REAL,
+        noncovered_amount REAL,
         PRIMARY KEY (patient_id, visit_date)
       );
       CREATE INDEX IF NOT EXISTS idx_patient_visits_date ON patient_visits (visit_date);
@@ -218,6 +228,26 @@ function ensurePatientSearchColumns() {
 
 ensurePatientSearchColumns();
 
+function ensurePatientVisitStatColumns() {
+  const columns = new Set(db.prepare("PRAGMA table_info(patient_visits)").all().map(column => column.name));
+  const definitions = {
+    diagnosis_code: "TEXT",
+    total_fee: "REAL",
+    claim_amount: "REAL",
+    insured_copay: "REAL",
+    noncovered_amount: "REAL"
+  };
+  let changed = false;
+  for (const [name, type] of Object.entries(definitions)) {
+    if (columns.has(name)) continue;
+    db.exec(`ALTER TABLE patient_visits ADD COLUMN ${name} ${type}`);
+    changed = true;
+  }
+  return changed;
+}
+
+const patientVisitStatSchemaChanged = ensurePatientVisitStatColumns();
+
 const statements = {
   listPatients: db.prepare("SELECT patient_id, data_json FROM patients ORDER BY chart_no COLLATE NOCASE, name COLLATE NOCASE, patient_id"),
   countPatients: db.prepare("SELECT COUNT(*) AS count FROM patients"),
@@ -249,13 +279,21 @@ const statements = {
   deletePatientVisits: db.prepare("DELETE FROM patient_visits WHERE patient_id = ?"),
   deleteAllPatientVisits: db.prepare("DELETE FROM patient_visits"),
   upsertPatientVisit: db.prepare(`
-    INSERT INTO patient_visits (patient_id, chart_no, visit_date, doctor_name, visit_type, chief_complaint)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO patient_visits (
+      patient_id, chart_no, visit_date, doctor_name, visit_type, chief_complaint,
+      diagnosis_code, total_fee, claim_amount, insured_copay, noncovered_amount
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(patient_id, visit_date) DO UPDATE SET
       chart_no = excluded.chart_no,
       doctor_name = excluded.doctor_name,
       visit_type = excluded.visit_type,
-      chief_complaint = excluded.chief_complaint
+      chief_complaint = excluded.chief_complaint,
+      diagnosis_code = excluded.diagnosis_code,
+      total_fee = excluded.total_fee,
+      claim_amount = excluded.claim_amount,
+      insured_copay = excluded.insured_copay,
+      noncovered_amount = excluded.noncovered_amount
   `),
   listVisitChartNosByMonth: db.prepare(`
     SELECT
@@ -672,9 +710,20 @@ function visitEntriesFromRecord(record = {}) {
         date,
         doctorName: normalizeSearchText(entry.doctorName || record.doctorName),
         visitType: normalizeSearchText(entry.visitType || record.visitType),
-        chiefComplaint: normalizeSearchText(entry.chiefComplaint || record.chiefComplaint)
+        chiefComplaint: normalizeSearchText(entry.chiefComplaint || record.chiefComplaint),
+        diagnosisCode: normalizeSearchText(entry.diagnosisCode),
+        totalFee: normalizeVisitStatAmount(entry.totalFee),
+        claimAmount: normalizeVisitStatAmount(entry.claimAmount),
+        insuredCopay: normalizeVisitStatAmount(entry.insuredCopay),
+        nonCoveredAmount: normalizeVisitStatAmount(entry.nonCoveredAmount)
       };
     });
+}
+
+function normalizeVisitStatAmount(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function syncPatientVisitIndex(record = {}) {
@@ -683,7 +732,19 @@ function syncPatientVisitIndex(record = {}) {
   if (!chartNo || !patientId) return;
   statements.deletePatientVisits.run(patientId);
   for (const entry of visitEntriesFromRecord(record)) {
-    statements.upsertPatientVisit.run(patientId, chartNo, entry.date, entry.doctorName, entry.visitType, entry.chiefComplaint);
+    statements.upsertPatientVisit.run(
+      patientId,
+      chartNo,
+      entry.date,
+      entry.doctorName,
+      entry.visitType,
+      entry.chiefComplaint,
+      entry.diagnosisCode,
+      entry.totalFee,
+      entry.claimAmount,
+      entry.insuredCopay,
+      entry.nonCoveredAmount
+    );
   }
 }
 
@@ -699,7 +760,7 @@ function rebuildPatientVisitIndex() {
 function ensurePatientVisitIndex() {
   const patientCount = countPatients();
   const visitCount = Number(db.prepare("SELECT COUNT(*) AS count FROM patient_visits").get()?.count || 0);
-  if (patientCount && !visitCount) rebuildPatientVisitIndex();
+  if (patientCount && (!visitCount || patientVisitStatSchemaChanged)) rebuildPatientVisitIndex();
 }
 
 function patientsByVisitMonth(month) {
@@ -1356,6 +1417,17 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const weekdayDateSets = {};
   const treatmentComboCounts = {};
   const trendBuckets = {};
+  const financialTotals = { totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0 };
+  const financialCoverage = { totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0 };
+  const financialTrend = {};
+  const doctorFinancials = {};
+  const diagnosisCounts = {};
+  const diagnosisCategoryCounts = {};
+  const initialDiagnosisCounts = {};
+  const diagnosisRetention = {};
+  const diagnosisTrend = {};
+  const treatmentRetention = {};
+  const doctorRetention = {};
   const visitStageCounts = { first: 0, second: 0, third: 0, fourthPlus: 0 };
   const hourlyPatientCounts = Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [String(hour).padStart(2, "0"), 0]));
   const hourlyPatientCountsByDayType = {
@@ -1405,6 +1477,38 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       const trendBucket = getStatsTrendBucket(trendBuckets, key);
       trendBucket.visits += 1;
       trendBucket.dates.add(date);
+      const financeBucket = financialTrend[key] || (financialTrend[key] = { key, totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0, coveredVisits: 0 });
+      let hasFinancialValue = false;
+      for (const field of Object.keys(financialTotals)) {
+        if (!Object.prototype.hasOwnProperty.call(entry, field) || entry[field] === '' || entry[field] === null || entry[field] === undefined) continue;
+        const amount = Number(entry[field]);
+        if (!Number.isFinite(amount)) continue;
+        financialTotals[field] += amount;
+        financialCoverage[field] += 1;
+        financeBucket[field] += amount;
+        hasFinancialValue = true;
+      }
+      if (hasFinancialValue) financeBucket.coveredVisits += 1;
+      if (doctorName) {
+        const doctorFinance = doctorFinancials[doctorName] || (doctorFinancials[doctorName] = { visits: 0, coveredVisits: 0, totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0 });
+        doctorFinance.visits += 1;
+        if (hasFinancialValue) doctorFinance.coveredVisits += 1;
+        for (const field of Object.keys(financialTotals)) {
+          const amount = Number(entry[field]);
+          if (Object.prototype.hasOwnProperty.call(entry, field) && Number.isFinite(amount)) doctorFinance[field] += amount;
+        }
+      }
+      const diagnosisCode = normalizeSearchText(entry.diagnosisCode).toUpperCase();
+      if (diagnosisCode) {
+        const diagnosisName = normalizeSearchText(entry.chiefComplaint || record.chiefComplaint);
+        const diagnosis = diagnosisCounts[diagnosisCode] || (diagnosisCounts[diagnosisCode] = { code: diagnosisCode, name: diagnosisName, count: 0 });
+        diagnosis.count += 1;
+        if (!diagnosis.name && diagnosisName) diagnosis.name = diagnosisName;
+        const category = diagnosisCode.charAt(0) || '기타';
+        diagnosisCategoryCounts[category] = (diagnosisCategoryCounts[category] || 0) + 1;
+        if (!diagnosisTrend[key]) diagnosisTrend[key] = {};
+        diagnosisTrend[key][diagnosisCode] = (diagnosisTrend[key][diagnosisCode] || 0) + 1;
+      }
       if (isPrescription) {
         prescriptionVisits += 1;
         prescriptionPatientSet.add(pid);
@@ -1480,7 +1584,8 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
 
     for (const firstDate of newVisitDatesOf(record)) {
       if (!inRange(firstDate) || isPrescriptionVisit(record, firstDate)) continue;
-      const firstDoctor = normalizeSearchText(getVisitRecord(record, firstDate).doctorName || record.doctorName);
+      const firstEntry = getVisitRecord(record, firstDate);
+      const firstDoctor = normalizeSearchText(firstEntry.doctorName || record.doctorName);
       if (docFilter && firstDoctor !== docFilter) continue;
       newPatients += 1;
       newPatientSet.add(pid);
@@ -1491,6 +1596,28 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       const followupVisitCount = visitsWithinDays(nonPrescriptionDates, firstDate, 21, end);
       const isReturning = followupVisitCount >= 2;
       const isThirdVisit = followupVisitCount >= 3;
+      const firstTreatments = Array.isArray(firstEntry.treatments) ? firstEntry.treatments.map(normalizeTreatmentStatName).filter(Boolean) : [];
+      const hasChuna = firstTreatments.some(treatment => isSimpleChunaTreatment(treatment) || isComplexChunaTreatment(treatment));
+      const hasPharma = firstTreatments.some(isPharmaTreatment);
+      const treatmentGroup = hasChuna && hasPharma ? '추나+약침' : hasChuna ? '추나' : hasPharma ? '약침' : '일반진료';
+      const treatmentCohort = treatmentRetention[treatmentGroup] || (treatmentRetention[treatmentGroup] = { eligible: 0, returning: 0, third: 0 });
+      treatmentCohort.eligible += 1;
+      if (isReturning) treatmentCohort.returning += 1;
+      if (isThirdVisit) treatmentCohort.third += 1;
+      const doctorCohortName = firstDoctor || '미지정';
+      const doctorCohort = doctorRetention[doctorCohortName] || (doctorRetention[doctorCohortName] = { visits: 0, newPatients: 0, eligible: 0, returning: 0, third: 0 });
+      doctorCohort.newPatients += 1;
+      doctorCohort.eligible += 1;
+      if (isReturning) doctorCohort.returning += 1;
+      if (isThirdVisit) doctorCohort.third += 1;
+      const firstDiagnosisCode = normalizeSearchText(firstEntry.diagnosisCode).toUpperCase();
+      if (firstDiagnosisCode) {
+        initialDiagnosisCounts[firstDiagnosisCode] = (initialDiagnosisCounts[firstDiagnosisCode] || 0) + 1;
+        const diagnosisCohort = diagnosisRetention[firstDiagnosisCode] || (diagnosisRetention[firstDiagnosisCode] = { eligible: 0, returning: 0, third: 0 });
+        diagnosisCohort.eligible += 1;
+        if (isReturning) diagnosisCohort.returning += 1;
+        if (isThirdVisit) diagnosisCohort.third += 1;
+      }
       if (trendBuckets[key]) {
         if (isReturning) trendBuckets[key].returningPatients += 1;
         if (isThirdVisit) trendBuckets[key].thirdVisitPatients += 1;
@@ -1518,6 +1645,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       const clinicDays = Math.max(1, bucket.clinicDates.size || bucket.dates.size);
       const uniquePatients = bucket.patientIds.size;
       const chunaTypeTotal = bucket.simpleChunaTotal + bucket.complexChunaTotal;
+      const financeBucket = financialTrend[bucket.key] || {};
       return {
         key: bucket.key,
         clinicDays,
@@ -1536,6 +1664,9 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
         pharmaPatientRate: uniquePatients ? bucket.pharmaPatientIds.size / uniquePatients : 0,
         avgPharmaPatientsPerDay: bucket.pharmaTotal / clinicDays,
         avgPharmaPackagePurchasePatientsPerDay: bucket.pharmaPackagePurchasePatientIds.size / clinicDays,
+        avgCombinedFeePerDay: (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / clinicDays,
+        avgTotalFeePerDay: Number(financeBucket.totalFee || 0) / clinicDays,
+        avgNonCoveredFeePerDay: Number(financeBucket.nonCoveredAmount || 0) / clinicDays,
         returnRate: bucket.newPatients ? bucket.returningPatients / bucket.newPatients : 0,
         thirdVisitRate: bucket.newPatients ? bucket.thirdVisitPatients / bucket.newPatients : 0
       };
@@ -1554,6 +1685,17 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     const label = types.size >= 2 ? "약침 2종 이상" : [...types][0];
     if (label) pharmaPatientTypeCounts[label] = (pharmaPatientTypeCounts[label] || 0) + 1;
   }
+  for (const [doctorName, count] of Object.entries(doctorCounts)) {
+    const cohort = doctorRetention[doctorName] || (doctorRetention[doctorName] = { visits: 0, newPatients: 0, eligible: 0, returning: 0, third: 0 });
+    cohort.visits = count;
+  }
+
+  const retentionRows = source => Object.entries(source).map(([name, row]) => ({
+    name,
+    ...row,
+    returnRate: row.eligible ? row.returning / row.eligible : 0,
+    thirdVisitRate: row.eligible ? row.third / row.eligible : 0
+  })).sort((a, b) => b.eligible - a.eligible || a.name.localeCompare(b.name, 'ko'));
 
   return {
     recordCount: records.length,
@@ -1599,6 +1741,17 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     hourlyPatientCountsByDayType,
     unknownTimeVisits,
     nurseAssignmentsByDate,
+    financialTotals,
+    financialCoverage,
+    financialTrend: Object.values(financialTrend).sort((a, b) => a.key.localeCompare(b.key)),
+    doctorFinancials,
+    diagnosisCounts,
+    diagnosisCategoryCounts,
+    initialDiagnosisCounts,
+    diagnosisRetention: retentionRows(diagnosisRetention),
+    diagnosisTrend: Object.entries(diagnosisTrend).sort((a, b) => a[0].localeCompare(b[0])).map(([key, counts]) => ({ key, counts })),
+    treatmentRetention: retentionRows(treatmentRetention),
+    doctorRetention: retentionRows(doctorRetention),
     trendStats
   };
 }

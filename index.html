@@ -10234,6 +10234,32 @@
     return { memo2: history[date], memo2History: history };
   }
 
+  const VISIT_STAT_FIELDS = ['diagnosisCode', 'totalFee', 'claimAmount', 'insuredCopay', 'nonCoveredAmount'];
+
+  function visitStatFields(source = {}) {
+    const result = {};
+    VISIT_STAT_FIELDS.forEach(field => {
+      if (!Object.prototype.hasOwnProperty.call(source, field)) return;
+      const value = source[field];
+      if (field === 'diagnosisCode') {
+        const normalized = String(value ?? '').trim();
+        if (normalized) result[field] = normalized;
+      } else {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) result[field] = numeric;
+      }
+    });
+    return result;
+  }
+
+  function parseImportAmount(value) {
+    if (value === null || value === undefined || String(value).trim() === '') return undefined;
+    const text = String(value).trim().replace(/,/g, '');
+    const accounting = /^\((.+)\)$/.exec(text);
+    const numeric = Number(accounting ? `-${accounting[1]}` : text);
+    return Number.isFinite(numeric) ? numeric : undefined;
+  }
+
   function createChartVisitEntry(source = {}) {
     const date = source.visitDate || getVisitDateFromTimestamp(source.timestamp);
     const timestamp = Number(source.timestamp || 0);
@@ -10247,7 +10273,8 @@
       nurseId: source.nurseId || '',
       nurseName: source.nurseName || '',
       chiefComplaint: source.chiefComplaint || '',
-      memo2: source.memo2 || ''
+      memo2: source.memo2 || '',
+      ...visitStatFields(source)
     };
   }
 
@@ -10267,7 +10294,8 @@
         nurseName: entry.nurseName || '',
         visitType: entry.visitType || '',
         chiefComplaint: entry.chiefComplaint || '',
-        ...(hasMemo2 ? { memo2: entry.memo2 || '' } : {})
+        ...(hasMemo2 ? { memo2: entry.memo2 || '' } : {}),
+        ...visitStatFields(entry)
       });
     };
 
@@ -10304,6 +10332,11 @@
       if (Object.prototype.hasOwnProperty.call(saved, 'memo2') || Object.prototype.hasOwnProperty.call(incoming, 'memo2')) {
         merged.memo2 = preferNonEmptyValue(incoming.memo2, saved.memo2) || '';
       }
+      VISIT_STAT_FIELDS.forEach(field => {
+        if (!Object.prototype.hasOwnProperty.call(saved, field) && !Object.prototype.hasOwnProperty.call(incoming, field)) return;
+        const value = preferNonEmptyValue(incoming[field], saved[field]);
+        if (value !== undefined && value !== null && value !== '') merged[field] = value;
+      });
       const timestamp = Number(preferNonEmptyValue(incoming.timestamp, saved.timestamp) || 0);
       if (timestamp) merged.timestamp = timestamp;
       return merged;
@@ -18438,6 +18471,11 @@
       const colDoctor = detectColumn(headers, ['진료의사','진료의','담당의','담당원장']);
       const colPhone  = detectColumn(headers, ['연락처','전화번호','휴대폰','핸드폰','휴대전화','전화','Tel','TEL','Mobile','Phone']);
       const colInsuranceType = detectColumn(headers, ['보험종별','보험종류','보험구분','보험유형','InsuranceType','Insurance Kind','InsuKind']);
+      const colDiagnosisCode = detectColumn(headers, ['주상병코드','상병코드','주진단코드','진단코드']);
+      const colTotalFee = detectColumn(headers, ['진료비총액','총진료비','진료비 총액']);
+      const colClaimAmount = detectColumn(headers, ['청구액','보험청구액']);
+      const colInsuredCopay = detectColumn(headers, ['본인부담(보험)','보험본인부담','본인부담금']);
+      const colNonCoveredAmount = detectColumn(headers, ['비급여','비급여금액']);
 
       if (!colChart) {
         statusEl.textContent = '❌ 차트번호 컬럼을 찾을 수 없습니다. 컬럼명을 확인해주세요.';
@@ -18460,6 +18498,7 @@
       const namesByChartInFile = new Map();
       const chartNameConflicts = [];
       const chartNameConflictKeys = new Set();
+      const invalidChartRows = [];
       let skipped = 0;
       for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
         if (rowIndex > 0 && rowIndex % 500 === 0) {
@@ -18468,9 +18507,15 @@
           await yieldChartImportPaint();
         }
         const row = rows[rowIndex];
-        const chartNo = normalizeChartNo(String(row[colChart] || '').trim().replace(/\.0$/, ''));
+        const rawChartNo = String(row[colChart] || '').trim();
+        const chartNo = normalizeChartNo(rawChartNo.replace(/\.0$/, ''));
         const name    = normalizeImportedPatientName(row[colName]);
         if (!chartNo || !name) { skipped++; continue; }
+        if (!/^\d+$/.test(chartNo)) {
+          invalidChartRows.push({ rowNumber: rowIndex + 2, chartNo: rawChartNo });
+          skipped++;
+          continue;
+        }
         const chartNameKey = `${chartNo}\u0000${name}`;
         const namesForChart = namesByChartInFile.get(chartNo) || new Set();
         if (!namesByChartInFile.has(chartNo)) namesByChartInFile.set(chartNo, namesForChart);
@@ -18515,6 +18560,11 @@
         const visitType      = visitText.includes('초') ? '초진' : (visitText.includes('재') ? '재진' : '');
         const phone          = colPhone  ? String(row[colPhone]  || '').trim() : '';
         const insuranceType  = colInsuranceType ? String(row[colInsuranceType] || '').trim() : '';
+        const diagnosisCode  = colDiagnosisCode ? String(row[colDiagnosisCode] ?? '').trim() : '';
+        const totalFee       = colTotalFee ? parseImportAmount(row[colTotalFee]) : undefined;
+        const claimAmount    = colClaimAmount ? parseImportAmount(row[colClaimAmount]) : undefined;
+        const insuredCopay   = colInsuredCopay ? parseImportAmount(row[colInsuredCopay]) : undefined;
+        const nonCoveredAmount = colNonCoveredAmount ? parseImportAmount(row[colNonCoveredAmount]) : undefined;
 
         const existingAgg = byChart.get(chartNameKey);
         const agg = existingAgg || { chartNo, name, age: '', gender: '', phone: '', insuranceType: '', chiefComplaint: '', doctorName: '', visitEntries: [] };
@@ -18532,7 +18582,12 @@
           visitType,
           doctorName,
           chiefComplaint,
-          ...(visitTimestamp ? { timestamp: visitTimestamp } : {})
+          ...(visitTimestamp ? { timestamp: visitTimestamp } : {}),
+          ...(diagnosisCode ? { diagnosisCode } : {}),
+          ...(totalFee !== undefined ? { totalFee } : {}),
+          ...(claimAmount !== undefined ? { claimAmount } : {}),
+          ...(insuredCopay !== undefined ? { insuredCopay } : {}),
+          ...(nonCoveredAmount !== undefined ? { nonCoveredAmount } : {})
         });
         byChart.set(chartNameKey, agg);
       }
@@ -18542,6 +18597,13 @@
         .reduce((sum, names) => sum + Math.max(0, names.size - 1), 0);
       const splitSummary = splitPatientCount
         ? ` · 동일 차트번호 다른 이름 ${splitPatientCount.toLocaleString()}명 저장 보류`
+        : '';
+      const invalidChartPreview = invalidChartRows
+        .slice(0, 10)
+        .map(item => `${item.rowNumber}행(${item.chartNo})`)
+        .join(', ');
+      const invalidChartSummary = invalidChartRows.length
+        ? `\n잘못된 차트번호 ${invalidChartRows.length.toLocaleString()}건 건너뜀${invalidChartPreview ? `: ${invalidChartPreview}` : ''}${invalidChartRows.length > 10 ? ` 외 ${(invalidChartRows.length - 10).toLocaleString()}건` : ''}`
         : '';
       const notifySplitComplete = () => {
         if (options.alertSplit === false || !splitPatientCount) return;
@@ -18677,9 +18739,9 @@
         updateChartDbCount();
         refreshAppointmentAlerts();
         statusEl.textContent = `총 ${saved.toLocaleString()}명 저장 완료 (원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped}행 건너뜀` : ''}${splitSummary})`;
-        finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}${blockedPatientCount ? `\n이름 충돌 ${blockedPatientCount.toLocaleString()}명 저장 보류` : ''}`);
+        finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}${invalidChartSummary}${blockedPatientCount ? `\n이름 충돌 ${blockedPatientCount.toLocaleString()}명 저장 보류` : ''}`);
         notifySplitComplete();
-        return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount, blockedPatientCount };
+        return { saved, rows: rows.length, skipped, invalidChartCount: invalidChartRows.length, splitChartCount, splitPatientCount, blockedPatientCount };
       }
 
       const db = await openChartDb();
@@ -18711,9 +18773,9 @@
       updateChartDbCount();
       refreshAppointmentAlerts();
       statusEl.textContent = `✅ ${saved.toLocaleString()}명 저장 완료 (총 ${rows.length.toLocaleString()}행)${skipped ? ` · ${skipped}행 건너뜀` : ''}${splitSummary}`;
-      finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}${blockedPatientCount ? `\n이름 충돌 ${blockedPatientCount.toLocaleString()}명 저장 보류` : ''}`);
+      finishChartImportProgress(true, '엑셀 불러오기 완료', `${saved.toLocaleString()}명 저장 완료\n원본 ${rows.length.toLocaleString()}행${skipped ? ` · ${skipped.toLocaleString()}행 건너뜀` : ''}${invalidChartSummary}${blockedPatientCount ? `\n이름 충돌 ${blockedPatientCount.toLocaleString()}명 저장 보류` : ''}`);
       notifySplitComplete();
-      return { saved, rows: rows.length, skipped, splitChartCount, splitPatientCount, blockedPatientCount };
+      return { saved, rows: rows.length, skipped, invalidChartCount: invalidChartRows.length, splitChartCount, splitPatientCount, blockedPatientCount };
     } catch(e) {
       console.error(e);
       statusEl.textContent = '❌ 오류: ' + e.message;

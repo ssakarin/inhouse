@@ -96,6 +96,8 @@
   .metric-value.gold { color: var(--gold); }
   .metric-value.accent { color: var(--accent); }
   .metric-total-average { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; }
+  .financial-total-value { min-width: 0; flex-wrap: wrap; gap: 3px; white-space: normal; }
+  .financial-total-value > span { max-width: 100%; white-space: nowrap; }
   .metric-average { color: inherit; font-size: 13px; font-weight: 900; }
   .metric-sub { color: var(--muted); font-size: 11px; font-weight: 700; margin-top: 2px; }
   .summary-value-guide { color: var(--muted); font-size: 11px; font-weight: 800; }
@@ -390,6 +392,7 @@
       <div class="card-title">기간 요약</div>
       <div class="summary-value-guide">수량: 기간 합계 / 진료일당 평균 · 증감: 평균 기준 · 비율: 퍼센트포인트 기준</div>
     </div>
+    <div class="chart-subtitle" id="financialCoverageText"></div>
     <div class="metrics" id="summaryMetrics"></div>
     <div class="summary-breakdowns" id="summaryBreakdowns"></div>
   </div>
@@ -422,6 +425,25 @@
     <div id="hourlyPatientChartWrap"></div>
   </div>
 
+  <div class="card">
+    <div class="card-title">상병 통계</div>
+    <div class="chart-subtitle" id="diagnosisCoverageText"></div>
+    <div class="grid2">
+      <div><div class="chart-section-title">상병코드 Top 10</div><div id="diagnosisTopWrap"></div></div>
+      <div><div class="chart-section-title">초진 상병 Top 10</div><div id="initialDiagnosisTopWrap"></div></div>
+      <div><div class="chart-section-title">상병 대분류 구성</div><div id="diagnosisCategoryWrap"></div></div>
+      <div><div class="chart-section-title">상병별 재진율·삼진율</div><div id="diagnosisRetentionWrap"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">유지율 비교</div>
+    <div class="grid2">
+      <div><div class="chart-section-title">치료별 재진율·삼진율</div><div id="treatmentRetentionWrap"></div></div>
+      <div><div class="chart-section-title">원장별 데이터</div><div id="doctorRetentionWrap"></div></div>
+    </div>
+  </div>
+
   <div class="grid2">
     <div class="card">
       <div class="card-title">치료별 횟수</div>
@@ -430,10 +452,6 @@
     <div class="card">
       <div class="card-title">치료조합 Top 10</div>
       <div id="comboTableWrap"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">원장별 진료 건수</div>
-      <div id="doctorTableWrap"></div>
     </div>
     <div class="card">
       <div class="card-title">요일별 평균 진료 건수</div>
@@ -471,7 +489,10 @@
     { key: "thirdVisitRate", label: "삼진율", axis: "rate", color: "#fb7185", title: value => `삼진율 ${(value * 100).toFixed(1)}%` },
     { key: "chunaPatientRate", label: "추나비율", axis: "rate", color: "#38bdf8", title: value => `추나비율 ${(value * 100).toFixed(1)}%` },
     { key: "complexChunaRate", label: "복추 비율", axis: "rate", color: "#ef4444", title: value => `복추 비율 ${(value * 100).toFixed(1)}%` },
-    { key: "pharmaPatientRate", label: "약침비율", axis: "rate", color: "#10b981", title: value => `약침비율 ${(value * 100).toFixed(1)}%` }
+    { key: "pharmaPatientRate", label: "약침비율", axis: "rate", color: "#10b981", title: value => `약침비율 ${(value * 100).toFixed(1)}%` },
+    { key: "avgCombinedFeePerDay", label: "총진료비", axis: "money", color: "#4ade80", title: value => `총진료비 일평균 ${Math.round(value).toLocaleString()}원` },
+    { key: "avgTotalFeePerDay", label: "급여진료비", axis: "money", color: "#39a9f5", title: value => `급여진료비 일평균 ${Math.round(value).toLocaleString()}원` },
+    { key: "avgNonCoveredFeePerDay", label: "비급여진료비", axis: "money", color: "#ffca6a", title: value => `비급여진료비 일평균 ${Math.round(value).toLocaleString()}원` }
   ];
 
   function getVisibleChartMetricKeys(wrapId = "chartMetricToggles", chipSelector = ".chart-metric-chip") {
@@ -1279,20 +1300,21 @@
     renderSummaryBreakdowns(s);
   }
 
-  function renderSummaryBreakdown(title, total, unit, items, highlight = null) {
+  function renderSummaryBreakdown(title, total, unit, items, highlight = null, displayDivisor = 1) {
     const safeTotal = Math.max(0, Number(total || 0));
     const segments = items.map(item => {
       const value = Math.max(0, Number(item.value || 0));
       const percent = safeTotal ? (value / safeTotal) * 100 : 0;
       return { ...item, value, percent };
     });
+    const displayed = value => Math.round(Number(value || 0) / Math.max(1, Number(displayDivisor || 1))).toLocaleString();
     return `<div class="summary-breakdown">
-      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlight ? `${escapeHtml(highlight.label)} ${Number(highlight.value || 0).toLocaleString()}${escapeHtml(unit)} · ${safeTotal ? ((Number(highlight.value || 0) / safeTotal) * 100).toFixed(1) : "0.0"}%` : `총 ${safeTotal.toLocaleString()}${escapeHtml(unit)}`}</div></div>
+      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlight ? `${escapeHtml(highlight.label)} ${displayed(highlight.value)}${escapeHtml(unit)} · ${safeTotal ? ((Number(highlight.value || 0) / safeTotal) * 100).toFixed(1) : "0.0"}%` : `총 ${displayed(safeTotal)}${escapeHtml(unit)}`}</div></div>
       <div class="summary-stacked-bar" role="img" aria-label="${escapeHtml(title)} 구성">
-        ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${item.value.toLocaleString()}${escapeHtml(unit)} (${item.percent.toFixed(1)}%)"></span>`).join("")}
+        ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${displayed(item.value)}${escapeHtml(unit)} (${item.percent.toFixed(1)}%)"></span>`).join("")}
       </div>
       <div class="summary-breakdown-legend">
-        ${segments.map(item => `<div class="summary-breakdown-item"><div class="summary-breakdown-label"><span class="summary-breakdown-dot" style="background:${item.color}"></span>${escapeHtml(item.label)}</div><div class="summary-breakdown-value">${item.value.toLocaleString()}${escapeHtml(unit)} · ${item.percent.toFixed(1)}%</div></div>`).join("")}
+        ${segments.map(item => `<div class="summary-breakdown-item"><div class="summary-breakdown-label"><span class="summary-breakdown-dot" style="background:${item.color}"></span>${escapeHtml(item.label)}</div><div class="summary-breakdown-value">${displayed(item.value)}${escapeHtml(unit)} · ${item.percent.toFixed(1)}%</div></div>`).join("")}
       </div>
     </div>`;
   }
@@ -1323,6 +1345,11 @@
         { label: "3회차", value: stages.third, color: "#fb7185" },
         { label: "4회차 이상", value: stages.fourthPlus, color: "#4ade80" }
       ]),
+      renderSummaryBreakdown("진료비 구성", Number(s.financialTotals?.claimAmount || 0) + Number(s.financialTotals?.insuredCopay || 0) + Number(s.financialTotals?.nonCoveredAmount || 0), "만원", [
+        { label: "보험 청구", value: Number(s.financialTotals?.claimAmount || 0), color: "#39a9f5" },
+        { label: "본인부담", value: Number(s.financialTotals?.insuredCopay || 0), color: "#ffca6a" },
+        { label: "비급여", value: Number(s.financialTotals?.nonCoveredAmount || 0), color: "#a78bfa" }
+      ], null, 10000),
       renderSummaryBreakdown("총 환자 수 구성", s.totalPatients, "명", [
         { label: "약환", value: prescriptionOnlyPatients, color: "#a78bfa" },
         { label: "초진", value: newUniquePatients, color: "#ffca6a" },
@@ -1375,6 +1402,104 @@
       if (canExpand) wrap.querySelector(".table-expand-btn").addEventListener("click", () => draw(!expanded));
     };
     draw(false);
+  }
+
+  function money(value) {
+    return `${Math.round(Number(value || 0)).toLocaleString()}원`;
+  }
+
+  function moneyInTenThousands(value) {
+    return `${Math.round(Number(value || 0) / 10000).toLocaleString()}만원`;
+  }
+
+  function renderRetentionTable(wrapId, rows = [], { doctor = false, diagnosisNames = {} } = {}) {
+    const wrap = $(wrapId);
+    if (!rows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
+    wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>${doctor ? "원장" : "구분"}</th>${doctor ? "<th class=\"num\">진료</th>" : ""}<th class="num">초진</th><th class="num">재진율</th><th class="num">삼진율</th></tr></thead><tbody>${rows.slice(0, 15).map(row => {
+      const label = diagnosisNames[row.name] ? `${row.name} · ${diagnosisNames[row.name]}` : row.name;
+      return `<tr><td>${escapeHtml(label)}</td>${doctor ? `<td class="num">${Number(row.visits || 0).toLocaleString()}</td>` : ""}<td class="num">${Number(row.eligible || 0).toLocaleString()}</td><td class="num">${(Number(row.returnRate || 0) * 100).toFixed(1)}%</td><td class="num">${(Number(row.thirdVisitRate || 0) * 100).toFixed(1)}%</td></tr>`;
+    }).join("")}</tbody></table></div>`;
+  }
+
+  function renderDoctorDataTable(rows = [], financials = {}) {
+    const wrap = $("doctorRetentionWrap");
+    const names = [...new Set([...rows.map(row => row.name), ...Object.keys(financials || {})])];
+    const retentionByName = Object.fromEntries(rows.map(row => [row.name, row]));
+    const combinedRows = names.map(name => ({ name, ...(retentionByName[name] || {}), ...(financials[name] || {}) }))
+      .sort((a, b) => Number(b.visits || 0) - Number(a.visits || 0));
+    if (!combinedRows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
+    wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>원장</th><th class="num">진료</th><th class="num">초진</th><th class="num">재진율</th><th class="num">삼진율</th><th class="num">급여 진료비 총액</th><th class="num">비급여 총액</th><th class="num">1건 평균</th></tr></thead><tbody>${combinedRows.map(row => {
+      const combined = Number(row.totalFee || 0) + Number(row.nonCoveredAmount || 0);
+      return `<tr><td>${escapeHtml(row.name)}</td><td class="num">${Number(row.visits || 0).toLocaleString()}</td><td class="num">${Number(row.eligible || 0).toLocaleString()}</td><td class="num">${(Number(row.returnRate || 0) * 100).toFixed(1)}%</td><td class="num">${(Number(row.thirdVisitRate || 0) * 100).toFixed(1)}%</td><td class="num">${moneyInTenThousands(row.totalFee)}</td><td class="num">${moneyInTenThousands(row.nonCoveredAmount)}</td><td class="num">${money(row.coveredVisits ? combined / row.coveredVisits : 0)}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
+  }
+
+  function renderSimpleBarChart(wrapId, rows = [], { value = row => row.value, label = row => row.label, formatter = n => Number(n).toLocaleString(), color = "#39a9f5" } = {}) {
+    const wrap = $(wrapId);
+    if (!rows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
+    const max = Math.max(1, ...rows.map(value));
+    wrap.innerHTML = `<table><tbody>${rows.map(row => `<tr><td style="width:32%">${escapeHtml(label(row))}</td><td class="num" style="width:22%">${escapeHtml(formatter(value(row)))}</td><td class="bar-cell"><div class="bar" style="background:${color};width:${Math.round(value(row) / max * 100)}%"></div></td></tr>`).join("")}</tbody></table>`;
+  }
+
+  function renderFinancialStats(s = {}, previous = {}) {
+    const totals = s.financialTotals || {};
+    const coverage = s.financialCoverage || {};
+    const previousTotals = previous.financialTotals || {};
+    const previousCoverage = previous.financialCoverage || {};
+    const covered = Number(coverage.totalFee || 0);
+    const visits = Number(s.visits || 0);
+    const coverageRate = visits ? covered / visits : 0;
+    $("financialCoverageText").textContent = `금액 데이터 보유 ${covered.toLocaleString()} / ${visits.toLocaleString()}건 (${(coverageRate * 100).toFixed(1)}%) · 평균은 금액이 있는 진료만 기준`;
+    const totalFee = Number(totals.totalFee || 0);
+    const noncovered = Number(totals.nonCoveredAmount || 0);
+    const previousTotalFee = Number(previousTotals.totalFee || 0);
+    const combinedTotalFee = totalFee + noncovered;
+    const previousCombinedTotalFee = previousTotalFee + Number(previousTotals.nonCoveredAmount || 0);
+    const previousCovered = Number(previousCoverage.totalFee || 0);
+    const currentDays = Math.max(1, Number(s.clinicDays || 0));
+    const previousDays = Math.max(1, Number(previous.clinicDays || 0));
+    const totalCard = (label, value, previousValue, color = '') => `<div class="metric"><div class="metric-label">${label}</div><div class="metric-value metric-total-average financial-total-value ${color}"><span>${moneyInTenThousands(value)}</span><span class="metric-average">/ ${moneyInTenThousands(value / currentDays)}</span></div><div class="metric-sub">만원이하반올림</div>${summaryComparison(value / currentDays / 10000, previousValue / previousDays / 10000, { suffix: "만원" })}</div>`;
+    const currentNoncoveredRate = combinedTotalFee ? noncovered / combinedTotalFee : 0;
+    const previousNoncoveredRate = previousCombinedTotalFee ? Number(previousTotals.nonCoveredAmount || 0) / previousCombinedTotalFee : 0;
+    const currentPerVisit = covered ? totalFee / covered : 0;
+    const previousPerVisit = previousCovered ? previousTotalFee / previousCovered : 0;
+    const noncoveredVisits = Number(coverage.nonCoveredAmount || 0);
+    const previousNoncoveredVisits = Number(previousCoverage.nonCoveredAmount || 0);
+    const currentNoncoveredPerVisit = noncoveredVisits ? noncovered / noncoveredVisits : 0;
+    const previousNoncoveredPerVisit = previousNoncoveredVisits ? Number(previousTotals.nonCoveredAmount || 0) / previousNoncoveredVisits : 0;
+    const currentCombinedPerVisit = covered ? combinedTotalFee / covered : 0;
+    const previousCombinedPerVisit = previousCovered ? previousCombinedTotalFee / previousCovered : 0;
+    $("summaryMetrics").insertAdjacentHTML("beforeend", [
+      totalCard("진료비 총액", combinedTotalFee, previousCombinedTotalFee),
+      totalCard("급여 진료비 총액", totalFee, previousTotalFee, "accent"),
+      totalCard("비급여 진료비 총액", noncovered, Number(previousTotals.nonCoveredAmount || 0), "gold"),
+      `<div class="metric"><div class="metric-label">1건 평균 진료비 총액</div><div class="metric-value">${money(currentCombinedPerVisit)}</div><div class="metric-sub">급여 + 비급여</div>${summaryComparison(currentCombinedPerVisit, previousCombinedPerVisit, { suffix: "원" })}</div>`,
+      `<div class="metric"><div class="metric-label">1건 평균 급여 진료비</div><div class="metric-value accent">${money(currentPerVisit)}</div><div class="metric-sub">급여 진료비가 저장된 진료 기준</div>${summaryComparison(currentPerVisit, previousPerVisit, { suffix: "원" })}</div>`,
+      `<div class="metric"><div class="metric-label">1건 평균 비급여 진료비</div><div class="metric-value gold">${money(currentNoncoveredPerVisit)}</div><div class="metric-sub">비급여 0원 진료 포함</div>${summaryComparison(currentNoncoveredPerVisit, previousNoncoveredPerVisit, { suffix: "원" })}</div>`,
+      `<div class="metric"><div class="metric-label">비급여 비율</div><div class="metric-value gold">${(currentNoncoveredRate * 100).toFixed(1)}%</div><div class="metric-sub">전체 진료비 중 비급여</div>${summaryComparison(currentNoncoveredRate, previousNoncoveredRate, { rate: true, digits: 1 })}</div>`
+    ].join(""));
+  }
+
+  function renderDiagnosisStats(s = {}) {
+    const diagnoses = Object.values(s.diagnosisCounts || {}).sort((a, b) => b.count - a.count);
+    const names = Object.fromEntries(diagnoses.map(row => [row.code, row.name || ""]));
+    const covered = diagnoses.reduce((sum, row) => sum + Number(row.count || 0), 0);
+    const visits = Number(s.visits || 0);
+    $("diagnosisCoverageText").textContent = `상병코드 데이터 보유 ${covered.toLocaleString()} / ${visits.toLocaleString()}건 (${(visits ? covered / visits * 100 : 0).toFixed(1)}%)`;
+    renderSimpleBarChart("diagnosisTopWrap", diagnoses.slice(0, 10), { value: row => row.count, label: row => `${row.code}${row.name ? ` · ${row.name}` : ""}` });
+    const initialRows = Object.entries(s.initialDiagnosisCounts || {}).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([code, count]) => ({ code, name: names[code] || "", count }));
+    renderSimpleBarChart("initialDiagnosisTopWrap", initialRows, { value: row => row.count, label: row => `${row.code}${row.name ? ` · ${row.name}` : ""}`, color: "#ffca6a" });
+    const categoryNames = { M: "근골격계", S: "손상", K: "소화기", G: "신경계", J: "호흡기", I: "순환기", R: "증상·징후" };
+    const categories = Object.entries(s.diagnosisCategoryCounts || {}).sort((a, b) => b[1] - a[1]).map(([code, count]) => ({ label: `${code} · ${categoryNames[code] || "기타"}`, value: count }));
+    renderSimpleBarChart("diagnosisCategoryWrap", categories, { color: "#a78bfa" });
+    renderRetentionTable("diagnosisRetentionWrap", (s.diagnosisRetention || []).slice(0, 10), { diagnosisNames: names });
+  }
+
+  function renderRetentionStats(s = {}) {
+    const treatmentOrder = { "일반진료": 0, "추나": 1, "약침": 2, "추나+약침": 3 };
+    const treatments = [...(s.treatmentRetention || [])].sort((a, b) => (treatmentOrder[a.name] ?? 9) - (treatmentOrder[b.name] ?? 9));
+    renderRetentionTable("treatmentRetentionWrap", treatments);
+    renderDoctorDataTable(s.doctorRetention || [], s.doctorFinancials || {});
   }
 
   function renderHourlyPatientChart(countsByDayType = {}, unknownCount = 0) {
@@ -1473,7 +1598,7 @@
 
     const width = Math.max(720, rows.length * 78 + 120);
     const height = 340;
-    const pad = { top: 24, right: 66, bottom: 58, left: 58 };
+    const pad = { top: 24, right: 118, bottom: 58, left: 58 };
     const chartW = width - pad.left - pad.right;
     const chartH = height - pad.top - pad.bottom;
     const visibleMetricKeys = new Set(getVisibleChartMetricKeys());
@@ -1484,15 +1609,20 @@
     }
     const countMetrics = visibleMetrics.filter(metric => metric.axis === "count");
     const rateMetrics = visibleMetrics.filter(metric => metric.axis === "rate");
+    const moneyMetrics = visibleMetrics.filter(metric => metric.axis === "money");
     const maxCount = Math.max(1, ...rows.map(row => Math.max(0, ...countMetrics.map(metric => Number(row[metric.key] || 0)))));
     const countTop = Math.ceil(maxCount * 1.15);
     const maxRate = Math.max(0.1, ...rows.map(row => Math.max(0, ...rateMetrics.map(metric => chartMetricValue(row, metric) ?? 0))));
     const rateTop = Math.min(1, Math.max(0.1, Math.ceil(maxRate * 10) / 10));
+    const maxMoney = Math.max(1, ...rows.map(row => Math.max(0, ...moneyMetrics.map(metric => chartMetricValue(row, metric) ?? 0))));
+    const moneyTop = Math.max(1, Math.ceil(maxMoney / 10000) * 10000);
     const x = idx => pad.left + (rows.length === 1 ? chartW / 2 : (chartW * idx) / (rows.length - 1));
     const yCount = value => pad.top + chartH - (value / countTop) * chartH;
     const yRate = value => pad.top + chartH - (value / rateTop) * chartH;
+    const yMoney = value => pad.top + chartH - (value / moneyTop) * chartH;
     const countTicks = [0, 0.25, 0.5, 0.75, 1].map(p => countTop * p);
     const rateTicks = [0, 0.25, 0.5, 0.75, 1].map(p => rateTop * p);
+    const moneyTicks = [0, 0.25, 0.5, 0.75, 1].map(p => moneyTop * p);
     const unitLabel = { day: "일", week: "주차", month: "월", quarter: "분기", year: "년" }[chartUnit] || "기간";
     const xLabel = row => chartUnit === "week"
       ? `<text class="chart-text" x="${x(row.idx)}" y="${height - pad.bottom + 20}" text-anchor="middle">${row.key}</text><text class="chart-text" x="${x(row.idx)}" y="${height - pad.bottom + 36}" text-anchor="middle">${isoWeekRangeLabel(row.key)}</text>`
@@ -1512,13 +1642,19 @@
             const y = yRate(t);
             return `<text class="chart-text" x="${width - pad.right + 10}" y="${y + 4}">${Math.round(t * 100)}%</text>`;
           }).join("") : ""}
+          ${moneyMetrics.length ? moneyTicks.map(t => {
+            const y = yMoney(t);
+            return `<text class="chart-text" x="${width - pad.right + (rateMetrics.length ? 50 : 10)}" y="${y + 4}">${Math.round(t / 10000).toLocaleString()}만</text>`;
+          }).join("") : ""}
           <line class="chart-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
           ${rateMetrics.length ? `<line class="chart-axis" x1="${width - pad.right}" y1="${pad.top}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>` : ""}
+          ${moneyMetrics.length && !rateMetrics.length ? `<line class="chart-axis" x1="${width - pad.right}" y1="${pad.top}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>` : ""}
           <line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
           ${countMetrics.length ? `<text class="chart-text" x="${pad.left}" y="14">일평균 인원</text>` : ""}
           ${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right}" y="14" text-anchor="end">비율</text>` : ""}
+          ${moneyMetrics.length ? `<text class="chart-text" x="${width - pad.right + (rateMetrics.length ? 52 : 0)}" y="14" text-anchor="end">진료비</text>` : ""}
           ${visibleMetrics.map(metric => {
-            const yFn = metric.axis === "rate" ? yRate : yCount;
+            const yFn = metric.axis === "rate" ? yRate : metric.axis === "money" ? yMoney : yCount;
             if (!isFollowupRateMetric(metric)) return `<path class="chart-line" d="${chartLinePath(rows, metric, yFn, x)}" stroke="${metric.color}"></path>`;
             const solidPath = chartLinePath(followupSegmentRows(rows, metric, false), metric, yFn, x);
             const recentPath = chartLinePath(followupSegmentRows(rows, metric, true), metric, yFn, x);
@@ -1529,7 +1665,7 @@
               ${visibleMetrics.map(metric => {
                 const value = chartMetricValue(r, metric);
                 if (value === null) return "";
-                const y = metric.axis === "rate" ? yRate(value) : yCount(value);
+                const y = metric.axis === "rate" ? yRate(value) : metric.axis === "money" ? yMoney(value) : yCount(value);
                 const isRecent = isFollowupRateMetric(metric) && r.followupRecent;
                 return `<circle class="chart-dot" cx="${x(idx)}" cy="${y}" r="4" fill="${metric.color}"><title>${r.key} ${metric.title(value)}${isRecent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle>`;
               }).join("")}
@@ -1608,15 +1744,16 @@
     }
     const countMetrics = metrics.filter(metric => metric.axis === "count");
     const rateMetrics = metrics.filter(metric => metric.axis === "rate");
+    const moneyMetrics = metrics.filter(metric => metric.axis === "money");
     const width = Math.max(760, rows.length * 72 + 120);
-    const pad = { left: 58, right: 58, bottom: 50 };
+    const pad = { left: 58, right: moneyMetrics.length && rateMetrics.length ? 108 : 68, bottom: 50 };
     const chartW = width - pad.left - pad.right;
     const x = idx => pad.left + (rows.length === 1 ? chartW / 2 : chartW * idx / (rows.length - 1));
     const xLabels = rows.map((row, idx) => {
       const axisLabel = chartUnit === "week" ? isoWeekRangeLabel(row.key).replace(/[()]/g, "") : slotLabelForKey(row.key, chartUnit);
       return `<text class="chart-text" x="${x(idx)}" y="324" text-anchor="middle">${axisLabel}</text>`;
     }).join("");
-    const legend = `<div class="chart-legend">${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : " (명)"}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
+    const legend = `<div class="chart-legend">${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? " (원/일)" : " (명)"}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
 
     if (operationalTrendMode === "index") {
       const normalizedByMetric = new Map();
@@ -1644,26 +1781,30 @@
     const panelTop = 28, panelH = 260, height = 340;
     const countValues = rows.flatMap(row => countMetrics.map(metric => chartMetricValue(row, metric) ?? 0));
     const rateValues = rows.flatMap(row => rateMetrics.map(metric => chartMetricValue(row, metric) ?? 0));
+    const moneyValues = rows.flatMap(row => moneyMetrics.map(metric => chartMetricValue(row, metric) ?? 0));
     const countTop = Math.max(1, Math.ceil(Math.max(1, ...countValues) * 1.15));
     const rateTop = Math.min(1, Math.max(0.1, Math.ceil(Math.max(0.1, ...rateValues) * 10) / 10));
+    const moneyTop = Math.max(10000, Math.ceil(Math.max(1, ...moneyValues) / 10000) * 10000);
     const yCount = value => panelTop + panelH - (Number(value || 0) / countTop) * panelH;
     const yRate = value => panelTop + panelH - (Number(value || 0) / rateTop) * panelH;
+    const yMoney = value => panelTop + panelH - (Number(value || 0) / moneyTop) * panelH;
     const ticks = [0, .25, .5, .75, 1];
     const gridAndAxes = `${ticks.map(p => {
       const y = panelTop + panelH - p * panelH;
       const countValue = countTop * p;
       const rateValue = rateTop * p;
-      return `<line class="chart-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left - 9}" y="${y + 4}" text-anchor="end">${countValue.toFixed(countValue < 10 ? 1 : 0)}</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right + 9}" y="${y + 4}">${Math.round(rateValue * 100)}%</text>` : ""}`;
-    }).join("")}<line class="chart-axis" x1="${pad.left}" y1="${panelTop}" x2="${pad.left}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${width - pad.right}" y1="${panelTop}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${pad.left}" y1="${panelTop + panelH}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left}" y="16">일평균 인원</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right}" y="16" text-anchor="end">환자 비율</text>` : ""}`;
+      const moneyValue = moneyTop * p;
+      return `<line class="chart-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left - 9}" y="${y + 4}" text-anchor="end">${countValue.toFixed(countValue < 10 ? 1 : 0)}</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right + 9}" y="${y + 4}">${Math.round(rateValue * 100)}%</text>` : ""}${moneyMetrics.length ? `<text class="chart-text" x="${width - pad.right + (rateMetrics.length ? 50 : 9)}" y="${y + 4}">${Math.round(moneyValue / 10000)}만</text>` : ""}`;
+    }).join("")}<line class="chart-axis" x1="${pad.left}" y1="${panelTop}" x2="${pad.left}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${width - pad.right}" y1="${panelTop}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${pad.left}" y1="${panelTop + panelH}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left}" y="16">일평균 인원</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right}" y="16" text-anchor="end">환자 비율</text>` : ""}${moneyMetrics.length ? `<text class="chart-text" x="${width - pad.right + (rateMetrics.length ? 52 : 0)}" y="16" text-anchor="end">진료비</text>` : ""}`;
     const series = metrics.map(metric => {
-      const y = metric.axis === "rate" ? yRate : yCount;
+      const y = metric.axis === "rate" ? yRate : metric.axis === "money" ? yMoney : yCount;
       const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(rows, metric, false) : rows;
       const recentRows = isFollowupRateMetric(metric) ? followupSegmentRows(rows, metric, true) : [];
       return `<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${rows.map((row, idx) => {
         const value = chartMetricValue(row, metric);
         if (value === null) return "";
         const recent = isFollowupRateMetric(metric) && row.followupRecent;
-        const valueLabel = metric.axis === "rate" ? `${(value * 100).toFixed(1)}%` : value.toFixed(1);
+        const valueLabel = metric.axis === "rate" ? `${(value * 100).toFixed(1)}%` : metric.axis === "money" ? `${Math.round(value / 10000)}만` : value.toFixed(1);
         return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(value)}" r="3" fill="${metric.color}"><title>${row.key} ${metric.title(value)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle><text class="chart-value-label" x="${x(idx)}" y="${Math.max(panelTop + 10, y(value) - 7)}" text-anchor="middle" fill="${metric.color}">${valueLabel}</text>`;
       }).join("")}`;
     }).join("");
@@ -1679,6 +1820,9 @@
     if (metric.key === "avgChunaPerDay") return Number(stats.avgChunaPerDay || 0);
     if (metric.key === "avgPharmaPatientsPerDay") return Number(stats.avgPharmaPatientsPerDay || 0);
     if (metric.key === "avgPharmaPackagePurchasePatientsPerDay") return clinicDays ? Number(stats.pharmaPackagePurchasePatients || 0) / clinicDays : 0;
+    if (metric.key === "avgCombinedFeePerDay") return clinicDays ? (Number(stats.financialTotals?.totalFee || 0) + Number(stats.financialTotals?.nonCoveredAmount || 0)) / clinicDays : 0;
+    if (metric.key === "avgTotalFeePerDay") return clinicDays ? Number(stats.financialTotals?.totalFee || 0) / clinicDays : 0;
+    if (metric.key === "avgNonCoveredFeePerDay") return clinicDays ? Number(stats.financialTotals?.nonCoveredAmount || 0) / clinicDays : 0;
     return Number(stats[metric.key] || 0);
   }
 
@@ -1687,7 +1831,9 @@
   }
 
   function formatPeriodAverage(value, metric) {
-    return metric.axis === "rate" ? `${(value * 100).toFixed(1)}%` : `${value.toFixed(1)}명`;
+    if (metric.axis === "rate") return `${(value * 100).toFixed(1)}%`;
+    if (metric.axis === "money") return `${Math.round(value / 10000).toLocaleString()}만원`;
+    return `${value.toFixed(1)}명`;
   }
 
   function periodAverageChange(current, previous, metric) {
@@ -2003,12 +2149,14 @@
       };
       const recordCount = SERVER_MODE ? Number(s.recordCount || 0) : allRecords.length;
       $("rangeLabel").textContent = `조회 기간: ${start} ~ ${end} · 원장: ${docLabel} · 그래프: ${unitLabel} 단위 (전체 ${recordCount.toLocaleString()}명 환자 기준)`;
+      renderDiagnosisStats(s);
+      renderRetentionStats(s);
       renderSummary(s, previousStats);
+      renderFinancialStats(s, previousStats);
       renderOperationalTrendChart(trendRows, chartUnit);
       renderPeriodComparisonChart(comparison, "range");
       renderHourlyPatientChart(s.hourlyPatientCountsByDayType || {}, s.unknownTimeVisits);
       renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true, limit: 10, expandable: true });
-      renderCountTable("doctorTableWrap", s.doctorCounts);
       renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"], valueHeader: "평균", decimals: 1 });
       renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
       lastResult = { start, end, docLabel, chartUnit, comparisonUnit: "range", stats: s, trendRows, comparison };
