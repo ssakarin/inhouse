@@ -150,6 +150,11 @@
   .diagnosis-detail-row.hidden { display: none; }
   .diagnosis-detail-row td { color: var(--muted); background: rgba(57,169,245,.025); font-size: 12px; }
   .diagnosis-detail-code { padding-left: 30px; color: var(--accent) !important; }
+  .diagnosis-view-tabs { display: flex; gap: 6px; }
+  .diagnosis-view-tab { min-height: 28px; padding: 5px 10px; border-radius: 999px; color: var(--muted); }
+  .diagnosis-view-tab.active { border-color: rgba(57,169,245,.7); background: rgba(57,169,245,.14); color: var(--accent); }
+  .diagnosis-code-row.hidden { display: none; }
+  .diagnosis-code-row td { background: rgba(255,202,106,.025); }
   .bar-cell { width: 40%; }
   .bar { height: 8px; border-radius: 999px; background: rgba(57,169,245,0.5); }
   .bar.gold { background: rgba(255,202,106,0.6); }
@@ -476,7 +481,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">상병 데이터</div>
+    <div class="card-title-row"><div class="card-title">상병 데이터</div><div class="diagnosis-view-tabs"><button type="button" class="diagnosis-view-tab active" data-diagnosis-view="region">부위별</button><button type="button" class="diagnosis-view-tab" data-diagnosis-view="code">상병군</button></div></div>
     <div class="chart-subtitle" id="diagnosisCoverageText"></div>
     <div id="diagnosisDataWrap"></div>
   </div>
@@ -511,6 +516,7 @@
   const SERVER_MODE = location.protocol === "http:" || location.protocol === "https:";
 
   let allRecords = [];
+  let diagnosisViewMode = "region";
   const CHART_METRICS = [
     { key: "avgVisitsPerDay", label: "진료 환자", axis: "count", color: "#39a9f5", title: value => `진료 환자 ${value.toFixed(1)}명` },
     { key: "avgNewPatientsPerDay", label: "초진", axis: "count", color: "#ffca6a", title: value => `초진 ${value.toFixed(1)}명` },
@@ -718,7 +724,12 @@
   }
 
   function defaultChartUnit(start, end) {
-    return rangeDays(start, end) <= 30 ? "day" : "week";
+    const days = rangeDays(start, end);
+    if (days <= 30) return "day";
+    if (days <= 180) return "week";
+    if (days <= 730) return "month";
+    if (days <= 1825) return "quarter";
+    return "year";
   }
 
   function minDateStr(a, b) {
@@ -1562,6 +1573,27 @@
     ].join(""));
   }
 
+  function diagnosisBodyRegion(row = {}) {
+    const code = String(row.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const name = String(row.name || "").replace(/\s+/g, "");
+    const has = pattern => pattern.test(name);
+    if (has(/경추|경부|목|후경부/) || /^(M50|S13)/.test(code)) return "목";
+    if (has(/요추|요통|허리|좌골|천장|골반|둔부/) || /^(M51|S33)/.test(code)) return "허리·골반";
+    if (has(/어깨|견관절|회전근개|견갑/) || /^(M75|S43|S46)/.test(code)) return "어깨";
+    if (has(/무릎|슬관절|반월상/) || /^(M17|S83)/.test(code)) return "무릎";
+    if (has(/발목|족관절|족부|발가락|아킬레스|발\b/) || /^(S93|M76)/.test(code)) return "발목·발";
+    if (has(/팔꿈치|주관절/) || /^S53/.test(code)) return "팔꿈치";
+    if (has(/손목|수근|손가락|수부/) || /^S63/.test(code)) return "손목·손";
+    if (has(/흉추|흉부|등통증|늑골|갈비/) || /^S23/.test(code)) return "흉추·흉부";
+    if (has(/고관절|대퇴|종아리|하퇴/) || /^(M16|S73)/.test(code)) return "고관절·하지";
+    if (has(/두통|편두통|안면|어지럼|현훈|신경통/) || /^(G43|G44|R42)/.test(code)) return "두부·신경";
+    if (has(/소화|위염|복통|장염|변비|설사|역류|식체/) || /^K/.test(code)) return "소화기";
+    if (has(/불면|수면|스트레스|불안/) || /^(G47|F4)/.test(code)) return "수면·스트레스";
+    if (has(/감기|비염|기침|호흡|인후|기관지/) || /^J/.test(code)) return "호흡기";
+    if (/^[MS]/.test(code)) return "기타 근골격·손상";
+    return "기타·전신";
+  }
+
   function renderDiagnosisStats(s = {}) {
     const diagnoses = Object.values(s.diagnosisCounts || {}).sort((a, b) => b.count - a.count);
     const covered = diagnoses.reduce((sum, row) => sum + Number(row.count || 0), 0);
@@ -1569,50 +1601,40 @@
     $("diagnosisCoverageText").textContent = `상병코드 데이터 보유 ${covered.toLocaleString()} / ${visits.toLocaleString()}건 (${(visits ? covered / visits * 100 : 0).toFixed(1)}%)`;
     const retentionByCode = Object.fromEntries((s.diagnosisRetention || []).map(row => [row.name, row]));
     const initialCounts = s.initialDiagnosisCounts || {};
-    const detailRows = diagnoses.map(row => {
-      const retention = retentionByCode[row.code] || {};
-      return { ...retention, ...row, initial: Number(initialCounts[row.code] ?? retention.eligible ?? 0) };
-    });
+    const details = diagnoses.map(row => { const retention = retentionByCode[row.code] || {}; return { ...retention, ...row, initial: Number(initialCounts[row.code] ?? retention.eligible ?? 0) }; });
     const groupCodeOf = code => String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "기타";
-    const groupMap = new Map();
-    detailRows.forEach(row => {
-      const groupCode = groupCodeOf(row.code);
-      if (!groupMap.has(groupCode)) groupMap.set(groupCode, { code: groupCode, count: 0, initial: 0, eligible: 0, returning: 0, third: 0, details: [] });
-      const group = groupMap.get(groupCode);
-      group.count += Number(row.count || 0);
-      group.initial += Number(row.initial || 0);
-      group.eligible += Number(row.eligible ?? row.initial ?? 0);
-      group.returning += Number(row.returning || 0);
-      group.third += Number(row.third || 0);
-      group.details.push(row);
-    });
-    const groups = [...groupMap.values()].map(group => {
-      group.details.sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
-      const representative = group.details[0] || {};
-      return { ...group, representativeName: representative.name || "-", returnRate: group.eligible ? group.returning / group.eligible : 0, thirdVisitRate: group.eligible ? group.third / group.eligible : 0 };
-    }).sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+    const summarize = (rows, code, label = "") => {
+      const sorted = [...rows].sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
+      const result = sorted.reduce((sum, row) => ({ ...sum, count: sum.count + Number(row.count || 0), initial: sum.initial + Number(row.initial || 0), eligible: sum.eligible + Number(row.eligible ?? row.initial ?? 0), returning: sum.returning + Number(row.returning || 0), third: sum.third + Number(row.third || 0) }), { count: 0, initial: 0, eligible: 0, returning: 0, third: 0 });
+      return { ...result, code, label, representativeName: sorted[0]?.name || "-", details: sorted, returnRate: result.eligible ? result.returning / result.eligible : 0, thirdVisitRate: result.eligible ? result.third / result.eligible : 0 };
+    };
+    const buildCodeGroups = rows => {
+      const map = new Map();
+      rows.forEach(row => { const code = groupCodeOf(row.code); if (!map.has(code)) map.set(code, []); map.get(code).push(row); });
+      return [...map.entries()].map(([code, items]) => summarize(items, code)).sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+    };
+    const codeGroups = buildCodeGroups(details);
+    const regionMap = new Map();
+    details.forEach(row => { const region = diagnosisBodyRegion(row); if (!regionMap.has(region)) regionMap.set(region, []); regionMap.get(region).push(row); });
+    const regions = [...regionMap.entries()].map(([region, rows]) => ({ ...summarize(rows, region, region), codeGroups: buildCodeGroups(rows) })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "ko"));
     const wrap = $("diagnosisDataWrap");
-    if (!groups.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
+    const topGroups = diagnosisViewMode === "region" ? regions : codeGroups;
+    if (!topGroups.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
     const rateCell = (initial, rate) => Number(initial || 0) ? `${(Number(rate || 0) * 100).toFixed(1)}%` : "-";
+    const valueCells = row => { const low = row.initial > 0 && row.initial < 10; return `<td class="num">${row.count.toLocaleString()}</td><td class="num">${(covered ? row.count / covered * 100 : 0).toFixed(1)}%</td><td class="num">${row.initial.toLocaleString()}${low ? ` <span class="low-sample">표본 적음</span>` : ""}</td><td class="num">${rateCell(row.initial, row.returnRate)}</td><td class="num">${rateCell(row.initial, row.thirdVisitRate)}</td>`; };
+    const detailRowsHtml = (group, codeId) => group.details.map(row => `<tr class="diagnosis-detail-row hidden" data-code-child="${codeId}"><td class="diagnosis-detail-code">${escapeHtml(row.code)}</td><td>${escapeHtml(row.name || "-")}</td>${valueCells({ ...row, count: Number(row.count || 0), returnRate: Number(row.returnRate || 0), thirdVisitRate: Number(row.thirdVisitRate || 0) })}</tr>`).join("");
+    const codeRowHtml = (group, codeId, regionId = "") => `<tr class="diagnosis-code-row${regionId ? " hidden" : ""}"${regionId ? ` data-region-child="${regionId}"` : ""}><td><div class="diagnosis-group-code"><button type="button" class="diagnosis-toggle" data-code-toggle="${codeId}" aria-expanded="false">＋</button>${escapeHtml(group.code)}</div></td><td>${escapeHtml(group.representativeName)}</td>${valueCells(group)}</tr>${detailRowsHtml(group, codeId)}`;
     const draw = expanded => {
-      const visibleGroups = expanded ? groups : groups.slice(0, 15);
-      wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>상병군</th><th>대표 상병명</th><th class="num">진료 건수</th><th class="num">구성비</th><th class="num">초진</th><th class="num">재진율</th><th class="num">삼진율</th></tr></thead><tbody>${visibleGroups.map(group => {
-        const lowSample = group.initial > 0 && group.initial < 10;
-        const detailHtml = group.details.map(row => {
-          const initial = Number(row.initial || 0), detailLowSample = initial > 0 && initial < 10;
-          return `<tr class="diagnosis-detail-row hidden" data-diagnosis-group="${escapeHtml(group.code)}"><td class="diagnosis-detail-code">${escapeHtml(row.code)}</td><td>${escapeHtml(row.name || "-")}</td><td class="num">${Number(row.count || 0).toLocaleString()}</td><td class="num">${(covered ? Number(row.count || 0) / covered * 100 : 0).toFixed(1)}%</td><td class="num">${initial.toLocaleString()}${detailLowSample ? ` <span class="low-sample">표본 적음</span>` : ""}</td><td class="num">${rateCell(initial, row.returnRate)}</td><td class="num">${rateCell(initial, row.thirdVisitRate)}</td></tr>`;
-        }).join("");
-        return `<tr class="diagnosis-group-row"><td><div class="diagnosis-group-code"><button type="button" class="diagnosis-toggle" data-diagnosis-toggle="${escapeHtml(group.code)}" aria-expanded="false">＋</button>${escapeHtml(group.code)}</div></td><td>${escapeHtml(group.representativeName)}</td><td class="num">${group.count.toLocaleString()}</td><td class="num">${(covered ? group.count / covered * 100 : 0).toFixed(1)}%</td><td class="num">${group.initial.toLocaleString()}${lowSample ? ` <span class="low-sample">표본 적음</span>` : ""}</td><td class="num">${rateCell(group.initial, group.returnRate)}</td><td class="num">${rateCell(group.initial, group.thirdVisitRate)}</td></tr>${detailHtml}`;
-      }).join("")}</tbody></table></div>${groups.length > 15 ? `<div class="table-expand-row"><button type="button" class="table-expand-btn" id="diagnosisExpandBtn">${expanded ? "상위 15개군만 보기" : `전체 ${groups.length.toLocaleString()}개군 펼치기`}</button></div>` : ""}<div class="cohort-funnel-note">상병코드 앞 3자리 기준 · 대표 상병명은 그룹 내 진료 건수가 가장 많은 상세 상병 · 재진·삼진율은 환자 수를 합산해 재계산 · ＋ 버튼으로 상세 코드 확인 · 초진 10명 미만은 표본 적음 표시</div>`;
-      const button = $("diagnosisExpandBtn");
-      if (button) button.addEventListener("click", () => draw(!expanded));
-      wrap.querySelectorAll("[data-diagnosis-toggle]").forEach(toggle => toggle.addEventListener("click", () => {
-        const code = toggle.dataset.diagnosisToggle;
-        const open = toggle.getAttribute("aria-expanded") !== "true";
-        toggle.setAttribute("aria-expanded", String(open));
-        toggle.textContent = open ? "－" : "＋";
-        wrap.querySelectorAll(`[data-diagnosis-group="${code}"]`).forEach(row => row.classList.toggle("hidden", !open));
-      }));
+      const visible = expanded ? topGroups : topGroups.slice(0, 15);
+      const body = diagnosisViewMode === "region" ? visible.map((region, regionIndex) => {
+        const regionId = `r${regionIndex}`;
+        const codeRows = region.codeGroups.map((group, codeIndex) => codeRowHtml(group, `${regionId}c${codeIndex}`, regionId)).join("");
+        return `<tr class="diagnosis-group-row"><td><div class="diagnosis-group-code"><button type="button" class="diagnosis-toggle" data-region-toggle="${regionId}" aria-expanded="false">＋</button>${escapeHtml(region.label)}</div></td><td>${escapeHtml(region.representativeName)}</td>${valueCells(region)}</tr>${codeRows}`;
+      }).join("") : visible.map((group, index) => codeRowHtml(group, `c${index}`)).join("");
+      wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>${diagnosisViewMode === "region" ? "부위" : "상병군"}</th><th>대표 상병명</th><th class="num">진료 건수</th><th class="num">구성비</th><th class="num">초진</th><th class="num">재진율</th><th class="num">삼진율</th></tr></thead><tbody>${body}</tbody></table></div>${topGroups.length > 15 ? `<div class="table-expand-row"><button type="button" class="table-expand-btn" id="diagnosisExpandBtn">${expanded ? "상위 15개만 보기" : `전체 ${topGroups.length.toLocaleString()}개 펼치기`}</button></div>` : ""}<div class="cohort-funnel-note">${diagnosisViewMode === "region" ? "상병명 키워드 우선·ICD 코드군 보조로 부위 분류 · 부위를 펼치면 3자리 상병군, 다시 펼치면 상세 코드" : "상병코드 앞 3자리 기준 · 펼치면 상세 코드"} · 재진·삼진율은 환자 수를 합산해 재계산 · 초진 10명 미만은 표본 적음 표시</div>`;
+      $("diagnosisExpandBtn")?.addEventListener("click", () => draw(!expanded));
+      wrap.querySelectorAll("[data-region-toggle]").forEach(toggle => toggle.addEventListener("click", () => { const id = toggle.dataset.regionToggle, open = toggle.getAttribute("aria-expanded") !== "true"; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? "－" : "＋"; wrap.querySelectorAll(`[data-region-child="${id}"]`).forEach(row => row.classList.toggle("hidden", !open)); if (!open) wrap.querySelectorAll(`[data-code-toggle^="${id}"]`).forEach(child => { child.setAttribute("aria-expanded", "false"); child.textContent = "＋"; wrap.querySelectorAll(`[data-code-child="${child.dataset.codeToggle}"]`).forEach(row => row.classList.add("hidden")); }); }));
+      wrap.querySelectorAll("[data-code-toggle]").forEach(toggle => toggle.addEventListener("click", () => { const id = toggle.dataset.codeToggle, open = toggle.getAttribute("aria-expanded") !== "true"; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? "－" : "＋"; wrap.querySelectorAll(`[data-code-child="${id}"]`).forEach(row => row.classList.toggle("hidden", !open)); }));
     };
     draw(false);
   }
@@ -2339,6 +2361,13 @@
     if (!chip) return;
     chip.classList.toggle("active");
     if (lastResult) renderPeriodComparisonChart(lastResult.comparison, lastResult.comparisonUnit);
+  });
+  document.querySelector(".diagnosis-view-tabs")?.addEventListener("click", event => {
+    const tab = event.target?.closest?.("[data-diagnosis-view]");
+    if (!tab || tab.dataset.diagnosisView === diagnosisViewMode) return;
+    diagnosisViewMode = tab.dataset.diagnosisView;
+    document.querySelectorAll("[data-diagnosis-view]").forEach(button => button.classList.toggle("active", button.dataset.diagnosisView === diagnosisViewMode));
+    if (lastResult) renderDiagnosisStats(lastResult.stats);
   });
 
   // ── 기간 요약 데이터 추출 (복사 → Claude.ai 등에 붙여넣기) ──────────
