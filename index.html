@@ -11446,7 +11446,7 @@
     );
     if (!normalizeAppointmentDates(data).includes(getTodayKey()) && !confirmedInLongTermDb) return false;
     const isPendingRequest = patientKey && appointmentDeskAlertItems.has(String(patientKey));
-    if (isPendingRequest && !data.appointmentConfirmedAt) return false;
+    if (isPendingRequest && !data.appointmentConfirmedAt && !confirmedInLongTermDb) return false;
     return true;
   }
 
