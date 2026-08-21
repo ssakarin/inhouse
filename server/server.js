@@ -1400,6 +1400,12 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   let matureFollowupEligibleNewPatients = 0;
   let matureReturningPatients = 0;
   let matureThirdVisitPatients = 0;
+  let matureCohortEligibleNewPatients = 0;
+  let matureCohortReturningPatients = 0;
+  let matureCohortThirdVisitPatients = 0;
+  let matureFourthVisitPatients = 0;
+  let matureFollowupVisitTotal = 0;
+  let matureFollowupCombinedFeeTotal = 0;
   const treatmentCounts = {};
   let pharmaTotal = 0;
   let chunaTotal = 0;
@@ -1413,6 +1419,8 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const pharmaPackagePurchasePatientSet = new Set();
   const clinicDateSet = new Set();
   const doctorCounts = {};
+  const doctorPatientSets = {};
+  const doctorClinicDateSets = {};
   const weekdayCounts = {};
   const weekdayDateSets = {};
   const treatmentComboCounts = {};
@@ -1437,6 +1445,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   const nurseAssignmentsByDate = {};
   let unknownTimeVisits = 0;
   const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  const weekdayHourlyCounts = Object.fromEntries(weekdays.map(day => [day, Object.fromEntries(Array.from({ length: 10 }, (_, index) => [String(index + 9).padStart(2, "0"), 0]))]));
 
   for (const record of records) {
     const dates = visitDatesOf(record);
@@ -1458,9 +1467,11 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
         if (day >= 1 && day <= 5) {
           const clinicHourKey = String(Math.min(18, Math.max(9, visitHour))).padStart(2, "0");
           hourlyPatientCountsByDayType.weekday[clinicHourKey] += 1;
+          weekdayHourlyCounts[weekdays[day]][clinicHourKey] += 1;
         } else if (day === 6) {
           const clinicHourKey = String(Math.min(14, Math.max(9, visitHour))).padStart(2, "0");
           hourlyPatientCountsByDayType.saturday[clinicHourKey] += 1;
+          weekdayHourlyCounts[weekdays[day]][clinicHourKey] += 1;
         }
       }
       const nurseName = normalizeSearchText(entry.nurseName) || "미지정";
@@ -1492,6 +1503,10 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       if (doctorName) {
         const doctorFinance = doctorFinancials[doctorName] || (doctorFinancials[doctorName] = { visits: 0, coveredVisits: 0, totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0 });
         doctorFinance.visits += 1;
+        if (!doctorPatientSets[doctorName]) doctorPatientSets[doctorName] = new Set();
+        if (!doctorClinicDateSets[doctorName]) doctorClinicDateSets[doctorName] = new Set();
+        doctorPatientSets[doctorName].add(pid);
+        doctorClinicDateSets[doctorName].add(date);
         if (hasFinancialValue) doctorFinance.coveredVisits += 1;
         for (const field of Object.keys(financialTotals)) {
           const amount = Number(entry[field]);
@@ -1600,10 +1615,12 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       const hasChuna = firstTreatments.some(treatment => isSimpleChunaTreatment(treatment) || isComplexChunaTreatment(treatment));
       const hasPharma = firstTreatments.some(isPharmaTreatment);
       const treatmentGroup = hasChuna && hasPharma ? '추나+약침' : hasChuna ? '추나' : hasPharma ? '약침' : '일반진료';
-      const treatmentCohort = treatmentRetention[treatmentGroup] || (treatmentRetention[treatmentGroup] = { eligible: 0, returning: 0, third: 0 });
-      treatmentCohort.eligible += 1;
-      if (isReturning) treatmentCohort.returning += 1;
-      if (isThirdVisit) treatmentCohort.third += 1;
+      if (hasFullFollowupWindow(firstDate, end, 21)) {
+        const treatmentCohort = treatmentRetention[treatmentGroup] || (treatmentRetention[treatmentGroup] = { eligible: 0, returning: 0, third: 0 });
+        treatmentCohort.eligible += 1;
+        if (isReturning) treatmentCohort.returning += 1;
+        if (isThirdVisit) treatmentCohort.third += 1;
+      }
       const doctorCohortName = firstDoctor || '미지정';
       const doctorCohort = doctorRetention[doctorCohortName] || (doctorRetention[doctorCohortName] = { visits: 0, newPatients: 0, eligible: 0, returning: 0, third: 0 });
       doctorCohort.newPatients += 1;
@@ -1625,10 +1642,23 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
       followupEligibleNewPatients += 1;
       if (isReturning) returningPatients += 1;
       if (isThirdVisit) thirdVisitPatients += 1;
-      if (hasFullFollowupWindow(firstDate, getLocalDateKey(), 21)) {
+      if (hasFullFollowupWindow(firstDate, end, 21)) {
         matureFollowupEligibleNewPatients += 1;
         if (isReturning) matureReturningPatients += 1;
         if (isThirdVisit) matureThirdVisitPatients += 1;
+      }
+      if (hasFullFollowupWindow(firstDate, end, 21)) {
+        matureCohortEligibleNewPatients += 1;
+        if (isReturning) matureCohortReturningPatients += 1;
+        if (isThirdVisit) matureCohortThirdVisitPatients += 1;
+        const followupEnd = addDays(firstDate, 20);
+        const cohortDates = nonPrescriptionDates.filter(date => date >= firstDate && date <= followupEnd && date <= end);
+        matureFollowupVisitTotal += cohortDates.length;
+        if (cohortDates.length >= 4) matureFourthVisitPatients += 1;
+        for (const cohortDate of cohortDates) {
+          const cohortEntry = getVisitRecord(record, cohortDate);
+          matureFollowupCombinedFeeTotal += Number(cohortEntry.totalFee || 0) + Number(cohortEntry.nonCoveredAmount || 0);
+        }
       }
       if (trendBuckets[key]) trendBuckets[key].followupEligibleNewPatients += 1;
     }
@@ -1665,6 +1695,7 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
         avgPharmaPatientsPerDay: bucket.pharmaTotal / clinicDays,
         avgPharmaPackagePurchasePatientsPerDay: bucket.pharmaPackagePurchasePatientIds.size / clinicDays,
         avgCombinedFeePerDay: (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / clinicDays,
+        avgCombinedFeePerVisit: Number(financeBucket.coveredVisits || 0) ? (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / Number(financeBucket.coveredVisits || 0) : 0,
         avgTotalFeePerDay: Number(financeBucket.totalFee || 0) / clinicDays,
         avgNonCoveredFeePerDay: Number(financeBucket.nonCoveredAmount || 0) / clinicDays,
         returnRate: bucket.newPatients ? bucket.returningPatients / bucket.newPatients : 0,
@@ -1688,6 +1719,15 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
   for (const [doctorName, count] of Object.entries(doctorCounts)) {
     const cohort = doctorRetention[doctorName] || (doctorRetention[doctorName] = { visits: 0, newPatients: 0, eligible: 0, returning: 0, third: 0 });
     cohort.visits = count;
+  }
+  for (const doctorName of new Set([...Object.keys(doctorCounts), ...Object.keys(doctorFinancials)])) {
+    const doctorFinance = doctorFinancials[doctorName] || (doctorFinancials[doctorName] = { visits: 0, coveredVisits: 0, totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0 });
+    const uniquePatients = doctorPatientSets[doctorName]?.size || 0;
+    const doctorClinicDays = doctorClinicDateSets[doctorName]?.size || 0;
+    doctorFinance.uniquePatients = uniquePatients;
+    doctorFinance.clinicDays = doctorClinicDays;
+    doctorFinance.avgVisitsPerDay = doctorClinicDays ? Number(doctorFinance.visits || 0) / doctorClinicDays : 0;
+    doctorFinance.avgVisitsPerPatient = uniquePatients ? Number(doctorFinance.visits || 0) / uniquePatients : 0;
   }
 
   const retentionRows = source => Object.entries(source).map(([name, row]) => ({
@@ -1714,6 +1754,16 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     thirdVisitRate: followupEligibleNewPatients ? thirdVisitPatients / followupEligibleNewPatients : 0,
     matureReturnRate: matureFollowupEligibleNewPatients ? matureReturningPatients / matureFollowupEligibleNewPatients : 0,
     matureThirdVisitRate: matureFollowupEligibleNewPatients ? matureThirdVisitPatients / matureFollowupEligibleNewPatients : 0,
+    cohortFunnel: {
+      eligible: matureCohortEligibleNewPatients,
+      second: matureCohortReturningPatients,
+      third: matureCohortThirdVisitPatients,
+      fourthPlus: matureFourthVisitPatients
+    },
+    matureFollowupVisitTotal,
+    matureFollowupCombinedFeeTotal,
+    avgMatureFollowupVisits: matureCohortEligibleNewPatients ? matureFollowupVisitTotal / matureCohortEligibleNewPatients : 0,
+    avgMatureFollowupCombinedFee: matureCohortEligibleNewPatients ? matureFollowupCombinedFeeTotal / matureCohortEligibleNewPatients : 0,
     avgVisitsPerPatient: patientSet.size ? coreVisits / patientSet.size : 0,
     pharmaTotal,
     chunaTotal,
@@ -1739,6 +1789,10 @@ function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) 
     visitStageCounts,
     hourlyPatientCounts,
     hourlyPatientCountsByDayType,
+    weekdayHourlyStats: {
+      counts: weekdayHourlyCounts,
+      clinicDays: Object.fromEntries(Object.entries(weekdayDateSets).map(([day, dates]) => [day, dates.size]))
+    },
     unknownTimeVisits,
     nurseAssignmentsByDate,
     financialTotals,

@@ -67,6 +67,8 @@
   .card-title { color: var(--gold); font-weight: 900; font-size: 14px; margin-bottom: 12px; }
   .card-title-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
   .card-title-row .card-title { margin-bottom: 0; }
+  .summary-title-group { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .summary-clinic-days { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border: 1px solid rgba(255,202,106,.28); border-radius: 999px; background: rgba(255,202,106,.08); color: var(--gold); font-size: 11px; font-weight: 900; }
   .trend-title-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .preset-btn.active { border-color: rgba(255,202,106,0.75); background: rgba(255,202,106,0.15); color: var(--gold); }
@@ -100,6 +102,9 @@
   .financial-total-value > span { max-width: 100%; white-space: nowrap; }
   .metric-average { color: inherit; font-size: 13px; font-weight: 900; }
   .metric-sub { color: var(--muted); font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .metric-fee-breakdown { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; font-size: 11px; font-weight: 900; }
+  .metric-fee-covered { color: var(--accent); }
+  .metric-fee-noncovered { color: var(--gold); }
   .summary-value-guide { color: var(--muted); font-size: 11px; font-weight: 800; }
   .metric-compare { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 17px; margin-top: 8px; font-size: 11px; font-weight: 900; }
   .metric-compare.increase { color: var(--danger); }
@@ -118,6 +123,19 @@
   .summary-breakdown-label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 900; }
   .summary-breakdown-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; }
   .summary-breakdown-value { margin: 2px 0 0 14px; color: var(--text); font-size: 12px; font-weight: 900; }
+  .treatment-utilization-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .treatment-utilization-panel { min-width: 0; }
+  @media (max-width: 760px) { .treatment-utilization-grid { grid-template-columns: 1fr; } }
+  .cohort-funnel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .cohort-funnel-step { min-width: 0; padding: 13px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.035); }
+  .cohort-funnel-label { color: var(--muted); font-size: 11px; font-weight: 900; }
+  .cohort-funnel-value { margin-top: 4px; color: var(--text); font-size: 22px; font-weight: 900; }
+  .cohort-funnel-rate { color: var(--gold); font-size: 12px; font-weight: 900; }
+  .cohort-funnel-track { height: 8px; margin-top: 9px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.08); }
+  .cohort-funnel-fill { display: block; height: 100%; border-radius: inherit; }
+  .cohort-funnel-note { margin-top: 8px; color: var(--muted); font-size: 11px; font-weight: 700; }
+  .low-sample { color: var(--gold); font-size: 9px; font-weight: 900; white-space: nowrap; }
+  @media (max-width: 760px) { .cohort-funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 760px) { .summary-breakdowns { grid-template-columns: 1fr; } }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
@@ -126,6 +144,12 @@
   th { color: var(--muted); font-size: 11px; font-weight: 900; }
   td.num, th.num { text-align: right; font-weight: 900; }
   tr.highlight td { color: var(--gold); }
+  .diagnosis-group-row td { background: rgba(255,255,255,.025); }
+  .diagnosis-group-code { display: flex; align-items: center; gap: 6px; font-weight: 900; color: var(--gold); }
+  .diagnosis-toggle { min-width: 24px; padding: 2px 6px; border-radius: 6px; color: var(--accent); font-size: 11px; }
+  .diagnosis-detail-row.hidden { display: none; }
+  .diagnosis-detail-row td { color: var(--muted); background: rgba(57,169,245,.025); font-size: 12px; }
+  .diagnosis-detail-code { padding-left: 30px; color: var(--accent) !important; }
   .bar-cell { width: 40%; }
   .bar { height: 8px; border-radius: 999px; background: rgba(57,169,245,0.5); }
   .bar.gold { background: rgba(255,202,106,0.6); }
@@ -138,6 +162,15 @@
   .hourly-chart-panel-title { margin: 0 0 6px; color: var(--text); font-size: 13px; font-weight: 900; text-align: center; }
   .hourly-chart-panel .weekly-chart { min-width: 500px; height: 310px; }
   @media (max-width: 900px) { .hourly-chart-grid { grid-template-columns: 1fr; } }
+  .heatmap-scroll { overflow-x: auto; padding-bottom: 4px; }
+  .heatmap-grid { display: grid; grid-template-columns: 54px repeat(10, minmax(58px, 1fr)) 82px; gap: 5px; min-width: 850px; align-items: stretch; }
+  .heatmap-head, .heatmap-row-label, .heatmap-total, .heatmap-cell { display: flex; align-items: center; justify-content: center; min-height: 46px; border-radius: 8px; font-size: 12px; font-weight: 900; }
+  .heatmap-head { min-height: 28px; color: var(--muted); }
+  .heatmap-row-label { color: var(--gold); background: rgba(255,255,255,0.035); }
+  .heatmap-cell { position: relative; border: 1px solid rgba(255,255,255,0.07); color: #fff; }
+  .heatmap-cell.disabled { color: rgba(155,173,191,.35); background: rgba(255,255,255,.018) !important; }
+  .heatmap-total { color: var(--text); background: rgba(57,169,245,.12); border: 1px solid rgba(57,169,245,.22); }
+  .heatmap-bottom-label { color: var(--accent); }
   .weekly-chart { min-width: 720px; width: 100%; height: 340px; display: block; }
   .chart-axis, .chart-grid { stroke: rgba(255,255,255,0.16); stroke-width: 1; }
   .chart-grid { stroke-dasharray: 4 6; }
@@ -209,6 +242,14 @@
   .comparison-average-fill { display: block; height: 100%; min-width: 0; border-radius: inherit; }
   .comparison-average-value { color: var(--text); font-size: 11px; font-weight: 900; text-align: right; white-space: nowrap; }
   @media (max-width: 640px) { .comparison-average-bar-row { grid-template-columns: 1fr 70px; } .comparison-average-period { grid-column: 1 / -1; } }
+  .comparison-matrix { min-width: 760px; }
+  .comparison-matrix th { vertical-align: bottom; white-space: nowrap; }
+  .comparison-matrix-range { display: block; margin-top: 3px; color: rgba(155,173,191,.65); font-size: 9px; font-weight: 700; }
+  .comparison-matrix-metric { min-width: 145px; color: var(--text); font-weight: 900; }
+  .comparison-matrix-change { min-width: 86px; text-align: right; font-size: 11px; font-weight: 900; }
+  .comparison-matrix-change.increase { color: var(--danger); }
+  .comparison-matrix-change.decrease { color: var(--accent); }
+  .comparison-matrix-change.neutral { color: var(--green); }
   .operational-trend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
   .operational-trend-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.035); }
   .operational-trend-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 5px; }
@@ -389,11 +430,15 @@
 
   <div class="card">
     <div class="card-title-row">
-      <div class="card-title">기간 요약</div>
+      <div class="summary-title-group"><div class="card-title">기간 요약</div><div class="summary-clinic-days" id="summaryClinicDays"></div></div>
       <div class="summary-value-guide">수량: 기간 합계 / 진료일당 평균 · 증감: 평균 기준 · 비율: 퍼센트포인트 기준</div>
     </div>
     <div class="chart-subtitle" id="financialCoverageText"></div>
     <div class="metrics" id="summaryMetrics"></div>
+    <div class="chart-section-title">초진 전환 퍼널</div>
+    <div id="cohortFunnelWrap"></div>
+    <div class="chart-section-title">초진 치료별 전환율</div>
+    <div id="treatmentRetentionWrap"></div>
     <div class="summary-breakdowns" id="summaryBreakdowns"></div>
   </div>
 
@@ -420,28 +465,20 @@
   </div>
 
   <div class="card">
-    <div class="card-title">시간대별 환자 수</div>
+    <div class="card-title">원장별 데이터</div>
+    <div id="doctorRetentionWrap"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">요일·시간대별 환자 수</div>
     <div class="chart-subtitle" id="hourlyPatientSubtitle"></div>
     <div id="hourlyPatientChartWrap"></div>
   </div>
 
   <div class="card">
-    <div class="card-title">상병 통계</div>
+    <div class="card-title">상병 데이터</div>
     <div class="chart-subtitle" id="diagnosisCoverageText"></div>
-    <div class="grid2">
-      <div><div class="chart-section-title">상병코드 Top 10</div><div id="diagnosisTopWrap"></div></div>
-      <div><div class="chart-section-title">초진 상병 Top 10</div><div id="initialDiagnosisTopWrap"></div></div>
-      <div><div class="chart-section-title">상병 대분류 구성</div><div id="diagnosisCategoryWrap"></div></div>
-      <div><div class="chart-section-title">상병별 재진율·삼진율</div><div id="diagnosisRetentionWrap"></div></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">유지율 비교</div>
-    <div class="grid2">
-      <div><div class="chart-section-title">치료별 재진율·삼진율</div><div id="treatmentRetentionWrap"></div></div>
-      <div><div class="chart-section-title">원장별 데이터</div><div id="doctorRetentionWrap"></div></div>
-    </div>
+    <div id="diagnosisDataWrap"></div>
   </div>
 
   <div class="grid2">
@@ -452,10 +489,6 @@
     <div class="card">
       <div class="card-title">치료조합 Top 10</div>
       <div id="comboTableWrap"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">요일별 평균 진료 건수</div>
-      <div id="weekdayTableWrap"></div>
     </div>
   </div>
 </div>
@@ -481,17 +514,14 @@
   const CHART_METRICS = [
     { key: "avgVisitsPerDay", label: "진료 환자", axis: "count", color: "#39a9f5", title: value => `진료 환자 ${value.toFixed(1)}명` },
     { key: "avgNewPatientsPerDay", label: "초진", axis: "count", color: "#ffca6a", title: value => `초진 ${value.toFixed(1)}명` },
-    { key: "avgPrescriptionPatientsPerDay", label: "약환", axis: "count", color: "#14b8a6", title: value => `약환 ${value.toFixed(1)}명` },
     { key: "avgChunaPerDay", label: "추나", axis: "count", color: "#f97316", title: value => `추나 ${value.toFixed(1)}명` },
     { key: "avgPharmaPatientsPerDay", label: "약침", axis: "count", color: "#22c55e", title: value => `약침 ${value.toFixed(1)}명` },
-    { key: "avgPharmaPackagePurchasePatientsPerDay", label: "약침패키지", axis: "count", color: "#eab308", title: value => `약침패키지 ${value.toFixed(1)}명` },
     { key: "returnRate", label: "재진율", axis: "rate", color: "#a78bfa", title: value => `재진율 ${(value * 100).toFixed(1)}%` },
     { key: "thirdVisitRate", label: "삼진율", axis: "rate", color: "#fb7185", title: value => `삼진율 ${(value * 100).toFixed(1)}%` },
     { key: "chunaPatientRate", label: "추나비율", axis: "rate", color: "#38bdf8", title: value => `추나비율 ${(value * 100).toFixed(1)}%` },
-    { key: "complexChunaRate", label: "복추 비율", axis: "rate", color: "#ef4444", title: value => `복추 비율 ${(value * 100).toFixed(1)}%` },
     { key: "pharmaPatientRate", label: "약침비율", axis: "rate", color: "#10b981", title: value => `약침비율 ${(value * 100).toFixed(1)}%` },
     { key: "avgCombinedFeePerDay", label: "총진료비", axis: "money", color: "#4ade80", title: value => `총진료비 일평균 ${Math.round(value).toLocaleString()}원` },
-    { key: "avgTotalFeePerDay", label: "급여진료비", axis: "money", color: "#39a9f5", title: value => `급여진료비 일평균 ${Math.round(value).toLocaleString()}원` },
+    { key: "avgCombinedFeePerVisit", label: "1건 평균 진료비", axis: "money", color: "#a78bfa", unitLabel: "원/건", title: value => `1건 평균 진료비 ${Math.round(value).toLocaleString()}원` },
     { key: "avgNonCoveredFeePerDay", label: "비급여진료비", axis: "money", color: "#ffca6a", title: value => `비급여진료비 일평균 ${Math.round(value).toLocaleString()}원` }
   ];
 
@@ -519,8 +549,9 @@
       ...CHART_METRICS.filter(metric => metric.key === "returnRate" || metric.key === "thirdVisitRate"),
       ...CHART_METRICS.filter(metric => metric.key !== "returnRate" && metric.key !== "thirdVisitRate")
     ];
-    renderMetricToggles("chartMetricToggles", "chart-metric-chip", ["avgNewPatientsPerDay", "returnRate", "thirdVisitRate"], chipMetrics);
-    renderMetricToggles("periodComparisonMetricToggles", "comparison-chart-metric-chip", ["returnRate", "thirdVisitRate", "avgVisitsPerDay", "avgNewPatientsPerDay", "avgChunaPerDay", "avgPharmaPatientsPerDay"], chipMetrics);
+    const comparisonMetrics = chipMetrics.filter(metric => metric.key !== "avgChunaPerDay" && metric.key !== "avgPharmaPatientsPerDay");
+    renderMetricToggles("chartMetricToggles", "chart-metric-chip", ["avgVisitsPerDay", "avgNewPatientsPerDay", "returnRate", "thirdVisitRate"], chipMetrics);
+    renderMetricToggles("periodComparisonMetricToggles", "comparison-chart-metric-chip", ["avgVisitsPerDay", "avgNewPatientsPerDay", "returnRate", "thirdVisitRate", "avgCombinedFeePerDay", "avgCombinedFeePerVisit", "avgNonCoveredFeePerDay"], comparisonMetrics);
   }
 
   // ── IndexedDB 읽기 ──────────────────────────────────────────────
@@ -980,6 +1011,8 @@
     };
     const nurseAssignmentsByDate = {};
     let unknownTimeVisits = 0;
+    const heatmapWeekdays = ["일", "월", "화", "수", "목", "금", "토"];
+    const weekdayHourlyCounts = Object.fromEntries(heatmapWeekdays.map(day => [day, Object.fromEntries(Array.from({ length: 10 }, (_, index) => [String(index + 9).padStart(2, "0"), 0]))]));
 
     for (const rec of allRecords) {
       const dates = visitDatesOf(rec);
@@ -1000,9 +1033,11 @@
           if (day >= 1 && day <= 5) {
             const clinicHourKey = String(Math.min(18, Math.max(9, visitHour))).padStart(2, "0");
             hourlyPatientCountsByDayType.weekday[clinicHourKey] += 1;
+            weekdayHourlyCounts[heatmapWeekdays[day]][clinicHourKey] += 1;
           } else if (day === 6) {
             const clinicHourKey = String(Math.min(14, Math.max(9, visitHour))).padStart(2, "0");
             hourlyPatientCountsByDayType.saturday[clinicHourKey] += 1;
+            weekdayHourlyCounts[heatmapWeekdays[day]][clinicHourKey] += 1;
           }
         }
         const nurseName = String(entry.nurseName || "").trim() || "미지정";
@@ -1113,7 +1148,7 @@
         followupEligibleNewPatients += 1;
         if (isReturning) returningPatients += 1;
         if (isThirdVisit) thirdVisitPatients += 1;
-        if (hasFullFollowupWindow(firstDate, today(), 21)) {
+        if (hasFullFollowupWindow(firstDate, end, 21)) {
           matureFollowupEligibleNewPatients += 1;
           if (isReturning) matureReturningPatients += 1;
           if (isThirdVisit) matureThirdVisitPatients += 1;
@@ -1211,6 +1246,10 @@
       visitStageCounts,
       hourlyPatientCounts,
       hourlyPatientCountsByDayType,
+      weekdayHourlyStats: {
+        counts: weekdayHourlyCounts,
+        clinicDays: Object.fromEntries(Object.entries(weekdayDateSets).map(([day, dates]) => [day, dates.size]))
+      },
       unknownTimeVisits,
       nurseAssignmentsByDate,
       trendStats
@@ -1281,23 +1320,41 @@
       const previousAverage = previousDays ? Number(previousTotal || 0) / previousDays : 0;
       return summaryComparison(currentAverage, previousAverage, { digits: 1 });
     };
+    const currentClinicDays = Number(s.clinicDays || 0);
+    const previousClinicDays = Number(previous.clinicDays || 0);
+    $("summaryClinicDays").textContent = `진료일 ${currentClinicDays.toLocaleString()}일${previousClinicDays ? ` · 이전 ${previousClinicDays.toLocaleString()}일` : ""}`;
     $("summaryMetrics").innerHTML = `
-      <div class="metric"><div class="metric-label">진료일</div><div class="metric-value">${Number(s.clinicDays || 0).toLocaleString()}일</div><div class="metric-sub">선택 기간 중 진료 기록이 있는 날짜 수</div>${summaryComparison(s.clinicDays, previous.clinicDays, { suffix: "일" })}</div>
       <div class="metric"><div class="metric-label">진료 건수</div><div class="metric-value metric-total-average accent">${totalAverage(s.visits)}</div><div class="metric-sub">약환을 포함한 전체 진료 기록 수</div>${averageComparison(s.visits, previous.visits)}</div>
       <div class="metric"><div class="metric-label">환자 수</div><div class="metric-value metric-total-average">${totalAverage(s.totalPatients)}</div><div class="metric-sub">진료 환자와 약환 전용 환자를 합친 실인원</div>${averageComparison(s.totalPatients, previous.totalPatients)}</div>
       <div class="metric"><div class="metric-label">약환</div><div class="metric-value metric-total-average accent">${totalAverage(s.prescriptionPatients)}</div><div class="metric-sub">주상병명 처방 기록이 있는 실인원</div>${averageComparison(s.prescriptionPatients, previous.prescriptionPatients)}</div>
       <div class="metric"><div class="metric-label">진료 환자 수</div><div class="metric-value metric-total-average">${totalAverage(s.uniquePatients)}</div><div class="metric-sub">약환 전용 환자를 제외한 진료 실인원</div>${averageComparison(s.uniquePatients, previous.uniquePatients)}</div>
       <div class="metric"><div class="metric-label">초진</div><div class="metric-value metric-total-average gold">${totalAverage(s.newPatients)}</div><div class="metric-sub">선택 기간 중 초진으로 기록된 환자</div>${averageComparison(s.newPatients, previous.newPatients)}</div>
-      <div class="metric"><div class="metric-label">재진 환자</div><div class="metric-value metric-total-average">${totalAverage(s.revisitPatients)}</div><div class="metric-sub">초진 표시가 없는 진료 실인원</div>${averageComparison(s.revisitPatients, previous.revisitPatients)}</div>
       <div class="metric"><div class="metric-label">약침 건수</div><div class="metric-value metric-total-average gold">${totalAverage(s.pharmaTotal)}</div><div class="metric-sub">약침1~4·L·자 시행 수 · 진료 1회당 1건</div>${averageComparison(s.pharmaTotal, previous.pharmaTotal)}</div>
       <div class="metric"><div class="metric-label">추나 건수</div><div class="metric-value metric-total-average accent">${totalAverage(s.chunaTotal)}</div><div class="metric-sub">단순·복잡추나 시행 수 · 진료 1회당 1건</div>${averageComparison(s.chunaTotal, previous.chunaTotal)}</div>
       <div class="metric"><div class="metric-label">약침패키지 결제 환자수</div><div class="metric-value metric-total-average">${totalAverage(s.pharmaPackagePurchasePatients)}</div><div class="metric-sub">선택 기간 중 약침 패키지를 결제한 실인원</div>${averageComparison(s.pharmaPackagePurchasePatients, previous.pharmaPackagePurchasePatients)}</div>
+      <div class="metric"><div class="metric-label">환자 1명당 평균 방문</div><div class="metric-value accent">${Number(s.avgVisitsPerPatient || 0).toFixed(1)}회</div><div class="metric-sub">진료 환자의 기간 내 평균 방문 횟수</div>${summaryComparison(s.avgVisitsPerPatient, previous.avgVisitsPerPatient, { digits: 1, suffix: "회" })}</div>
       <div class="metric"><div class="metric-label">재진율</div><div class="metric-value accent">${(Number(s.returnRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">현재 날짜 기준 최근 21일 초진 포함</div>${summaryComparison(s.returnRate, previous.returnRate, { rate: true, digits: 1 })}</div>
       <div class="metric"><div class="metric-label">삼진율</div><div class="metric-value">${(Number(s.thirdVisitRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">현재 날짜 기준 최근 21일 초진 포함</div>${summaryComparison(s.thirdVisitRate, previous.thirdVisitRate, { rate: true, digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">재진율 <span class="metric-label-note">(최근 21일 제외)</span></div><div class="metric-value accent">${(Number(s.matureReturnRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">현재 날짜 기준 최근 21일 초진 제외</div>${summaryComparison(s.matureReturnRate, previous.matureReturnRate, { rate: true, digits: 1 })}</div>
-      <div class="metric"><div class="metric-label">삼진율 <span class="metric-label-note">(최근 21일 제외)</span></div><div class="metric-value">${(Number(s.matureThirdVisitRate || 0) * 100).toFixed(1)}%</div><div class="metric-sub">현재 날짜 기준 최근 21일 초진 제외</div>${summaryComparison(s.matureThirdVisitRate, previous.matureThirdVisitRate, { rate: true, digits: 1 })}</div>
     `;
     renderSummaryBreakdowns(s);
+    renderCohortFunnel(s);
+  }
+
+  function renderCohortFunnel(s = {}) {
+    const wrap = $("cohortFunnelWrap");
+    const funnel = s.cohortFunnel || {};
+    const eligible = Number(funnel.eligible || 0);
+    if (!eligible) { wrap.innerHTML = `<div class="empty">21일 추적이 완료된 초진 데이터 없음</div>`; return; }
+    const steps = [
+      { label: "초진", value: eligible, color: "#ffca6a" },
+      { label: "재진 도달", value: Number(funnel.second || 0), color: "#39a9f5" },
+      { label: "삼진 도달", value: Number(funnel.third || 0), color: "#fb7185" },
+      { label: "4회 이상 도달", value: Number(funnel.fourthPlus || 0), color: "#4ade80" }
+    ];
+    wrap.innerHTML = `<div class="cohort-funnel">${steps.map(step => {
+      const rate = step.value / eligible * 100;
+      return `<div class="cohort-funnel-step"><div class="cohort-funnel-label">${step.label}</div><div class="cohort-funnel-value">${step.value.toLocaleString()}명</div><div class="cohort-funnel-rate">초진 대비 ${rate.toFixed(1)}%</div><div class="cohort-funnel-track"><span class="cohort-funnel-fill" style="width:${Math.min(100, rate)}%;background:${step.color}"></span></div></div>`;
+    }).join("")}</div><div class="cohort-funnel-note">조회 기간의 초진 중 21일 관찰 기간이 모두 끝난 ${eligible.toLocaleString()}명 기준 · 21일 평균 방문 ${Number(s.avgMatureFollowupVisits || 0).toFixed(1)}회 · 초진일부터 21일 안의 방문만 집계</div>`;
   }
 
   function renderSummaryBreakdown(title, total, unit, items, highlight = null, displayDivisor = 1) {
@@ -1319,9 +1376,30 @@
     </div>`;
   }
 
+  function renderTreatmentUtilizationPanel(title, total, items, highlight) {
+    const safeTotal = Math.max(0, Number(total || 0));
+    const segments = items.map(item => {
+      const value = Math.max(0, Number(item.value || 0));
+      return { ...item, value, percent: safeTotal ? value / safeTotal * 100 : 0 };
+    });
+    const highlightValue = Number(highlight?.value || 0);
+    return `<div class="treatment-utilization-panel">
+      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlightValue.toLocaleString()}명 · ${safeTotal ? (highlightValue / safeTotal * 100).toFixed(1) : "0.0"}%</div></div>
+      <div class="summary-stacked-bar" role="img" aria-label="${escapeHtml(title)} 이용률">
+        ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${item.value.toLocaleString()}명 (${item.percent.toFixed(1)}%)"></span>`).join("")}
+      </div>
+      <div class="summary-breakdown-legend">${segments.map(item => `<div class="summary-breakdown-item"><div class="summary-breakdown-label"><span class="summary-breakdown-dot" style="background:${item.color}"></span>${escapeHtml(item.label)}</div><div class="summary-breakdown-value">${item.value.toLocaleString()}명 · ${item.percent.toFixed(1)}%</div></div>`).join("")}</div>
+    </div>`;
+  }
+
+  function renderTreatmentUtilization(clinicPatients, chunaItems, chunaPatients, pharmaItems, pharmaPatients) {
+    return `<div class="summary-breakdown wide-card"><div class="summary-breakdown-head"><div class="summary-breakdown-title">치료 이용률</div><div class="summary-breakdown-total">진료 환자 ${Number(clinicPatients || 0).toLocaleString()}명 기준</div></div><div class="treatment-utilization-grid">
+      ${renderTreatmentUtilizationPanel("추나", clinicPatients, chunaItems, { value: chunaPatients })}
+      ${renderTreatmentUtilizationPanel("약침", clinicPatients, pharmaItems, { value: pharmaPatients })}
+    </div><div class="cohort-funnel-note">추나와 약침은 같은 환자가 모두 이용할 수 있으므로 각각 독립된 비율입니다.</div></div>`;
+  }
+
   function renderSummaryBreakdowns(s) {
-    const stages = s.visitStageCounts || {};
-    const prescriptionVisits = Number(s.prescriptionVisits ?? (Number(s.visits || 0) - Number(s.coreVisits || 0)));
     const prescriptionOnlyPatients = Number(s.prescriptionOnlyPatients ?? s.prescriptionPatients ?? 0);
     const newUniquePatients = Number(s.newUniquePatients ?? s.newPatients ?? 0);
     const revisitUniquePatients = Math.max(0, Number(s.uniquePatients || 0) - newUniquePatients);
@@ -1338,13 +1416,6 @@
       .map(label => ({ label, value: Number(pharmaPatientTypeCounts[label] || 0), color: pharmaTypeColors[label] }))
       .filter(item => item.value > 0);
     $("summaryBreakdowns").innerHTML = [
-      renderSummaryBreakdown("총 진료 건수 구성", s.visits, "건", [
-        { label: "약환", value: prescriptionVisits, color: "#a78bfa" },
-        { label: "1회차", value: stages.first, color: "#ffca6a" },
-        { label: "2회차", value: stages.second, color: "#39a9f5" },
-        { label: "3회차", value: stages.third, color: "#fb7185" },
-        { label: "4회차 이상", value: stages.fourthPlus, color: "#4ade80" }
-      ]),
       renderSummaryBreakdown("진료비 구성", Number(s.financialTotals?.claimAmount || 0) + Number(s.financialTotals?.insuredCopay || 0) + Number(s.financialTotals?.nonCoveredAmount || 0), "만원", [
         { label: "보험 청구", value: Number(s.financialTotals?.claimAmount || 0), color: "#39a9f5" },
         { label: "본인부담", value: Number(s.financialTotals?.insuredCopay || 0), color: "#ffca6a" },
@@ -1353,17 +1424,16 @@
       renderSummaryBreakdown("총 환자 수 구성", s.totalPatients, "명", [
         { label: "약환", value: prescriptionOnlyPatients, color: "#a78bfa" },
         { label: "초진", value: newUniquePatients, color: "#ffca6a" },
-        { label: "재진", value: revisitUniquePatients, color: "#39a9f5" }
+        { label: "기존 환자", value: revisitUniquePatients, color: "#39a9f5" }
       ]),
-      renderSummaryBreakdown("진료 환자 중 추나 환자", clinicPatients, "명", [
+      renderTreatmentUtilization(clinicPatients, [
         { label: "일반 환자", value: regularChunaPatients, color: "#64748b" },
         { label: "단순추나 환자", value: simpleChunaPatients, color: "#39a9f5" },
         { label: "복합추나 환자", value: complexChunaPatients, color: "#fb7185" }
-      ], { label: "추나 합계", value: simpleChunaPatients + complexChunaPatients }),
-      renderSummaryBreakdown("진료 환자 중 약침 환자", clinicPatients, "명", [
+      ], simpleChunaPatients + complexChunaPatients, [
         { label: "일반 환자", value: regularPharmaPatients, color: "#64748b" },
         ...(pharmaTypeItems.length ? pharmaTypeItems : [{ label: "약침 환자", value: pharmaPatients, color: "#22c55e" }])
-      ], { label: "약침 합계", value: pharmaPatients })
+      ], pharmaPatients)
     ].join("");
   }
 
@@ -1421,6 +1491,16 @@
     }).join("")}</tbody></table></div>`;
   }
 
+  function renderTreatmentConversionTable(rows = []) {
+    const wrap = $("treatmentRetentionWrap");
+    if (!rows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
+    wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>초진 치료</th><th class="num">초진</th><th class="num">재진 도달</th><th class="num">재진율</th><th class="num">삼진 도달</th><th class="num">삼진율</th></tr></thead><tbody>${rows.map(row => {
+      const initial = Number(row.eligible || 0);
+      const lowSample = initial > 0 && initial < 10;
+      return `<tr><td>${escapeHtml(row.name)}</td><td class="num">${initial.toLocaleString()}${lowSample ? ` <span class="low-sample">표본 적음</span>` : ""}</td><td class="num">${Number(row.returning || 0).toLocaleString()}</td><td class="num">${(Number(row.returnRate || 0) * 100).toFixed(1)}%</td><td class="num">${Number(row.third || 0).toLocaleString()}</td><td class="num">${(Number(row.thirdVisitRate || 0) * 100).toFixed(1)}%</td></tr>`;
+    }).join("")}</tbody></table></div><div class="cohort-funnel-note">21일 추적이 끝난 초진 코호트의 초진 당일 치료 기준 · 초진일부터 21일 안의 재진·삼진 도달 인원 · 초진 10명 미만은 표본 적음 표시</div>`;
+  }
+
   function renderDoctorDataTable(rows = [], financials = {}) {
     const wrap = $("doctorRetentionWrap");
     const names = [...new Set([...rows.map(row => row.name), ...Object.keys(financials || {})])];
@@ -1428,10 +1508,12 @@
     const combinedRows = names.map(name => ({ name, ...(retentionByName[name] || {}), ...(financials[name] || {}) }))
       .sort((a, b) => Number(b.visits || 0) - Number(a.visits || 0));
     if (!combinedRows.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
-    wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>원장</th><th class="num">진료</th><th class="num">초진</th><th class="num">재진율</th><th class="num">삼진율</th><th class="num">급여 진료비 총액</th><th class="num">비급여 총액</th><th class="num">1건 평균</th></tr></thead><tbody>${combinedRows.map(row => {
+    wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>원장</th><th class="num">진료</th><th class="num">일평균 환자</th><th class="num">환자당 방문</th><th class="num">초진</th><th class="num">재진율</th><th class="num">삼진율</th><th class="num">급여 진료비 총액</th><th class="num">비급여 총액</th><th class="num">비급여 비율</th><th class="num">1건 평균</th></tr></thead><tbody>${combinedRows.map(row => {
       const combined = Number(row.totalFee || 0) + Number(row.nonCoveredAmount || 0);
-      return `<tr><td>${escapeHtml(row.name)}</td><td class="num">${Number(row.visits || 0).toLocaleString()}</td><td class="num">${Number(row.eligible || 0).toLocaleString()}</td><td class="num">${(Number(row.returnRate || 0) * 100).toFixed(1)}%</td><td class="num">${(Number(row.thirdVisitRate || 0) * 100).toFixed(1)}%</td><td class="num">${moneyInTenThousands(row.totalFee)}</td><td class="num">${moneyInTenThousands(row.nonCoveredAmount)}</td><td class="num">${money(row.coveredVisits ? combined / row.coveredVisits : 0)}</td></tr>`;
-    }).join("")}</tbody></table></div>`;
+      const lowSample = Number(row.eligible || 0) < 10;
+      const nonCoveredRate = combined ? Number(row.nonCoveredAmount || 0) / combined : 0;
+      return `<tr><td>${escapeHtml(row.name)}${lowSample ? ` <span class="low-sample">표본 적음</span>` : ""}</td><td class="num">${Number(row.visits || 0).toLocaleString()}</td><td class="num">${Number(row.avgVisitsPerDay || 0).toFixed(1)}</td><td class="num">${Number(row.avgVisitsPerPatient || 0).toFixed(1)}회</td><td class="num">${Number(row.eligible || 0).toLocaleString()}</td><td class="num">${(Number(row.returnRate || 0) * 100).toFixed(1)}%</td><td class="num">${(Number(row.thirdVisitRate || 0) * 100).toFixed(1)}%</td><td class="num">${moneyInTenThousands(row.totalFee)}</td><td class="num">${moneyInTenThousands(row.nonCoveredAmount)}</td><td class="num">${(nonCoveredRate * 100).toFixed(1)}%</td><td class="num">${money(row.coveredVisits ? combined / row.coveredVisits : 0)}</td></tr>`;
+    }).join("")}</tbody></table></div><div class="cohort-funnel-note">일평균 환자는 해당 원장의 진료 건수 ÷ 진료일 · 환자당 방문은 진료 건수 ÷ 실환자 수 · 초진 10명 미만은 표본 적음 표시</div>`;
   }
 
   function renderSimpleBarChart(wrapId, rows = [], { value = row => row.value, label = row => row.label, formatter = n => Number(n).toLocaleString(), color = "#39a9f5" } = {}) {
@@ -1469,65 +1551,118 @@
     const previousNoncoveredPerVisit = previousNoncoveredVisits ? Number(previousTotals.nonCoveredAmount || 0) / previousNoncoveredVisits : 0;
     const currentCombinedPerVisit = covered ? combinedTotalFee / covered : 0;
     const previousCombinedPerVisit = previousCovered ? previousCombinedTotalFee / previousCovered : 0;
+    const currentPerPatient = Number(s.totalPatients || 0) ? combinedTotalFee / Number(s.totalPatients || 0) : 0;
+    const previousPerPatient = Number(previous.totalPatients || 0) ? previousCombinedTotalFee / Number(previous.totalPatients || 0) : 0;
     $("summaryMetrics").insertAdjacentHTML("beforeend", [
       totalCard("진료비 총액", combinedTotalFee, previousCombinedTotalFee),
       totalCard("급여 진료비 총액", totalFee, previousTotalFee, "accent"),
       totalCard("비급여 진료비 총액", noncovered, Number(previousTotals.nonCoveredAmount || 0), "gold"),
-      `<div class="metric"><div class="metric-label">1건 평균 진료비 총액</div><div class="metric-value">${money(currentCombinedPerVisit)}</div><div class="metric-sub">급여 + 비급여</div>${summaryComparison(currentCombinedPerVisit, previousCombinedPerVisit, { suffix: "원" })}</div>`,
-      `<div class="metric"><div class="metric-label">1건 평균 급여 진료비</div><div class="metric-value accent">${money(currentPerVisit)}</div><div class="metric-sub">급여 진료비가 저장된 진료 기준</div>${summaryComparison(currentPerVisit, previousPerVisit, { suffix: "원" })}</div>`,
-      `<div class="metric"><div class="metric-label">1건 평균 비급여 진료비</div><div class="metric-value gold">${money(currentNoncoveredPerVisit)}</div><div class="metric-sub">비급여 0원 진료 포함</div>${summaryComparison(currentNoncoveredPerVisit, previousNoncoveredPerVisit, { suffix: "원" })}</div>`,
-      `<div class="metric"><div class="metric-label">비급여 비율</div><div class="metric-value gold">${(currentNoncoveredRate * 100).toFixed(1)}%</div><div class="metric-sub">전체 진료비 중 비급여</div>${summaryComparison(currentNoncoveredRate, previousNoncoveredRate, { rate: true, digits: 1 })}</div>`
+      `<div class="metric"><div class="metric-label">1건 평균 진료비</div><div class="metric-value">${money(currentCombinedPerVisit)}</div><div class="metric-fee-breakdown"><span class="metric-fee-covered">급여 ${money(currentPerVisit)}</span><span class="metric-fee-noncovered">· 비급여 ${money(currentNoncoveredPerVisit)}</span></div>${summaryComparison(currentCombinedPerVisit, previousCombinedPerVisit, { suffix: "원" })}</div>`,
+      `<div class="metric"><div class="metric-label">환자 1명당 평균 총진료비</div><div class="metric-value accent">${money(currentPerPatient)}</div><div class="metric-sub">기간 총진료비 ÷ 전체 실환자 수</div>${summaryComparison(currentPerPatient, previousPerPatient, { suffix: "원" })}</div>`,
     ].join(""));
   }
 
   function renderDiagnosisStats(s = {}) {
     const diagnoses = Object.values(s.diagnosisCounts || {}).sort((a, b) => b.count - a.count);
-    const names = Object.fromEntries(diagnoses.map(row => [row.code, row.name || ""]));
     const covered = diagnoses.reduce((sum, row) => sum + Number(row.count || 0), 0);
     const visits = Number(s.visits || 0);
     $("diagnosisCoverageText").textContent = `상병코드 데이터 보유 ${covered.toLocaleString()} / ${visits.toLocaleString()}건 (${(visits ? covered / visits * 100 : 0).toFixed(1)}%)`;
-    renderSimpleBarChart("diagnosisTopWrap", diagnoses.slice(0, 10), { value: row => row.count, label: row => `${row.code}${row.name ? ` · ${row.name}` : ""}` });
-    const initialRows = Object.entries(s.initialDiagnosisCounts || {}).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([code, count]) => ({ code, name: names[code] || "", count }));
-    renderSimpleBarChart("initialDiagnosisTopWrap", initialRows, { value: row => row.count, label: row => `${row.code}${row.name ? ` · ${row.name}` : ""}`, color: "#ffca6a" });
-    const categoryNames = { M: "근골격계", S: "손상", K: "소화기", G: "신경계", J: "호흡기", I: "순환기", R: "증상·징후" };
-    const categories = Object.entries(s.diagnosisCategoryCounts || {}).sort((a, b) => b[1] - a[1]).map(([code, count]) => ({ label: `${code} · ${categoryNames[code] || "기타"}`, value: count }));
-    renderSimpleBarChart("diagnosisCategoryWrap", categories, { color: "#a78bfa" });
-    renderRetentionTable("diagnosisRetentionWrap", (s.diagnosisRetention || []).slice(0, 10), { diagnosisNames: names });
+    const retentionByCode = Object.fromEntries((s.diagnosisRetention || []).map(row => [row.name, row]));
+    const initialCounts = s.initialDiagnosisCounts || {};
+    const detailRows = diagnoses.map(row => {
+      const retention = retentionByCode[row.code] || {};
+      return { ...retention, ...row, initial: Number(initialCounts[row.code] ?? retention.eligible ?? 0) };
+    });
+    const groupCodeOf = code => String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "기타";
+    const groupMap = new Map();
+    detailRows.forEach(row => {
+      const groupCode = groupCodeOf(row.code);
+      if (!groupMap.has(groupCode)) groupMap.set(groupCode, { code: groupCode, count: 0, initial: 0, eligible: 0, returning: 0, third: 0, details: [] });
+      const group = groupMap.get(groupCode);
+      group.count += Number(row.count || 0);
+      group.initial += Number(row.initial || 0);
+      group.eligible += Number(row.eligible ?? row.initial ?? 0);
+      group.returning += Number(row.returning || 0);
+      group.third += Number(row.third || 0);
+      group.details.push(row);
+    });
+    const groups = [...groupMap.values()].map(group => {
+      group.details.sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
+      const representative = group.details[0] || {};
+      return { ...group, representativeName: representative.name || "-", returnRate: group.eligible ? group.returning / group.eligible : 0, thirdVisitRate: group.eligible ? group.third / group.eligible : 0 };
+    }).sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+    const wrap = $("diagnosisDataWrap");
+    if (!groups.length) { wrap.innerHTML = `<div class="empty">데이터 없음</div>`; return; }
+    const rateCell = (initial, rate) => Number(initial || 0) ? `${(Number(rate || 0) * 100).toFixed(1)}%` : "-";
+    const draw = expanded => {
+      const visibleGroups = expanded ? groups : groups.slice(0, 15);
+      wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>상병군</th><th>대표 상병명</th><th class="num">진료 건수</th><th class="num">구성비</th><th class="num">초진</th><th class="num">재진율</th><th class="num">삼진율</th></tr></thead><tbody>${visibleGroups.map(group => {
+        const lowSample = group.initial > 0 && group.initial < 10;
+        const detailHtml = group.details.map(row => {
+          const initial = Number(row.initial || 0), detailLowSample = initial > 0 && initial < 10;
+          return `<tr class="diagnosis-detail-row hidden" data-diagnosis-group="${escapeHtml(group.code)}"><td class="diagnosis-detail-code">${escapeHtml(row.code)}</td><td>${escapeHtml(row.name || "-")}</td><td class="num">${Number(row.count || 0).toLocaleString()}</td><td class="num">${(covered ? Number(row.count || 0) / covered * 100 : 0).toFixed(1)}%</td><td class="num">${initial.toLocaleString()}${detailLowSample ? ` <span class="low-sample">표본 적음</span>` : ""}</td><td class="num">${rateCell(initial, row.returnRate)}</td><td class="num">${rateCell(initial, row.thirdVisitRate)}</td></tr>`;
+        }).join("");
+        return `<tr class="diagnosis-group-row"><td><div class="diagnosis-group-code"><button type="button" class="diagnosis-toggle" data-diagnosis-toggle="${escapeHtml(group.code)}" aria-expanded="false">＋</button>${escapeHtml(group.code)}</div></td><td>${escapeHtml(group.representativeName)}</td><td class="num">${group.count.toLocaleString()}</td><td class="num">${(covered ? group.count / covered * 100 : 0).toFixed(1)}%</td><td class="num">${group.initial.toLocaleString()}${lowSample ? ` <span class="low-sample">표본 적음</span>` : ""}</td><td class="num">${rateCell(group.initial, group.returnRate)}</td><td class="num">${rateCell(group.initial, group.thirdVisitRate)}</td></tr>${detailHtml}`;
+      }).join("")}</tbody></table></div>${groups.length > 15 ? `<div class="table-expand-row"><button type="button" class="table-expand-btn" id="diagnosisExpandBtn">${expanded ? "상위 15개군만 보기" : `전체 ${groups.length.toLocaleString()}개군 펼치기`}</button></div>` : ""}<div class="cohort-funnel-note">상병코드 앞 3자리 기준 · 대표 상병명은 그룹 내 진료 건수가 가장 많은 상세 상병 · 재진·삼진율은 환자 수를 합산해 재계산 · ＋ 버튼으로 상세 코드 확인 · 초진 10명 미만은 표본 적음 표시</div>`;
+      const button = $("diagnosisExpandBtn");
+      if (button) button.addEventListener("click", () => draw(!expanded));
+      wrap.querySelectorAll("[data-diagnosis-toggle]").forEach(toggle => toggle.addEventListener("click", () => {
+        const code = toggle.dataset.diagnosisToggle;
+        const open = toggle.getAttribute("aria-expanded") !== "true";
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.textContent = open ? "－" : "＋";
+        wrap.querySelectorAll(`[data-diagnosis-group="${code}"]`).forEach(row => row.classList.toggle("hidden", !open));
+      }));
+    };
+    draw(false);
   }
 
   function renderRetentionStats(s = {}) {
     const treatmentOrder = { "일반진료": 0, "추나": 1, "약침": 2, "추나+약침": 3 };
     const treatments = [...(s.treatmentRetention || [])].sort((a, b) => (treatmentOrder[a.name] ?? 9) - (treatmentOrder[b.name] ?? 9));
-    renderRetentionTable("treatmentRetentionWrap", treatments);
+    renderTreatmentConversionTable(treatments);
     renderDoctorDataTable(s.doctorRetention || [], s.doctorFinancials || {});
   }
 
-  function renderHourlyPatientChart(countsByDayType = {}, unknownCount = 0) {
+  function renderHourlyPatientHeatmap(stats = {}, unknownCount = 0, weekdayAverages = {}) {
     const wrap = $("hourlyPatientChartWrap");
     if (!wrap) return;
-    const configs = [
-      { key: "weekday", title: "평일 (월~금)", startHour: 9, endHour: 18, endLabel: "18:30", color: "#39a9f5" },
-      { key: "saturday", title: "토요일", startHour: 9, endHour: 14, endLabel: "14:30", color: "#ffca6a" }
-    ];
-    const knownTotal = Object.values(countsByDayType).reduce((total, counts) => total + Object.values(counts || {}).reduce((sum, value) => sum + Number(value || 0), 0), 0);
+    const counts = stats.counts || {};
+    const clinicDays = stats.clinicDays || {};
+    const days = ["월", "화", "수", "목", "금", "토"];
+    const hours = Array.from({ length: 10 }, (_, index) => index + 9);
+    const isActive = (day, hour) => day !== "토" || hour <= 14;
+    const knownTotal = days.reduce((total, day) => total + hours.reduce((sum, hour) => sum + (isActive(day, hour) ? Number(counts[day]?.[String(hour).padStart(2, "0")] || 0) : 0), 0), 0);
     const subtitle = $("hourlyPatientSubtitle");
-    if (subtitle) subtitle.textContent = `평일 09:00~18:30 · 토요일 09:00~14:30 · 시간 확인 방문 ${knownTotal.toLocaleString()}건${unknownCount ? ` · 시간 정보 없는 방문 ${Number(unknownCount).toLocaleString()}건 제외` : ""}`;
+    if (subtitle) subtitle.textContent = `셀: 해당 요일 진료일당 평균 환자 수 · 평일 09:00~18:30 · 토요일 09:00~14:30 · 시간 확인 방문 ${knownTotal.toLocaleString()}건${unknownCount ? ` · 시간 정보 없는 방문 ${Number(unknownCount).toLocaleString()}건 제외` : ""}`;
     if (!knownTotal) {
       wrap.innerHTML = `<div class="empty">선택 기간에 시간 정보가 저장된 평일·토요일 방문이 없습니다.</div>`;
       return;
     }
-    wrap.innerHTML = `<div class="hourly-chart-grid">${configs.map(config => {
-      const rows = Array.from({ length: config.endHour - config.startHour + 1 }, (_, index) => { const hour = config.startHour + index; return { hour, count: Number(countsByDayType[config.key]?.[String(hour).padStart(2, "0")] || 0) }; });
-      const width = 560, height = 310, pad = { left: 46, right: 16, top: 28, bottom: 44 };
-      const chartW = width - pad.left - pad.right, chartH = height - pad.top - pad.bottom;
-      const top = Math.max(5, Math.ceil(Math.max(...rows.map(row => row.count), 1) / 5) * 5);
-      const slotW = chartW / rows.length, barW = Math.max(10, slotW * .64), y = value => pad.top + chartH - value / top * chartH;
-      return `<div class="hourly-chart-panel"><div class="hourly-chart-panel-title">${config.title}</div><div class="chart-wrap"><svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${config.title} 시간대별 환자 수 막대그래프">
-        ${[0, .25, .5, .75, 1].map(rate => { const value = top * rate, gy = y(value); return `<line class="chart-grid" x1="${pad.left}" y1="${gy}" x2="${width - pad.right}" y2="${gy}"></line><text class="chart-text" x="${pad.left - 8}" y="${gy + 4}" text-anchor="end">${Math.round(value)}</text>`; }).join("")}
-        <line class="chart-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line><line class="chart-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
-        ${rows.map((row, index) => { const x = pad.left + index * slotW + (slotW - barW) / 2, barY = y(row.count), from = `${String(row.hour).padStart(2, "0")}:00`, to = row.hour === config.endHour ? config.endLabel : `${String(row.hour + 1).padStart(2, "0")}:00`; return `<g><rect x="${x}" y="${barY}" width="${barW}" height="${height - pad.bottom - barY}" rx="3" fill="${config.color}" opacity=".76"><title>${from}~${to} · ${row.count}명</title></rect>${row.count ? `<text class="chart-value-label" x="${x + barW / 2}" y="${Math.max(pad.top + 10, barY - 6)}" text-anchor="middle" fill="${config.color}">${row.count}</text>` : ""}<text class="chart-text" x="${x + barW / 2}" y="${height - pad.bottom + 20}" text-anchor="middle">${String(row.hour).padStart(2, "0")}</text></g>`; }).join("")}
-        <text class="chart-text" x="${pad.left}" y="15">환자 수</text></svg></div></div>`;
-    }).join("")}</div>`;
+    const averages = days.flatMap(day => hours.filter(hour => isActive(day, hour)).map(hour => Number(counts[day]?.[String(hour).padStart(2, "0")] || 0) / Math.max(1, Number(clinicDays[day] || 0))));
+    const maxAverage = Math.max(1, ...averages);
+    const colorFor = value => `rgba(57,169,245,${(0.08 + Math.min(1, value / maxAverage) * 0.82).toFixed(2)})`;
+    const hourAverage = hour => {
+      const activeDays = days.filter(day => isActive(day, hour));
+      const total = activeDays.reduce((sum, day) => sum + Number(counts[day]?.[String(hour).padStart(2, "0")] || 0), 0);
+      const dates = activeDays.reduce((sum, day) => sum + Number(clinicDays[day] || 0), 0);
+      return dates ? total / dates : 0;
+    };
+    wrap.innerHTML = `<div class="heatmap-scroll"><div class="heatmap-grid">
+      <div class="heatmap-head"></div>${hours.map(hour => `<div class="heatmap-head">${String(hour).padStart(2, "0")}시</div>`).join("")}<div class="heatmap-head">요일 평균</div>
+      ${days.map(day => {
+        const dayCount = hours.reduce((sum, hour) => sum + (isActive(day, hour) ? Number(counts[day]?.[String(hour).padStart(2, "0")] || 0) : 0), 0);
+        const dayCountDates = Number(clinicDays[day] || 0);
+        const dayAverage = Number(weekdayAverages[day] ?? (dayCountDates ? dayCount / dayCountDates : 0));
+        return `<div class="heatmap-row-label">${day}</div>${hours.map(hour => {
+          if (!isActive(day, hour)) return `<div class="heatmap-cell disabled">—</div>`;
+          const key = String(hour).padStart(2, "0"), count = Number(counts[day]?.[key] || 0), average = dayCountDates ? count / dayCountDates : 0;
+          const to = day === "토" && hour === 14 ? "14:30" : `${String(hour + 1).padStart(2, "0")}:00`;
+          return `<div class="heatmap-cell" style="background:${colorFor(average)}" title="${day}요일 ${key}:00~${to} · 일평균 ${average.toFixed(1)}명 · 실제 ${count.toLocaleString()}건 / ${dayCountDates}일">${average.toFixed(1)}</div>`;
+        }).join("")}<div class="heatmap-total" title="${day}요일 전체 진료 기준 · 일평균 ${dayAverage.toFixed(1)}건 / ${dayCountDates}일">${dayAverage.toFixed(1)}</div>`;
+      }).join("")}
+      <div class="heatmap-row-label heatmap-bottom-label">시간 평균</div>${hours.map(hour => `<div class="heatmap-total">${hourAverage(hour).toFixed(1)}</div>`).join("")}<div class="heatmap-total">—</div>
+    </div></div>`;
   }
 
   function chartMetricValue(row, metric) {
@@ -1753,7 +1888,7 @@
       const axisLabel = chartUnit === "week" ? isoWeekRangeLabel(row.key).replace(/[()]/g, "") : slotLabelForKey(row.key, chartUnit);
       return `<text class="chart-text" x="${x(idx)}" y="324" text-anchor="middle">${axisLabel}</text>`;
     }).join("");
-    const legend = `<div class="chart-legend">${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? " (원/일)" : " (명)"}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
+    const legend = `<div class="chart-legend">${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? ` (${metric.unitLabel || "원/일"})` : " (명)"}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
 
     if (operationalTrendMode === "index") {
       const normalizedByMetric = new Map();
@@ -1821,6 +1956,10 @@
     if (metric.key === "avgPharmaPatientsPerDay") return Number(stats.avgPharmaPatientsPerDay || 0);
     if (metric.key === "avgPharmaPackagePurchasePatientsPerDay") return clinicDays ? Number(stats.pharmaPackagePurchasePatients || 0) / clinicDays : 0;
     if (metric.key === "avgCombinedFeePerDay") return clinicDays ? (Number(stats.financialTotals?.totalFee || 0) + Number(stats.financialTotals?.nonCoveredAmount || 0)) / clinicDays : 0;
+    if (metric.key === "avgCombinedFeePerVisit") {
+      const coveredVisits = Number(stats.financialCoverage?.totalFee || 0);
+      return coveredVisits ? (Number(stats.financialTotals?.totalFee || 0) + Number(stats.financialTotals?.nonCoveredAmount || 0)) / coveredVisits : 0;
+    }
     if (metric.key === "avgTotalFeePerDay") return clinicDays ? Number(stats.financialTotals?.totalFee || 0) / clinicDays : 0;
     if (metric.key === "avgNonCoveredFeePerDay") return clinicDays ? Number(stats.financialTotals?.nonCoveredAmount || 0) / clinicDays : 0;
     return Number(stats[metric.key] || 0);
@@ -1832,6 +1971,7 @@
 
   function formatPeriodAverage(value, metric) {
     if (metric.axis === "rate") return `${(value * 100).toFixed(1)}%`;
+    if (metric.key === "avgCombinedFeePerVisit") return `${Math.round(value).toLocaleString()}원`;
     if (metric.axis === "money") return `${Math.round(value / 10000).toLocaleString()}만원`;
     return `${value.toFixed(1)}명`;
   }
@@ -1860,26 +2000,20 @@
       return;
     }
 
-    wrap.innerHTML = `<div class="comparison-average-list">
+    const hasYearAgo = Boolean(comparison.yearAgo && comparison.yearAgoStats);
+    const currentRangeLabel = periodComparisonRangeLabel(comparison.current);
+    const previousRangeLabel = periodComparisonRangeLabel(comparison.previous);
+    const yearAgoRangeLabel = hasYearAgo ? periodComparisonRangeLabel(comparison.yearAgo) : "";
+    wrap.innerHTML = `<div class="table-scroll"><table class="comparison-matrix"><thead><tr><th>지표</th><th class="num">현재<span class="comparison-matrix-range">${currentRangeLabel}</span></th><th class="num">직전<span class="comparison-matrix-range">${previousRangeLabel}</span></th><th class="num">직전 대비</th>${hasYearAgo ? `<th class="num">전년 동기<span class="comparison-matrix-range">${yearAgoRangeLabel}</span></th><th class="num">전년 대비</th>` : ""}</tr></thead><tbody>
       ${visibleMetrics.map(metric => {
         const previousValue = periodAverageValue(comparison.previousStats, metric);
-        const hasYearAgo = Boolean(comparison.yearAgo && comparison.yearAgoStats);
         const yearAgoValue = hasYearAgo ? periodAverageValue(comparison.yearAgoStats, metric) : 0;
         const currentValue = periodAverageValue(comparison.currentStats, metric);
-        const maxValue = Math.max(previousValue, yearAgoValue, currentValue, 0.000001);
         const change = periodAverageChange(currentValue, previousValue, metric);
-        const metricLabel = `${metric.label}${isFollowupRateMetric(metric) ? " (최근 21일 초진 포함 · 기간 종료일까지 관찰)" : ""}`;
-        const previousRangeLabel = periodComparisonRangeLabel(comparison.previous, metric);
-        const yearAgoRangeLabel = hasYearAgo ? periodComparisonRangeLabel(comparison.yearAgo, metric) : "";
-        const currentRangeLabel = periodComparisonRangeLabel(comparison.current, metric);
-        return `<div class="comparison-average-item">
-          <div class="comparison-average-head"><div class="comparison-average-title">${escapeHtml(metricLabel)}</div><div class="comparison-average-change ${change.className}">${change.text}</div></div>
-          <div class="comparison-average-bar-row"><div class="comparison-average-period">현재 · ${currentRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(currentValue / maxValue) * 100}%;background:var(--accent)"></span></div><div class="comparison-average-value">${formatPeriodAverage(currentValue, metric)}</div></div>
-          <div class="comparison-average-bar-row"><div class="comparison-average-period">직전 · ${previousRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(previousValue / maxValue) * 100}%;background:var(--green)"></span></div><div class="comparison-average-value">${formatPeriodAverage(previousValue, metric)}</div></div>
-          ${hasYearAgo ? `<div class="comparison-average-bar-row"><div class="comparison-average-period">1년 전 · ${yearAgoRangeLabel}</div><div class="comparison-average-track"><span class="comparison-average-fill" style="width:${(yearAgoValue / maxValue) * 100}%;background:var(--gold)"></span></div><div class="comparison-average-value">${formatPeriodAverage(yearAgoValue, metric)}</div></div>` : ""}
-        </div>`;
+        const yearAgoChange = hasYearAgo ? periodAverageChange(currentValue, yearAgoValue, metric) : null;
+        return `<tr><td class="comparison-matrix-metric">${escapeHtml(metric.label)}</td><td class="num">${formatPeriodAverage(currentValue, metric)}</td><td class="num">${formatPeriodAverage(previousValue, metric)}</td><td class="comparison-matrix-change ${change.className}">${change.text}</td>${hasYearAgo ? `<td class="num">${formatPeriodAverage(yearAgoValue, metric)}</td><td class="comparison-matrix-change ${yearAgoChange.className}">${yearAgoChange.text}</td>` : ""}</tr>`;
       }).join("")}
-    </div>`;
+    </tbody></table></div><div class="cohort-funnel-note">재진율·삼진율은 최근 21일 초진을 포함하며 각 비교 기간 종료일까지 관찰한 값입니다.</div>`;
   }
 
   function escapeHtml(s) {
@@ -2155,9 +2289,8 @@
       renderFinancialStats(s, previousStats);
       renderOperationalTrendChart(trendRows, chartUnit);
       renderPeriodComparisonChart(comparison, "range");
-      renderHourlyPatientChart(s.hourlyPatientCountsByDayType || {}, s.unknownTimeVisits);
+      renderHourlyPatientHeatmap(s.weekdayHourlyStats || {}, s.unknownTimeVisits, s.weekdayCounts || {});
       renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true, limit: 10, expandable: true });
-      renderCountTable("weekdayTableWrap", s.weekdayCounts, { order: ["월", "화", "수", "목", "금", "토", "일"], valueHeader: "평균", decimals: 1 });
       renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
       lastResult = { start, end, docLabel, chartUnit, comparisonUnit: "range", stats: s, trendRows, comparison };
       $("periodReportPrintBtn").disabled = false;
