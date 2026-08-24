@@ -3401,6 +3401,10 @@ function isFixedBedRelevantBed(client, bedNo, bed) {
   if (!client || client.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return true;
   if (Number(client.bedNo) === Number(bedNo)) return true;
   if (!bed || typeof bed !== "object") return false;
+  // Fixed-bed screens calculate the shared doctor queue locally. Keep running
+  // beds in their snapshot so an upcoming short procedure can move ahead of a
+  // waiting chuna/exam when its local countdown reaches two minutes.
+  if (bed.doctorId && bed.running && !bed.complete) return true;
   return Boolean(bed.doctorId && !bed.complete && !bed.running && !bed.lastAlertId);
 }
 

@@ -14757,12 +14757,16 @@
   }
 
   function renderCompleteCard(bedNo, bed, allowControls = true, context = 'bed') {
+    const nextTaskHtml = renderNextStaffTaskHtml(bedNo, bed, context);
     return `
       <div class="timer-card done">
         <div class="timer-top">
-          <div>
-            <div class="timer-treatment">모든 치료 완료</div>
-            <div class="timer-step">${(bed.treatments || []).map(escapeHtml).join(' → ')}</div>
+          <div class="timer-head">
+            <div>
+              <div class="timer-treatment">모든 치료 완료</div>
+              <div class="timer-step">${(bed.treatments || []).map(escapeHtml).join(' → ')}</div>
+            </div>
+            ${nextTaskHtml}
           </div>
           <div class="timer-clock">완료</div>
         </div>
@@ -17225,7 +17229,12 @@
       };
       if (isRegularFixedBedScreen()) {
         const fixedBedNo = getFixedBedNoFromUrl();
-        tickBed(getBedData(fixedBedNo), fixedBedNo);
+        const fixedBed = getBedData(fixedBedNo);
+        tickBed(fixedBed, fixedBedNo);
+        // Other running beds arrive through SSE only when their persisted state
+        // changes. Recalculate the shared doctor queue locally each second so
+        // the 2-minute short-procedure priority does not require timer SSEs.
+        updateTimerNextStaffTaskDom(fixedBedNo, fixedBed, 'bed');
         updateBedRemainingChip();
         return;
       }
