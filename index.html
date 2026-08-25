@@ -15102,7 +15102,7 @@
         { value: 10, label: '10' },
         { value: 15, label: '15' },
         { value: 20, label: '20' },
-        { value: 20, label: '20+', plus: true }
+        { value: 25, label: '25+', plus: true }
       ];
       baseOptions.innerHTML = presets.map(preset => `
         <button class="needle-count-option ${state.basePreset === preset.label ? 'selected' : ''}" type="button" onclick="selectNeedleBaseCount(${preset.value}, '${preset.label}')">${preset.label}</button>`).join('');
@@ -15137,16 +15137,15 @@
     if (!needleCountSetupState) return;
     needleCountSetupState.baseCount = Number(value);
     needleCountSetupState.basePreset = preset;
-    if (preset === '20+' && needleCountSetupState.extraCount === 0) needleCountSetupState.extraCount = 1;
-    if (preset !== '20+') needleCountSetupState.extraCount = 0;
+    needleCountSetupState.extraCount = 0;
     renderNeedleCountSetupOptions();
   };
 
   window.selectNeedleExtraCount = (value) => {
     if (!needleCountSetupState) return;
     needleCountSetupState.extraCount = Number(value);
-    needleCountSetupState.basePreset = needleCountSetupState.baseCount === 20 && Number(value) > 0
-      ? '20+'
+    needleCountSetupState.basePreset = needleCountSetupState.baseCount === 25
+      ? '25+'
       : String(needleCountSetupState.baseCount);
     renderNeedleCountSetupOptions();
   };
