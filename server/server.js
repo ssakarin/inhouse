@@ -577,18 +577,30 @@ function listPatients() {
   return [...patientCache.values()].sort(patientSort);
 }
 
-function listUpcomingAppointments() {
+function listUpcomingAppointments(startDate = "", endDate = "") {
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : todayKey;
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : "9999-12-31";
   const byDate = new Map();
   for (const patient of listPatients()) {
-    const historyDates = (Array.isArray(patient.appointmentHistory) ? patient.appointmentHistory : [])
-      .map(entry => String(entry?.confirmedDate || "").trim());
+    const latestHistoryByDate = new Map();
+    for (const entry of (Array.isArray(patient.appointmentHistory) ? patient.appointmentHistory : [])) {
+      const date = String(entry?.confirmedDate || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      const previous = latestHistoryByDate.get(date);
+      const entryTime = Number(entry?.cancelledAt || entry?.processedAt || 0);
+      const previousTime = Number(previous?.cancelledAt || previous?.processedAt || 0);
+      if (!previous || entryTime >= previousTime) latestHistoryByDate.set(date, entry);
+    }
+    const historyDates = [...latestHistoryByDate.entries()]
+      .filter(([, entry]) => !["deleted", "cancelled", "declined"].includes(String(entry?.result || "").toLowerCase()))
+      .map(([date]) => date);
     const dates = [...new Set([
       ...(Array.isArray(patient.appointmentDates) ? patient.appointmentDates : []),
       patient.appointmentDate || "",
       ...historyDates
-    ].map(value => String(value || "").trim()).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= todayKey))];
+    ].map(value => String(value || "").trim()).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= start && value <= end))];
     const visitDates = new Set(visitDatesOf(patient));
     for (const date of dates) {
       if (!byDate.has(date)) byDate.set(date, []);
@@ -3906,7 +3918,11 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname === "/api/appointments/upcoming" && req.method === "GET") {
-    jsonResponse(res, 200, listUpcomingAppointments());
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, listUpcomingAppointments(
+      requestUrl.searchParams.get("start") || "",
+      requestUrl.searchParams.get("end") || ""
+    ));
     return true;
   }
 
