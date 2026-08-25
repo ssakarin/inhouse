@@ -4138,6 +4138,19 @@
     font-weight: 900;
     padding: 12px;
   }
+  .bed-alert-btn.needle-count-confirm {
+    min-height: 76px;
+    background: var(--gold);
+    border-color: var(--gold);
+    color: var(--bg);
+    font-size: 36px;
+    line-height: 1;
+  }
+  .bed-alert-btn.needle-count-confirm.exception {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+  }
   body.app-fixed-doctor-bed .app {
     width: 100%;
     max-width: none;
@@ -4536,6 +4549,14 @@
   }
   .timer-card.done .timer-bar { background: var(--gold); }
   .timer-card.done .timer-clock { color: var(--gold); }
+  .needle-safety-title { font-size: 16px; font-weight: 900; }
+  .needle-count-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 8px; margin: 12px 0; }
+  .needle-count-option {
+    border: 1px solid var(--border); border-radius: 10px; padding: 11px 6px;
+    background: var(--surface2); color: var(--text); font: inherit; font-weight: 800; cursor: pointer;
+  }
+  .needle-count-option.selected { border-color: var(--accent); color: var(--accent); background: rgba(45, 212, 191, 0.1); }
+  .needle-count-summary { text-align: center; font-size: 22px; font-weight: 900; margin: 10px 0 14px; }
   .timer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .timer-actions.bed-timer-actions {
     grid-template-columns: 1fr;
@@ -5840,6 +5861,23 @@
     <div class="popup-label" id="popupLabel">진료 준비</div>
     <div class="popup-treats" id="popupTreats"></div>
     <button class="popup-close" onclick="closePopup()">확인</button>
+  </div>
+</div>
+
+<!-- 침/전침 개수 설정 -->
+<div class="notif-overlay" id="needleCountOverlay" onclick="cancelNeedleCountSetup()">
+  <div class="notif-popup timer-alert-popup" onclick="event.stopPropagation()">
+    <div class="timer-alert-body">
+      <div class="needle-safety-title" id="needleCountSetupTitle">침 개수 설정</div>
+      <div class="timer-step" style="margin-top:6px">기본 개수와 추가 침을 선택해주세요.</div>
+      <div class="needle-count-options" id="needleBaseCountOptions"></div>
+      <div class="needle-count-options" id="needleExtraCountOptions"></div>
+      <div class="needle-count-summary" id="needleCountSetupSummary"></div>
+      <div class="timer-actions">
+        <button class="timer-btn" type="button" onclick="cancelNeedleCountSetup()">취소</button>
+        <button class="timer-btn primary" id="needleCountStartButton" type="button" onclick="confirmNeedleCountSetup()">시작</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -14739,9 +14777,15 @@
 
   function renderBedAlertCard(bedNo, bed) {
     if (!bed?.lastAlertId) return '';
+    const needleSafety = isFixedBedScreen() ? getActiveNeedleSafety(bed) : null;
+    const needsNeedleConfirmation = needleSafety && needleSafety.status !== 'matched';
+    const needleCount = Number(needleSafety?.insertedCount || 0);
+    const needleButton = needsNeedleConfirmation
+      ? `<button class="bed-alert-btn needle-count-confirm ${needleCount % 5 !== 0 ? 'exception' : ''}" aria-label="${needleCount}개 회수 및 알림 확인" onclick="acknowledgeBedAlert(${bedNo})">${needleCount}개</button>`
+      : `<button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>`;
     return `<div class="bed-alert-card">
       <div class="bed-alert-message">${escapeHtml(bed.lastAlertMessage || `${bed.name || ''} 치료 완료`)}</div>
-      <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
+      ${needleButton}
     </div>`;
   }
 
@@ -14888,6 +14932,19 @@
     el.innerHTML = renderNextStaffTaskContentHtml(bedNo, bed);
   }
 
+  function getCurrentAcupunctureTreatmentInfo(bed) {
+    const currentIndex = Number(bed?.currentIndex || 0);
+    const names = getConcurrentTreatmentNames(bed?.treatments || [], currentIndex);
+    const acupunctureNames = names.filter(name => name === '침' || name === '전침');
+    if (!acupunctureNames.length) return null;
+    return { treatmentIndex: currentIndex, treatmentLabel: acupunctureNames.join(' + ') };
+  }
+
+  function getActiveNeedleSafety(bed) {
+    const safety = bed?.needleSafety;
+    return safety && Number(safety.insertedCount) ? safety : null;
+  }
+
   function renderTimerCard(bedNo, bed, treatment, allowControls = true, context = 'bed') {
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
     const hasTreatment = treatments.length > 0 && Boolean(treatment);
@@ -15030,6 +15087,94 @@
     if (bedNo === selectedBedNo) updateBedRemainingChip();
   }
 
+  let needleCountSetupState = null;
+
+  function renderNeedleCountSetupOptions() {
+    const state = needleCountSetupState;
+    if (!state) return;
+    const baseOptions = document.getElementById('needleBaseCountOptions');
+    const extraOptions = document.getElementById('needleExtraCountOptions');
+    const summary = document.getElementById('needleCountSetupSummary');
+    const startButton = document.getElementById('needleCountStartButton');
+    if (baseOptions) {
+      const presets = [
+        { value: 5, label: '5' },
+        { value: 10, label: '10' },
+        { value: 15, label: '15' },
+        { value: 20, label: '20' },
+        { value: 20, label: '20+', plus: true }
+      ];
+      baseOptions.innerHTML = presets.map(preset => `
+        <button class="needle-count-option ${state.basePreset === preset.label ? 'selected' : ''}" type="button" onclick="selectNeedleBaseCount(${preset.value}, '${preset.label}')">${preset.label}</button>`).join('');
+    }
+    if (extraOptions) {
+      extraOptions.innerHTML = [0, 1, 2, 3, 4].map(value => `
+        <button class="needle-count-option ${state.extraCount === value ? 'selected' : ''}" type="button" onclick="selectNeedleExtraCount(${value})">+${value}</button>`).join('');
+    }
+    const total = state.baseCount + state.extraCount;
+    if (summary) summary.textContent = `${total}개`;
+    if (startButton) startButton.textContent = `${total}개로 시작`;
+  }
+
+  function requestNeedleCountSetup(treatmentInfo) {
+    if (needleCountSetupState) return Promise.resolve(null);
+    return new Promise(resolve => {
+      needleCountSetupState = {
+        baseCount: 10,
+        extraCount: 0,
+        basePreset: '10',
+        treatmentInfo,
+        resolve
+      };
+      const title = document.getElementById('needleCountSetupTitle');
+      if (title) title.textContent = `${treatmentInfo.treatmentLabel} 개수 설정`;
+      renderNeedleCountSetupOptions();
+      document.getElementById('needleCountOverlay')?.classList.add('show');
+    });
+  }
+
+  window.selectNeedleBaseCount = (value, preset = String(value)) => {
+    if (!needleCountSetupState) return;
+    needleCountSetupState.baseCount = Number(value);
+    needleCountSetupState.basePreset = preset;
+    if (preset === '20+' && needleCountSetupState.extraCount === 0) needleCountSetupState.extraCount = 1;
+    if (preset !== '20+') needleCountSetupState.extraCount = 0;
+    renderNeedleCountSetupOptions();
+  };
+
+  window.selectNeedleExtraCount = (value) => {
+    if (!needleCountSetupState) return;
+    needleCountSetupState.extraCount = Number(value);
+    needleCountSetupState.basePreset = needleCountSetupState.baseCount === 20 && Number(value) > 0
+      ? '20+'
+      : String(needleCountSetupState.baseCount);
+    renderNeedleCountSetupOptions();
+  };
+
+  window.cancelNeedleCountSetup = () => {
+    const state = needleCountSetupState;
+    needleCountSetupState = null;
+    document.getElementById('needleCountOverlay')?.classList.remove('show');
+    state?.resolve(null);
+  };
+
+  window.confirmNeedleCountSetup = () => {
+    const state = needleCountSetupState;
+    if (!state) return;
+    const result = {
+      baseCount: state.baseCount,
+      extraCount: state.extraCount,
+      insertedCount: state.baseCount + state.extraCount,
+      treatmentIndex: state.treatmentInfo.treatmentIndex,
+      treatmentLabel: state.treatmentInfo.treatmentLabel,
+      status: 'pending',
+      insertedAt: Date.now()
+    };
+    needleCountSetupState = null;
+    document.getElementById('needleCountOverlay')?.classList.remove('show');
+    state.resolve(result);
+  };
+
   window.startTimer = async (bedNo) => {
     const bed = getBedData(bedNo);
     if (!(bed?.treatments || []).length) return;
@@ -15039,12 +15184,30 @@
     const fallbackTotal = getConcurrentTreatmentSeconds(bed.treatments || [], bed.currentIndex || 0);
     const nextTotal = storedTotal || fallbackTotal || remaining;
     const nextRemaining = remaining || nextTotal;
+    let needleSafety = bed.needleSafety;
+    const acupunctureInfo = getCurrentAcupunctureTreatmentInfo(bed);
+    const isThisFixedBed = isFixedBedScreen() && Number(getFixedBedNoFromUrl()) === Number(bedNo);
+    if (isThisFixedBed && acupunctureInfo) {
+      const existingSafety = getActiveNeedleSafety(bed);
+      const sameTreatment = existingSafety
+        && existingSafety.status !== 'matched'
+        && Number(existingSafety.treatmentIndex) === acupunctureInfo.treatmentIndex;
+      if (!sameTreatment) {
+        if (existingSafety && existingSafety.status !== 'matched') {
+          showToast(`이전 침 ${existingSafety.insertedCount}개 회수 확인이 필요합니다`);
+          return;
+        }
+        needleSafety = await requestNeedleCountSetup(acupunctureInfo);
+        if (!needleSafety) return;
+      }
+    }
 
     await updateBedRecord(bedNo, {
       running: true,
       startedAt: Date.now(),
       total: nextTotal,
-      remaining: nextRemaining
+      remaining: nextRemaining,
+      ...(needleSafety ? { needleSafety } : {})
     });
     playTimerStartSound();
   };
@@ -15369,6 +15532,10 @@
     if (nextIndex === bed.currentIndex || !treatments[nextIndex]) return;
 
     const total = getConcurrentTreatmentSeconds(treatments, nextIndex);
+    const needleSafety = getActiveNeedleSafety(bed);
+    const acupunctureFinished = needleSafety && (
+      bed.complete || Number(currentIndex) !== Number(needleSafety.treatmentIndex || 0)
+    );
     await updateBedRecord(bedNo, {
       currentIndex: nextIndex,
       running: false,
@@ -15378,7 +15545,8 @@
       remaining: total,
       lastAlertId: null,
       lastAlertMessage: null,
-      doctorProcedureAlert: null
+      doctorProcedureAlert: null,
+      ...(direction < 0 && acupunctureFinished ? { needleSafety: null } : {})
     });
     clearLocalTimerAlertsForBed(bedNo);
   };
@@ -15970,6 +16138,11 @@
     }
     const bed = getBedData(bedNo);
     if (!bed) return false;
+    const needleSafety = getActiveNeedleSafety(bed);
+    if (needleSafety && needleSafety.status !== 'matched') {
+      showToast(`침 ${needleSafety.insertedCount}개 회수 확인 후 베드를 비워주세요`);
+      return false;
+    }
     clearingBedNumbers.add(bedNo);
     try {
       await clearBed(bedNo, toLocalDateInputValue());
@@ -17708,14 +17881,25 @@
     const bed = getBedData(bedNo);
     if (!bed?.lastAlertId) return;
     const alertId = bed.lastAlertId;
+    const needleSafety = getActiveNeedleSafety(bed);
+    const confirmsNeedles = needleSafety && needleSafety.status !== 'matched';
 
     await runBedRecordTransaction(bedNo, (currentBed) => {
       if (!currentBed || currentBed.lastAlertId !== alertId) return currentBed;
+      const currentNeedleSafety = getActiveNeedleSafety(currentBed);
       return {
         ...currentBed,
         lastAlertId: null,
         lastAlertMessage: null,
-        lastCompletedTreatmentLabel: null
+        lastCompletedTreatmentLabel: null,
+        ...(currentNeedleSafety && currentNeedleSafety.status !== 'matched' ? {
+          needleSafety: {
+            ...currentNeedleSafety,
+            status: 'matched',
+            removedCount: Number(currentNeedleSafety.insertedCount),
+            confirmedAt: Date.now()
+          }
+        } : {})
       };
     });
 
@@ -17725,6 +17909,7 @@
     await maybeAutoMoveBedForNextTreatment(bedNo, getBedData(bedNo));
     renderBedDetail();
     renderBedMonitors();
+    if (confirmsNeedles) showToast(`침 ${needleSafety.insertedCount}개 회수·알림 확인 완료`);
   };
 
   window.closeTimerAlert = () => {
