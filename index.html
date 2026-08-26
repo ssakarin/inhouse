@@ -4567,6 +4567,12 @@
   .needle-count-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
   .needle-count-actions .needle-start-btn { width: 100%; min-height: 64px; font-size: 20px; font-weight: 900; }
   .needle-cancel-btn { width: 100%; min-height: 42px; }
+  .needle-running-edit-btn {
+    width: 100%; min-height: 52px; border: 2px solid var(--gold); border-radius: 12px;
+    background: rgba(245, 158, 11, 0.1); color: var(--gold); font: inherit;
+    font-size: 28px; font-weight: 900; cursor: pointer;
+  }
+  .needle-running-edit-btn.exception { border-color: var(--danger); color: var(--danger); background: rgba(239, 68, 68, 0.1); }
   .needle-count-option {
     border: 1px solid var(--border); border-radius: 10px; padding: 11px 6px;
     background: var(--surface2); color: var(--text); font: inherit; font-size: 20px; font-weight: 800; cursor: pointer;
@@ -14862,6 +14868,7 @@
           ${renderBedPackageBalanceBox(bed)}
           <div class="bed-timer-zone">
             <div class="timer-list">
+              ${renderNeedleCountEditButton(bedNo, bed, context)}
               ${bed.complete ? renderCompleteCard(bedNo, bed, allowControls, context) : renderTimerCard(bedNo, bed, currentTreatment, allowControls, context)}
             </div>
           </div>
@@ -14887,6 +14894,7 @@
           <button class="bed-alert-btn" onclick="acknowledgeBedAlert(${bedNo})">알림 확인</button>
         </div>` : ''}
         <div class="timer-list">
+          ${renderNeedleCountEditButton(bedNo, bed, context)}
           ${bed.complete ? renderCompleteCard(bedNo, bed, allowControls, context) : renderTimerCard(bedNo, bed, currentTreatment, allowControls, context)}
         </div>
         ${allowControls && context === 'bed' ? renderBedSchedulePanelMarkup() : ''}
@@ -14958,6 +14966,15 @@
     const safety = bed?.needleSafety;
     if (!safety || safety.insertedCount === null || safety.insertedCount === undefined) return null;
     return Number.isFinite(Number(safety.insertedCount)) ? safety : null;
+  }
+
+  function renderNeedleCountEditButton(bedNo, bed, context = 'bed') {
+    if (context !== 'bed' || !isFixedBedScreen() || bed?.complete) return '';
+    const safety = getActiveNeedleSafety(bed);
+    if (!safety || safety.status === 'matched') return '';
+    if (Number(bed.currentIndex || 0) !== Number(safety.treatmentIndex || 0)) return '';
+    const count = Number(safety.insertedCount || 0);
+    return `<button class="needle-running-edit-btn ${count % 5 !== 0 ? 'exception' : ''}" type="button" aria-label="침 개수 ${count}개 수정" onclick="editNeedleCount(${bedNo})">${count}개</button>`;
   }
 
   function renderTimerCard(bedNo, bed, treatment, allowControls = true, context = 'bed') {
@@ -15134,23 +15151,27 @@
     const total = customMode ? Number(state.customCount || 0) : state.baseCount + state.extraCount;
     if (startButton) {
       startButton.disabled = customMode && !customValid;
-      startButton.textContent = customMode && !customValid ? '개수 입력 필요' : `${total}개로 시작`;
+      const actionLabel = state.mode === 'edit' ? '수정' : '시작';
+      startButton.textContent = customMode && !customValid ? '개수 입력 필요' : `${total}개로 ${actionLabel}`;
     }
   }
 
-  function requestNeedleCountSetup(treatmentInfo) {
+  function requestNeedleCountSetup(treatmentInfo, existingSafety = null, mode = 'start') {
     if (needleCountSetupState) return Promise.resolve(null);
     return new Promise(resolve => {
+      const existingCount = Number(existingSafety?.insertedCount || 0);
+      const customCount = existingCount >= 25 ? existingCount : null;
       needleCountSetupState = {
-        baseCount: 20,
-        extraCount: 0,
-        basePreset: '20',
-        customCount: null,
+        baseCount: customCount === null ? Number(existingSafety?.baseCount ?? 20) : existingCount,
+        extraCount: customCount === null ? Number(existingSafety?.extraCount || 0) : 0,
+        basePreset: customCount === null ? String(Number(existingSafety?.baseCount ?? 20)) : 'custom',
+        customCount,
         treatmentInfo,
+        mode,
         resolve
       };
       const title = document.getElementById('needleCountSetupTitle');
-      if (title) title.textContent = `${treatmentInfo.treatmentLabel} 개수 설정`;
+      if (title) title.textContent = `${treatmentInfo.treatmentLabel} 개수 ${mode === 'edit' ? '수정' : '설정'}`;
       renderNeedleCountSetupOptions();
       document.getElementById('needleCountOverlay')?.classList.add('show');
     });
@@ -15195,7 +15216,7 @@
     if (customMode && Number(state.customCount) < 25) return;
     const insertedCount = customMode ? Number(state.customCount) : state.baseCount + state.extraCount;
     const result = {
-      baseCount: state.baseCount,
+      baseCount: customMode ? insertedCount : state.baseCount,
       extraCount: customMode ? 0 : state.extraCount,
       insertedCount,
       treatmentIndex: state.treatmentInfo.treatmentIndex,
@@ -15206,6 +15227,29 @@
     needleCountSetupState = null;
     document.getElementById('needleCountOverlay')?.classList.remove('show');
     state.resolve(result);
+  };
+
+  window.editNeedleCount = async (bedNo) => {
+    const bed = getBedData(bedNo);
+    const safety = getActiveNeedleSafety(bed);
+    if (!bed || !safety || safety.status === 'matched') return;
+    if (Number(bed.currentIndex || 0) !== Number(safety.treatmentIndex || 0)) return;
+    const treatmentInfo = getCurrentAcupunctureTreatmentInfo(bed) || {
+      treatmentIndex: Number(safety.treatmentIndex || 0),
+      treatmentLabel: safety.treatmentLabel || '침'
+    };
+    const updatedSafety = await requestNeedleCountSetup(treatmentInfo, safety, 'edit');
+    if (!updatedSafety) return;
+    await updateBedRecord(bedNo, {
+      needleSafety: {
+        ...safety,
+        ...updatedSafety,
+        status: 'pending',
+        insertedAt: safety.insertedAt || updatedSafety.insertedAt,
+        updatedAt: Date.now()
+      }
+    });
+    showToast(`침 개수를 ${updatedSafety.insertedCount}개로 수정했습니다`);
   };
 
   window.startTimer = async (bedNo) => {
