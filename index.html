@@ -15103,7 +15103,8 @@
         { value: 5, label: '5' },
         { value: 10, label: '10' },
         { value: 15, label: '15' },
-        { value: 20, label: '20+', plus: true }
+        { value: 20, label: '20' },
+        { value: 25, label: '25' }
       ];
       baseOptions.innerHTML = presets.map(preset => `
         <button class="needle-count-option ${state.basePreset === preset.label ? 'selected' : ''}" type="button" onclick="selectNeedleBaseCount(${preset.value}, '${preset.label}')">${preset.label}</button>`).join('');
@@ -15145,9 +15146,7 @@
   window.selectNeedleExtraCount = (value) => {
     if (!needleCountSetupState) return;
     needleCountSetupState.extraCount = Number(value);
-    needleCountSetupState.basePreset = needleCountSetupState.baseCount === 20
-      ? '20+'
-      : String(needleCountSetupState.baseCount);
+    needleCountSetupState.basePreset = String(needleCountSetupState.baseCount);
     renderNeedleCountSetupOptions();
   };
 
