@@ -4550,7 +4550,13 @@
   .timer-card.done .timer-bar { background: var(--gold); }
   .timer-card.done .timer-clock { color: var(--gold); }
   .needle-safety-title { font-size: 16px; font-weight: 900; }
-  .needle-count-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 8px; margin: 12px 0; }
+  .notif-popup.needle-count-popup {
+    width: min(520px, calc(100vw - 24px));
+    max-width: min(520px, calc(100vw - 24px));
+  }
+  .needle-count-options { display: grid; gap: 8px; margin: 12px 0; }
+  #needleBaseCountOptions { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  #needleExtraCountOptions { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .needle-count-option {
     border: 1px solid var(--border); border-radius: 10px; padding: 11px 6px;
     background: var(--surface2); color: var(--text); font: inherit; font-weight: 800; cursor: pointer;
@@ -5866,7 +5872,7 @@
 
 <!-- 침/전침 개수 설정 -->
 <div class="notif-overlay" id="needleCountOverlay" onclick="cancelNeedleCountSetup()">
-  <div class="notif-popup timer-alert-popup" onclick="event.stopPropagation()">
+  <div class="notif-popup timer-alert-popup needle-count-popup" onclick="event.stopPropagation()">
     <div class="timer-alert-body">
       <div class="needle-safety-title" id="needleCountSetupTitle">침 개수 설정</div>
       <div class="timer-step" style="margin-top:6px">기본 개수와 추가 침을 선택해주세요.</div>
