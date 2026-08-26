@@ -4555,14 +4555,23 @@
     max-width: min(520px, calc(100vw - 24px));
   }
   .needle-count-options { display: grid; gap: 8px; margin: 12px 0; }
-  #needleBaseCountOptions { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  #needleBaseCountOptions { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   #needleExtraCountOptions { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .needle-custom-count-input {
+    width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; background: var(--surface2); color: var(--text); font: inherit;
+    font-size: 20px; font-weight: 800; text-align: center;
+  }
+  .needle-custom-count-input:focus { outline: none; border-color: var(--accent); }
+  .needle-count-option:disabled { opacity: 0.35; cursor: not-allowed; }
+  .needle-count-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .needle-count-actions .needle-start-btn { width: 100%; min-height: 64px; font-size: 20px; font-weight: 900; }
+  .needle-cancel-btn { width: 100%; min-height: 42px; }
   .needle-count-option {
     border: 1px solid var(--border); border-radius: 10px; padding: 11px 6px;
-    background: var(--surface2); color: var(--text); font: inherit; font-weight: 800; cursor: pointer;
+    background: var(--surface2); color: var(--text); font: inherit; font-size: 20px; font-weight: 800; cursor: pointer;
   }
   .needle-count-option.selected { border-color: var(--accent); color: var(--accent); background: rgba(45, 212, 191, 0.1); }
-  .needle-count-summary { text-align: center; font-size: 22px; font-weight: 900; margin: 10px 0 14px; }
   .timer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .timer-actions.bed-timer-actions {
     grid-template-columns: 1fr;
@@ -5875,13 +5884,12 @@
   <div class="notif-popup timer-alert-popup needle-count-popup" onclick="event.stopPropagation()">
     <div class="timer-alert-body">
       <div class="needle-safety-title" id="needleCountSetupTitle">침 개수 설정</div>
-      <div class="timer-step" style="margin-top:6px">기본 개수와 추가 침을 선택해주세요.</div>
       <div class="needle-count-options" id="needleBaseCountOptions"></div>
       <div class="needle-count-options" id="needleExtraCountOptions"></div>
-      <div class="needle-count-summary" id="needleCountSetupSummary"></div>
-      <div class="timer-actions">
-        <button class="timer-btn" type="button" onclick="cancelNeedleCountSetup()">취소</button>
-        <button class="timer-btn primary" id="needleCountStartButton" type="button" onclick="confirmNeedleCountSetup()">시작</button>
+      <input class="needle-custom-count-input" id="needleCustomCountInput" type="number" min="25" step="1" inputmode="numeric" placeholder="25개 이상 직접 입력" oninput="selectNeedleCustomCount(this.value)">
+      <div class="needle-count-actions">
+        <button class="timer-btn primary needle-start-btn" id="needleCountStartButton" type="button" onclick="confirmNeedleCountSetup()">시작</button>
+        <button class="timer-btn needle-cancel-btn" type="button" onclick="cancelNeedleCountSetup()">취소</button>
       </div>
     </div>
   </div>
@@ -15101,7 +15109,7 @@
     if (!state) return;
     const baseOptions = document.getElementById('needleBaseCountOptions');
     const extraOptions = document.getElementById('needleExtraCountOptions');
-    const summary = document.getElementById('needleCountSetupSummary');
+    const customInput = document.getElementById('needleCustomCountInput');
     const startButton = document.getElementById('needleCountStartButton');
     if (baseOptions) {
       const presets = [
@@ -15109,28 +15117,35 @@
         { value: 5, label: '5' },
         { value: 10, label: '10' },
         { value: 15, label: '15' },
-        { value: 20, label: '20' },
-        { value: 25, label: '25' }
+        { value: 20, label: '20' }
       ];
       baseOptions.innerHTML = presets.map(preset => `
         <button class="needle-count-option ${state.basePreset === preset.label ? 'selected' : ''}" type="button" onclick="selectNeedleBaseCount(${preset.value}, '${preset.label}')">${preset.label}</button>`).join('');
     }
+    if (customInput && customInput.value !== String(state.customCount ?? '')) {
+      customInput.value = state.customCount ?? '';
+    }
+    const customMode = state.basePreset === 'custom';
+    const customValid = customMode && Number(state.customCount) >= 25;
     if (extraOptions) {
       extraOptions.innerHTML = [0, 1, 2, 3, 4].map(value => `
-        <button class="needle-count-option ${state.extraCount === value ? 'selected' : ''}" type="button" onclick="selectNeedleExtraCount(${value})">+${value}</button>`).join('');
+        <button class="needle-count-option ${!customMode && state.extraCount === value ? 'selected' : ''}" type="button" ${customMode ? 'disabled' : ''} onclick="selectNeedleExtraCount(${value})">+${value}</button>`).join('');
     }
-    const total = state.baseCount + state.extraCount;
-    if (summary) summary.textContent = `${total}개`;
-    if (startButton) startButton.textContent = `${total}개로 시작`;
+    const total = customMode ? Number(state.customCount || 0) : state.baseCount + state.extraCount;
+    if (startButton) {
+      startButton.disabled = customMode && !customValid;
+      startButton.textContent = customMode && !customValid ? '개수 입력 필요' : `${total}개로 시작`;
+    }
   }
 
   function requestNeedleCountSetup(treatmentInfo) {
     if (needleCountSetupState) return Promise.resolve(null);
     return new Promise(resolve => {
       needleCountSetupState = {
-        baseCount: 10,
+        baseCount: 20,
         extraCount: 0,
-        basePreset: '10',
+        basePreset: '20',
+        customCount: null,
         treatmentInfo,
         resolve
       };
@@ -15145,6 +15160,7 @@
     if (!needleCountSetupState) return;
     needleCountSetupState.baseCount = Number(value);
     needleCountSetupState.basePreset = preset;
+    needleCountSetupState.customCount = null;
     needleCountSetupState.extraCount = 0;
     renderNeedleCountSetupOptions();
   };
@@ -15153,6 +15169,15 @@
     if (!needleCountSetupState) return;
     needleCountSetupState.extraCount = Number(value);
     needleCountSetupState.basePreset = String(needleCountSetupState.baseCount);
+    renderNeedleCountSetupOptions();
+  };
+
+  window.selectNeedleCustomCount = (value) => {
+    if (!needleCountSetupState) return;
+    const raw = String(value || '').trim();
+    needleCountSetupState.basePreset = 'custom';
+    needleCountSetupState.customCount = raw === '' ? null : Math.max(0, Math.floor(Number(raw) || 0));
+    needleCountSetupState.extraCount = 0;
     renderNeedleCountSetupOptions();
   };
 
@@ -15166,10 +15191,13 @@
   window.confirmNeedleCountSetup = () => {
     const state = needleCountSetupState;
     if (!state) return;
+    const customMode = state.basePreset === 'custom';
+    if (customMode && Number(state.customCount) < 25) return;
+    const insertedCount = customMode ? Number(state.customCount) : state.baseCount + state.extraCount;
     const result = {
       baseCount: state.baseCount,
-      extraCount: state.extraCount,
-      insertedCount: state.baseCount + state.extraCount,
+      extraCount: customMode ? 0 : state.extraCount,
+      insertedCount,
       treatmentIndex: state.treatmentInfo.treatmentIndex,
       treatmentLabel: state.treatmentInfo.treatmentLabel,
       status: 'pending',
