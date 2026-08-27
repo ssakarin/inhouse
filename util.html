@@ -172,7 +172,7 @@
       <input class="search-input" id="dailyMetricsDateInput" type="date" aria-label="반영할 진료일">
       <button class="good" id="dailyMetricsSyncBtn" type="button">선택 날짜 반영</button>
     </div>
-    <div class="note">구글시트 ‘경희홍익한의원_지표관리양식_v26.0’의 선택 날짜 합계행에 당일 환자수, 본인부담금, 공단청구금, 비급여 매출, 자보 매출을 반영합니다.</div>
+    <div class="note">구글시트 ‘경희홍익한의원_지표관리양식_v26.0’의 선택 날짜 합계행에 당일 환자수, 신규 환자수, 재초진 환자수, 65세 이상 환자수, 본인부담금, 공단청구금, 비급여 매출, 자보 매출을 반영합니다. 재진 환자수와 65세 이상 비율은 시트 수식으로 자동 계산됩니다.</div>
     <div class="status" id="dailyMetricsSyncStatus">대기 중</div>
     <div class="sync-result" id="dailyMetricsSyncResult"></div>
   </div>
@@ -532,6 +532,11 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
         <tbody>
           <tr><th>반영 위치</th><td>${escapeHtml(data.worksheetTitle || "-")} ${Number(data.rowNumber || 0).toLocaleString()}행</td></tr>
           <tr><th>D 당일 환자수</th><td>${Number(metrics.patientCount || 0).toLocaleString()}명</td></tr>
+          <tr><th>E 신규 환자수</th><td>${Number(metrics.newPatientCount || 0).toLocaleString()}명</td></tr>
+          <tr><th>F 재진 환자수</th><td>시트에서 자동 계산</td></tr>
+          <tr><th>G 재초진 환자수</th><td>${Number(metrics.reinitialPatientCount || 0).toLocaleString()}명</td></tr>
+          <tr><th>M 65세 이상 환자수</th><td>${Number(metrics.age65PatientCount || 0).toLocaleString()}명</td></tr>
+          <tr><th>N 65세 이상 비율</th><td>시트에서 자동 계산</td></tr>
           <tr><th>AA 본인부담금</th><td>${Number(metrics.insuredCopay || 0).toLocaleString()}원</td></tr>
           <tr><th>AB 공단청구금</th><td>${Number(metrics.claimAmount || 0).toLocaleString()}원</td></tr>
           <tr><th>AC 비급여 매출</th><td>${Number(metrics.noncoveredAmount || 0).toLocaleString()}원</td></tr>
@@ -547,7 +552,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       setDailyMetricsSyncStatus("반영할 날짜를 선택해 주세요.", "error");
       return;
     }
-    if (!confirm(`${date} 서버 집계값을 원본 구글시트에 반영할까요?\n\n수정 셀: D, AA, AB, AC, AD`)) return;
+    if (!confirm(`${date} 서버 집계값을 원본 구글시트에 반영할까요?\n\n수정 셀: D, E, G, M, AA, AB, AC, AD\nF 재진 환자수와 N 65세 이상 비율은 시트에서 자동 계산됩니다.`)) return;
     dailyMetricsSyncBtn.disabled = true;
     dailyMetricsDateInput.disabled = true;
     dailyMetricsSyncResult.innerHTML = "";

@@ -13,7 +13,14 @@ const DATA_DIR = path.join(__dirname, "data");
 const BACKUP_DIR = process.env.CLINIC_BACKUP_DIR || "C:\\backup\\server";
 const SLACK_BACKUP_DIR = process.env.SLACK_BACKUP_DIR || "C:\\backup\\slack";
 const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
-const GOOGLE_SERVICE_ACCOUNT_FILE = process.env.GOOGLE_SERVICE_ACCOUNT_FILE || path.join(ROOT_DIR, "..", "3rd_visit_check", "service_account.json");
+const DEFAULT_GOOGLE_SERVICE_ACCOUNT_FILES = [
+  path.join(ROOT_DIR, "..", "3rd_visit_check", "service_account.json"),
+  process.env.OneDrive ? path.join(process.env.OneDrive, "문서", "3rd_visit_check", "service_account.json") : "",
+  process.env.USERPROFILE ? path.join(process.env.USERPROFILE, "OneDrive", "문서", "3rd_visit_check", "service_account.json") : ""
+].filter(Boolean);
+const GOOGLE_SERVICE_ACCOUNT_FILE = process.env.GOOGLE_SERVICE_ACCOUNT_FILE
+  || DEFAULT_GOOGLE_SERVICE_ACCOUNT_FILES.find(candidate => fs.existsSync(candidate))
+  || DEFAULT_GOOGLE_SERVICE_ACCOUNT_FILES[0];
 const THIRD_VISIT_SPREADSHEET_ID = process.env.THIRD_VISIT_SPREADSHEET_ID || "15gFBhgjPRiQpno5Q-LmAlB1SbvyP_VNrYTLpD7lhuy4";
 const THIRD_VISIT_WORKSHEET_INDEX = Number(process.env.THIRD_VISIT_WORKSHEET_INDEX || 1);
 const DAILY_METRICS_SPREADSHEET_ID = process.env.DAILY_METRICS_SPREADSHEET_ID || "1ai2Feihd-MbEzD6bTqaumJsfvRMpVJcYPiEdcCbK3CU";
@@ -341,8 +348,21 @@ const statements = {
     ORDER BY latest_visit_date DESC, pv.chart_no COLLATE NOCASE, p.name COLLATE NOCASE, pv.patient_id
   `),
   getDailyGoogleSheetMetrics: db.prepare(`
+    WITH target_date(value) AS (SELECT ?)
     SELECT
       COUNT(*) AS patient_count,
+      COALESCE(SUM(CASE WHEN NOT EXISTS (
+        SELECT 1
+        FROM patient_visits previous_visit
+        WHERE previous_visit.patient_id = pv.patient_id
+          AND previous_visit.visit_date < pv.visit_date
+      ) THEN 1 ELSE 0 END), 0) AS new_patient_count,
+      COALESCE(SUM(CASE WHEN julianday(pv.visit_date) - julianday((
+        SELECT MAX(previous_visit.visit_date)
+        FROM patient_visits previous_visit
+        WHERE previous_visit.patient_id = pv.patient_id
+          AND previous_visit.visit_date < pv.visit_date
+      )) > 90 THEN 1 ELSE 0 END), 0) AS reinitial_patient_count,
       COALESCE(SUM(COALESCE(pv.insured_copay, 0)), 0) AS insured_copay,
       COALESCE(SUM(CASE
         WHEN COALESCE(p.insurance_type, '') NOT LIKE '%자동차%'
@@ -355,7 +375,7 @@ const statements = {
         THEN COALESCE(pv.total_fee, 0) ELSE 0 END), 0) AS auto_amount
     FROM patient_visits pv
     LEFT JOIN patients p ON p.patient_id = pv.patient_id
-    WHERE pv.visit_date = ?
+    WHERE pv.visit_date = (SELECT value FROM target_date)
   `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
   upsertState: db.prepare(`
@@ -2869,21 +2889,37 @@ async function googleApi(url, options = {}) {
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
   ]);
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(options.body ? { "Content-Type": "application/json; charset=utf-8" } : {}),
-      ...(options.headers || {})
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(options.body ? { "Content-Type": "application/json; charset=utf-8" } : {}),
+        ...(options.headers || {})
+      }
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
+    if (res.ok) return data;
+
+    const retryable = res.status === 429 || res.status >= 500;
+    if (retryable && attempt < maxAttempts) {
+      const retryAfterSeconds = Number(res.headers.get("retry-after") || 0);
+      const delayMs = retryAfterSeconds > 0
+        ? Math.min(retryAfterSeconds * 1000, 10000)
+        : 350 * (2 ** (attempt - 1));
+      console.warn(`[google] ${res.status} response; retrying in ${delayMs}ms (${attempt}/${maxAttempts})`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      continue;
     }
-  });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) {
+
     const message = data?.error?.message || data?.error_description || data?.error || `Google API failed (${res.status})`;
-    throw new Error(message);
+    const error = new Error(typeof message === "string" ? message : JSON.stringify(message));
+    error.statusCode = retryable ? 503 : res.status;
+    throw error;
   }
-  return data;
 }
 
 function quoteSheetName(title) {
@@ -3136,8 +3172,14 @@ async function runDailyMetricsGoogleSheetSync(date) {
   if (!aggregateRow) throw new Error(`${targetDate}의 일간 합계행(AQ=Y)을 찾지 못했습니다.`);
 
   const source = statements.getDailyGoogleSheetMetrics.get(targetDate) || {};
+  const age65PatientCount = listPatients().filter(patient =>
+    Number(patient.age) >= 65 && visitDatesOf(patient).includes(targetDate)
+  ).length;
   const metrics = {
     patientCount: Number(source.patient_count || 0),
+    newPatientCount: Number(source.new_patient_count || 0),
+    reinitialPatientCount: Number(source.reinitial_patient_count || 0),
+    age65PatientCount,
     insuredCopay: Number(source.insured_copay || 0),
     claimAmount: Number(source.claim_amount || 0),
     noncoveredAmount: Number(source.noncovered_amount || 0),
@@ -3146,6 +3188,9 @@ async function runDailyMetricsGoogleSheetSync(date) {
   const rowNumber = aggregateRow.rowNumber;
   const updates = [
     { range: `D${rowNumber}`, values: [[metrics.patientCount]] },
+    { range: `E${rowNumber}`, values: [[metrics.newPatientCount]] },
+    { range: `G${rowNumber}`, values: [[metrics.reinitialPatientCount]] },
+    { range: `M${rowNumber}`, values: [[metrics.age65PatientCount]] },
     { range: `AA${rowNumber}:AD${rowNumber}`, values: [[metrics.insuredCopay, metrics.claimAmount, metrics.noncoveredAmount, metrics.autoAmount]] }
   ];
   await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(DAILY_METRICS_SPREADSHEET_ID)}/values:batchUpdate`, {
@@ -3167,7 +3212,7 @@ async function runDailyMetricsGoogleSheetSync(date) {
     worksheetTitle: sheet.title,
     worksheetId: sheet.sheetId,
     rowNumber,
-    updatedCells: 5,
+    updatedCells: 8,
     metrics
   };
 }
