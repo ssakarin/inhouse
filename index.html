@@ -2543,6 +2543,9 @@
   .appointment-patient-item { display:block; width:100%; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:rgba(16,27,45,.68); color:var(--text); padding:10px 12px; cursor:pointer; text-align:left; }
   .appointment-patient-item:hover { border-color:rgba(56,189,248,.46); }
   .appointment-patient-item .upcoming-sub { display:block; }
+  .appointment-patient-main { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .appointment-visit-status { flex:0 0 auto; color:#86efac; font-size:12px; font-weight:900; }
+  .appointment-visit-status.completed { color:#fcd34d; }
   .appointment-form-grid { display:grid; gap:9px; margin-top:12px; }
   .appointment-form-grid label { color:var(--text3); font-size:11px; font-weight:800; }
   .appointment-form-grid input { width:100%; box-sizing:border-box; margin-top:5px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--surface2); color:var(--text); font:inherit; }
@@ -11353,6 +11356,7 @@
     updateCount();
     if (isFirstLoad) setTimeout(() => { isFirstLoad = false; }, 500);
     requestAppRender({ waitingLists: true, upcomingAlerts: true, count: true });
+    scheduleAppointmentAttendanceRefresh();
   }
 
   function applyPatientChanged(key, data) {
@@ -11377,6 +11381,7 @@
     refreshOpenVisitPlanControls();
 
     requestFullBoardRender();
+    scheduleAppointmentAttendanceRefresh();
   }
 
   // Local-primary patients: the local server holds the whole 'patients' map and
@@ -13691,6 +13696,19 @@
   let appointmentSelectedDate = '';
   let appointmentEditing = null;
   let appointmentEditResolvedPatient = null;
+  let appointmentAttendanceRefreshTimer = null;
+
+  function scheduleAppointmentAttendanceRefresh() {
+    if (!SERVER_MODE) return;
+    clearTimeout(appointmentAttendanceRefreshTimer);
+    appointmentAttendanceRefreshTimer = setTimeout(async () => {
+      appointmentAttendanceRefreshTimer = null;
+      await refreshDeskAppointmentButtons();
+      if (document.getElementById('appointmentListOverlay')?.classList.contains('show') && appointmentCalendarMonth) {
+        await loadAppointmentCalendarMonth();
+      }
+    }, 180);
+  }
 
   async function refreshDeskAppointmentButtons() {
     const wrap = document.getElementById('deskAppointmentDateButtons');
@@ -13873,8 +13891,20 @@
     const group = appointmentCalendarGroups.find(item => item.date === appointmentSelectedDate) || { count: 0, patients: [] };
     document.getElementById('appointmentSelectedDateLabel').textContent = `${formatAppointmentDate(appointmentSelectedDate)} · ${group.count}명`;
     document.getElementById('appointmentPatientList').innerHTML = group.patients.length ? group.patients.map((patient, index) => `
-      <button type="button" class="appointment-patient-item" onclick="openAppointmentEditPopup(${index})"><strong>${escapeHtml(patient.name || '환자')}</strong>${patient.chartNo ? `<span class="upcoming-sub">${escapeHtml(patient.chartNo)}</span>` : ''}</button>`
+      <button type="button" class="appointment-patient-item" onclick="openAppointmentEditPopup(${index})">
+        <span class="appointment-patient-main"><strong>${escapeHtml(patient.name || '환자')}</strong>${renderAppointmentVisitStatus(patient)}</span>
+        ${patient.chartNo ? `<span class="upcoming-sub">${escapeHtml(patient.chartNo)}</span>` : ''}
+      </button>`
     ).join('') : '<div class="empty-state"><div class="empty-icon">·</div><div class="empty-text">이 날짜에는 예약이 없습니다</div></div>';
+  }
+
+  function renderAppointmentVisitStatus(patient = {}) {
+    const timestamp = Number(patient.visitedAt || patient.registeredAt || 0);
+    if (!patient.visited && !patient.registered) return '';
+    const time = timestamp ? new Date(timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+    const completed = Boolean(patient.visited);
+    const label = completed ? '방문 완료' : '접수';
+    return `<span class="appointment-visit-status${completed ? ' completed' : ''}">${label}${time ? ` ${escapeHtml(time)}` : ''}</span>`;
   }
 
   window.openAppointmentListPopup = async (date = getTodayKey()) => {

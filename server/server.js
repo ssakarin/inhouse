@@ -16,6 +16,8 @@ const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
 const GOOGLE_SERVICE_ACCOUNT_FILE = process.env.GOOGLE_SERVICE_ACCOUNT_FILE || path.join(ROOT_DIR, "..", "3rd_visit_check", "service_account.json");
 const THIRD_VISIT_SPREADSHEET_ID = process.env.THIRD_VISIT_SPREADSHEET_ID || "15gFBhgjPRiQpno5Q-LmAlB1SbvyP_VNrYTLpD7lhuy4";
 const THIRD_VISIT_WORKSHEET_INDEX = Number(process.env.THIRD_VISIT_WORKSHEET_INDEX || 1);
+const DAILY_METRICS_SPREADSHEET_ID = process.env.DAILY_METRICS_SPREADSHEET_ID || "1ai2Feihd-MbEzD6bTqaumJsfvRMpVJcYPiEdcCbK3CU";
+const DAILY_METRICS_WORKSHEET_ID = Number(process.env.DAILY_METRICS_WORKSHEET_ID || 602390876);
 
 // Device login is disabled by default so clinic tablets/desks can connect
 // directly. Set CLINIC_REQUIRE_LOGIN=1 and CLINIC_PASSWORD to re-enable it.
@@ -338,6 +340,23 @@ const statements = {
     GROUP BY pv.patient_id, pv.chart_no, p.name, p.phone
     ORDER BY latest_visit_date DESC, pv.chart_no COLLATE NOCASE, p.name COLLATE NOCASE, pv.patient_id
   `),
+  getDailyGoogleSheetMetrics: db.prepare(`
+    SELECT
+      COUNT(*) AS patient_count,
+      COALESCE(SUM(COALESCE(pv.insured_copay, 0)), 0) AS insured_copay,
+      COALESCE(SUM(CASE
+        WHEN COALESCE(p.insurance_type, '') NOT LIKE '%자동차%'
+         AND COALESCE(p.insurance_type, '') NOT LIKE '%자보%'
+        THEN COALESCE(pv.claim_amount, 0) ELSE 0 END), 0) AS claim_amount,
+      COALESCE(SUM(COALESCE(pv.noncovered_amount, 0)), 0) AS noncovered_amount,
+      COALESCE(SUM(CASE
+        WHEN COALESCE(p.insurance_type, '') LIKE '%자동차%'
+          OR COALESCE(p.insurance_type, '') LIKE '%자보%'
+        THEN COALESCE(pv.total_fee, 0) ELSE 0 END), 0) AS auto_amount
+    FROM patient_visits pv
+    LEFT JOIN patients p ON p.patient_id = pv.patient_id
+    WHERE pv.visit_date = ?
+  `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
   upsertState: db.prepare(`
     INSERT INTO app_state (state_key, data_json, updated_at)
@@ -583,6 +602,18 @@ function listUpcomingAppointments(startDate = "", endDate = "") {
   const start = /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : todayKey;
   const end = /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : "9999-12-31";
   const byDate = new Map();
+  const realtimePatients = Object.values(getStateValue("patients") || {}).filter(patient => patient && typeof patient === "object");
+  const findRealtimeRegistration = (patient, date) => realtimePatients.find(realtime => {
+    const timestamp = Number(realtime.timestamp || 0);
+    if (!timestamp || ymd(new Date(timestamp)) !== date) return false;
+    const patientId = normalizeSearchText(patient.patientId || "");
+    const realtimePatientId = normalizeSearchText(realtime.patientId || "");
+    if (patientId && realtimePatientId) return patientId === realtimePatientId;
+    const chartNo = normalizeChartNo(patient.chartNo || "");
+    const realtimeChartNo = normalizeChartNo(realtime.chartNo || "");
+    return Boolean(chartNo && chartNo === realtimeChartNo
+      && normalizeSearchText(patient.name || "") === normalizeSearchText(realtime.name || ""));
+  });
   for (const patient of listPatients()) {
     const latestHistoryByDate = new Map();
     for (const entry of (Array.isArray(patient.appointmentHistory) ? patient.appointmentHistory : [])) {
@@ -604,20 +635,28 @@ function listUpcomingAppointments(startDate = "", endDate = "") {
     const visitDates = new Set(visitDatesOf(patient));
     for (const date of dates) {
       if (!byDate.has(date)) byDate.set(date, []);
+      const visited = visitDates.has(date);
+      const visitTimestamp = Number(patient.visitHistory?.[date]?.timestamp || 0);
+      const realtimeRegistration = findRealtimeRegistration(patient, date);
+      const registeredAt = Number(realtimeRegistration?.timestamp || 0);
       byDate.get(date).push({
         patientId: patient.patientId || "",
         chartNo: patient.chartNo || "",
         name: patient.name || "환자",
         phone: getPatientPhone(patient),
         confirmedAt: patient.appointmentConfirmedAt || null,
-        visited: visitDates.has(date)
+        visited,
+        visitedAt: visitTimestamp || null,
+        registered: Boolean(realtimeRegistration),
+        registeredAt: registeredAt || null,
+        attended: visited || Boolean(realtimeRegistration)
       });
     }
   }
   return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, patients]) => ({
     date,
     count: patients.length,
-    visitedCount: patients.filter(patient => patient.visited).length,
+    visitedCount: patients.filter(patient => patient.attended).length,
     patients: patients.sort(patientSort)
   }));
 }
@@ -3069,6 +3108,70 @@ async function runThirdVisitGoogleSheetSync() {
   };
 }
 
+async function runDailyMetricsGoogleSheetSync(date) {
+  const targetDate = String(date || "").trim();
+  if (!isValidReportDate(targetDate)) {
+    const error = new Error("date must be YYYY-MM-DD");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const spreadsheet = await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(DAILY_METRICS_SPREADSHEET_ID)}?fields=spreadsheetId,spreadsheetUrl,properties.title,sheets.properties`);
+  const sheet = spreadsheet.sheets?.find(item => Number(item?.properties?.sheetId) === DAILY_METRICS_WORKSHEET_ID)?.properties;
+  if (!sheet?.title) throw new Error(`구글 시트에서 워크시트 ID ${DAILY_METRICS_WORKSHEET_ID}를 찾지 못했습니다.`);
+
+  const lookupRange = `${quoteSheetName(sheet.title)}!B:AQ`;
+  const valueData = await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(DAILY_METRICS_SPREADSHEET_ID)}/values/${encodeURIComponent(lookupRange)}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`);
+  const sheetRows = Array.isArray(valueData.values) ? valueData.values : [];
+  const matchingRows = [];
+  sheetRows.forEach((row, index) => {
+    if (String(row?.[0] || "").trim() === targetDate) matchingRows.push({ row, rowNumber: index + 1 });
+  });
+  if (!matchingRows.length) {
+    const error = new Error(`${targetDate} 날짜를 구글 시트에서 찾지 못했습니다.`);
+    error.statusCode = 404;
+    throw error;
+  }
+  const aggregateRow = matchingRows.find(item => String(item.row?.[41] || "").trim().toUpperCase() === "Y");
+  if (!aggregateRow) throw new Error(`${targetDate}의 일간 합계행(AQ=Y)을 찾지 못했습니다.`);
+
+  const source = statements.getDailyGoogleSheetMetrics.get(targetDate) || {};
+  const metrics = {
+    patientCount: Number(source.patient_count || 0),
+    insuredCopay: Number(source.insured_copay || 0),
+    claimAmount: Number(source.claim_amount || 0),
+    noncoveredAmount: Number(source.noncovered_amount || 0),
+    autoAmount: Number(source.auto_amount || 0)
+  };
+  const rowNumber = aggregateRow.rowNumber;
+  const updates = [
+    { range: `D${rowNumber}`, values: [[metrics.patientCount]] },
+    { range: `AA${rowNumber}:AD${rowNumber}`, values: [[metrics.insuredCopay, metrics.claimAmount, metrics.noncoveredAmount, metrics.autoAmount]] }
+  ];
+  await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(DAILY_METRICS_SPREADSHEET_ID)}/values:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({
+      valueInputOption: "USER_ENTERED",
+      data: updates.map(update => ({
+        range: `${quoteSheetName(sheet.title)}!${update.range}`,
+        values: update.values
+      }))
+    })
+  });
+
+  return {
+    ok: true,
+    date: targetDate,
+    spreadsheetTitle: spreadsheet.properties?.title || "",
+    sourceSpreadsheetUrl: spreadsheet.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${DAILY_METRICS_SPREADSHEET_ID}/edit#gid=${DAILY_METRICS_WORKSHEET_ID}`,
+    worksheetTitle: sheet.title,
+    worksheetId: sheet.sheetId,
+    rowNumber,
+    updatedCells: 5,
+    metrics
+  };
+}
+
 async function backupSlackText() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const file = path.join(SLACK_BACKUP_DIR, `slack-text-backup-${stamp}.txt`);
@@ -4190,6 +4293,12 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/google/third-visit-test-sync" && req.method === "POST") {
     jsonResponse(res, 200, await runThirdVisitGoogleSheetSync());
+    return true;
+  }
+
+  if (pathname === "/api/google/daily-metrics-sync" && req.method === "POST") {
+    const body = await readJson(req) || {};
+    jsonResponse(res, 200, await runDailyMetricsGoogleSheetSync(body.date));
     return true;
   }
 

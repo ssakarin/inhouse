@@ -161,35 +161,34 @@
     <div class="tool-row">
       <button class="good" id="thirdVisitSyncBtn" type="button">원본 시트 반영</button>
     </div>
-    <div class="note">원본 구글시트에 환자 DB의 진료 기록으로 계산한 초진/재진 칸을 바로 반영합니다.</div>
+    <div class="note">원본 구글시트(경희홍익한의원 초진환자해피콜)에 환자 DB의 진료 기록으로 계산한 초진/재진 칸을 바로 반영합니다.</div>
     <div class="status" id="thirdVisitSyncStatus">대기 중</div>
     <div class="sync-result" id="thirdVisitSyncResult"></div>
   </div>
 
   <div class="card">
-    <div class="card-title">최근 6개월 진료 환자 연락처</div>
+    <div class="card-title">일간 지표 구글시트 반영</div>
     <div class="tool-row">
-      <button class="good" id="recentContactsDownloadBtn" type="button">연락처 엑셀 다운로드</button>
+      <input class="search-input" id="dailyMetricsDateInput" type="date" aria-label="반영할 진료일">
+      <button class="good" id="dailyMetricsSyncBtn" type="button">선택 날짜 반영</button>
     </div>
-    <div class="note">오늘 기준 6개월 전부터 오늘까지 진료 기록이 있는 환자를 중복 없이 정리합니다. 연락처가 없는 환자는 엑셀에서 제외됩니다.</div>
-    <div class="status" id="recentContactsStatus">대기 중</div>
+    <div class="note">구글시트 ‘경희홍익한의원_지표관리양식_v26.0’의 선택 날짜 합계행에 당일 환자수, 본인부담금, 공단청구금, 비급여 매출, 자보 매출을 반영합니다.</div>
+    <div class="status" id="dailyMetricsSyncStatus">대기 중</div>
+    <div class="sync-result" id="dailyMetricsSyncResult"></div>
   </div>
 
   <div class="card">
-    <div class="card-title">패키지 스파인 설정 추나 약침 내역</div>
+    <div class="card-title">최근 진료 환자 연락처</div>
     <div class="tool-row">
-      <button class="good" id="settingsHistoryWeekBtn" type="button">최근 1주일 엑셀</button>
-      <button class="good" id="settingsHistoryMonthBtn" type="button">최근 1개월 엑셀</button>
+      <select class="search-input" id="recentContactsPeriodSelect" aria-label="진료 환자 조회 기간">
+        <option value="6">최근 6개월</option>
+        <option value="12">최근 1년</option>
+        <option value="24">최근 2년</option>
+      </select>
+      <button class="good" id="recentContactsDownloadBtn" type="button">연락처 엑셀 다운로드</button>
     </div>
-    <div class="tool-row" style="margin-top:10px">
-      <input class="search-input" id="settingsHistoryStartInput" type="date" aria-label="내역 시작일">
-      <span class="note" style="margin-top:0">부터</span>
-      <input class="search-input" id="settingsHistoryEndInput" type="date" aria-label="내역 종료일">
-      <span class="note" style="margin-top:0">까지</span>
-      <button class="good" id="settingsHistoryCustomBtn" type="button">선택 기간 엑셀</button>
-    </div>
-    <div class="note">XLSX 한 파일에 패키지 결제·보너스·사용 내역, 스파인 설정, 전체 환자의 추나·약침 집계를 시트별로 저장합니다. 추나는 단추·복추로, 약침은 종류별·원장별로 각각 집계합니다. 스파인은 변경 이력을 누적 저장하지 않으므로, 선택 기간에 마지막으로 수정된 현재 설정만 포함됩니다.</div>
-    <div class="status" id="settingsHistoryStatus">대기 중</div>
+    <div class="note">오늘 기준 선택한 기간 내 진료 기록이 있는 환자를 중복 없이 정리합니다. 연락처가 없는 환자는 엑셀에서 제외됩니다.</div>
+    <div class="status" id="recentContactsStatus">대기 중</div>
   </div>
 
   <div class="card">
@@ -218,7 +217,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">현재 데이터</div>
+    <div class="card-title">테스트 랜덤 데이터 생성/삭제</div>
     <div class="tool-row">
       <input class="search-input" id="randomTestCountInput" type="number" min="1" max="50" step="1" value="10" autocomplete="off" aria-label="랜덤 테스트 생성 인원">
       <button class="good" id="randomTestCreateBtn" type="button">랜덤 테스트 생성</button>
@@ -231,7 +230,7 @@
   <div class="card">
     <div class="card-title">초진 후 미재방문 검색</div>
     <div class="tool-row">
-      <input class="search-input" id="noFollowupDaysInput" type="number" min="7" max="365" step="1" value="20" autocomplete="off" aria-label="시작 일수">
+      <input class="search-input" id="noFollowupDaysInput" type="number" min="7" max="365" step="1" value="10" autocomplete="off" aria-label="시작 일수">
       <button class="good" id="noFollowupSearchBtn" type="button">검색</button>
     </div>
     <div class="note">숫자를 입력하고 검색하면 입력값~7일 전 초진 후 미재방문 환자를 표시합니다. 온라인관리 Slack에서 환자 이름 뒤 숫자 2개가 보이면 함께 표시합니다.</div>
@@ -249,14 +248,13 @@
   const thirdVisitSyncBtn = document.getElementById("thirdVisitSyncBtn");
   const thirdVisitSyncStatus = document.getElementById("thirdVisitSyncStatus");
   const thirdVisitSyncResult = document.getElementById("thirdVisitSyncResult");
+  const dailyMetricsDateInput = document.getElementById("dailyMetricsDateInput");
+  const dailyMetricsSyncBtn = document.getElementById("dailyMetricsSyncBtn");
+  const dailyMetricsSyncStatus = document.getElementById("dailyMetricsSyncStatus");
+  const dailyMetricsSyncResult = document.getElementById("dailyMetricsSyncResult");
+  const recentContactsPeriodSelect = document.getElementById("recentContactsPeriodSelect");
   const recentContactsDownloadBtn = document.getElementById("recentContactsDownloadBtn");
   const recentContactsStatus = document.getElementById("recentContactsStatus");
-  const settingsHistoryWeekBtn = document.getElementById("settingsHistoryWeekBtn");
-  const settingsHistoryMonthBtn = document.getElementById("settingsHistoryMonthBtn");
-  const settingsHistoryStartInput = document.getElementById("settingsHistoryStartInput");
-  const settingsHistoryEndInput = document.getElementById("settingsHistoryEndInput");
-  const settingsHistoryCustomBtn = document.getElementById("settingsHistoryCustomBtn");
-  const settingsHistoryStatus = document.getElementById("settingsHistoryStatus");
   const alerttalkInput = document.getElementById("alerttalkInput");
   const alerttalkCreateBtn = document.getElementById("alerttalkCreateBtn");
   const alerttalkStatus = document.getElementById("alerttalkStatus");
@@ -442,7 +440,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
   }
 
   async function searchNoFollowupPatients() {
-    const days = Math.max(7, Math.min(365, Number.parseInt(noFollowupDaysInput.value, 10) || 20));
+    const days = Math.max(7, Math.min(365, Number.parseInt(noFollowupDaysInput.value, 10) || 10));
     noFollowupDaysInput.value = String(days);
     noFollowupSearchBtn.disabled = true;
     noFollowupResult.innerHTML = "";
@@ -519,6 +517,57 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       setThirdVisitSyncStatus(error?.message || String(error), "error");
     } finally {
       thirdVisitSyncBtn.disabled = false;
+    }
+  }
+
+  function setDailyMetricsSyncStatus(text, type = "") {
+    dailyMetricsSyncStatus.className = "status" + (type ? ` ${type}` : "");
+    dailyMetricsSyncStatus.textContent = text;
+  }
+
+  function renderDailyMetricsSyncResult(data) {
+    const metrics = data.metrics || {};
+    dailyMetricsSyncResult.innerHTML = `
+      <table>
+        <tbody>
+          <tr><th>반영 위치</th><td>${escapeHtml(data.worksheetTitle || "-")} ${Number(data.rowNumber || 0).toLocaleString()}행</td></tr>
+          <tr><th>D 당일 환자수</th><td>${Number(metrics.patientCount || 0).toLocaleString()}명</td></tr>
+          <tr><th>AA 본인부담금</th><td>${Number(metrics.insuredCopay || 0).toLocaleString()}원</td></tr>
+          <tr><th>AB 공단청구금</th><td>${Number(metrics.claimAmount || 0).toLocaleString()}원</td></tr>
+          <tr><th>AC 비급여 매출</th><td>${Number(metrics.noncoveredAmount || 0).toLocaleString()}원</td></tr>
+          <tr><th>AD 자보 매출</th><td>${Number(metrics.autoAmount || 0).toLocaleString()}원</td></tr>
+          <tr><th>원본 시트</th><td><a class="sheet-link" href="${escapeHtml(data.sourceSpreadsheetUrl || "#")}" target="_blank" rel="noopener">열기</a></td></tr>
+        </tbody>
+      </table>`;
+  }
+
+  async function runDailyMetricsGoogleSheetSync() {
+    const date = String(dailyMetricsDateInput.value || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setDailyMetricsSyncStatus("반영할 날짜를 선택해 주세요.", "error");
+      return;
+    }
+    if (!confirm(`${date} 서버 집계값을 원본 구글시트에 반영할까요?\n\n수정 셀: D, AA, AB, AC, AD`)) return;
+    dailyMetricsSyncBtn.disabled = true;
+    dailyMetricsDateInput.disabled = true;
+    dailyMetricsSyncResult.innerHTML = "";
+    setDailyMetricsSyncStatus(`${date} 서버 집계 및 구글시트 반영 중...`);
+    try {
+      const res = await fetch("/api/google/daily-metrics-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ date }),
+        cache: "no-store"
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `원본 반영 실패 (${res.status})`);
+      renderDailyMetricsSyncResult(data);
+      setDailyMetricsSyncStatus(`${date} 원본 구글시트 반영 완료`, "good");
+    } catch (error) {
+      setDailyMetricsSyncStatus(error?.message || String(error), "error");
+    } finally {
+      dailyMetricsSyncBtn.disabled = false;
+      dailyMetricsDateInput.disabled = false;
     }
   }
 
@@ -845,12 +894,18 @@ const DISEASE = [
   }
 
   async function downloadRecentVisitContacts() {
+    const months = [6, 12, 24].includes(Number(recentContactsPeriodSelect.value))
+      ? Number(recentContactsPeriodSelect.value)
+      : 6;
+    const periodLabel = months === 24 ? "최근 2년" : months === 12 ? "최근 1년" : "최근 6개월";
+    const filePeriodLabel = periodLabel.replace(/\s/g, "");
     recentContactsDownloadBtn.disabled = true;
-    setRecentContactsStatus("최근 6개월 진료 환자 조회 중...");
+    recentContactsPeriodSelect.disabled = true;
+    setRecentContactsStatus(`${periodLabel} 진료 환자 조회 중...`);
     try {
       const [XLSX, res] = await Promise.all([
         loadXlsxModule(),
-        fetch("/api/patients/visits/recent-contacts?months=6", { cache: "no-store" })
+        fetch(`/api/patients/visits/recent-contacts?months=${months}`, { cache: "no-store" })
       ]);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `환자 조회 실패 (${res.status})`);
@@ -876,9 +931,9 @@ const DISEASE = [
       ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 18 }];
       ws["!autofilter"] = { ref: `A1:E${sheetRows.length}` };
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "최근 6개월 연락처");
+      XLSX.utils.book_append_sheet(wb, ws, `${periodLabel} 연락처`);
       const dateKey = String(data.end || "").replace(/-/g, "") || alerttalkTimestamp().slice(0, 8);
-      XLSX.writeFile(wb, `최근6개월_진료환자_연락처_${dateKey}.xlsx`);
+      XLSX.writeFile(wb, `${filePeriodLabel}_진료환자_연락처_${dateKey}.xlsx`);
 
       const skipped = missingPhoneCount ? ` / 연락처 없음 ${missingPhoneCount.toLocaleString()}명 제외` : "";
       setRecentContactsStatus(
@@ -890,206 +945,7 @@ const DISEASE = [
       setRecentContactsStatus(error?.message || "엑셀 다운로드 실패", "error");
     } finally {
       recentContactsDownloadBtn.disabled = false;
-    }
-  }
-
-  function setSettingsHistoryStatus(text, type = "") {
-    settingsHistoryStatus.className = "status" + (type ? ` ${type}` : "");
-    settingsHistoryStatus.textContent = text;
-  }
-
-  function makeReportSheet(XLSX, rows, widths) {
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = widths.map(wch => ({ wch }));
-    if (rows.length) ws["!autofilter"] = { ref: `A1:${XLSX.utils.encode_col(rows[0].length - 1)}${rows.length}` };
-    return ws;
-  }
-
-  function spineConditionLabel(value) {
-    if (value === "ddd") return "협착증(DDD)";
-    if (value === "hnp") return "디스크(HNP)";
-    return value || "";
-  }
-
-  function localReportDate(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-
-  function quickSettingsHistoryRange(period) {
-    const endDate = new Date();
-    endDate.setHours(0, 0, 0, 0);
-    const startDate = new Date(endDate);
-    if (period === "month") {
-      const originalDay = startDate.getDate();
-      startDate.setDate(1);
-      startDate.setMonth(startDate.getMonth() - 1);
-      const lastDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
-      startDate.setDate(Math.min(originalDay, lastDay));
-    } else {
-      startDate.setDate(startDate.getDate() - 6);
-    }
-    return { start: localReportDate(startDate), end: localReportDate(endDate) };
-  }
-
-  function initializeSettingsHistoryDates() {
-    const range = quickSettingsHistoryRange("week");
-    settingsHistoryStartInput.value = range.start;
-    settingsHistoryEndInput.value = range.end;
-  }
-
-  async function downloadSettingsHistory(period) {
-    const normalizedPeriod = period === "custom" ? "custom" : (period === "month" ? "month" : "week");
-    const periodLabel = normalizedPeriod === "custom" ? "선택 기간" : (normalizedPeriod === "month" ? "최근 1개월" : "최근 1주일");
-    let start = settingsHistoryStartInput.value;
-    let end = settingsHistoryEndInput.value;
-    if (normalizedPeriod === "custom") {
-      if (!start || !end) {
-        setSettingsHistoryStatus("시작일과 종료일을 모두 선택해 주세요.", "error");
-        return;
-      }
-      if (start > end) {
-        setSettingsHistoryStatus("시작일은 종료일보다 늦을 수 없습니다.", "error");
-        return;
-      }
-    } else {
-      ({ start, end } = quickSettingsHistoryRange(normalizedPeriod));
-      settingsHistoryStartInput.value = start;
-      settingsHistoryEndInput.value = end;
-    }
-    const query = new URLSearchParams({ period: normalizedPeriod });
-    if (normalizedPeriod === "custom") {
-      query.set("start", start);
-      query.set("end", end);
-    }
-    settingsHistoryWeekBtn.disabled = true;
-    settingsHistoryMonthBtn.disabled = true;
-    settingsHistoryCustomBtn.disabled = true;
-    settingsHistoryStartInput.disabled = true;
-    settingsHistoryEndInput.disabled = true;
-    setSettingsHistoryStatus(`${periodLabel} 패키지·스파인 내역 조회 중...`);
-    try {
-      const [XLSX, res] = await Promise.all([
-        loadXlsxModule(),
-        fetch(`/api/patients/settings-history?${query.toString()}`, { cache: "no-store" })
-      ]);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `내역 조회 실패 (${res.status})`);
-      const packageRows = Array.isArray(data.packageRows) ? data.packageRows : [];
-      const spineRows = Array.isArray(data.spineRows) ? data.spineRows : [];
-      const treatmentSummaryRows = Array.isArray(data.treatmentSummaryRows) ? data.treatmentSummaryRows : [];
-
-      const wb = XLSX.utils.book_new();
-      const infoRows = [
-        ["항목", "내용"],
-        ["보고서", `${periodLabel} 패키지·스파인 설정 내역`],
-        ["조회 기간", `${data.start || "-"} ~ ${data.end || "-"}`],
-        ["생성 시각", new Date().toLocaleString("ko-KR")],
-        ["패키지 내역", "기간 내 결제·보너스·사용 기록을 한 행씩 표시"],
-        ["스파인 설정", "변경 이력이 아닌, 기간 내 마지막 수정된 현재 설정을 표시"],
-        ["치료 집계", "전체 환자의 기간 내 진료기록에서 추나는 단추·복추, 약침은 종류별·원장별로 집계"],
-        ["패키지 건수", packageRows.length],
-        ["스파인 설정 환자 수", spineRows.length],
-        ["추나·약침 시행 건수", treatmentSummaryRows.reduce((sum, row) => sum + (Number(row.count) || 0), 0)]
-      ];
-      XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, infoRows, [22, 62]), "안내");
-
-      const packageSheetRows = [
-        ["날짜", "구분", "패키지", "패키지 코드", "수량", "환자명", "차트번호", "현재 잔여량"],
-        ...packageRows.map(row => [
-          row.date || "",
-          row.type || "",
-          row.packageName || "",
-          row.packageKey || "",
-          Number(row.qty || 0),
-          row.name || "",
-          String(row.chartNo || ""),
-          Number(row.currentBalance || 0)
-        ])
-      ];
-      XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, packageSheetRows, [13, 10, 20, 18, 10, 16, 14, 14]), "패키지 내역");
-
-      const spineSheetRows = [
-        ["마지막 수정일시", "환자명", "차트번호", "경추 구간", "경추 Force", "경추 상태", "경추 회전", "요추 구간", "요추 Force", "요추 상태", "요추 회전"],
-        ...spineRows.map(row => [
-          row.updatedAt || "",
-          row.name || "",
-          String(row.chartNo || ""),
-          row.cervicalLevels || "",
-          row.cervicalForce === "" ? "" : Number(row.cervicalForce),
-          spineConditionLabel(row.cervicalCondition),
-          row.cervicalRotation === "" ? "" : Number(row.cervicalRotation),
-          row.lumbarLevels || "",
-          row.lumbarForce === "" ? "" : Number(row.lumbarForce),
-          spineConditionLabel(row.lumbarCondition),
-          row.lumbarRotation === "" ? "" : Number(row.lumbarRotation)
-        ])
-      ];
-      XLSX.utils.book_append_sheet(wb, makeReportSheet(XLSX, spineSheetRows, [20, 16, 14, 24, 13, 18, 12, 24, 13, 18, 12]), "스파인 설정");
-
-      const treatmentRowsByDoctor = new Map();
-      treatmentSummaryRows.forEach(row => {
-        const doctorName = row.doctorName || "미지정";
-        const rows = treatmentRowsByDoctor.get(doctorName) || [];
-        rows.push(row);
-        treatmentRowsByDoctor.set(doctorName, rows);
-      });
-      const treatmentSummarySheetRows = [["원장", "구분", "치료 종류", "시행 건수"]];
-      const treatmentTotals = new Map();
-      let treatmentGrandTotal = 0;
-      treatmentRowsByDoctor.forEach((rows, doctorName) => {
-        rows.forEach(row => {
-          const count = Number(row.count || 0);
-          const totalKey = JSON.stringify([row.category || "", row.treatmentName || ""]);
-          treatmentTotals.set(totalKey, (treatmentTotals.get(totalKey) || 0) + count);
-          treatmentGrandTotal += count;
-          treatmentSummarySheetRows.push([
-            doctorName,
-            row.category || "",
-            row.treatmentName || "",
-            count
-          ]);
-        });
-      });
-      [...treatmentTotals.entries()]
-        .map(([key, count]) => {
-          const [category, treatmentName] = JSON.parse(key);
-          return { category, treatmentName, count };
-        })
-        .sort((a, b) => {
-          const categoryOrder = { "추나": 0, "약침": 1 };
-          return (categoryOrder[a.category] ?? 9) - (categoryOrder[b.category] ?? 9)
-            || a.treatmentName.localeCompare(b.treatmentName, "ko", { numeric: true });
-        })
-        .forEach(row => {
-          treatmentSummarySheetRows.push(["전체", row.category, `${row.treatmentName} 합계`, row.count]);
-        });
-      treatmentSummarySheetRows.push(["전체", "합계", "", treatmentGrandTotal]);
-      XLSX.utils.book_append_sheet(
-        wb,
-        makeReportSheet(XLSX, treatmentSummarySheetRows, [16, 12, 24, 14]),
-        "추나·약침 집계"
-      );
-
-      const dateKey = normalizedPeriod === "custom"
-        ? `${String(data.start || start).replace(/-/g, "")}-${String(data.end || end).replace(/-/g, "")}`
-        : (String(data.end || "").replace(/-/g, "") || alerttalkTimestamp().slice(0, 8));
-      XLSX.writeFile(wb, `${periodLabel.replace(/\s/g, "")}_패키지_스파인내역_${dateKey}.xlsx`);
-      setSettingsHistoryStatus(
-        `${data.start || "-"} ~ ${data.end || "-"} / 패키지 ${packageRows.length.toLocaleString()}건 · 스파인 ${spineRows.length.toLocaleString()}명 · 추나·약침 ${treatmentSummaryRows.reduce((sum, row) => sum + (Number(row.count) || 0), 0).toLocaleString()}건 다운로드 완료`,
-        "good"
-      );
-    } catch (error) {
-      console.error(error);
-      setSettingsHistoryStatus(error?.message || "엑셀 다운로드 실패", "error");
-    } finally {
-      settingsHistoryWeekBtn.disabled = false;
-      settingsHistoryMonthBtn.disabled = false;
-      settingsHistoryCustomBtn.disabled = false;
-      settingsHistoryStartInput.disabled = false;
-      settingsHistoryEndInput.disabled = false;
+      recentContactsPeriodSelect.disabled = false;
     }
   }
 
@@ -1702,11 +1558,8 @@ const DISEASE = [
     if (event.key === "Enter") searchNoFollowupPatients();
   });
   thirdVisitSyncBtn.addEventListener("click", runThirdVisitTestSync);
+  dailyMetricsSyncBtn.addEventListener("click", runDailyMetricsGoogleSheetSync);
   recentContactsDownloadBtn.addEventListener("click", downloadRecentVisitContacts);
-  settingsHistoryWeekBtn.addEventListener("click", () => downloadSettingsHistory("week"));
-  settingsHistoryMonthBtn.addEventListener("click", () => downloadSettingsHistory("month"));
-  settingsHistoryCustomBtn.addEventListener("click", () => downloadSettingsHistory("custom"));
-  initializeSettingsHistoryDates();
   alerttalkCreateBtn.addEventListener("click", createAlerttalkExcels);
   alerttalkInput.addEventListener("keydown", event => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) createAlerttalkExcels();
