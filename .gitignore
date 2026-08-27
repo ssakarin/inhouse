@@ -2,3 +2,6 @@ server/data/
 server/backups/
 server/logs/
 slack_backups/
+.claude/
+.tmp-xlsx-inspect/
+tmp/
