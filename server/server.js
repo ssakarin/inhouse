@@ -2051,7 +2051,7 @@ function computePeriodClinicReport(start, end) {
 }
 
 const AI_PERIOD_PRESETS = { week: 7, month: 30, quarter: 90, year: 365 };
-const AI_PERIOD_LABELS = { week: "주간", month: "월간", quarter: "분기", year: "연간" };
+const AI_PERIOD_LABELS = { week: "주간", month: "30일", quarter: "90일", year: "연간 누계" };
 
 // CHART_METRICS(stats.html)와 동일한 지표 목록 — 기간 추이·기간 비교에서 동일하게 사용
 const AI_TREND_METRICS = [
@@ -2101,7 +2101,7 @@ function aiTrendRangeStart(period, end) {
     const quarterStartMonth = Math.floor(endDate.getMonth() / 3) * 3;
     return ymd(new Date(endDate.getFullYear(), quarterStartMonth - 21, 1)); // 현재 분기를 포함한 최근 8분기
   }
-  return `${endDate.getFullYear() - 2}-01-01`;
+  return ymd(new Date(endDate.getFullYear(), endDate.getMonth() - 35, 1)); // 연간 요약도 최근 36개월을 월 단위로 분석
 }
 
 // stats.html의 periodAverageValue()와 동일한 계산식 — 기간 비교(현재/직전/1년전 평균값)에 사용
@@ -2125,13 +2125,18 @@ function buildPeriodDataExport(period) {
   const chartUnit = normalizedPeriod === "week" ? "week"
     : normalizedPeriod === "month" ? "month"
     : normalizedPeriod === "quarter" ? "quarter"
-    : "year";
+    : "month";
   const trendStart = aiTrendRangeStart(normalizedPeriod, end);
-  const baselineRange = normalizedPeriod === "week"
-    ? { start: addDays(previousEnd, -27), end: previousEnd, label: "직전 4주 기준" }
-    : normalizedPeriod === "month"
-      ? { start: addDays(previousEnd, -89), end: previousEnd, label: "직전 3개월 기준" }
-      : null;
+  const baselineCount = normalizedPeriod === "week" ? 4 : normalizedPeriod === "month" ? 3 : normalizedPeriod === "quarter" ? 4 : 0;
+  const baselinePeriodRanges = baselineCount ? Array.from({ length: baselineCount }, (_, index) => {
+    const rangeEnd = addDays(start, -(index * days + 1));
+    return { start: addDays(rangeEnd, -(days - 1)), end: rangeEnd };
+  }) : [];
+  const baselineRange = baselinePeriodRanges.length ? {
+    start: baselinePeriodRanges.at(-1).start,
+    end: baselinePeriodRanges[0].end,
+    label: normalizedPeriod === "week" ? "직전 4주 기준" : normalizedPeriod === "month" ? "직전 3개 30일 기준" : "직전 4개 90일 기준"
+  } : null;
   const annualBaselineRanges = normalizedPeriod === "year"
     ? [1, 2, 3].map(years => ({ start: shiftYear(start, -years), end: shiftYear(end, -years) }))
     : [];
@@ -2139,17 +2144,37 @@ function buildPeriodDataExport(period) {
   const doctors = ["허진혁", "김상준"];
   const scopeNames = ["전체", ...doctors];
   const scopes = {};
-  for (const scopeName of scopeNames) {
-    const docFilter = scopeName === "전체" ? "" : scopeName;
+  // 통합 요약은 전체 통계 안의 doctorRetention/doctorFinancials를 사용하므로 원장별 전체 재집계를 반복하지 않는다.
+  for (const scopeName of ["전체"]) {
+    const docFilter = "";
     scopes[scopeName] = {
       current: computeClinicStats({ start, end, chartUnit, docFilter }),
       previous: computeClinicStats({ start: previousStart, end: previousEnd, chartUnit, docFilter }),
       yearAgo: computeClinicStats({ start: yearAgoStart, end: yearAgoEnd, chartUnit, docFilter }),
-      baseline: baselineRange ? computeClinicStats({ start: baselineRange.start, end: baselineRange.end, chartUnit, docFilter }) : null,
+      baseline: null,
+      baselinePeriods: baselinePeriodRanges.map(range => computeClinicStats({ start: range.start, end: range.end, chartUnit, docFilter })),
       annualBaseline: annualBaselineRanges.map(range => computeClinicStats({ start: range.start, end: range.end, chartUnit, docFilter })),
       trend: computeClinicStats({ start: trendStart, end, chartUnit, docFilter })
     };
   }
+
+  const contextRanges = normalizedPeriod === "week"
+    ? [
+        { label: "최근 30일", start: addDays(end, -29), end },
+        { label: "최근 90일", start: addDays(end, -89), end },
+        { label: "올해 누계", start: `${end.slice(0, 4)}-01-01`, end }
+      ]
+    : normalizedPeriod === "month"
+      ? [
+          { label: "최근 90일", start: addDays(end, -89), end },
+          { label: "올해 누계", start: `${end.slice(0, 4)}-01-01`, end }
+        ]
+      : normalizedPeriod === "quarter"
+        ? [{ label: "올해 누계", start: `${end.slice(0, 4)}-01-01`, end }]
+        : [];
+  const contextStats = contextRanges.map(range => ({ ...range, stats: computeClinicStats({ start: range.start, end: range.end, chartUnit: "month", docFilter: "" }) }));
+  const detailUnit = normalizedPeriod === "month" ? "week" : normalizedPeriod === "quarter" ? "month" : "";
+  const detailStats = detailUnit ? computeClinicStats({ start, end, chartUnit: detailUnit, docFilter: "" }) : null;
 
   return {
     period: normalizedPeriod,
@@ -2157,9 +2182,13 @@ function buildPeriodDataExport(period) {
     previousRange: { start: previousStart, end: previousEnd },
     yearAgoRange: { start: yearAgoStart, end: yearAgoEnd },
     baselineRange,
+    baselinePeriodRanges,
     annualBaselineRanges,
     trendRange: { start: trendStart, end },
     chartUnit,
+    contextStats,
+    detailUnit,
+    detailStats,
     scopeNames,
     scopes
   };
@@ -2289,40 +2318,283 @@ function formatWeekdaySection(current) {
   return `## 요일별 평균 진료 건수 - 전체\n${lines.join("\n")}`;
 }
 
-function formatPeriodDataExportText(bundle) {
+const AI_WEEKLY_METRICS = [
+  { label: "진료 건수(일평균)", value: stats => Number(stats.visits || 0) / Math.max(1, Number(stats.clinicDays || 0)), digits: 1 },
+  { label: "진료 환자(일평균)", value: stats => Number(stats.coreVisits || 0) / Math.max(1, Number(stats.clinicDays || 0)), digits: 1 },
+  { label: "약환(일평균)", value: stats => Number(stats.prescriptionPatients || 0) / Math.max(1, Number(stats.clinicDays || 0)), digits: 1 },
+  { label: "초진(일평균)", value: stats => Number(stats.newPatients || 0) / Math.max(1, Number(stats.clinicDays || 0)), digits: 1 },
+  { label: "환자당 방문", value: stats => Number(stats.avgVisitsPerPatient || 0), digits: 2, suffix: "회", baseline: false },
+  { label: "재진율", value: stats => Number(stats.returnRate || 0), rate: true },
+  { label: "삼진율", value: stats => Number(stats.thirdVisitRate || 0), rate: true },
+  { label: "추나 이용률", value: stats => Number(stats.chunaPatientRate || 0), rate: true },
+  { label: "약침 이용률", value: stats => Number(stats.pharmaPatientRate || 0), rate: true },
+  { label: "약침패키지 결제(일평균)", value: stats => Number(stats.pharmaPackagePurchasePatients || 0) / Math.max(1, Number(stats.clinicDays || 0)), digits: 1 }
+];
+
+function formatWeeklyMetricValue(metric, stats) {
+  const value = metric.value(stats || {});
+  return metric.rate ? pct(value) : `${value.toFixed(metric.digits ?? 1)}${metric.suffix || ""}`;
+}
+
+function averageMetricText(metric, statsList = []) {
+  if (metric.baseline === false || !statsList.length) return "-";
+  const average = statsList.reduce((sum, stats) => sum + metric.value(stats || {}), 0) / statsList.length;
+  return metric.rate ? pct(average) : `${average.toFixed(metric.digits ?? 1)}${metric.suffix || ""}`;
+}
+
+function baselineStatsFor(bundle, scope) {
+  return bundle.period === "year" ? (scope.annualBaseline || []) : (scope.baselinePeriods || []);
+}
+
+function periodComparisonLabels(period) {
+  if (period === "week") return { current: "이번 주", previous: "직전 주", baseline: "직전 4주 평균", yearAgo: "전년 동기" };
+  if (period === "month") return { current: "최근 30일", previous: "이전 30일", baseline: "직전 3개 30일 평균", yearAgo: "전년 동기" };
+  if (period === "quarter") return { current: "최근 90일", previous: "이전 90일", baseline: "직전 4개 90일 평균", yearAgo: "전년 동기" };
+  return { current: "올해 누계", previous: "전년 동일 누계", baseline: "최근 3개년 동일 누계 평균", yearAgo: "" };
+}
+
+function formatWeeklyCoreKpis(bundle, scope) {
+  const labels = periodComparisonLabels(bundle.period);
+  const baselineStats = baselineStatsFor(bundle, scope);
+  const header = bundle.period === "year"
+    ? `지표 | ${labels.current} | ${labels.previous} | ${labels.baseline}`
+    : `지표 | ${labels.current} | ${labels.previous} | ${labels.baseline} | ${labels.yearAgo}`;
+  const lines = AI_WEEKLY_METRICS.map(metric => {
+    const cells = [metric.label, formatWeeklyMetricValue(metric, scope.current), formatWeeklyMetricValue(metric, scope.previous), averageMetricText(metric, baselineStats)];
+    if (bundle.period !== "year") cells.push(formatWeeklyMetricValue(metric, scope.yearAgo));
+    return cells.join(" | ");
+  });
+  return `## 핵심 운영 지표 - 전체\n${header}\n${lines.join("\n")}`;
+}
+
+function formatWeeklyDataQuality(current) {
+  const visits = Number(current.visits || 0);
+  const financialCovered = Number(current.financialCoverage?.totalFee || 0);
+  const diagnosisCovered = Object.values(current.diagnosisCounts || {}).reduce((sum, row) => sum + Number(row.count || 0), 0);
+  const coverage = count => visits ? `${(count / visits * 100).toFixed(1)}%` : "0.0%";
+  return `## 데이터 품질
+- 진료비 데이터: ${financialCovered} / ${visits}건 (${coverage(financialCovered)})
+- 상병코드 데이터: ${diagnosisCovered} / ${visits}건 (${coverage(diagnosisCovered)})
+- 진료시간 미확인: ${Number(current.unknownTimeVisits || 0)}건
+- 금액 평균은 진료비 데이터가 있는 진료만 기준입니다.
+- 재진·삼진·4회 이상 전환은 21일 관찰이 완료된 초진 코호트를 우선 해석하십시오.`;
+}
+
+function formatWeeklyCohort(current) {
+  const funnel = current.cohortFunnel || {};
+  const eligible = Number(funnel.eligible || 0);
+  const rate = value => eligible ? `${(Number(value || 0) / eligible * 100).toFixed(1)}%` : "-";
+  const treatmentLines = (current.treatmentRetention || []).map(row => {
+    const lowSample = Number(row.eligible || 0) < 10 ? " · 표본 적음" : "";
+    return `- ${row.name}: 추적 완료 초진 ${Number(row.eligible || 0)}명, 재진 ${pct(row.returnRate)}, 삼진 ${pct(row.thirdVisitRate)}${lowSample}`;
+  });
+  return `## 초진 전환 퍼널
+- 21일 추적 완료 초진: ${eligible}명
+- 재진 도달: ${Number(funnel.second || 0)}명 (${rate(funnel.second)})
+- 삼진 도달: ${Number(funnel.third || 0)}명 (${rate(funnel.third)})
+- 4회 이상 도달: ${Number(funnel.fourthPlus || 0)}명 (${rate(funnel.fourthPlus)})
+- 초진 1명당 21일 평균 후속 방문: ${Number(current.avgMatureFollowupVisits || 0).toFixed(1)}회
+- 초진 1명당 21일 평균 후속 진료비: ${Math.round(Number(current.avgMatureFollowupCombinedFee || 0)).toLocaleString()}원
+
+## 초진 당일 치료별 전환
+${treatmentLines.length ? treatmentLines.join("\n") : "(데이터 없음)"}`;
+}
+
+function weeklyFinancialValues(stats = {}, totalDivisor = 1) {
+  const totals = stats.financialTotals || {};
+  const coverage = stats.financialCoverage || {};
+  const totalFee = Number(totals.totalFee || 0);
+  const nonCovered = Number(totals.nonCoveredAmount || 0);
+  const combined = totalFee + nonCovered;
+  const coveredVisits = Number(coverage.totalFee || 0);
+  const clinicDays = Math.max(1, Number(stats.clinicDays || 0));
+  return { combined: combined / totalDivisor, totalFee: totalFee / totalDivisor, nonCovered: nonCovered / totalDivisor, claim: Number(totals.claimAmount || 0) / totalDivisor, copay: Number(totals.insuredCopay || 0) / totalDivisor, perDay: combined / clinicDays, perVisit: coveredVisits ? combined / coveredVisits : 0, perPatient: Number(stats.totalPatients || 0) ? combined / Number(stats.totalPatients) : 0, nonCoveredRate: combined ? nonCovered / combined : 0 };
+}
+
+function averageFinancialValues(statsList = []) {
+  const values = statsList.map(stats => weeklyFinancialValues(stats));
+  const keys = ["combined", "perDay", "perVisit", "perPatient", "nonCoveredRate"];
+  return Object.fromEntries(keys.map(key => [key, values.length ? values.reduce((sum, row) => sum + row[key], 0) / values.length : 0]));
+}
+
+function formatWeeklyFinancial(bundle, scope) {
+  const labels = periodComparisonLabels(bundle.period);
+  const rows = [[labels.current, weeklyFinancialValues(scope.current)], [labels.previous, weeklyFinancialValues(scope.previous)], [labels.baseline, averageFinancialValues(baselineStatsFor(bundle, scope))]];
+  if (bundle.period !== "year") rows.push([labels.yearAgo, weeklyFinancialValues(scope.yearAgo)]);
+  const rowText = rows.map(([label, f]) => `${label} | ${Math.round(f.combined).toLocaleString()}원 | ${Math.round(f.perDay).toLocaleString()}원 | ${Math.round(f.perVisit).toLocaleString()}원 | ${Math.round(f.perPatient).toLocaleString()}원 | ${pct(f.nonCoveredRate)}`);
+  const now = weeklyFinancialValues(scope.current);
+  return `## 진료비
+- ${labels.current} 급여 진료비: ${Math.round(now.totalFee).toLocaleString()}원 (보험 청구 ${Math.round(now.claim).toLocaleString()}원, 본인부담 ${Math.round(now.copay).toLocaleString()}원)
+- ${labels.current} 비급여 진료비: ${Math.round(now.nonCovered).toLocaleString()}원
+구분 | 총진료비 | 진료일당 | 진료 1건당 | 환자 1명당 | 비급여 비율
+${rowText.join("\n")}`;
+}
+
+function aiDiagnosisRegion(row = {}) {
+  const code = String(row.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const name = String(row.name || "").replace(/\s+/g, "");
+  const has = pattern => pattern.test(name);
+  if (has(/경추|경부|목|후경부/) || /^(M50|S13)/.test(code)) return "목";
+  if (has(/요추|요통|허리|좌골|천장|골반|둔부/) || /^(M51|S33)/.test(code)) return "허리·골반";
+  if (has(/어깨|견관절|회전근개|견갑/) || /^(M75|S43|S46)/.test(code)) return "어깨";
+  if (has(/무릎|슬관절|반월상/) || /^(M17|S83)/.test(code)) return "무릎";
+  if (has(/발목|족관절|족부|발가락|아킬레스|발/) || /^(S93|M76)/.test(code)) return "발목·발";
+  if (has(/팔꿈치|주관절/) || /^S53/.test(code)) return "팔꿈치";
+  if (has(/손목|수근|손가락|수부/) || /^S63/.test(code)) return "손목·손";
+  if (has(/흉추|흉부|등통증|늑골|갈비/) || /^S23/.test(code)) return "흉추·흉부";
+  if (has(/고관절|대퇴|종아리|하퇴/) || /^(M16|S73)/.test(code)) return "고관절·하지";
+  if (has(/두통|편두통|안면|어지럼|현훈|신경통/) || /^(G43|G44|R42)/.test(code)) return "두부·신경";
+  if (has(/소화|위염|복통|장염|변비|설사|역류|식체/) || /^K/.test(code)) return "소화기";
+  if (has(/불면|수면|스트레스|불안/) || /^(G47|F4)/.test(code)) return "수면·스트레스";
+  if (has(/감기|비염|기침|호흡|인후|기관지/) || /^J/.test(code)) return "호흡기";
+  if (/^[MS]/.test(code)) return "기타 근골격·손상";
+  return "기타·전신";
+}
+
+function formatWeeklyDiagnosis(current) {
+  const diagnoses = Object.values(current.diagnosisCounts || {}).sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
+  const covered = diagnoses.reduce((sum, row) => sum + Number(row.count || 0), 0);
+  const retention = Object.fromEntries((current.diagnosisRetention || []).map(row => [row.name, row]));
+  const initials = current.initialDiagnosisCounts || {};
+  const regions = {};
+  for (const row of diagnoses) {
+    const region = aiDiagnosisRegion(row);
+    const item = regions[region] || (regions[region] = { count: 0, initial: 0, eligible: 0, returning: 0, third: 0 });
+    const cohort = retention[row.code] || {};
+    item.count += Number(row.count || 0);
+    item.initial += Number(initials[row.code] ?? cohort.eligible ?? 0);
+    item.eligible += Number(cohort.eligible || 0);
+    item.returning += Number(cohort.returning || 0);
+    item.third += Number(cohort.third || 0);
+  }
+  const regionLines = Object.entries(regions).sort((a, b) => b[1].count - a[1].count).map(([name, row]) => `- ${name}: ${row.count}건 (${covered ? (row.count / covered * 100).toFixed(1) : "0.0"}%), 초진 ${row.initial}명, 재진율 ${row.eligible ? pct(row.returning / row.eligible) : "-"}, 삼진율 ${row.eligible ? pct(row.third / row.eligible) : "-"}`);
+  const groupMap = {};
+  diagnoses.forEach(row => { const key = String(row.code || "").slice(0, 3) || "기타"; const group = groupMap[key] || (groupMap[key] = { count: 0, name: row.name || "-" }); group.count += Number(row.count || 0); });
+  const groupLines = Object.entries(groupMap).sort((a, b) => b[1].count - a[1].count).slice(0, 10).map(([code, row]) => `- ${code} · ${row.name}: ${row.count}건 (${covered ? (row.count / covered * 100).toFixed(1) : "0.0"}%)`);
+  return `## 상병 부위별
+${regionLines.length ? regionLines.join("\n") : "(데이터 없음)"}
+
+## 주요 상병군 Top 10
+${groupLines.length ? groupLines.join("\n") : "(데이터 없음)"}`;
+}
+
+function formatWeeklyDoctors(current) {
+  const retention = Object.fromEntries((current.doctorRetention || []).map(row => [row.name, row]));
+  const names = [...new Set([...Object.keys(current.doctorCounts || {}), ...Object.keys(current.doctorFinancials || {})])];
+  const lines = names.map(name => {
+    const row = { ...(retention[name] || {}), ...(current.doctorFinancials?.[name] || {}) };
+    const combined = Number(row.totalFee || 0) + Number(row.nonCoveredAmount || 0);
+    const lowSample = Number(row.eligible || 0) < 10 ? " · 표본 적음" : "";
+    return `${name} | ${Number(row.visits || 0)} | ${Number(row.avgVisitsPerDay || 0).toFixed(1)} | ${Number(row.avgVisitsPerPatient || 0).toFixed(2)}회 | ${Number(row.eligible || 0)} | ${pct(row.returnRate)} | ${pct(row.thirdVisitRate)} | ${Math.round(combined).toLocaleString()}원 | ${pct(combined ? Number(row.nonCoveredAmount || 0) / combined : 0)} | ${Math.round(Number(row.coveredVisits || 0) ? combined / Number(row.coveredVisits) : 0).toLocaleString()}원${lowSample}`;
+  });
+  return `## 원장별 데이터
+원장 | 진료 | 일평균 | 환자당 방문 | 추적완료 초진 | 재진율 | 삼진율 | 총진료비 | 비급여 비율 | 건당 평균
+${lines.length ? lines.join("\n") : "(데이터 없음)"}`;
+}
+
+function formatWeeklyOperations(current) {
+  const weekday = formatWeekdaySection(current).replace("## 요일별 평균 진료 건수 - 전체\n", "");
+  return `## 요일·시간대 운영
+- 요일별 진료일당 평균
+${weekday}
+- 평일 및 토요일 시간대 환자
+${formatHourlyPatientSection("전체", current).replace("## 시간대별 환자 수 - 전체\n", "")}`;
+}
+
+function formatWeeklyLongTrend(bundle, trend) {
+  const rows = trend.trendStats || [];
+  const unit = bundle.period === "week" ? "주" : bundle.period === "month" || bundle.period === "year" ? "월" : "분기";
+  const title = bundle.period === "week" ? "최근 12주 추이" : bundle.period === "month" ? "최근 12개월 추이" : bundle.period === "quarter" ? "최근 8분기 추이" : "최근 36개월 추이";
+  const header = `${unit} | 진료환자 일평균 | 초진 일평균 | 재진율 | 삼진율 | 총진료비 일평균 | 건당 평균 진료비 | 비급여 일평균 | 추나비율 | 약침비율`;
+  const lines = rows.map(row => `${row.key} | ${Number(row.avgVisitsPerDay || 0).toFixed(1)} | ${Number(row.avgNewPatientsPerDay || 0).toFixed(1)} | ${pct(row.returnRate)} | ${pct(row.thirdVisitRate)} | ${Math.round(Number(row.avgCombinedFeePerDay || 0)).toLocaleString()}원 | ${Math.round(Number(row.avgCombinedFeePerVisit || 0)).toLocaleString()}원 | ${Math.round(Number(row.avgNonCoveredFeePerDay || 0)).toLocaleString()}원 | ${pct(row.chunaPatientRate)} | ${pct(row.pharmaPatientRate)}`);
+  return `## ${title}
+${header}
+${lines.length ? lines.join("\n") : "(데이터 없음)"}`;
+}
+
+function formatHigherPeriodContext(bundle, current) {
+  if (!bundle.contextStats?.length) return "";
+  const labels = periodComparisonLabels(bundle.period);
+  const columns = [[labels.current, current], ...bundle.contextStats.map(item => [item.label, item.stats])];
+  const metricRows = [
+    ["진료환자 일평균", stats => periodAverageValueServer(stats, "avgVisitsPerDay").toFixed(1)],
+    ["초진 일평균", stats => periodAverageValueServer(stats, "avgNewPatientsPerDay").toFixed(1)],
+    ["재진율", stats => pct(stats.returnRate)],
+    ["삼진율", stats => pct(stats.thirdVisitRate)],
+    ["총진료비 일평균", stats => `${Math.round(weeklyFinancialValues(stats).perDay).toLocaleString()}원`],
+    ["건당 평균 진료비", stats => `${Math.round(weeklyFinancialValues(stats).perVisit).toLocaleString()}원`],
+    ["비급여 비율", stats => pct(weeklyFinancialValues(stats).nonCoveredRate)],
+    ["추나 이용률", stats => pct(stats.chunaPatientRate)],
+    ["약침 이용률", stats => pct(stats.pharmaPatientRate)]
+  ];
+  const header = ["지표", ...columns.map(([label]) => label)].join(" | ");
+  const lines = metricRows.map(([label, value]) => [label, ...columns.map(([, stats]) => value(stats))].join(" | "));
+  return `## 상위 기간 문맥
+${header}
+${lines.join("\n")}
+
+현재 기간의 변화가 더 긴 기간과 같은 방향인지, 일시적 변동인지 구분하는 참고 자료입니다.`;
+}
+
+function formatInnerPeriodFlow(bundle) {
+  const rows = bundle.detailStats?.trendStats || [];
+  if (!rows.length) return "";
+  const unitLabel = bundle.detailUnit === "week" ? "주차" : "월";
+  const title = bundle.detailUnit === "week" ? "30일 내 주차별 흐름" : "90일 내 월별 흐름";
+  const lines = rows.map(row => `${row.key} | ${Number(row.avgVisitsPerDay || 0).toFixed(1)} | ${Number(row.avgNewPatientsPerDay || 0).toFixed(1)} | ${pct(row.returnRate)} | ${pct(row.thirdVisitRate)} | ${Math.round(Number(row.avgCombinedFeePerDay || 0)).toLocaleString()}원 | ${Math.round(Number(row.avgCombinedFeePerVisit || 0)).toLocaleString()}원 | ${pct(row.chunaPatientRate)} | ${pct(row.pharmaPatientRate)}`);
+  return `## ${title}
+${unitLabel} | 진료환자 일평균 | 초진 일평균 | 재진율 | 삼진율 | 총진료비 일평균 | 건당 평균 진료비 | 추나비율 | 약침비율
+${lines.join("\n")}`;
+}
+
+function formatWeeklyDataExportText(bundle) {
+  const scope = bundle.scopes["전체"];
+  const doctors = bundle.scopeNames.filter(name => name !== "전체");
   const periodLabel = AI_PERIOD_LABELS[bundle.period] || "기간";
-  const doctorList = bundle.scopeNames.filter(name => name !== "전체");
-  const unitLabel = AI_CHART_UNIT_LABELS[bundle.chartUnit] || "일";
-  const header = `# ${periodLabel} 데이터 추출
-- 이번 기간: ${bundle.range.start} ~ ${bundle.range.end}
-- 직전 기간(같은 길이): ${bundle.previousRange.start} ~ ${bundle.previousRange.end}
-- 전년 동기: ${bundle.yearAgoRange.start} ~ ${bundle.yearAgoRange.end}${bundle.baselineRange ? `\n- ${bundle.baselineRange.label}: ${bundle.baselineRange.start} ~ ${bundle.baselineRange.end}` : ""}${bundle.period === "year" ? `\n- 최근 3개년 평균: 전년도부터 3년 전까지 각각 같은 누계 기간` : ""}
-- 장기 추이 범위: ${bundle.trendRange.start} ~ ${bundle.trendRange.end}
-- 기간 추이 단위: ${unitLabel}
-- 원장: ${doctorList.length ? doctorList.join(", ") : "(등록된 원장 없음)"}
-- 환자 이름·연락처 등 개인정보는 포함되어 있지 않습니다.`;
+  const labels = periodComparisonLabels(bundle.period);
+  const baselineLine = bundle.period === "year"
+    ? `- ${labels.baseline}: 전년도부터 3년 전까지 각각 ${bundle.range.start.slice(5)} ~ ${bundle.range.end.slice(5)} 동일 누계 기간`
+    : `- ${labels.baseline}: ${bundle.baselineRange.start} ~ ${bundle.baselineRange.end} 범위의 독립된 동일 길이 구간별 평균`;
+  const yearAgoLine = bundle.period === "year" ? "" : `\n- 전년 동기: ${bundle.yearAgoRange.start} ~ ${bundle.yearAgoRange.end}`;
+  const actionPeriod = bundle.period === "week" ? "다음 주" : bundle.period === "month" ? "다음 30일" : bundle.period === "quarter" ? "다음 분기" : "남은 연도";
+  return [`# ${periodLabel} 경영 분석 요청
 
-  const sections = [header];
-  for (const scopeName of bundle.scopeNames) {
-    const { current, previous } = bundle.scopes[scopeName];
-    sections.push(formatPeriodSummarySection(scopeName, current, previous));
-  }
-  for (const scopeName of bundle.scopeNames) {
-    const { trend } = bundle.scopes[scopeName];
-    sections.push(formatPeriodTrendSection(scopeName, trend, bundle.chartUnit));
-  }
-  for (const scopeName of bundle.scopeNames) {
-    sections.push(formatPeriodComparisonSection(scopeName, bundle, bundle.scopes[scopeName]));
-  }
-  for (const scopeName of bundle.scopeNames) {
-    const { current } = bundle.scopes[scopeName];
-    sections.push(formatHourlyPatientSection(scopeName, current));
-  }
+아래 데이터로 ${periodLabel}의 변화를 분석하십시오.
 
-  const overall = bundle.scopes["전체"].current;
-  sections.push(formatCountsSection("원장별 진료 건수", overall.doctorCounts, "건"));
+분석 우선순위:
+1. 환자 수와 초진 유입 변화
+2. 재진·삼진·4회 이상 전환
+3. 진료비와 환자당 가치 변화
+4. 추나·약침 이용률 변화
+5. 상병 부위 및 상병군 구성
+6. 원장별 진료량·전환율·진료비 차이
+7. 요일·시간대 운영상 병목
 
-  return sections.join("\n\n");
+단순 수치 나열을 피하고 서로 관련된 지표를 연결해 설명하십시오. 총진료비 변화는 환자 수, 진료일당 환자, 건당 진료비, 비급여 비율로 나누어 해석하십시오. 표본이 작거나 데이터 보유율이 낮으면 단정하지 마십시오. 마지막에 핵심 평가, 가능한 원인, ${actionPeriod} 실행·확인 항목 3~5개를 제안하십시오.`,
+  `## 집계 기준
+- ${labels.current}: ${bundle.range.start} ~ ${bundle.range.end}
+- ${labels.previous}: ${bundle.previousRange.start} ~ ${bundle.previousRange.end}${yearAgoLine}
+${baselineLine}
+- 장기 추이: ${bundle.trendRange.start} ~ ${bundle.trendRange.end}
+- 진료일: ${labels.current} ${scope.current.clinicDays}일 / ${labels.previous} ${scope.previous.clinicDays}일
+- 원장: ${doctors.join(", ") || "(등록된 원장 없음)"}
+- 환자 이름·연락처 등 개인정보는 포함되어 있지 않습니다.`,
+  formatWeeklyDataQuality(scope.current),
+  formatWeeklyCoreKpis(bundle, scope),
+  formatHigherPeriodContext(bundle, scope.current),
+  formatInnerPeriodFlow(bundle),
+  formatWeeklyCohort(scope.current),
+  formatWeeklyFinancial(bundle, scope),
+  formatWeeklyDiagnosis(scope.current),
+  formatWeeklyDoctors(scope.current),
+  formatWeeklyOperations(scope.current),
+  formatCountsSection("치료별 횟수", scope.current.treatmentCounts, "건"),
+  formatCountsSection("치료조합 Top 10", Object.fromEntries(Object.entries(scope.current.treatmentComboCounts || {}).sort((a, b) => b[1] - a[1]).slice(0, 10)), "건"),
+  formatWeeklyLongTrend(bundle, scope.trend)].filter(Boolean).join("\n\n");
+}
+
+function formatPeriodDataExportText(bundle) {
+  return formatWeeklyDataExportText(bundle);
 }
 
 function getPatientById(patientId) {

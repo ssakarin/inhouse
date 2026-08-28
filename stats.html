@@ -398,9 +398,9 @@
   <div class="card" id="statsFilterCard">
     <div class="controls">
       <button class="ai-summary-btn" data-ai-period="week">주간 요약</button>
-      <button class="ai-summary-btn" data-ai-period="month">월간 요약</button>
-      <button class="ai-summary-btn" data-ai-period="quarter">분기 요약</button>
-      <button class="ai-summary-btn" data-ai-period="year">연간 요약</button>
+      <button class="ai-summary-btn" data-ai-period="month">30일 요약</button>
+      <button class="ai-summary-btn" data-ai-period="quarter">90일 요약</button>
+      <button class="ai-summary-btn" data-ai-period="year">연간 누계</button>
     </div>
   </div>
 
@@ -2375,7 +2375,7 @@
   });
 
   // ── 기간 요약 데이터 추출 (복사 → Claude.ai 등에 붙여넣기) ──────────
-  const AI_SUMMARY_LABELS = { week: "주간", month: "월간", quarter: "분기", year: "연간" };
+  const AI_SUMMARY_LABELS = { week: "주간", month: "30일", quarter: "90일", year: "연간 누계" };
   let lastAiExportText = "";
 
   function closeAiSummary() {
