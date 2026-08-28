@@ -409,7 +409,9 @@
     <div class="controls" id="presetRow">
       <button class="preset-btn" data-preset="7">최근 7일</button>
       <button class="preset-btn" data-preset="30">최근 30일</button>
+      <button class="preset-btn" data-preset="60">최근 60일</button>
       <button class="preset-btn" data-preset="90">최근 90일</button>
+      <button class="preset-btn" data-preset="120">최근 120일</button>
       <button class="preset-btn" data-preset="180">최근 180일</button>
       <button class="preset-btn" data-preset="year">올해</button>
       <button class="preset-btn" data-preset="all">전체</button>
@@ -2101,16 +2103,16 @@
 
   function presetChartUnit(preset) {
     if (preset === "7") return "day";
-    if (preset === "30" || preset === "90") return "week";
-    if (preset === "180" || preset === "year") return "month";
+    if (preset === "30" || preset === "60" || preset === "90") return "week";
+    if (preset === "120" || preset === "180" || preset === "year") return "month";
     if (preset === "all") return "year";
     return "week";
   }
 
   function presetComparisonUnit(preset) {
     if (preset === "7") return "week";
-    if (preset === "30" || preset === "90") return "month";
-    if (preset === "180") return "quarter";
+    if (preset === "30" || preset === "60" || preset === "90") return "month";
+    if (preset === "120" || preset === "180") return "quarter";
     if (preset === "year" || preset === "all") return "year";
     return "week";
   }
@@ -2136,7 +2138,9 @@
     let start = y, end = y;
     if (preset === "7") { start = addDays(y, -6); end = y; }
     else if (preset === "30") { start = addDays(y, -29); end = y; }
+    else if (preset === "60") { start = addDays(y, -59); end = y; }
     else if (preset === "90") { start = addDays(y, -89); end = y; }
+    else if (preset === "120") { start = addDays(y, -119); end = y; }
     else if (preset === "180") { start = addDays(y, -179); end = y; }
     else if (preset === "year") { start = `${y.slice(0, 4)}-01-01`; end = y; }
     else if (preset === "all") {
