@@ -461,6 +461,12 @@
             <option value="year">년</option>
           </select>
         </label>
+        <label class="field-label">표시 기준
+          <select id="chartValueMode">
+            <option value="average" selected>일평균</option>
+            <option value="total">합계</option>
+          </select>
+        </label>
       </div>
     </div>
     <div class="chart-toggle-row" id="chartMetricToggles"></div>
@@ -519,6 +525,15 @@
 
   let allRecords = [];
   let diagnosisViewMode = "region";
+  let chartValueMode = "average";
+  const TOTALIZABLE_CHART_METRIC_KEYS = new Set([
+    "avgVisitsPerDay",
+    "avgNewPatientsPerDay",
+    "avgChunaPerDay",
+    "avgPharmaPatientsPerDay",
+    "avgCombinedFeePerDay",
+    "avgNonCoveredFeePerDay"
+  ]);
   const CHART_METRICS = [
     { key: "avgVisitsPerDay", label: "진료 환자", axis: "count", color: "#39a9f5", title: value => `진료 환자 ${value.toFixed(1)}명` },
     { key: "avgNewPatientsPerDay", label: "초진", axis: "count", color: "#ffca6a", title: value => `초진 ${value.toFixed(1)}명` },
@@ -1691,7 +1706,20 @@
 
   function chartMetricValue(row, metric) {
     if (!row || row[metric.key] === null || row[metric.key] === undefined) return null;
-    return Number(row[metric.key] || 0);
+    const value = Number(row[metric.key] || 0);
+    if (chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key)) {
+      return value * Math.max(1, Number(row.clinicDays || 0));
+    }
+    return value;
+  }
+
+  function operationalMetricTitle(metric, value) {
+    if (TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key)) {
+      const basis = chartValueMode === "total" ? "합계" : "일평균";
+      if (metric.axis === "money") return `${metric.label} ${basis} ${Math.round(value).toLocaleString()}원`;
+      return `${metric.label} ${basis} ${chartValueMode === "total" ? Math.round(value).toLocaleString() : value.toFixed(1)}명`;
+    }
+    return metric.title(value);
   }
 
   function trendPeriodEnd(key, unit) {
@@ -1912,7 +1940,7 @@
       const axisLabel = chartUnit === "week" ? isoWeekRangeLabel(row.key).replace(/[()]/g, "") : slotLabelForKey(row.key, chartUnit);
       return `<text class="chart-text" x="${x(idx)}" y="324" text-anchor="middle">${axisLabel}</text>`;
     }).join("");
-    const legend = `<div class="chart-legend">${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? ` (${metric.unitLabel || "원/일"})` : " (명)"}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
+    const legend = `<div class="chart-legend">${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? ` (${metric.unitLabel || (chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "원/합계" : "원/일")})` : ` (${chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "명/합계" : "명/일"})`}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
 
     if (operationalTrendMode === "index") {
       const normalizedByMetric = new Map();
@@ -1932,7 +1960,7 @@
       const maxIndex = Math.max(minIndex + 20, Math.ceil((rawMax * 1.1) / 10) * 10);
       const panelTop = 24, panelH = 260;
       const y = value => panelTop + panelH - ((Number(value) - minIndex) / (maxIndex - minIndex)) * panelH;
-      const svg = `<svg class="weekly-chart" viewBox="0 0 ${width} 340" role="img" aria-label="운영 지표 변화 비교">${[minIndex, (minIndex + maxIndex) / 2, maxIndex].map(value => `<line class="chart-grid" x1="${pad.left}" y1="${y(value)}" x2="${width - pad.right}" y2="${y(value)}"></line><text class="chart-text" x="${pad.left - 9}" y="${y(value) + 4}" text-anchor="end">${Math.round(value)}</text>`).join("")}<line x1="${pad.left}" y1="${y(100)}" x2="${width - pad.right}" y2="${y(100)}" stroke="rgba(255,202,106,0.65)" stroke-dasharray="4 5"></line><text class="chart-text" x="${pad.left}" y="15">변화 지수</text>${metrics.map(metric => { const item = normalizedByMetric.get(metric.key); const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, false) : item.rows; const recentRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, true) : []; return `<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${item.rows.map((row, idx) => { const indexValue = chartMetricValue(row, metric); const actualValue = chartMetricValue(rows[idx], metric); if (indexValue === null || actualValue === null) return ""; const recent = isFollowupRateMetric(metric) && row.followupRecent; return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(indexValue)}" r="3" fill="${metric.color}"><title>${row.key} ${metric.title(actualValue)} · 지수 ${indexValue.toFixed(1)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle>`; }).join("")}`; }).join("")}${xLabels}</svg>`;
+      const svg = `<svg class="weekly-chart" viewBox="0 0 ${width} 340" role="img" aria-label="운영 지표 변화 비교">${[minIndex, (minIndex + maxIndex) / 2, maxIndex].map(value => `<line class="chart-grid" x1="${pad.left}" y1="${y(value)}" x2="${width - pad.right}" y2="${y(value)}"></line><text class="chart-text" x="${pad.left - 9}" y="${y(value) + 4}" text-anchor="end">${Math.round(value)}</text>`).join("")}<line x1="${pad.left}" y1="${y(100)}" x2="${width - pad.right}" y2="${y(100)}" stroke="rgba(255,202,106,0.65)" stroke-dasharray="4 5"></line><text class="chart-text" x="${pad.left}" y="15">변화 지수</text>${metrics.map(metric => { const item = normalizedByMetric.get(metric.key); const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, false) : item.rows; const recentRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, true) : []; return `<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${item.rows.map((row, idx) => { const indexValue = chartMetricValue(row, metric); const actualValue = chartMetricValue(rows[idx], metric); if (indexValue === null || actualValue === null) return ""; const recent = isFollowupRateMetric(metric) && row.followupRecent; return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(indexValue)}" r="3" fill="${metric.color}"><title>${row.key} ${operationalMetricTitle(metric, actualValue)} · 지수 ${indexValue.toFixed(1)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle>`; }).join("")}`; }).join("")}${xLabels}</svg>`;
       wrap.innerHTML = `<div class="chart-wrap">${svg}</div>${legend}`;
       return;
     }
@@ -1954,7 +1982,7 @@
       const rateValue = rateTop * p;
       const moneyValue = moneyTop * p;
       return `<line class="chart-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left - 9}" y="${y + 4}" text-anchor="end">${countValue.toFixed(countValue < 10 ? 1 : 0)}</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right + 9}" y="${y + 4}">${Math.round(rateValue * 100)}%</text>` : ""}${moneyMetrics.length ? `<text class="chart-text" x="${width - pad.right + (rateMetrics.length ? 50 : 9)}" y="${y + 4}">${Math.round(moneyValue / 10000)}만</text>` : ""}`;
-    }).join("")}<line class="chart-axis" x1="${pad.left}" y1="${panelTop}" x2="${pad.left}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${width - pad.right}" y1="${panelTop}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${pad.left}" y1="${panelTop + panelH}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left}" y="16">일평균 인원</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right}" y="16" text-anchor="end">환자 비율</text>` : ""}${moneyMetrics.length ? `<text class="chart-text" x="${width - pad.right + (rateMetrics.length ? 52 : 0)}" y="16" text-anchor="end">진료비</text>` : ""}`;
+    }).join("")}<line class="chart-axis" x1="${pad.left}" y1="${panelTop}" x2="${pad.left}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${width - pad.right}" y1="${panelTop}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line><line class="chart-axis" x1="${pad.left}" y1="${panelTop + panelH}" x2="${width - pad.right}" y2="${panelTop + panelH}"></line>${countMetrics.length ? `<text class="chart-text" x="${pad.left}" y="16">${chartValueMode === "total" ? "합계 인원" : "일평균 인원"}</text>` : ""}${rateMetrics.length ? `<text class="chart-text" x="${width - pad.right}" y="16" text-anchor="end">환자 비율</text>` : ""}${moneyMetrics.length ? `<text class="chart-text" x="${width - pad.right + (rateMetrics.length ? 52 : 0)}" y="16" text-anchor="end">${chartValueMode === "total" ? "진료비 합계" : "진료비 일평균"}</text>` : ""}`;
     const series = metrics.map(metric => {
       const y = metric.axis === "rate" ? yRate : metric.axis === "money" ? yMoney : yCount;
       const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(rows, metric, false) : rows;
@@ -1963,8 +1991,8 @@
         const value = chartMetricValue(row, metric);
         if (value === null) return "";
         const recent = isFollowupRateMetric(metric) && row.followupRecent;
-        const valueLabel = metric.axis === "rate" ? `${(value * 100).toFixed(1)}%` : metric.axis === "money" ? `${Math.round(value / 10000)}만` : value.toFixed(1);
-        return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(value)}" r="3" fill="${metric.color}"><title>${row.key} ${metric.title(value)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle><text class="chart-value-label" x="${x(idx)}" y="${Math.max(panelTop + 10, y(value) - 7)}" text-anchor="middle" fill="${metric.color}">${valueLabel}</text>`;
+        const valueLabel = metric.axis === "rate" ? `${(value * 100).toFixed(1)}%` : metric.axis === "money" ? `${Math.round(value / 10000)}만` : chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? Math.round(value).toLocaleString() : value.toFixed(1);
+        return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(value)}" r="3" fill="${metric.color}"><title>${row.key} ${operationalMetricTitle(metric, value)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle><text class="chart-value-label" x="${x(idx)}" y="${Math.max(panelTop + 10, y(value) - 7)}" text-anchor="middle" fill="${metric.color}">${valueLabel}</text>`;
       }).join("")}`;
     }).join("");
     const svg = `<svg class="weekly-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="운영 지표 좌우축 실제값 추이">${gridAndAxes}${series}${xLabels}</svg>`;
@@ -2349,6 +2377,10 @@
   $("applyBtn").addEventListener("click", () => { chartUnitTouched = false; setPresetActive(""); run(); });
   $("doctorFilter").addEventListener("change", run);
   $("chartUnit").addEventListener("change", () => { chartUnitTouched = true; run(); });
+  $("chartValueMode").addEventListener("change", () => {
+    chartValueMode = $("chartValueMode").value === "total" ? "total" : "average";
+    if (lastResult) renderOperationalTrendChart(lastResult.trendRows || lastResult.stats.trendStats, lastResult.chartUnit);
+  });
   $("periodReportPrintBtn").addEventListener("click", printPeriodReport);
   renderChartMetricToggles();
   disableAutocomplete();
