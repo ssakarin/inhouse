@@ -5,6 +5,11 @@ const { URL } = require("node:url");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 const { encrypt, decrypt, isEncrypted, KEY_PATH } = require("./crypto-util");
+const {
+  CATEGORY_KEYS: NONCOVERED_CATEGORY_KEYS,
+  buildNoncoveredBreakdown,
+  sheetCategoryKey
+} = require("./noncovered-breakdown");
 
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
@@ -376,6 +381,18 @@ const statements = {
     FROM patient_visits pv
     LEFT JOIN patients p ON p.patient_id = pv.patient_id
     WHERE pv.visit_date = (SELECT value FROM target_date)
+  `),
+  listDailyNoncoveredVisits: db.prepare(`
+    SELECT
+      pv.patient_id,
+      pv.visit_date,
+      pv.chief_complaint,
+      pv.diagnosis_code,
+      pv.noncovered_amount
+    FROM patient_visits pv
+    WHERE pv.visit_date = ?
+      AND COALESCE(pv.noncovered_amount, 0) > 0
+    ORDER BY pv.patient_id
   `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
   upsertState: db.prepare(`
@@ -3457,13 +3474,65 @@ async function runDailyMetricsGoogleSheetSync(date) {
     noncoveredAmount: Number(source.noncovered_amount || 0),
     autoAmount: Number(source.auto_amount || 0)
   };
+  const noncoveredBreakdown = buildNoncoveredBreakdown(
+    statements.listDailyNoncoveredVisits.all(targetDate),
+    patientId => getPatientById(patientId),
+    targetDate
+  );
+  if (Math.abs(noncoveredBreakdown.totalAmount - metrics.noncoveredAmount) > 0.01) {
+    throw new Error(
+      `${targetDate} 비급여 상세 합계(${noncoveredBreakdown.totalAmount})와 AC 비급여 매출(${metrics.noncoveredAmount})이 일치하지 않습니다.`
+    );
+  }
+
+  const detailRows = matchingRows.filter(item => item.rowNumber !== aggregateRow.rowNumber);
+  const firstPaymentRows = new Map();
+  const firstPaymentDetailRows = [];
+  const repeatPaymentRows = [];
+  detailRows.forEach(item => {
+    const firstPaymentLabel = String(item.row?.[31] || "").trim(); // AG (B:AQ 범위의 32번째 값)
+    const firstPaymentCategory = sheetCategoryKey(firstPaymentLabel);
+    if (firstPaymentLabel) firstPaymentDetailRows.push(item);
+    if (firstPaymentCategory && !firstPaymentRows.has(firstPaymentCategory)) {
+      firstPaymentRows.set(firstPaymentCategory, item);
+    }
+    if (String(item.row?.[36] || "").trim()) repeatPaymentRows.push(item); // AL
+  });
+  const otherRow = firstPaymentRows.get(NONCOVERED_CATEGORY_KEYS.OTHER);
+  if (!otherRow) throw new Error(`${targetDate}의 비급여 상세행에서 '기타' 항목을 찾지 못했습니다.`);
+
+  const sheetBreakdown = [];
+  const firstPaymentAmounts = new Map();
+  Object.entries(noncoveredBreakdown.amounts).forEach(([category, amount]) => {
+    const targetRow = firstPaymentRows.get(category) || otherRow;
+    firstPaymentAmounts.set(targetRow.rowNumber, (firstPaymentAmounts.get(targetRow.rowNumber) || 0) + amount);
+  });
+  firstPaymentRows.forEach((item, category) => {
+    sheetBreakdown.push({
+      category,
+      label: String(item.row?.[31] || "").trim(),
+      rowNumber: item.rowNumber,
+      amount: Number(firstPaymentAmounts.get(item.rowNumber) || 0),
+      visitCount: Number(noncoveredBreakdown.visitCounts[category] || 0)
+    });
+  });
+  sheetBreakdown.sort((a, b) => a.rowNumber - b.rowNumber);
+
   const rowNumber = aggregateRow.rowNumber;
   const updates = [
     { range: `D${rowNumber}`, values: [[metrics.patientCount]] },
     { range: `E${rowNumber}`, values: [[metrics.newPatientCount]] },
     { range: `G${rowNumber}`, values: [[metrics.reinitialPatientCount]] },
     { range: `M${rowNumber}`, values: [[metrics.age65PatientCount]] },
-    { range: `AA${rowNumber}:AD${rowNumber}`, values: [[metrics.insuredCopay, metrics.claimAmount, metrics.noncoveredAmount, metrics.autoAmount]] }
+    { range: `AA${rowNumber}:AD${rowNumber}`, values: [[metrics.insuredCopay, metrics.claimAmount, metrics.noncoveredAmount, metrics.autoAmount]] },
+    ...firstPaymentDetailRows.map(item => ({
+      range: `AK${item.rowNumber}`,
+      values: [[Number(firstPaymentAmounts.get(item.rowNumber) || 0)]]
+    })),
+    ...repeatPaymentRows.map(item => ({
+      range: `AP${item.rowNumber}`,
+      values: [[0]]
+    }))
   ];
   await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(DAILY_METRICS_SPREADSHEET_ID)}/values:batchUpdate`, {
     method: "POST",
@@ -3484,8 +3553,10 @@ async function runDailyMetricsGoogleSheetSync(date) {
     worksheetTitle: sheet.title,
     worksheetId: sheet.sheetId,
     rowNumber,
-    updatedCells: 8,
-    metrics
+    updatedCells: 8 + firstPaymentDetailRows.length + repeatPaymentRows.length,
+    metrics,
+    noncoveredBreakdown: sheetBreakdown,
+    noncoveredVisitCount: noncoveredBreakdown.visitCount
   };
 }
 
