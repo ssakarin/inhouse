@@ -616,6 +616,32 @@
     background: rgba(56,189,248,0.18);
     border-color: rgba(56,189,248,0.62);
   }
+  .alert-card-title-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .initial-visit-wait-chips {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .initial-visit-wait-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 25px;
+    padding: 5px 8px;
+    border: 1px solid rgba(167,139,250,0.46);
+    border-radius: 7px;
+    background: rgba(139,92,246,0.13);
+    color: #c4b5fd;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+  }
   .input-panel.input-form-open .input-form-column > .card,
   .receive-panel.receive-form-open .receive-form-column > .card {
     display: grid;
@@ -5624,6 +5650,9 @@
           <div class="card-label alert-card-title">
             <span>알림</span>
             <div class="alert-card-title-actions">
+              <div class="initial-visit-wait-chips" id="deskInitialVisitWaitChips">
+                <span class="initial-visit-wait-chip">초진대기 계산 중</span>
+              </div>
               <div class="appointment-date-buttons" id="deskAppointmentDateButtons"></div>
             </div>
           </div>
@@ -8921,7 +8950,10 @@
         const selectedStaff = staffByType[type].get(selectedValue);
         if (selectedStaff && !(type === 'doctors' && isDoctorUnavailable(selectedStaff))) select.value = selectedValue;
         const scope = selectId.startsWith('receive') ? 'receive' : selectId.startsWith('bed') ? 'bed' : 'desk';
-        select.onchange = () => scheduleSelectFieldSave?.(scope, 0);
+        select.onchange = () => {
+          scheduleSelectFieldSave?.(scope, 0);
+          if (selectId === 'doctorSelect') updateDeskInitialVisitWaitChip?.();
+        };
       });
 
       const listHtml = staff.length
@@ -9966,6 +9998,9 @@
     if (!doctor.id && selectedChartPatientByScope[scope]?.doctorName) {
       doctor = getFirstActiveDoctor();
     }
+    const initialVisitWaitEstimate = scope === 'desk' && visitType === '초진'
+      ? getInitialVisitWaitEstimate(doctor.id)
+      : null;
 
     const btn = document.getElementById(ids.submitBtn);
     btn.disabled = true;
@@ -10048,7 +10083,9 @@
       resetPCredits(ids.treatmentGrid);
       resetSpineSettings(ids.treatmentGrid);
 
-      showToast(`✅ ${name} 알림 전송 완료`);
+      showToast(visitType === '초진' && initialVisitWaitEstimate
+        ? `✅ ${name} 등록 완료 · 초진대기 약 ${initialVisitWaitEstimate.min}~${initialVisitWaitEstimate.max}분`
+        : `✅ ${name} 알림 전송 완료`);
       if (scope === 'desk') {
         setInputFormOpen(false);
         renderUpcomingAlerts();
@@ -13205,6 +13242,105 @@
     return minutesList.length ? minutesList : 0;
   }
 
+  const INITIAL_VISIT_MINUTES = 10;
+
+  function roundInitialVisitWaitMinutes(value) {
+    return Math.max(0, Math.ceil(Number(value || 0)));
+  }
+
+  function getInitialVisitQueueCount(doctorId) {
+    if (!doctorId) return 0;
+    const doctorBedNo = getDoctorBedNoForPatient(doctorId);
+    const heldCount = getHoldBedEntries().filter(({ bed }) =>
+      Number(bed?.pendingTargetBedNo) === Number(doctorBedNo) && isInitialVisitPatient(bed)
+    ).length;
+    const assignedKeys = [
+      ...bedAssignments.filter(Boolean).map(bed => bed.patientKey),
+      ...Object.values(doctorBedMap).map(bed => bed.patientKey),
+      ...getHoldBedEntries().map(({ bed }) => bed.patientKey)
+    ].filter(Boolean);
+    const waitingCount = getWaitingPatients(assignedKeys).filter(([, patient]) =>
+      isInitialVisitPatient(patient) && patient.doctorId === doctorId
+    ).length;
+    return heldCount + waitingCount;
+  }
+
+  function getDoctorAlertWorkloadSeconds(doctorId, doctorBedNo) {
+    if (!doctorId) return 0;
+    return getDoctorProcedureAlertItems(doctorId)
+      .filter(item => Number(item?.bedNo) !== Number(doctorBedNo))
+      .reduce((total, item) => {
+        const treatments = (Array.isArray(item?.treatments) && item.treatments.length
+          ? item.treatments
+          : [item?.treatment])
+          .map(name => String(name || '').trim())
+          .filter(isDoctorProcedureTreatment);
+        if (!treatments.length) return total + (item?.cleanup ? getProcedureSeconds() : 0);
+
+        const longTreatmentSeconds = treatments
+          .filter(isLongDoctorProcedureTreatment)
+          .reduce((sum, treatment) => sum + getTreatmentSeconds(treatment), 0);
+        const hasShortTreatment = treatments.some(treatment => !isLongDoctorProcedureTreatment(treatment));
+        const shortTreatmentSeconds = hasShortTreatment ? getProcedureSeconds() : 0;
+        return total + longTreatmentSeconds + shortTreatmentSeconds;
+      }, 0);
+  }
+
+  function getInitialVisitWaitEstimate(doctorId = '') {
+    const activeDoctors = getActiveDoctors();
+    const candidateIds = doctorId && activeDoctors.some(([id]) => id === doctorId)
+      ? [doctorId]
+      : activeDoctors.map(([id]) => id);
+    if (!candidateIds.length) return null;
+
+    const estimates = candidateIds.map(id => {
+      const doctorBedNo = getDoctorBedNoForPatient(id);
+      const currentPatient = doctorBedNo ? getBedData(doctorBedNo) : null;
+      const currentMinutes = currentPatient
+        ? Math.ceil(getBedRemainingTreatmentSeconds(currentPatient) / 60)
+        : 0;
+      const queueCount = getInitialVisitQueueCount(id);
+      const alertMinutes = Math.ceil(getDoctorAlertWorkloadSeconds(id, doctorBedNo) / 60);
+      const center = currentMinutes
+        + (queueCount * INITIAL_VISIT_MINUTES)
+        + alertMinutes;
+      return { center, currentMinutes, queueCount, alertMinutes };
+    });
+    const selected = estimates.reduce((best, estimate) =>
+      !best || estimate.center < best.center ? estimate : best
+    , null);
+    const center = Number(selected?.center || 0);
+    return {
+      center: roundInitialVisitWaitMinutes(center),
+      min: roundInitialVisitWaitMinutes(center),
+      max: roundInitialVisitWaitMinutes(center + 10),
+      currentMinutes: Number(selected?.currentMinutes || 0),
+      queueCount: Number(selected?.queueCount || 0),
+      alertMinutes: Number(selected?.alertMinutes || 0)
+    };
+  }
+
+  function formatInitialVisitWaitEstimate(estimate, prefix = '초진대기') {
+    if (!estimate) return `${prefix} 확인 필요`;
+    return `${prefix} 약 ${estimate.min}~${estimate.max}분`;
+  }
+
+  function updateDeskInitialVisitWaitChip() {
+    const wrap = document.getElementById('deskInitialVisitWaitChips');
+    if (!wrap) return;
+    const doctors = getActiveDoctors();
+    wrap.innerHTML = doctors.length
+      ? doctors.map(([doctorId, doctor]) => {
+          const estimate = getInitialVisitWaitEstimate(doctorId);
+          const text = `${doctor?.name || '원장'} ${estimate ? `${estimate.min}~${estimate.max}분` : '확인 필요'}`;
+          const title = estimate
+            ? `${doctor?.name || '원장'} · 현재 ${estimate.currentMinutes}분 + 초진 ${estimate.queueCount}명×${INITIAL_VISIT_MINUTES}분 + 베드알림 ${estimate.alertMinutes}분`
+            : `${doctor?.name || '원장'} 대기시간 확인 필요`;
+          return `<span class="initial-visit-wait-chip" title="${escapeHtml(title)}">${escapeHtml(text)}</span>`;
+        }).join('')
+      : '<span class="initial-visit-wait-chip">초진대기 확인 필요</span>';
+  }
+
   function updateDeskWaitChip(waitingPatients = getWaitingPatients()) {
     const minutes = getEstimatedWaitMinutesList(waitingPatients);
     const text = minutes === 'none'
@@ -13216,6 +13352,7 @@
     if (chip) chip.textContent = text;
     const notifyChip = document.getElementById('notifyWaitChip');
     if (notifyChip) notifyChip.textContent = text;
+    updateDeskInitialVisitWaitChip();
   }
 
   function formatUpcomingTime(seconds) {
