@@ -5540,14 +5540,14 @@
         </label>
         <button class="header-wait-chip today-treated-chip" id="deskTodayTreatedCount" type="button" onclick="openDischargedPatientsPopup()" aria-label="오늘 퇴실환자 보기">오늘 0명</button>
         <span class="header-wait-chip bed-count-chip" id="deskBedPatientCount">0/13</span>
-        <span class="header-wait-chip" id="deskWaitChip">예상대기시간 0분</span>
+        <span class="header-wait-chip" id="deskWaitChip">베드대기 0분</span>
         <span class="header-current-time" id="deskCurrentTime"></span>
       </div>
       <div class="header-notify-controls">
         <button class="nurse-quick-btn" id="nurseQuickBtn" type="button" onclick="toggleNurseQuickPopover(event)">간호사</button>
         <span class="header-wait-chip today-treated-chip" id="receiveTodayTreatedCount">오늘 0명</span>
         <span class="header-wait-chip bed-count-chip" id="receiveBedPatientCount">0/13</span>
-        <span class="header-wait-chip" id="notifyWaitChip">예상대기시간 0분</span>
+        <span class="header-wait-chip" id="notifyWaitChip">베드대기 0분</span>
         <div class="doctor-alert-btns" id="doctorAlertBtns"></div>
         <span class="header-current-time" id="notifyCurrentTime"></span>
       </div>
@@ -13366,10 +13366,10 @@
   function updateDeskWaitChip(waitingPatients = getWaitingPatients()) {
     const minutes = getEstimatedWaitMinutesList(waitingPatients);
     const text = minutes === 'none'
-      ? '대기시간 없음'
+      ? '베드대기 없음'
       : Array.isArray(minutes)
-      ? `예상대기시간 ${minutes.map(value => `${value}분`).join(', ')}`
-      : `예상대기시간 ${minutes}분`;
+      ? `베드대기 ${minutes.map(value => `${value}분`).join(', ')}`
+      : `베드대기 ${minutes}분`;
     const chip = document.getElementById('deskWaitChip');
     if (chip) chip.textContent = text;
     const notifyChip = document.getElementById('notifyWaitChip');
