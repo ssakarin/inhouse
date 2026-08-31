@@ -13286,6 +13286,23 @@
       }, 0);
   }
 
+  function getDoctorTreatmentBedCount(doctorId) {
+    if (!doctorId) return 0;
+    return ACTIVE_BED_NUMBERS.reduce((count, bedNo) => {
+      const bed = getBedData(bedNo);
+      return count + (bed && !bed.complete && bed.doctorId === doctorId ? 1 : 0);
+    }, 0);
+  }
+
+  function getDoctorBedCongestionMinutes(bedCount) {
+    const count = Math.max(0, Number(bedCount || 0));
+    if (count <= 2) return 0;
+    if (count <= 4) return 2;
+    if (count <= 6) return 4;
+    if (count <= 8) return 6;
+    return 8;
+  }
+
   function getInitialVisitWaitEstimate(doctorId = '') {
     const activeDoctors = getActiveDoctors();
     const candidateIds = doctorId && activeDoctors.some(([id]) => id === doctorId)
@@ -13301,10 +13318,13 @@
         : 0;
       const queueCount = getInitialVisitQueueCount(id);
       const alertMinutes = Math.ceil(getDoctorAlertWorkloadSeconds(id, doctorBedNo) / 60);
+      const treatmentBedCount = getDoctorTreatmentBedCount(id);
+      const congestionMinutes = getDoctorBedCongestionMinutes(treatmentBedCount);
       const center = currentMinutes
         + (queueCount * INITIAL_VISIT_MINUTES)
-        + alertMinutes;
-      return { center, currentMinutes, queueCount, alertMinutes };
+        + alertMinutes
+        + congestionMinutes;
+      return { center, currentMinutes, queueCount, alertMinutes, treatmentBedCount, congestionMinutes };
     });
     const selected = estimates.reduce((best, estimate) =>
       !best || estimate.center < best.center ? estimate : best
@@ -13316,7 +13336,9 @@
       max: roundInitialVisitWaitMinutes(center + 10),
       currentMinutes: Number(selected?.currentMinutes || 0),
       queueCount: Number(selected?.queueCount || 0),
-      alertMinutes: Number(selected?.alertMinutes || 0)
+      alertMinutes: Number(selected?.alertMinutes || 0),
+      treatmentBedCount: Number(selected?.treatmentBedCount || 0),
+      congestionMinutes: Number(selected?.congestionMinutes || 0)
     };
   }
 
@@ -13334,7 +13356,7 @@
           const estimate = getInitialVisitWaitEstimate(doctorId);
           const text = `${doctor?.name || '원장'} ${estimate ? `${estimate.min}~${estimate.max}분` : '확인 필요'}`;
           const title = estimate
-            ? `${doctor?.name || '원장'} · 현재 ${estimate.currentMinutes}분 + 초진 ${estimate.queueCount}명×${INITIAL_VISIT_MINUTES}분 + 베드알림 ${estimate.alertMinutes}분`
+            ? `${doctor?.name || '원장'} · 현재 ${estimate.currentMinutes}분 + 초진 ${estimate.queueCount}명×${INITIAL_VISIT_MINUTES}분 + 베드알림 ${estimate.alertMinutes}분 + 베드혼잡 ${estimate.treatmentBedCount}명/${estimate.congestionMinutes}분`
             : `${doctor?.name || '원장'} 대기시간 확인 필요`;
           return `<span class="initial-visit-wait-chip" title="${escapeHtml(title)}">${escapeHtml(text)}</span>`;
         }).join('')
