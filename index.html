@@ -3298,19 +3298,11 @@
     font-size: 12px;
     font-weight: 900;
   }
-  .package-usage-details {
+  .package-usage-section {
     border-top: 1px solid rgba(255,255,255,0.08);
-    margin-top: 10px;
+    margin-top: 2px;
     padding-top: 8px;
   }
-  .package-usage-summary {
-    color: var(--text2);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 900;
-    user-select: none;
-  }
-  .package-usage-details[open] .package-usage-summary { margin-bottom: 8px; }
   .package-input {
     width: 100%;
     background: var(--surface2);
@@ -8526,6 +8518,15 @@
             </label>
             <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('bonus')">보너스 추가</button>
           </div>
+          <div class="package-usage-section package-entry-full">
+            <div class="package-adjustment-row">
+              <label class="package-qty-field">
+                <input class="package-input" id="pkg-selected-usage-qty" type="text" inputmode="decimal" maxlength="5" value="" placeholder="횟수 입력" aria-label="차감 횟수">
+                <span class="package-qty-unit">회</span>
+              </label>
+              <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('usage')">차감 등록</button>
+            </div>
+          </div>
         </div>
         <div class="package-calendar-head">
           <button class="package-entry-btn" type="button" onclick="changePackageMonth(-1)">이전</button>
@@ -8540,16 +8541,6 @@
           ${['일','월','화','수','목','금','토'].map(day => `<div class="package-calendar-dow">${day}</div>`).join('')}
           ${dayCells.join('')}
         </div>
-        <details class="package-usage-details">
-          <summary class="package-usage-summary">차감 등록</summary>
-          <div class="package-adjustment-row">
-            <label class="package-qty-field">
-              <input class="package-input" id="pkg-selected-usage-qty" type="text" inputmode="decimal" maxlength="5" value="" placeholder="횟수 입력" aria-label="차감 횟수">
-              <span class="package-qty-unit">회</span>
-            </label>
-            <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('usage')">차감 등록</button>
-          </div>
-        </details>
       </div>`;
     disableAutocomplete(form);
   }

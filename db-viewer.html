@@ -532,9 +532,7 @@
   .package-popup .package-history { margin-top: 0; }
   .package-popup .package-history-row { grid-template-columns: auto auto auto; }
   .package-history-delete { padding: 1px 5px; border: 0; background: transparent; color: var(--danger); }
-  .package-popup-usage { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
-  .package-popup-usage summary { color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 900; }
-  .package-popup-usage[open] summary { margin-bottom: 8px; }
+  .package-popup-usage { border-top: 1px solid var(--line); padding-top: 8px; }
   .day-patient-list {
     margin-top: 10px;
     display: grid;
@@ -1241,11 +1239,11 @@
           <div class="package-popup-options">${field.purchaseOptions.map(qty => `<button class="package-popup-choice${Number(activePackagePurchaseQty) === Number(qty) ? " active" : ""}" type="button" data-package-qty="${qty}">${escapeHtml(packagePurchaseOptionLabel(qty))}</button>`).join("")}</div>
           <button class="good" type="button" data-package-action="purchase">패키지 등록</button>
           <div class="package-popup-adjust"><input id="dbPackageBonusQty" type="number" min="0.1" step="0.1" placeholder="횟수 입력"><button type="button" data-package-action="bonus">보너스 추가</button></div>
+          <div class="package-popup-adjust package-popup-usage"><input id="dbPackageUsageQty" type="number" min="0.1" step="0.1" placeholder="횟수 입력"><button type="button" data-package-action="usage">차감 등록</button></div>
         </div>
         <div class="package-calendar-head"><button type="button" data-package-month="-1">이전</button><div class="package-calendar-title">${year}년 ${month}월 <span class="package-popup-date">${escapeHtml(activePackageDate)}</span></div><button type="button" data-package-month="1">다음</button></div>
         <div class="package-day-detail"><div class="package-history-title">선택일 상세</div><div class="package-history">${details}</div></div>
         <div class="package-calendar">${["일","월","화","수","목","금","토"].map(day => `<div class="package-calendar-dow">${day}</div>`).join("")}${cells.join("")}</div>
-        <details class="package-popup-usage"><summary>차감 등록</summary><div class="package-popup-adjust"><input id="dbPackageUsageQty" type="number" min="0.1" step="0.1" placeholder="횟수 입력"><button type="button" data-package-action="usage">차감 등록</button></div></details>
       </div>`;
   }
 
