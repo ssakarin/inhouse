@@ -1458,6 +1458,18 @@
     ].filter(Boolean).join(" / ");
   }
 
+  function packageFieldDaySummary(field, packages = {}, date = "") {
+    const rows = (field.mergeKeys || [field.key]).flatMap(key => getPackageDayEntries(packages[key] || {}, date));
+    const purchaseQty = rows.filter(entry => entry.type === "purchase").reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    const bonusQty = rows.filter(entry => entry.type === "bonus").reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    const usageQty = rows.filter(entry => entry.type === "usage").reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
+    return [
+      purchaseQty ? `결제 ${purchaseQty}` : "",
+      bonusQty ? `보너스 ${bonusQty}` : "",
+      usageQty ? `사용 ${usageQty}` : ""
+    ].filter(Boolean).join(" / ");
+  }
+
   function visitDetailInput(id, value = "") {
     return `<input id="${id}" type="text" value="${escapeHtml(value)}">`;
   }
@@ -1475,8 +1487,8 @@
       ? (record.memo2 || "")
       : getMemo2ForDate(selectedPatient, date);
     const packages = normalizePackages(activePackages);
-    const packageSections = PACKAGE_KEYS.map(key => {
-      const rows = getPackageDayEntries(packages[key] || {}, date);
+    const packageSections = PACKAGE_FIELDS.map(field => {
+      const rows = (field.mergeKeys || [field.key]).flatMap(key => getPackageDayEntries(packages[key] || {}, date));
       if (!rows.length) return "";
       const rowsHtml = rows.map(entry => `
         <div class="package-history-row">
@@ -1485,7 +1497,7 @@
         </div>
       `).join("");
       return `
-        <div class="package-history-title">${escapeHtml(key)}</div>
+        <div class="package-history-title">${escapeHtml(field.label)}</div>
         <div class="package-history">${rowsHtml}</div>
       `;
     }).filter(Boolean).join("");
@@ -1576,10 +1588,10 @@
       const date = `${activeVisitMonth}-${String(day).padStart(2, "0")}`;
       const record = activeVisitHistory?.[date];
       const hasVisit = Boolean(record);
-      const packageNotes = PACKAGE_KEYS
-        .map(key => {
-          const summary = packageDaySummary(packages[key] || {}, date);
-          return summary ? `${key} ${summary}` : "";
+      const packageNotes = PACKAGE_FIELDS
+        .map(field => {
+          const summary = packageFieldDaySummary(field, packages, date);
+          return summary ? `${field.label} ${summary}` : "";
         })
         .filter(Boolean);
       const hasPackage = packageNotes.length > 0;
