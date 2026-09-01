@@ -3238,7 +3238,7 @@
   }
   .package-balance-strip {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
   .package-balance-tile {
@@ -3259,16 +3259,6 @@
     font-weight: 900;
     margin-top: 4px;
   }
-  .package-after-treatment {
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(255,202,106,0.42);
-    background: rgba(255,202,106,0.12);
-    color: var(--gold);
-    font-size: 13px;
-    font-weight: 900;
-    text-align: center;
-  }
   .package-card {
     background: rgba(16, 27, 45, 0.58);
     border: 1px solid rgba(255,255,255,0.10);
@@ -3284,6 +3274,43 @@
     align-items: center;
   }
   .package-entry-full { grid-column: 1 / -1; }
+  .package-adjustment-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+  }
+  .package-qty-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding-right: 10px;
+  }
+  .package-qty-field .package-input {
+    border: 0;
+    background: transparent;
+  }
+  .package-qty-unit {
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .package-usage-details {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    margin-top: 10px;
+    padding-top: 8px;
+  }
+  .package-usage-summary {
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 900;
+    user-select: none;
+  }
+  .package-usage-details[open] .package-usage-summary { margin-bottom: 8px; }
   .package-input {
     width: 100%;
     background: var(--surface2);
@@ -3301,7 +3328,7 @@
   .package-input:focus { border-color: rgb(74,222,128); }
   .package-radio-group {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
   }
   .package-radio {
@@ -3334,6 +3361,9 @@
     gap: 6px;
   }
   .package-toggle-btn {
+    display: grid;
+    gap: 2px;
+    justify-items: center;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -3344,11 +3374,21 @@
     font-weight: 900;
     padding: 9px 4px;
   }
+  .package-option-title {
+    font-size: 14px;
+    line-height: 1.2;
+  }
+  .package-option-detail {
+    color: var(--text2);
+    font-size: 11px;
+    line-height: 1.2;
+  }
   .package-toggle-btn.is-active {
     border-color: rgb(74,222,128);
     background: rgba(74,222,128,0.16);
     color: rgb(74,222,128);
   }
+  .package-toggle-btn.is-active .package-option-detail { color: rgb(74,222,128); }
   .package-entry-btn {
     background: rgba(255,255,255,0.08);
     border: 1px solid var(--border);
@@ -3367,6 +3407,15 @@
     gap: 5px;
     margin-top: 8px;
   }
+  .package-day-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .package-day-detail .package-history { margin-top: 0; }
+  .package-day-detail .package-history-title { margin-top: 0; }
   .package-history-title {
     color: var(--text3);
     font-size: 11px;
@@ -3375,7 +3424,7 @@
   }
   .package-history-row {
     display: grid;
-    grid-template-columns: 86px minmax(0, 1fr) auto;
+    grid-template-columns: auto auto auto;
     align-items: center;
     gap: 6px;
     background: rgba(255,255,255,0.05);
@@ -3403,9 +3452,17 @@
     margin: 12px 0 8px;
   }
   .package-calendar-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     color: var(--text);
     font-size: 16px;
     font-weight: 900;
+  }
+  .package-calendar-selected-date {
+    color: rgb(74,222,128);
+    font-size: 12px;
+    white-space: nowrap;
   }
   .package-calendar-nav {
     display: inline-flex;
@@ -3866,7 +3923,7 @@
   }
   .bed-package-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
   .bed-package-chip {
@@ -3890,17 +3947,6 @@
   .bed-package-count {
     font-size: 18px;
     line-height: 1;
-  }
-  .bed-package-after {
-    margin-top: 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(255,202,106,0.42);
-    background: rgba(255,202,106,0.12);
-    color: var(--gold);
-    font-size: 13px;
-    font-weight: 900;
-    text-align: center;
   }
   .bed-schedule-zone {
     grid-area: schedule;
@@ -7450,13 +7496,14 @@
   const PCREDIT_FIELDS = [
     { key: 'p6', label: '약침', mergeKeys: ['p6', 'p13'], purchaseOptions: [6, 13], defaultPurchaseQty: 6, fixedPurchaseQty: true },
     { key: 'p13', label: '약침', defaultPurchaseQty: 13, fixedPurchaseQty: true, hidden: true },
-    { key: 'p초음파6', label: '초음파약침', mergeKeys: ['p초음파6', 'p초음파13'], purchaseOptions: [6, 13], defaultPurchaseQty: 6, fixedPurchaseQty: true },
-    { key: 'p초음파13', label: '초음파약침', defaultPurchaseQty: 13, fixedPurchaseQty: true, hidden: true },
+    { key: 'p초음파6', label: '초음파약침', mergeKeys: ['p초음파6', 'p초음파13'], purchaseOptions: [6, 13], defaultPurchaseQty: 6, fixedPurchaseQty: true, retired: true },
+    { key: 'p초음파13', label: '초음파약침', defaultPurchaseQty: 13, fixedPurchaseQty: true, hidden: true, retired: true },
     { key: 'p자하거', label: '약침(자하거)', purchaseOptions: [10], defaultPurchaseQty: 10, fixedPurchaseQty: true },
     { key: 'p라인', label: '약침(라인)', purchaseOptions: [10], defaultPurchaseQty: 10, fixedPurchaseQty: true }
   ];
-  // 저장/영속화는 PCREDIT_FIELDS 전체(숨김 포함), 화면 표시는 PCREDIT_DISPLAY_FIELDS만 사용
-  const PCREDIT_DISPLAY_FIELDS = PCREDIT_FIELDS.filter(field => !field.hidden);
+  // 저장/영속화는 PCREDIT_FIELDS 전체(숨김/사용 종료 포함), 화면 표시는 현재 사용하는 패키지만 노출
+  const PCREDIT_DISPLAY_FIELDS = PCREDIT_FIELDS.filter(field => !field.hidden && !field.retired);
+  const PCREDIT_HISTORY_FIELDS = PCREDIT_FIELDS.filter(field => !field.retired);
 
   // 병합 패키지(약침)는 mergeKeys 잔여량을 합산해서 표시 — 키별 0 클램프를 피하려고 합계 후 한 번만 클램프
   function getRawPackageBalance(pkg = {}) {
@@ -8140,13 +8187,7 @@
     renderSpineSettingsPopup();
   };
 
-  function applyPostTreatmentPackageBalances(packages = {}, bed = {}, usageDate = '') {
-    const next = normalizePackageState(packages);
-    const balances = getPCreditsFromPackages(next);
-    const treatments = Array.isArray(bed?.treatments) ? bed.treatments : [];
-    if (!treatments.length) return next;
-    const date = usageDate || toLocalDateInputValue();
-
+  function getPharmaTreatmentDeduction(treatments = []) {
     const normalizedTreatments = treatments.map(treatment => String(treatment || '').replace(/\s+/g, ''));
     const treatmentIds = getTreatmentIdsFromNames(treatments);
     const hasChuna = normalizedTreatments.some(name => name.includes('추나') || name === '단추' || name === '복추');
@@ -8156,7 +8197,21 @@
       pharmacopuncture_3: hasChuna ? 1 : 2,
       pharmacopuncture_4: hasChuna ? 3 : 6
     };
-    const deduction = treatmentIds.reduce((sum, id) => sum + (unitMapById[id] || 0), 0);
+    return treatmentIds.reduce((sum, id) => sum + (unitMapById[id] || 0), 0);
+  }
+
+  function applyPostTreatmentPackageBalances(packages = {}, bed = {}, usageDate = '') {
+    const next = normalizePackageState(packages);
+    const balances = getPCreditsFromPackages(next);
+    const treatments = Array.isArray(bed?.treatments) ? bed.treatments : [];
+    if (!treatments.length) return next;
+    const date = usageDate || toLocalDateInputValue();
+    const treatmentIds = getTreatmentIdsFromNames(treatments);
+    const deduction = getPharmaTreatmentDeduction(treatments);
+    const getRecordedUsageForDate = (keys) => keys.reduce((sum, key) => {
+      const usages = normalizePackageEntries(next?.[key]?.usages, 'usage');
+      return sum + usages.filter(entry => entry.date === date).reduce((qty, entry) => qty + Number(entry.qty || 0), 0);
+    }, 0);
     const hasPackageRecord = (key) => {
       const pkg = next?.[key] || {};
       return Number(pkg.openingQty || 0) > 0
@@ -8181,7 +8236,7 @@
 
     // 약침은 p13·p6 잔여량을 합쳐서 쓰므로, 차감도 두 키에 걸쳐(있는 잔여부터) 분배한다
     const pharmaMergeKeys = (PCREDIT_FIELDS.find(field => Array.isArray(field.mergeKeys)) || {}).mergeKeys || ['p13', 'p6'];
-    let pharmaRemaining = deduction;
+    let pharmaRemaining = Math.max(0, deduction - getRecordedUsageForDate(pharmaMergeKeys));
     [...pharmaMergeKeys].reverse().forEach(key => {
       if (pharmaRemaining <= 0) return;
       const take = Math.min(Number(balances[key] || 0), pharmaRemaining);
@@ -8197,10 +8252,53 @@
     ].forEach(({ key, treatment }) => {
       const treatmentId = treatment.toLowerCase().includes('l') ? 'pharmacopuncture_L' : 'pharmacopuncture_ja';
       const treatmentCount = countTreatmentId(treatmentIds, treatmentId);
-      if (treatmentCount && hasPackageRecord(key)) addUsage(key, treatmentCount);
+      const remainingCount = Math.max(0, treatmentCount - getRecordedUsageForDate([key]));
+      if (remainingCount && hasPackageRecord(key)) addUsage(key, remainingCount);
     });
 
     return normalizePackageState(next);
+  }
+
+  function getTreatmentsForPackageDate(gridId, date) {
+    const scope = getScopeFromGridId(gridId);
+    const patientKey = getPatientKeyForCreditGrid(gridId);
+    const bedNo = getBedNoForCreditGrid(gridId);
+    const sources = [
+      patientKey ? patientsByKey.get(patientKey) : null,
+      scope ? selectedChartPatientByScope[scope] : null,
+      bedNo ? getBedData(bedNo) : null
+    ].filter(Boolean);
+
+    for (const source of sources) {
+      const historyTreatments = source?.visitHistory?.[date]?.treatments;
+      if (Array.isArray(historyTreatments) && historyTreatments.length) return historyTreatments;
+      if (source?.visitEntry?.date === date && Array.isArray(source.visitEntry.treatments) && source.visitEntry.treatments.length) {
+        return source.visitEntry.treatments;
+      }
+      const sourceDate = String(source?.visitDate || source?.dischargeDate || '').slice(0, 10);
+      if (sourceDate === date && Array.isArray(source?.treatments) && source.treatments.length) return source.treatments;
+    }
+    return [];
+  }
+
+  function reconcilePackagePurchaseWithVisit(packages, gridId, key, date) {
+    const pharmaField = PCREDIT_FIELDS.find(field => Array.isArray(field.mergeKeys) && field.mergeKeys.includes(key));
+    if (!pharmaField) return 0;
+    const expectedUsage = getPharmaTreatmentDeduction(getTreatmentsForPackageDate(gridId, date));
+    if (!expectedUsage) return 0;
+    const recordedUsage = pharmaField.mergeKeys.reduce((sum, packageKey) => {
+      const usages = normalizePackageEntries(packages?.[packageKey]?.usages, 'usage');
+      return sum + usages.filter(entry => entry.date === date).reduce((qty, entry) => qty + Number(entry.qty || 0), 0);
+    }, 0);
+    const missingUsage = Math.max(0, expectedUsage - recordedUsage);
+    if (!missingUsage) return 0;
+    const pkg = packages[key] || { openingQty: 0, purchases: [], usages: [] };
+    pkg.usages = [
+      ...normalizePackageEntries(pkg.usages, 'usage'),
+      { id: `retro-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date, qty: missingUsage }
+    ];
+    packages[key] = pkg;
+    return missingUsage;
   }
 
   function getPCreditPayload(gridId) {
@@ -8305,20 +8403,18 @@
     if (!form || !activeCreditGridId) return;
     const packages = getPackageStateForGrid(activeCreditGridId);
     const today = toLocalDateInputValue();
-    if (!PCREDIT_FIELDS.some(field => field.key === activePackageKey)) activePackageKey = PCREDIT_FIELDS[0].key;
+    if (!PCREDIT_DISPLAY_FIELDS.some(field => field.key === activePackageKey)) activePackageKey = PCREDIT_DISPLAY_FIELDS[0].key;
     if (!activePackageMonth) activePackageMonth = today.slice(0, 7);
     if (!activePackageDate || !activePackageDate.startsWith(activePackageMonth)) activePackageDate = today.startsWith(activePackageMonth) ? today : `${activePackageMonth}-01`;
 
     const balances = getPCreditsFromPackages(packages);
-    const popupTreatments = (treatmentSelections[activeCreditGridId] || []).map(item => item.name);
-    const postTreatmentMessage = getPostTreatmentPackageBalanceMessage({ treatments: popupTreatments }, packages, balances);
     const entriesByDate = new Map();
     const addToDate = (entry, field, type) => {
       const list = entriesByDate.get(entry.date) || [];
       list.push({ ...entry, key: field.key, label: field.label, type });
       entriesByDate.set(entry.date, list);
     };
-    PCREDIT_FIELDS.forEach(field => {
+    PCREDIT_HISTORY_FIELDS.forEach(field => {
       const pkg = packages[field.key] || { openingQty: 0, purchases: [], usages: [], balance: 0 };
       normalizePackageEntries(pkg.purchases, 'purchase').forEach(entry => addToDate(entry, field, entry.kind === 'bonus' ? 'bonus' : 'purchase'));
       normalizePackageEntries(pkg.usages, 'usage').forEach(entry => addToDate(entry, field, 'usage'));
@@ -8333,7 +8429,7 @@
     for (let day = 1; day <= daysInMonth; day++) {
       const date = `${activePackageMonth}-${String(day).padStart(2, '0')}`;
       const entries = entriesByDate.get(date) || [];
-      const badges = PCREDIT_FIELDS.flatMap(field => {
+      const badges = PCREDIT_HISTORY_FIELDS.flatMap(field => {
         const fieldEntries = entries.filter(entry => entry.key === field.key);
         const purchaseQty = fieldEntries.filter(entry => entry.type === 'purchase').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
         const bonusQty = fieldEntries.filter(entry => entry.type === 'bonus').reduce((sum, entry) => sum + Number(entry.qty || 0), 0);
@@ -8362,12 +8458,12 @@
         </div>`).join('')
       : `<div class="package-history-row"><span>-</span><span>기록 없음</span><span></span></div>`;
 
-    const activeField = PCREDIT_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_DISPLAY_FIELDS[0];
+    const activeField = PCREDIT_DISPLAY_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_DISPLAY_FIELDS[0];
     const purchaseControlMarkup = Array.isArray(activeField.purchaseOptions)
       ? `<div class="package-toggle-group" id="pkg-purchase-toggle">
-            ${activeField.purchaseOptions.map((opt, idx) => `<button type="button" class="package-toggle-btn ${idx === 0 ? 'is-active' : ''}" onclick="setPurchaseQtyOption(${opt})">${opt}</button>`).join('')}
+            ${activeField.purchaseOptions.map(opt => `<button type="button" class="package-toggle-btn ${activeField.purchaseOptions.length === 1 ? 'is-active' : ''}" data-qty="${opt}" onclick="setPurchaseQtyOption(${opt})"><span class="package-option-title">${opt}회</span><span class="package-option-detail">${opt === 6 ? '5회 + 보너스 1회' : (opt === 13 ? '10회 + 보너스 3회' : `${opt}회`)}</span></button>`).join('')}
           </div>
-          <input type="hidden" id="pkg-selected-purchase-qty" value="${escapeHtml(activeField.purchaseOptions[0])}">`
+          <input type="hidden" id="pkg-selected-purchase-qty" value="${activeField.purchaseOptions.length === 1 ? escapeHtml(activeField.purchaseOptions[0]) : ''}">`
       : `<input class="package-input" id="pkg-selected-purchase-qty" type="text" inputmode="decimal" maxlength="5" value="${escapeHtml(activeField.defaultPurchaseQty)}" aria-label="결제 수량" ${activeField.fixedPurchaseQty ? 'readonly' : ''}>`;
 
     form.innerHTML = `
@@ -8378,33 +8474,44 @@
               <div class="package-balance-value">${escapeHtml(getFieldBalance(field, packages))}</div>
             </div>`).join('')}
       </div>
-      ${postTreatmentMessage ? `<div class="package-after-treatment">${escapeHtml(postTreatmentMessage)}</div>` : ''}
       <div class="package-card">
         <div class="package-entry-grid">
           <div class="package-radio-group package-entry-full" id="pkg-selected-key" role="radiogroup" aria-label="패키지 종류">
             ${PCREDIT_DISPLAY_FIELDS.map(field => `<label class="package-radio ${field.key === activePackageKey ? 'is-active' : ''}"><input type="radio" name="pkg-selected-key" value="${escapeHtml(field.key)}" ${field.key === activePackageKey ? 'checked' : ''} onchange="selectPackageEntryType(this.value)">${escapeHtml(field.label)}</label>`).join('')}
           </div>
-          <input class="package-input package-entry-full" id="pkg-selected-date" type="date" value="${activePackageDate || today}">
           ${purchaseControlMarkup}
-          <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('purchase')">결제 추가</button>
-          <input class="package-input" id="pkg-selected-bonus-qty" type="text" inputmode="decimal" maxlength="5" value="1" aria-label="보너스 수량">
-          <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('bonus')">보너스 추가</button>
-          <input class="package-input" id="pkg-selected-usage-qty" type="text" inputmode="decimal" maxlength="5" value="1" aria-label="사용 수량">
-          <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('usage')">사용 추가</button>
+          <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('purchase')">패키지 등록</button>
+          <div class="package-adjustment-row package-entry-full">
+            <label class="package-qty-field">
+              <input class="package-input" id="pkg-selected-bonus-qty" type="text" inputmode="decimal" maxlength="5" value="" placeholder="횟수 입력" aria-label="보너스 수량">
+              <span class="package-qty-unit">회</span>
+            </label>
+            <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('bonus')">보너스 추가</button>
+          </div>
         </div>
         <div class="package-calendar-head">
           <button class="package-entry-btn" type="button" onclick="changePackageMonth(-1)">이전</button>
-          <div class="package-calendar-title">${year}년 ${month}월</div>
+          <div class="package-calendar-title">${year}년 ${month}월 <span class="package-calendar-selected-date">${escapeHtml(activePackageDate)}</span></div>
           <button class="package-entry-btn" type="button" onclick="changePackageMonth(1)">다음</button>
+        </div>
+        <div class="package-day-detail">
+          <div class="package-history-title">선택일 상세</div>
+          <div class="package-history">${detailRows}</div>
         </div>
         <div class="package-calendar">
           ${['일','월','화','수','목','금','토'].map(day => `<div class="package-calendar-dow">${day}</div>`).join('')}
           ${dayCells.join('')}
         </div>
-        <div class="package-day-detail">
-          <div class="package-history-title">${escapeHtml(activePackageDate)} 상세</div>
-          <div class="package-history">${detailRows}</div>
-        </div>
+        <details class="package-usage-details">
+          <summary class="package-usage-summary">차감 등록</summary>
+          <div class="package-adjustment-row">
+            <label class="package-qty-field">
+              <input class="package-input" id="pkg-selected-usage-qty" type="text" inputmode="decimal" maxlength="5" value="" placeholder="횟수 입력" aria-label="차감 횟수">
+              <span class="package-qty-unit">회</span>
+            </label>
+            <button class="package-entry-btn" type="button" onclick="addSelectedPackageEntry('usage')">차감 등록</button>
+          </div>
+        </details>
       </div>`;
     disableAutocomplete(form);
   }
@@ -8431,12 +8538,20 @@
     const input = document.getElementById('pkg-selected-purchase-qty');
     if (input) input.value = qty;
     document.querySelectorAll('#pkg-purchase-toggle .package-toggle-btn').forEach(btn => {
-      btn.classList.toggle('is-active', Number(btn.textContent) === Number(qty));
+      btn.classList.toggle('is-active', Number(btn.dataset.qty) === Number(qty));
     });
   };
 
   window.addSelectedPackageEntry = function(type) {
     const key = document.querySelector('#pkg-selected-key input:checked')?.value || activePackageKey || PCREDIT_DISPLAY_FIELDS[0].key;
+    if (type === 'purchase' && !document.getElementById('pkg-selected-purchase-qty')?.value) {
+      showToast('6회 13회 중 패키지 횟수를 선택해 주세요');
+      return;
+    }
+    if ((type === 'bonus' || type === 'usage') && !document.getElementById(type === 'bonus' ? 'pkg-selected-bonus-qty' : 'pkg-selected-usage-qty')?.value.trim()) {
+      showToast(`${type === 'bonus' ? '보너스' : '차감'} 횟수를 입력해주세요`);
+      return;
+    }
     return addPackageEntry(key, type);
   };
 
@@ -8498,7 +8613,7 @@
     const dateEl = document.getElementById(dateId);
     const date = (dateEl && !dateEl.hidden ? dateEl.value : '')
       || document.getElementById(`pkg-${key}-purchase-date`)?.value
-      || document.getElementById('pkg-selected-date')?.value
+      || activePackageDate
       || toLocalDateInputValue();
     const selectedQtyId = type === 'purchase' ? 'pkg-selected-purchase-qty' : (type === 'bonus' ? 'pkg-selected-bonus-qty' : 'pkg-selected-usage-qty');
     // 결제·보너스·사용 모두 소수 허용 (예: 2.5)
@@ -8507,6 +8622,9 @@
     if (isIncrease) pkg.purchases = [...normalizePackageEntries(pkg.purchases, 'purchase'), { ...entry, kind: type === 'bonus' ? 'bonus' : 'purchase' }];
     else pkg.usages = [...normalizePackageEntries(pkg.usages, 'usage'), entry];
     packages[key] = pkg;
+    const reconciledUsage = type === 'purchase'
+      ? reconcilePackagePurchaseWithVisit(packages, gridId, key, date)
+      : 0;
     activePackageKey = key;
     activePackageDate = date;
     activePackageMonth = date.slice(0, 7);
@@ -8514,6 +8632,7 @@
     const saved = await persistPackageState(gridId);
     renderPackagePopup();
     if (!saved) showToast('패키지 저장 실패');
+    else if (reconciledUsage) showToast(`패키지 등록 · 당일 약침 ${reconciledUsage}회 차감 반영`);
   };
 
   window.removePackageEntry = async function(key, type, id) {
@@ -14909,60 +15028,10 @@
     return Number(bedMovePanelOpenFor) === Number(bedNo);
   }
 
-  function getPostTreatmentPackageBalanceMessage(bed, packages, balances) {
-    const treatments = Array.isArray(bed?.treatments) ? bed.treatments : [];
-    if (!treatments.length) return '';
-
-    const normalizedTreatments = treatments.map(treatment => String(treatment || '').replace(/\s+/g, ''));
-    const treatmentIds = getTreatmentIdsFromNames(treatments);
-    const hasChuna = normalizedTreatments.some(name => name.includes('추나') || name === '단추' || name === '복추');
-    const unitMapById = {
-      pharmacopuncture_1: hasChuna ? 0.5 : 1,
-      pharmacopuncture_2: hasChuna ? 1 : 2,
-      pharmacopuncture_3: hasChuna ? 1 : 2,
-      pharmacopuncture_4: hasChuna ? 3 : 6
-    };
-    const deduction = treatmentIds.reduce((sum, id) => sum + (unitMapById[id] || 0), 0);
-
-    const hasPackageRecord = (key) => {
-      const pkg = packages?.[key] || {};
-      return Number(pkg.openingQty || 0) > 0
-        || normalizePackageEntries(pkg.purchases, 'purchase').length > 0
-        || normalizePackageEntries(pkg.usages, 'usage').length > 0
-        || Number(balances[key] || 0) > 0;
-    };
-
-    const messages = [];
-    const pharmaField = PCREDIT_FIELDS.find(field => Array.isArray(field.mergeKeys));
-    const hasPharma = pharmaField && (pharmaField.mergeKeys || []).some(key => hasPackageRecord(key));
-    if (deduction && hasPharma) {
-      const currentBalance = getFieldBalance(pharmaField, packages);
-      const afterBalance = currentBalance - deduction;
-      messages.push(`${pharmaField.label} 현재 ${currentBalance}개, 오늘 사용 ${deduction}개, 오늘 치료 후 ${afterBalance}개 입니다`);
-    }
-
-    const specialDeductions = [
-      { key: 'p자하거', treatment: '약침자' },
-      { key: 'p라인', treatment: '약침l' }
-    ];
-    specialDeductions.forEach(({ key, treatment }) => {
-      const treatmentId = treatment.toLowerCase().includes('l') ? 'pharmacopuncture_L' : 'pharmacopuncture_ja';
-      const treatmentCount = countTreatmentId(treatmentIds, treatmentId);
-      if (!treatmentCount || !hasPackageRecord(key)) return;
-      const label = (PCREDIT_FIELDS.find(field => field.key === key) || {}).label || key;
-      const currentBalance = Number(balances[key] || 0);
-      const afterBalance = currentBalance - treatmentCount;
-      messages.push(`${label} 현재 ${currentBalance}개, 오늘 사용 ${treatmentCount}개, 오늘 치료 후 ${afterBalance}개 입니다`);
-    });
-
-    return messages.join(' / ');
-  }
-
   function renderBedPackageBalanceBox(bed) {
     const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
     const packages = getPackageStateFromPatient(patient || {});
     const balances = getPCreditsFromPackages(packages);
-    const postTreatmentMessage = getPostTreatmentPackageBalanceMessage(bed, packages, balances);
     return `
       <div class="bed-package-zone">
         <div class="bed-package-title">패키지 잔여량</div>
@@ -14973,7 +15042,6 @@
               <span class="bed-package-count">${escapeHtml(getFieldBalance(field, packages))}</span>
             </div>`).join('')}
         </div>
-        ${postTreatmentMessage ? `<div class="bed-package-after">${escapeHtml(postTreatmentMessage)}</div>` : ''}
       </div>`;
   }
 
