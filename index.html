@@ -3241,16 +3241,9 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
-  .package-section-title {
-    color: var(--text2);
-    font-size: 12px;
-    font-weight: 900;
-    margin-bottom: 7px;
-    text-align: left;
-  }
   .package-balance-tile {
-    background: rgba(16, 27, 45, 0.58);
-    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(57,169,245,0.10);
+    border: 1px solid rgba(57,169,245,0.28);
     border-radius: 10px;
     padding: 10px;
     text-align: center;
@@ -3261,8 +3254,8 @@
     font-weight: 900;
   }
   .package-balance-value {
-    color: rgb(74,222,128);
-    font-size: 22px;
+    color: rgb(96,195,255);
+    font-size: 18px;
     font-weight: 900;
     margin-top: 4px;
   }
@@ -3369,7 +3362,10 @@
   }
   .package-toggle-btn {
     display: grid;
-    gap: 2px;
+    grid-template-columns: auto auto;
+    column-gap: 4px;
+    row-gap: 2px;
+    justify-content: center;
     justify-items: center;
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -3386,16 +3382,23 @@
     line-height: 1.2;
   }
   .package-option-detail {
+    grid-column: 1 / -1;
     color: var(--text2);
     font-size: 11px;
     line-height: 1.2;
   }
+  .package-option-check { display: none; }
   .package-toggle-btn.is-active {
     border-color: rgb(74,222,128);
     background: rgba(74,222,128,0.16);
     color: rgb(74,222,128);
   }
+  .package-radio.is-active::before {
+    content: '✓';
+    margin-right: 4px;
+  }
   .package-toggle-btn.is-active .package-option-detail { color: rgb(74,222,128); }
+  .package-toggle-btn.is-active .package-option-check { display: inline; }
   .package-entry-btn {
     background: rgba(255,255,255,0.08);
     border: 1px solid var(--border);
@@ -8496,22 +8499,20 @@
     const activeField = PCREDIT_DISPLAY_FIELDS.find(field => field.key === activePackageKey) || PCREDIT_DISPLAY_FIELDS[0];
     const purchaseControlMarkup = Array.isArray(activeField.purchaseOptions)
       ? `<div class="package-toggle-group" id="pkg-purchase-toggle">
-            ${activeField.purchaseOptions.map(opt => `<button type="button" class="package-toggle-btn ${activeField.purchaseOptions.length === 1 ? 'is-active' : ''}" data-qty="${opt}" onclick="setPurchaseQtyOption(${opt})"><span class="package-option-title">${opt}회</span><span class="package-option-detail">${opt === 6 ? '5회 + 보너스 1회' : (opt === 13 ? '10회 + 보너스 3회' : `${opt}회`)}</span></button>`).join('')}
+            ${activeField.purchaseOptions.map(opt => `<button type="button" class="package-toggle-btn ${activeField.purchaseOptions.length === 1 ? 'is-active' : ''}" data-qty="${opt}" onclick="setPurchaseQtyOption(${opt})"><span class="package-option-check">✓</span><span class="package-option-title">${opt}회</span><span class="package-option-detail">${opt === 6 ? '5회 + 보너스 1회' : (opt === 13 ? '10회 + 보너스 3회' : `${opt}회`)}</span></button>`).join('')}
           </div>
           <input type="hidden" id="pkg-selected-purchase-qty" value="${activeField.purchaseOptions.length === 1 ? escapeHtml(activeField.purchaseOptions[0]) : ''}">`
       : `<input class="package-input" id="pkg-selected-purchase-qty" type="text" inputmode="decimal" maxlength="5" value="${escapeHtml(activeField.defaultPurchaseQty)}" aria-label="결제 수량" ${activeField.fixedPurchaseQty ? 'readonly' : ''}>`;
 
     form.innerHTML = `
-      <div class="package-section-title">현재 패키지 잔여 횟수</div>
       <div class="package-balance-strip">
         ${PCREDIT_DISPLAY_FIELDS.map(field => `
             <div class="package-balance-tile">
               <div class="package-balance-name">${escapeHtml(field.label)}</div>
-              <div class="package-balance-value">${escapeHtml(getFieldBalance(field, packages))}</div>
+              <div class="package-balance-value">잔여 ${escapeHtml(getFieldBalance(field, packages))}회</div>
             </div>`).join('')}
       </div>
       <div class="package-card">
-        <div class="package-section-title">등록할 패키지 종류</div>
         <div class="package-entry-grid">
           <div class="package-radio-group package-entry-full" id="pkg-selected-key" role="radiogroup" aria-label="패키지 종류">
             ${PCREDIT_DISPLAY_FIELDS.map(field => `<label class="package-radio ${field.key === activePackageKey ? 'is-active' : ''}"><input type="radio" name="pkg-selected-key" value="${escapeHtml(field.key)}" ${field.key === activePackageKey ? 'checked' : ''} onchange="selectPackageEntryType(this.value)">${escapeHtml(field.label)}</label>`).join('')}
