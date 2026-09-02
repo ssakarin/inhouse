@@ -9,14 +9,14 @@
 </head>
 <body>
   <div class="stage" id="stage" aria-live="polite">
-    <section class="slide slide--brand is-active" data-duration="8500" aria-label="경희홍익한의원 로고">
+    <section class="slide slide--brand is-active" data-duration="10000" aria-label="경희홍익한의원 로고">
       <div class="brand-glow"></div>
-      <img class="brand-logo" src="assets/clinic-logo.png" alt="경희홍익한의원">
+      <img class="brand-logo" src="assets/clinic-logo-wide.png" alt="경희홍익한의원">
       <div class="brand-line"></div>
       <p class="brand-since">SINCE 2007</p>
     </section>
 
-    <section class="slide slide--holiday" data-duration="12000" aria-label="9월 휴진 안내">
+    <section class="slide slide--holiday" data-duration="10000" aria-label="9월 휴진 안내">
       <div class="holiday-badge">9월 진료 일정 안내</div>
       <div class="holiday-rule"></div>
       <div class="holiday-date"><strong>9월 21일</strong><span>(월)</span><i>—</i><strong>26일</strong><span>(토)</span></div>
@@ -26,7 +26,44 @@
       <div class="holiday-mark" aria-hidden="true">休</div>
     </section>
 
-    <section class="slide slide--doctor slide--heo" data-duration="15000" aria-label="허진혁 대표원장 소개">
+    <section class="slide slide--schedule" data-duration="10000" aria-label="원장별 진료일 안내">
+      <p class="schedule-kicker">CLINIC SCHEDULE</p>
+      <h1>원장별 진료일 안내</h1>
+      <p class="schedule-intro">진료 예약 전 담당 원장님의 진료일을 확인해 주세요</p>
+      <div class="schedule-stack">
+        <article class="schedule-card schedule-card--heo">
+          <header><span>대표원장</span><strong>허진혁</strong><b>원장님</b></header>
+          <table aria-label="허진혁 대표원장 진료일">
+            <thead><tr><th></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr></thead>
+            <tbody>
+              <tr><th>오전</th><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td rowspan="2">●</td></tr>
+              <tr><th>오후</th><td>●</td><td>●</td><td>●</td><td class="off">—</td><td>●</td></tr>
+            </tbody>
+          </table>
+        </article>
+        <article class="schedule-card schedule-card--kim">
+          <header><span>진료원장</span><strong>김상준</strong><b>원장님</b></header>
+          <table aria-label="김상준 진료원장 진료일">
+            <thead><tr><th></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr></thead>
+            <tbody>
+              <tr><th>오전</th><td>●</td><td class="off">—</td><td>●</td><td>●</td><td>●</td><td rowspan="2">●</td></tr>
+              <tr><th>오후</th><td>●</td><td class="off">—</td><td>●</td><td>●</td><td>●</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </div>
+      <p class="schedule-note">토요일은 점심시간 없이 진료합니다</p>
+    </section>
+
+    <section class="slide slide--event slide--event-chuseok" data-duration="10000" aria-label="2026 추석 공진단 경옥고 녹용관절고 이벤트">
+      <img src="assets/event-chuseok-2026.jpg" alt="2026 추석 공진단 경옥고 녹용관절고 이벤트 안내">
+    </section>
+
+    <section class="slide slide--event slide--event-memory" data-duration="10000" aria-label="2026 총명공진단 수능 이벤트">
+      <img src="assets/event-memory-2026.jpg" alt="2026 총명공진단 수능 이벤트 안내">
+    </section>
+
+    <section class="slide slide--doctor slide--heo" data-duration="10000" aria-label="허진혁 대표원장 소개">
       <div class="doctor-copy">
         <p class="doctor-role">대표원장</p>
         <h1>허진혁 <span>한의사</span></h1>
@@ -44,7 +81,7 @@
       <div class="portrait-frame portrait-frame--heo" aria-hidden="true"><img src="assets/heo-upper-cutout.png" alt=""></div>
     </section>
 
-    <section class="slide slide--doctor slide--kim" data-duration="18000" aria-label="김상준 진료원장 소개">
+    <section class="slide slide--doctor slide--kim" data-duration="10000" aria-label="김상준 진료원장 소개">
       <div class="doctor-copy">
         <p class="doctor-role">진료원장</p>
         <h1>김상준 <span>한의사</span></h1>
@@ -61,7 +98,7 @@
           <li>대한한의학회 회원</li>
         </ul>
       </div>
-      <div class="portrait-frame portrait-frame--kim" aria-hidden="true"><img src="assets/kim-upper-cutout.png" alt=""></div>
+      <div class="portrait-frame portrait-frame--kim" aria-hidden="true"><img src="assets/kim-upper-cutout-v2.png" alt=""></div>
     </section>
 
     <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
