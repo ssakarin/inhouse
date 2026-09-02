@@ -66,23 +66,37 @@ html.fit .stage { transform-origin: 0 0; }
 
 /* 휴진 안내 */
 .slide--holiday {
-  padding: 760px 120px 220px;
+  padding: 410px 120px 160px;
   text-align: center;
   background:
     radial-gradient(circle at 92% 8%, rgba(246,168,0,.13), transparent 26%),
     radial-gradient(circle at 5% 94%, rgba(7,59,135,.11), transparent 28%),
     var(--paper);
 }
-.holiday-badge { display: inline-block; min-width: 1300px; padding: 62px 110px; border-radius: 999px; background: var(--navy-deep); color: #fff; font-size: 116px; font-weight: 850; letter-spacing: .04em; box-shadow: 0 28px 70px rgba(6,39,95,.18); }
-.holiday-rule { width: 1840px; height: 8px; margin: 150px auto 120px; background: var(--navy-deep); opacity: .9; }
-.holiday-rule--short { margin: 120px auto 140px; opacity: .78; }
+.holiday-badge { display: inline-block; min-width: 1240px; padding: 50px 100px; border-radius: 999px; background: var(--navy-deep); color: #fff; font-size: 102px; font-weight: 850; letter-spacing: .04em; box-shadow: 0 28px 70px rgba(6,39,95,.18); }
+.holiday-rule { width: 1840px; height: 7px; margin: 105px auto 88px; background: var(--navy-deep); opacity: .9; }
+.holiday-rule--short { margin: 88px auto 94px; opacity: .78; }
 .holiday-date { display: flex; align-items: baseline; justify-content: center; gap: 28px; color: var(--navy-deep); white-space: nowrap; }
-.holiday-date strong { font-size: 216px; font-weight: 900; letter-spacing: -.055em; }
-.holiday-date span { font-size: 106px; font-weight: 800; }
-.holiday-date i { margin: 0 16px; font-size: 136px; font-style: normal; font-weight: 500; }
-.slide--holiday h1 { margin: 0; color: var(--rose); font-size: 174px; line-height: 1.32; letter-spacing: -.045em; }
-.slide--holiday p { margin: 150px 0 0; color: var(--navy-deep); font-size: 92px; font-weight: 750; }
+.holiday-date strong { font-size: 190px; font-weight: 900; letter-spacing: -.055em; }
+.holiday-date span { font-size: 94px; font-weight: 800; }
+.holiday-date i { margin: 0 14px; font-size: 120px; font-style: normal; font-weight: 500; }
+.slide--holiday h1 { margin: 0; color: var(--rose); font-size: 150px; line-height: 1.28; letter-spacing: -.045em; }
+.slide--holiday > p { margin: 82px 0 0; color: var(--navy-deep); font-size: 76px; font-weight: 750; }
 .holiday-mark { position: absolute; right: -50px; bottom: 20px; color: rgba(162,29,49,.035); font-family: serif; font-size: 780px; font-weight: 900; transform: rotate(-7deg); }
+.holiday-calendar { position: relative; z-index: 1; width: 1840px; margin: 140px auto 0; padding: 66px 64px 70px; border: 4px solid rgba(7,59,135,.14); border-radius: 48px; background: rgba(255,255,255,.86); box-shadow: 0 28px 80px rgba(6,39,95,.08); }
+.calendar-title { display: flex; align-items: center; justify-content: space-between; padding: 0 24px 50px; }
+.calendar-title strong { color: var(--navy-deep); font-size: 86px; }
+.calendar-title span { display: flex; align-items: center; gap: 18px; color: var(--rose); font-size: 54px; font-weight: 800; }
+.calendar-title i { width: 34px; height: 34px; border-radius: 10px; background: #f8d9dc; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.calendar-weekdays { overflow: hidden; border-radius: 20px 20px 0 0; background: var(--navy-deep); }
+.calendar-weekdays b { padding: 28px 0; color: #fff; font-size: 54px; }
+.calendar-weekdays b.sun { color: #ffc2c7; }
+.calendar-days { border-left: 2px solid #e3ded8; border-top: 2px solid #e3ded8; }
+.calendar-days span { display: flex; position: relative; align-items: center; justify-content: center; min-height: 160px; border-right: 2px solid #e3ded8; border-bottom: 2px solid #e3ded8; color: var(--ink); font-size: 58px; font-weight: 750; }
+.calendar-days .sunday { color: #c85b68; background: #fff7f7; }
+.calendar-days .closed { flex-direction: column; gap: 2px; color: var(--rose); background: #f8d9dc; font-weight: 900; }
+.calendar-days .closed small { font-size: 30px; line-height: 1; }
 
 /* 진료일 안내 */
 .slide--schedule { padding: 430px 100px 210px; text-align: center; background: linear-gradient(160deg, #f9f5ef 0 52%, #edf4fb 100%); }
@@ -92,8 +106,6 @@ html.fit .stage { transform-origin: 0 0; }
 .schedule-stack { display: grid; gap: 140px; margin-top: 210px; }
 .schedule-card { overflow: hidden; border: 4px solid rgba(7,59,135,.13); border-radius: 52px; background: rgba(255,255,255,.88); box-shadow: 0 35px 90px rgba(6,39,95,.09); }
 .schedule-card header { display: flex; align-items: baseline; gap: 34px; padding: 90px 90px 70px; text-align: left; }
-.schedule-card header span { color: var(--orange); font-size: 62px; font-weight: 900; }
-.schedule-card--kim header span { color: var(--blue); }
 .schedule-card header strong { color: var(--ink); font-size: 138px; line-height: 1; letter-spacing: -.055em; }
 .schedule-card header b { color: #494d52; font-size: 64px; }
 .schedule-card table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 76px; }
@@ -118,8 +130,6 @@ html.fit .stage { transform-origin: 0 0; }
 .slide--doctor { background: linear-gradient(152deg, #fbf8f4 0 58%, #efe3dc 100%); }
 .slide--kim { background: linear-gradient(152deg, #f7f9fc 0 58%, #dce9f5 100%); }
 .doctor-copy { position: absolute; z-index: 2; top: 290px; left: 130px; right: 130px; }
-.doctor-role { margin: 0 0 36px; color: var(--orange); font-size: 78px; font-weight: 900; letter-spacing: .12em; }
-.slide--kim .doctor-role { color: var(--blue); }
 .doctor-copy h1 { margin: 0; color: #171717; font-size: 220px; line-height: 1; letter-spacing: -.07em; }
 .doctor-copy h1 span { margin-left: 24px; color: #4b4b4b; font-size: 78px; letter-spacing: -.02em; }
 .doctor-quote { margin: 68px 0 0; color: #7f4562; font-family: serif; font-size: 82px; font-weight: 650; }
