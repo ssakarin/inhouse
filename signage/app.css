@@ -110,7 +110,6 @@ html.fit .stage { transform-origin: 0 0; }
 .portrait-frame img { position: absolute; left: 0; top: 0; width: 100%; max-width: none; height: auto; object-fit: contain; object-position: center top; }
 .portrait-frame--heo img { transform: scale(1.02); transform-origin: center top; }
 .portrait-frame--kim img { transform: scale(1.04); transform-origin: center top; }
-.doctor-number { position: absolute; z-index: 2; right: 140px; bottom: 1420px; color: rgba(7,59,135,.12); font-size: 250px; font-weight: 900; line-height: 1; }
 
 .progress { position: absolute; z-index: 10; left: 122px; right: 122px; bottom: 96px; height: 8px; overflow: hidden; border-radius: 999px; }
 .progress span { display: block; width: 0; height: 100%; background: var(--orange); transform-origin: left; }
