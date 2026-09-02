@@ -4770,7 +4770,8 @@ function cacheStaticFile(safePath) {
   const entry = {
     body: fs.readFileSync(filePath),
     contentType: contentTypes[ext] || "application/octet-stream",
-    size: stat.size
+    size: stat.size,
+    mtimeMs: stat.mtimeMs
   };
   staticFileCache.set(safePath, entry);
   return entry;
@@ -4778,7 +4779,10 @@ function cacheStaticFile(safePath) {
 
 function getStaticFileEntry(safePath, filePath, stat) {
   if (stat.size <= STATIC_MEMORY_CACHE_MAX_BYTES) {
-    return staticFileCache.get(safePath) || cacheStaticFile(safePath);
+    const cached = staticFileCache.get(safePath);
+    // 파일이 수정되면 캐시를 버린다. (옛 본문 + 새 Content-Length 조합 방지)
+    if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) return cached;
+    return cacheStaticFile(safePath);
   }
   return null;
 }
@@ -4854,6 +4858,24 @@ function mergeShortLinkQuery(target, sourceSearchParams) {
   return `${redirectUrl.pathname}${redirectUrl.search}`;
 }
 
+// 대기실 사이니지(/signage/)는 로그인 예외로 둔다. 모니터 내장 브라우저는 리모컨
+// 로그인이 현실적으로 불가능하고 세션 쿠키도 유지되지 않는다. 환자 정보가 없는
+// 정적 파일만 두는 경로이며, 퍼센트 인코딩(%2e%2e)을 푼 뒤에도 실제 경로가
+// signage 밖으로 나가지 않는지까지 확인한다.
+const SIGNAGE_DIR = path.resolve(ROOT_DIR, "signage");
+
+function isPublicSignagePath(pathname) {
+  if (!pathname.startsWith("/signage/")) return false;
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return false;
+  }
+  const resolved = path.resolve(ROOT_DIR, "." + decoded);
+  return resolved.startsWith(SIGNAGE_DIR + path.sep);
+}
+
 const server = http.createServer(async (req, res) => {
   const startedAt = process.hrtime.bigint();
   const originalWriteHead = res.writeHead;
@@ -4902,7 +4924,9 @@ const server = http.createServer(async (req, res) => {
     // Authentication gate. Login/logout endpoints stay open so a user can sign
     // in; everything else requires a valid session.
     const isAuthEndpoint = pathname === "/api/login" || pathname === "/api/logout";
-    if (AUTH_ENABLED && !isAuthEndpoint && !isValidSession(getSid(req))) {
+    const isSignageRequest = (req.method === "GET" || req.method === "HEAD")
+      && isPublicSignagePath(pathname);
+    if (AUTH_ENABLED && !isAuthEndpoint && !isSignageRequest && !isValidSession(getSid(req))) {
       if (pathname.startsWith("/api/")) {
         jsonResponse(res, 401, { error: "Unauthorized" });
         return;

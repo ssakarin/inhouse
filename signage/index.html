@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f3ee">
+  <title>경희홍익한의원 사이니지</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="stage" id="stage" aria-live="polite">
+    <section class="slide slide--brand is-active" data-duration="8500" aria-label="경희홍익한의원 로고">
+      <div class="brand-glow"></div>
+      <img class="brand-logo" src="assets/clinic-logo.png" alt="경희홍익한의원">
+      <div class="brand-line"></div>
+      <p class="brand-since">SINCE 2007</p>
+    </section>
+
+    <section class="slide slide--holiday" data-duration="12000" aria-label="9월 휴진 안내">
+      <div class="holiday-badge">9월 진료 일정 안내</div>
+      <div class="holiday-rule"></div>
+      <div class="holiday-date"><strong>9월 21일</strong><span>(월)</span><i>—</i><strong>26일</strong><span>(토)</span></div>
+      <div class="holiday-rule holiday-rule--short"></div>
+      <h1>여름휴가와 추석연휴로<br>잠시 쉬어갑니다</h1>
+      <p>건강하고 풍성한 한가위 보내세요</p>
+      <div class="holiday-mark" aria-hidden="true">休</div>
+    </section>
+
+    <section class="slide slide--doctor slide--heo" data-duration="15000" aria-label="허진혁 대표원장 소개">
+      <div class="doctor-copy">
+        <p class="doctor-role">대표원장</p>
+        <h1>허진혁 <span>한의사</span></h1>
+        <p class="doctor-quote">“오늘보다 나은 내일을 만듭니다.”</p>
+        <div class="doctor-divider"></div>
+        <ul class="career-list">
+          <li>경희대학교 한의과대학 졸업</li>
+          <li>미국 근골격계 초음파 자격증 <b>RMSK</b></li>
+          <li>체형사상학회 회원</li>
+          <li>대한침도의학회 회원</li>
+          <li>대한한의영상학회 회원</li>
+        </ul>
+        <div class="focus-row"><span>사상체질</span><span>면역개선</span><span>수술 후유증</span><span>디스크·협착증</span></div>
+      </div>
+      <div class="portrait-frame portrait-frame--heo" aria-hidden="true"><img src="assets/heo-upper-cutout.png" alt=""></div>
+      <div class="doctor-number">01</div>
+    </section>
+
+    <section class="slide slide--doctor slide--kim" data-duration="18000" aria-label="김상준 진료원장 소개">
+      <div class="doctor-copy">
+        <p class="doctor-role">진료원장</p>
+        <h1>김상준 <span>한의사</span></h1>
+        <p class="doctor-quote">정확한 진단과 섬세한 치료를 전합니다.</p>
+        <div class="doctor-divider"></div>
+        <ul class="career-list career-list--dense">
+          <li>동의대학교 한의과대학 졸업</li>
+          <li>척추신경추나의학회 정회원</li>
+          <li>척추신경추나의학회 29회 정규워크숍 수료</li>
+          <li>29회 정규워크숍 우수수료자 <em>전북지회 1등</em></li>
+          <li>척추신경추나의학회 심화과정 M3 수료</li>
+          <li>비만학회 정회원 · 전문가과정 수료</li>
+          <li><b>RMSK</b> 미국 근골격계 초음파 자격증</li>
+          <li>대한한의학회 회원</li>
+        </ul>
+      </div>
+      <div class="portrait-frame portrait-frame--kim" aria-hidden="true"><img src="assets/kim-upper-cutout.png" alt=""></div>
+      <div class="doctor-number">02</div>
+    </section>
+
+    <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
