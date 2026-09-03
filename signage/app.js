@@ -8,7 +8,6 @@
   var timer = 0;
 
   function fitStage() {
-    if (new URLSearchParams(window.location.search).get("fit") !== "1") return;
     document.documentElement.classList.add("fit");
     var scale = Math.min(window.innerWidth / 2160, window.innerHeight / 3840);
     stage.style.transform = "scale(" + scale + ")";
