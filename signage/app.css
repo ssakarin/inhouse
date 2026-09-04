@@ -120,16 +120,14 @@ html.fit .stage { transform-origin: 0 0; }
 .schedule-note { margin: 135px 0 0; color: var(--navy); font-size: 82px; font-weight: 800; }
 
 /* 주차장 안내 */
-.slide--parking { padding: 330px 120px 180px; text-align: center; background: linear-gradient(165deg, #f8f4ef 0 58%, #eaf2f8 100%); }
+.slide--parking { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 180px 120px 220px; text-align: center; background: linear-gradient(165deg, #f8f4ef 0 58%, #eaf2f8 100%); }
 .parking-kicker { margin: 0; color: var(--orange); font-size: 60px; font-weight: 900; letter-spacing: .24em; }
 .slide--parking h1 { margin: 30px 0 0; color: var(--navy-deep); font-size: 186px; line-height: 1.1; letter-spacing: -.055em; }
 .parking-period { display: inline-block; margin-top: 70px; padding: 34px 72px; border-radius: 999px; background: var(--rose); color: #fff; font-size: 86px; font-weight: 900; }
 .parking-alert { margin: 65px 0 0; color: var(--rose); font-size: 82px; font-weight: 850; }
-.parking-map { width: 1840px; height: 1070px; margin: 110px auto 0; overflow: hidden; border: 5px solid rgba(7,59,135,.16); border-radius: 48px; background: #fff; box-shadow: 0 35px 100px rgba(6,39,95,.12); }
+.parking-apology { margin: 34px 0 0; color: #52606c; font-size: 68px; font-weight: 750; }
+.parking-map { flex: none; width: 1840px; height: 1400px; margin: 120px auto 0; overflow: hidden; border: 5px solid rgba(7,59,135,.16); border-radius: 48px; background: #fff; box-shadow: 0 35px 100px rgba(6,39,95,.12); }
 .parking-map img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.parking-notes { display: grid; gap: 42px; width: 1840px; margin: 105px auto 0; }
-.parking-notes p { margin: 0; padding: 48px 64px; border-radius: 34px; background: rgba(255,255,255,.86); color: #3b4651; font-size: 57px; font-weight: 650; line-height: 1.5; box-shadow: 0 20px 60px rgba(6,39,95,.06); }
-.parking-notes strong { color: var(--navy-deep); font-weight: 900; }
 
 /* 이벤트 포스터 */
 .slide--event { display: flex; align-items: center; justify-content: center; }
@@ -181,7 +179,7 @@ html.fit .stage { transform-origin: 0 0; }
 .slide.is-active .brand-line { animation: line-grow .9s .45s var(--ease) both; }
 
 .slide.is-active.slide--event img { animation: poster-drift 10s ease-out both; transform-origin: center center; }
-.slide.is-active.slide--event-chuseok img { animation-name: poster-drift-up; }
+.slide.is-active.slide--event-chuseok img { animation: none; transform: none; }
 
 .slide.is-active .holiday-rule,
 .slide.is-active .holiday-date,
@@ -195,8 +193,8 @@ html.fit .stage { transform-origin: 0 0; }
 .slide.is-active.slide--parking h1,
 .slide.is-active .parking-period,
 .slide.is-active .parking-alert,
+.slide.is-active .parking-apology,
 .slide.is-active .parking-map,
-.slide.is-active .parking-notes p,
 .slide.is-active .career-list li,
 .slide.is-active .focus-row span { animation: reveal .75s var(--ease) both; }
 
@@ -217,9 +215,8 @@ html.fit .stage { transform-origin: 0 0; }
 .slide.is-active.slide--parking h1 { animation-delay: .12s; }
 .slide.is-active .parking-period { animation-delay: .26s; }
 .slide.is-active .parking-alert { animation-delay: .4s; }
-.slide.is-active .parking-map { animation-delay: .56s; }
-.slide.is-active .parking-notes p:nth-child(1) { animation-delay: .72s; }
-.slide.is-active .parking-notes p:nth-child(2) { animation-delay: .88s; }
+.slide.is-active .parking-apology { animation-delay: .5s; }
+.slide.is-active .parking-map { animation-delay: .64s; }
 
 .slide.is-active .career-list li:nth-child(1) { animation-delay: .2s; }
 .slide.is-active .career-list li:nth-child(2) { animation-delay: .28s; }
@@ -238,7 +235,6 @@ html.fit .stage { transform-origin: 0 0; }
 @keyframes portrait-in { from { opacity: 0; transform: translateY(70px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes reveal { from { opacity: 0; transform: translateY(38px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes poster-drift { from { transform: scale(1); } to { transform: scale(1.035) translateY(-10px); } }
-@keyframes poster-drift-up { from { transform: scale(1); } to { transform: scale(1.03) translateY(-18px); } }
 @keyframes glow-drift { 0% { opacity: .55; transform: scale(.92); } 55% { opacity: 1; transform: scale(1.08); } 100% { opacity: .72; transform: scale(1.02); } }
 @keyframes line-grow { from { opacity: 0; transform: scaleX(.15); } to { opacity: 1; transform: scaleX(1); } }
 @keyframes soft-pulse { 0% { transform: scale(1); } 45% { transform: scale(1.035); } 100% { transform: scale(1); } }
