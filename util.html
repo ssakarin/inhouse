@@ -172,7 +172,7 @@
       <input class="search-input" id="dailyMetricsDateInput" type="date" aria-label="반영할 진료일">
       <button class="good" id="dailyMetricsSyncBtn" type="button">선택 날짜 반영</button>
     </div>
-    <div class="note">구글시트 ‘경희홍익한의원_지표관리양식_v26.0’의 선택 날짜 합계행과 비급여 상세행을 반영합니다. 비급여는 서버의 실제 결제금액을 AG 항목별로 분류해 AK 최초결제에 넣고, 재결제는 0으로 반영합니다. 재진 환자수와 65세 이상 비율은 시트 수식으로 자동 계산됩니다.</div>
+    <div class="note">구글시트 ‘경희홍익한의원_지표관리양식_v26.0’의 선택 날짜 합계행과 비급여 상세행을 반영합니다. 예약 환자수(Q), 정상 이행(S), 노쇼(T)는 예약 기록과 실제 내원 기록으로 계산합니다. 비급여는 서버의 실제 결제금액을 AG 항목별로 분류해 AK 최초결제에 넣고, 재결제는 0으로 반영합니다. 재진 환자수와 65세 이상 비율은 시트 수식으로 자동 계산됩니다.</div>
     <div class="status" id="dailyMetricsSyncStatus">대기 중</div>
     <div class="sync-result" id="dailyMetricsSyncResult"></div>
   </div>
@@ -541,6 +541,9 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
           <tr><th>G 재초진 환자수</th><td>${Number(metrics.reinitialPatientCount || 0).toLocaleString()}명</td></tr>
           <tr><th>M 65세 이상 환자수</th><td>${Number(metrics.age65PatientCount || 0).toLocaleString()}명</td></tr>
           <tr><th>N 65세 이상 비율</th><td>시트에서 자동 계산</td></tr>
+          <tr><th>Q 예약 환자수</th><td>${Number(metrics.appointmentCount || 0).toLocaleString()}명</td></tr>
+          <tr><th>S 예약 정상 이행</th><td>${Number(metrics.appointmentAttendedCount || 0).toLocaleString()}명</td></tr>
+          <tr><th>T 예약 노쇼</th><td>${Number(metrics.appointmentNoShowCount || 0).toLocaleString()}명</td></tr>
           <tr><th>AA 본인부담금</th><td>${Number(metrics.insuredCopay || 0).toLocaleString()}원</td></tr>
           <tr><th>AB 공단청구금</th><td>${Number(metrics.claimAmount || 0).toLocaleString()}원</td></tr>
           <tr><th>AC 비급여 매출</th><td>${Number(metrics.noncoveredAmount || 0).toLocaleString()}원</td></tr>
@@ -558,7 +561,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       setDailyMetricsSyncStatus("반영할 날짜를 선택해 주세요.", "error");
       return;
     }
-    if (!confirm(`${date} 서버 집계값을 원본 구글시트에 반영할까요?\n\n수정 셀: D, E, G, M, AA~AD, AK 비급여 상세, AP 재결제(0)\n비급여는 모두 최초결제로 분류합니다.\nF 재진 환자수와 N 65세 이상 비율은 시트에서 자동 계산됩니다.`)) return;
+    if (!confirm(`${date} 서버 집계값을 원본 구글시트에 반영할까요?\n\n수정 셀: D, E, G, M, Q, S, T, AA~AD, AK 비급여 상세, AP 재결제(0)\nQ/S/T는 예약 기록과 실제 내원 기록으로 계산하며, U/V는 수정하지 않습니다.\n비급여는 모두 최초결제로 분류합니다.\nF 재진 환자수와 N 65세 이상 비율은 시트에서 자동 계산됩니다.`)) return;
     dailyMetricsSyncBtn.disabled = true;
     dailyMetricsDateInput.disabled = true;
     dailyMetricsSyncResult.innerHTML = "";

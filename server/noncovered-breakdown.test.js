@@ -40,6 +40,18 @@ test("maps configured sheet labels to canonical categories", () => {
   assert.equal(sheetCategoryKey("기타"), CATEGORY_KEYS.OTHER);
 });
 
+test("recognizes the current deer-herbal prices from the clinic price list", () => {
+  const date = "2026-09-04";
+  const patient = patientWithVisit(date, { memo2: "한약 상담" });
+  for (const amount of [650000, 850000, 1150000, 1250000, 1620000, 1700000, 2550000]) {
+    assert.equal(
+      classifyNoncoveredVisit({ patient, visit: { noncovered_amount: amount }, date }),
+      CATEGORY_KEYS.DEER_HERBAL,
+      `${amount}원 should be classified as deer herbal medicine`
+    );
+  }
+});
+
 test("keeps every noncovered won in the detailed total", () => {
   const date = "2026-08-21";
   const patients = {

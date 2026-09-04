@@ -3461,6 +3461,10 @@ async function runDailyMetricsGoogleSheetSync(date) {
   if (!aggregateRow) throw new Error(`${targetDate}의 일간 합계행(AQ=Y)을 찾지 못했습니다.`);
 
   const source = statements.getDailyGoogleSheetMetrics.get(targetDate) || {};
+  const appointmentSummary = listUpcomingAppointments(targetDate, targetDate)
+    .find(item => item.date === targetDate) || { count: 0, visitedCount: 0 };
+  const appointmentCount = Number(appointmentSummary.count || 0);
+  const appointmentAttendedCount = Number(appointmentSummary.visitedCount || 0);
   const age65PatientCount = listPatients().filter(patient =>
     Number(patient.age) >= 65 && visitDatesOf(patient).includes(targetDate)
   ).length;
@@ -3469,6 +3473,9 @@ async function runDailyMetricsGoogleSheetSync(date) {
     newPatientCount: Number(source.new_patient_count || 0),
     reinitialPatientCount: Number(source.reinitial_patient_count || 0),
     age65PatientCount,
+    appointmentCount,
+    appointmentAttendedCount,
+    appointmentNoShowCount: Math.max(0, appointmentCount - appointmentAttendedCount),
     insuredCopay: Number(source.insured_copay || 0),
     claimAmount: Number(source.claim_amount || 0),
     noncoveredAmount: Number(source.noncovered_amount || 0),
@@ -3524,6 +3531,8 @@ async function runDailyMetricsGoogleSheetSync(date) {
     { range: `E${rowNumber}`, values: [[metrics.newPatientCount]] },
     { range: `G${rowNumber}`, values: [[metrics.reinitialPatientCount]] },
     { range: `M${rowNumber}`, values: [[metrics.age65PatientCount]] },
+    { range: `Q${rowNumber}`, values: [[metrics.appointmentCount]] },
+    { range: `S${rowNumber}:T${rowNumber}`, values: [[metrics.appointmentAttendedCount, metrics.appointmentNoShowCount]] },
     { range: `AA${rowNumber}:AD${rowNumber}`, values: [[metrics.insuredCopay, metrics.claimAmount, metrics.noncoveredAmount, metrics.autoAmount]] },
     ...firstPaymentDetailRows.map(item => ({
       range: `AK${item.rowNumber}`,
@@ -3553,7 +3562,7 @@ async function runDailyMetricsGoogleSheetSync(date) {
     worksheetTitle: sheet.title,
     worksheetId: sheet.sheetId,
     rowNumber,
-    updatedCells: 8 + firstPaymentDetailRows.length + repeatPaymentRows.length,
+    updatedCells: 11 + firstPaymentDetailRows.length + repeatPaymentRows.length,
     metrics,
     noncoveredBreakdown: sheetBreakdown,
     noncoveredVisitCount: noncoveredBreakdown.visitCount
