@@ -3,7 +3,6 @@
 
   var stage = document.getElementById("stage");
   var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
-  var progress = document.getElementById("progressBar");
   var current = 0;
   var timer = 0;
 
@@ -14,13 +13,6 @@
     stage.style.marginLeft = Math.max(0, (window.innerWidth - 2160 * scale) / 2) + "px";
   }
 
-  function startProgress(duration) {
-    progress.classList.remove("is-running");
-    progress.style.animationDuration = duration + "ms";
-    void progress.offsetWidth;
-    progress.classList.add("is-running");
-  }
-
   function show(index) {
     window.clearTimeout(timer);
     current = (index + slides.length) % slides.length;
@@ -29,7 +21,6 @@
       slide.setAttribute("aria-hidden", slideIndex === current ? "false" : "true");
     });
     var duration = Number(slides[current].getAttribute("data-duration")) || 12000;
-    startProgress(duration);
     timer = window.setTimeout(function () { show(current + 1); }, duration);
   }
 
