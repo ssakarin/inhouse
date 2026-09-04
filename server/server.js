@@ -8,6 +8,7 @@ const { encrypt, decrypt, isEncrypted, KEY_PATH } = require("./crypto-util");
 const {
   CATEGORY_KEYS: NONCOVERED_CATEGORY_KEYS,
   buildNoncoveredBreakdown,
+  classifyNoncoveredVisit,
   sheetCategoryKey
 } = require("./noncovered-breakdown");
 
@@ -3481,8 +3482,9 @@ async function runDailyMetricsGoogleSheetSync(date) {
     noncoveredAmount: Number(source.noncovered_amount || 0),
     autoAmount: Number(source.auto_amount || 0)
   };
+  const dailyNoncoveredVisits = statements.listDailyNoncoveredVisits.all(targetDate);
   const noncoveredBreakdown = buildNoncoveredBreakdown(
-    statements.listDailyNoncoveredVisits.all(targetDate),
+    dailyNoncoveredVisits,
     patientId => getPatientById(patientId),
     targetDate
   );
@@ -3524,6 +3526,30 @@ async function runDailyMetricsGoogleSheetSync(date) {
     });
   });
   sheetBreakdown.sort((a, b) => a.rowNumber - b.rowNumber);
+  const sheetCategoryLabels = new Map(sheetBreakdown.map(item => [item.category, item.label]));
+  const noncoveredDetails = dailyNoncoveredVisits.map(visit => {
+    const patient = getPatientById(visit.patient_id) || {};
+    const visitEntry = patient.visitHistory?.[targetDate] || {};
+    const category = classifyNoncoveredVisit({ patient, visit, date: targetDate });
+    const treatments = Array.isArray(visitEntry.treatments)
+      ? visitEntry.treatments.map(value => String(value || "").trim()).filter(Boolean)
+      : [];
+    const notes = [...new Set([
+      ...treatments,
+      visitEntry.memo2,
+      visitEntry.chiefComplaint,
+      visit.chief_complaint
+    ].map(value => String(value || "").trim()).filter(Boolean))];
+    return {
+      patientId: patient.patientId || visit.patient_id || "",
+      chartNo: patient.chartNo || "",
+      name: patient.name || "환자",
+      category,
+      categoryLabel: sheetCategoryLabels.get(category) || "기타",
+      amount: Number(visit.noncovered_amount || 0),
+      reference: notes.join(" · ")
+    };
+  }).sort((a, b) => b.amount - a.amount || String(a.name).localeCompare(String(b.name), "ko"));
 
   const rowNumber = aggregateRow.rowNumber;
   const updates = [
@@ -3565,6 +3591,7 @@ async function runDailyMetricsGoogleSheetSync(date) {
     updatedCells: 11 + firstPaymentDetailRows.length + repeatPaymentRows.length,
     metrics,
     noncoveredBreakdown: sheetBreakdown,
+    noncoveredDetails,
     noncoveredVisitCount: noncoveredBreakdown.visitCount
   };
 }

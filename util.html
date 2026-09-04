@@ -119,6 +119,12 @@
   .sheet-link { color: var(--accent); font-weight: 900; word-break: break-all; }
   .sync-result { margin-top: 12px; overflow-x: auto; }
   .sync-result table { min-width: 680px; }
+  .sync-detail-toggle { margin-top: 12px; color: var(--accent); }
+  .sync-detail-panel { margin-top: 10px; max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .sync-detail-panel[hidden] { display: none; }
+  .sync-detail-panel table { min-width: 760px; }
+  .sync-detail-panel td.amount { color: var(--gold); font-weight: 900; white-space: nowrap; }
+  .sync-detail-panel td.reference { color: var(--muted); word-break: break-word; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
   th { color: var(--muted); font-size: 11px; font-weight: 900; }
@@ -528,6 +534,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
   function renderDailyMetricsSyncResult(data) {
     const metrics = data.metrics || {};
     const noncoveredRows = Array.isArray(data.noncoveredBreakdown) ? data.noncoveredBreakdown : [];
+    const noncoveredDetails = Array.isArray(data.noncoveredDetails) ? data.noncoveredDetails : [];
     const noncoveredHtml = noncoveredRows.length
       ? noncoveredRows.map(item => `<tr><th>AK ${escapeHtml(item.label || "기타")}</th><td>${Number(item.amount || 0).toLocaleString()}원 (${Number(item.visitCount || 0).toLocaleString()}건)</td></tr>`).join("")
       : "";
@@ -552,7 +559,31 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
           <tr><th>AP 재결제</th><td>모든 비급여를 최초결제로 분류하여 0원 반영</td></tr>
           <tr><th>원본 시트</th><td><a class="sheet-link" href="${escapeHtml(data.sourceSpreadsheetUrl || "#")}" target="_blank" rel="noopener">열기</a></td></tr>
         </tbody>
-      </table>`;
+      </table>
+      <button class="sync-detail-toggle" id="dailyNoncoveredDetailToggle" type="button">환자별 비급여 내역 보기 (${noncoveredDetails.length.toLocaleString()}명)</button>
+      <div class="sync-detail-panel" id="dailyNoncoveredDetailPanel" hidden>
+        ${noncoveredDetails.length ? `
+          <table>
+            <thead><tr><th>환자명</th><th>차트번호</th><th>분류</th><th>비급여 금액</th><th>판정 참고정보</th></tr></thead>
+            <tbody>${noncoveredDetails.map(item => `
+              <tr>
+                <td>${escapeHtml(item.name || "환자")}</td>
+                <td>${escapeHtml(item.chartNo || "-")}</td>
+                <td>${escapeHtml(item.categoryLabel || "기타")}</td>
+                <td class="amount">${Number(item.amount || 0).toLocaleString()}원</td>
+                <td class="reference">${escapeHtml(item.reference || "-")}</td>
+              </tr>`).join("")}</tbody>
+          </table>` : `<div class="note" style="padding:12px;margin:0">해당 날짜의 비급여 환자가 없습니다.</div>`}
+      </div>`;
+    const toggle = document.getElementById("dailyNoncoveredDetailToggle");
+    const panel = document.getElementById("dailyNoncoveredDetailPanel");
+    toggle?.addEventListener("click", () => {
+      const willOpen = panel.hasAttribute("hidden");
+      panel.toggleAttribute("hidden", !willOpen);
+      toggle.textContent = willOpen
+        ? `환자별 비급여 내역 닫기 (${noncoveredDetails.length.toLocaleString()}명)`
+        : `환자별 비급여 내역 보기 (${noncoveredDetails.length.toLocaleString()}명)`;
+    });
   }
 
   async function runDailyMetricsGoogleSheetSync() {
