@@ -127,6 +127,72 @@ html.fit .stage { transform-origin: 0 0; }
 .slide--event-lindiet { background: #fff; }
 .slide--event-lindiet img { object-fit: cover; }
 
+/* 맞춤 한약 처방 안내 */
+.slide--herbal-list {
+  display: grid;
+  place-items: center;
+  padding: 120px;
+  background: #e8e2da;
+}
+.herbal-board {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 190px 120px 150px;
+  border: 34px solid #e7e3dc;
+  outline: 7px solid #9ea3a2;
+  outline-offset: -34px;
+  border-radius: 22px;
+  color: #f5f3ed;
+  text-align: center;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,.035) 0 2px, transparent 3px),
+    radial-gradient(circle at 76% 66%, rgba(255,255,255,.025) 0 2px, transparent 3px),
+    linear-gradient(145deg, #222827, #151918 72%);
+  background-size: 27px 31px, 35px 39px, auto;
+  box-shadow: inset 0 0 110px rgba(0,0,0,.38), 0 30px 90px rgba(0,0,0,.16);
+}
+.herbal-kicker { margin: 0; color: #c88f98; font-size: 44px; font-weight: 800; letter-spacing: .24em; }
+.herbal-board h1 {
+  margin: 34px 0 0;
+  color: #fffdf7;
+  font-family: "나눔손글씨 펜", "Nanum Pen Script", "Pretendard", "Malgun Gothic", sans-serif;
+  font-size: 150px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-shadow: 1px 1px 0 rgba(255,255,255,.36), -1px 0 0 rgba(255,255,255,.22);
+}
+.herbal-intro { margin: 38px 0 0; color: #bfc9c4; font-size: 52px; font-weight: 650; }
+.herbal-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; margin-top: 118px; text-align: left; }
+.herbal-items { display: grid; gap: 22px; margin: 0; padding: 0; list-style: none; }
+.herbal-items li {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  align-items: center;
+  min-height: 205px;
+  padding: 25px 34px;
+  border: 3px solid rgba(255,255,255,.09);
+  border-radius: 24px;
+  background: rgba(255,255,255,.025);
+  font-family: "나눔손글씨 펜", "Nanum Pen Script", "Pretendard", "Malgun Gothic", sans-serif;
+}
+.herbal-items b { color: #d9e3df; font-size: 65px; font-weight: 600; letter-spacing: .03em; }
+.herbal-items span { color: #fffdf7; font-size: 72px; font-weight: 650; line-height: 1.15; letter-spacing: -.025em; }
+.herbal-cleaning {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 105px;
+  margin: 0;
+  color: #d38b94;
+  font-family: "나눔손글씨 펜", "Nanum Pen Script", "Pretendard", "Malgun Gothic", sans-serif;
+  font-size: 70px;
+  font-weight: 750;
+  letter-spacing: .05em;
+}
+.herbal-cleaning i { margin: 0 30px; font-style: normal; }
+
 /* 원장 소개 공통 */
 .slide--doctor { background: linear-gradient(152deg, #fbf8f4 0 58%, #efe3dc 100%); }
 .slide--kim { background: linear-gradient(152deg, #f7f9fc 0 58%, #dce9f5 100%); }
@@ -155,6 +221,7 @@ html.fit .stage { transform-origin: 0 0; }
 .slide.is-active .brand-logo,
 .slide.is-active .holiday-badge,
 .slide.is-active .schedule-kicker,
+.slide.is-active .herbal-kicker,
 .slide.is-active .doctor-copy { animation: rise .9s var(--ease) both; }
 .slide.is-active .portrait-frame { animation: portrait-in 1.15s var(--ease) both; }
 
@@ -179,6 +246,10 @@ html.fit .stage { transform-origin: 0 0; }
 .slide.is-active .parking-alert,
 .slide.is-active .parking-apology,
 .slide.is-active .parking-map,
+.slide.is-active .herbal-board h1,
+.slide.is-active .herbal-intro,
+.slide.is-active .herbal-items li,
+.slide.is-active .herbal-cleaning,
 .slide.is-active .career-list li,
 .slide.is-active .focus-row span { animation: reveal .75s var(--ease) both; }
 
@@ -201,6 +272,20 @@ html.fit .stage { transform-origin: 0 0; }
 .slide.is-active .parking-alert { animation-delay: .4s; }
 .slide.is-active .parking-apology { animation-delay: .5s; }
 .slide.is-active .parking-map { animation-delay: .64s; }
+
+.slide.is-active .herbal-board h1 { animation-delay: .1s; }
+.slide.is-active .herbal-intro { animation-delay: .2s; }
+.slide.is-active .herbal-items li:nth-child(1) { animation-delay: .25s; }
+.slide.is-active .herbal-items li:nth-child(2) { animation-delay: .3s; }
+.slide.is-active .herbal-items li:nth-child(3) { animation-delay: .35s; }
+.slide.is-active .herbal-items li:nth-child(4) { animation-delay: .4s; }
+.slide.is-active .herbal-items li:nth-child(5) { animation-delay: .45s; }
+.slide.is-active .herbal-items li:nth-child(6) { animation-delay: .5s; }
+.slide.is-active .herbal-items li:nth-child(7) { animation-delay: .55s; }
+.slide.is-active .herbal-items li:nth-child(8) { animation-delay: .6s; }
+.slide.is-active .herbal-items li:nth-child(9) { animation-delay: .65s; }
+.slide.is-active .herbal-items li:nth-child(10) { animation-delay: .7s; }
+.slide.is-active .herbal-cleaning { animation-delay: .78s; }
 
 .slide.is-active .career-list li:nth-child(1) { animation-delay: .2s; }
 .slide.is-active .career-list li:nth-child(2) { animation-delay: .28s; }
