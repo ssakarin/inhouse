@@ -397,6 +397,7 @@ const statements = {
   `),
   listDailyIndicatorVisits: db.prepare(`
     SELECT
+      pv.rowid AS visit_order,
       pv.patient_id,
       pv.visit_date,
       pv.chief_complaint,
@@ -3538,7 +3539,17 @@ async function runDailyMetricsGoogleSheetSync(date) {
   });
   sheetBreakdown.sort((a, b) => a.rowNumber - b.rowNumber);
   const sheetCategoryLabels = new Map(sheetBreakdown.map(item => [item.category, item.label]));
-  const dailyIndicatorVisits = statements.listDailyIndicatorVisits.all(targetDate);
+  const dailyIndicatorVisitMap = new Map(
+    statements.listDailyIndicatorVisits.all(targetDate).map(visit => [visit.patient_id, visit])
+  );
+  // 비급여 조회 결과를 다시 합쳐 보험·추나 조건과 무관하게 누락되지 않도록 한다.
+  dailyNoncoveredVisits.forEach(visit => {
+    const existing = dailyIndicatorVisitMap.get(visit.patient_id);
+    dailyIndicatorVisitMap.set(visit.patient_id, existing
+      ? { ...existing, noncovered_amount: visit.noncovered_amount }
+      : visit);
+  });
+  const dailyIndicatorVisits = [...dailyIndicatorVisitMap.values()];
   const noncoveredDetails = dailyIndicatorVisits.map(visit => {
     const patient = getPatientById(visit.patient_id) || {};
     const visitEntry = patient.visitHistory?.[targetDate] || {};
@@ -3573,10 +3584,17 @@ async function runDailyMetricsGoogleSheetSync(date) {
       amount: Number(visit.noncovered_amount || 0),
       insuranceLabel: [isAutoInsurance ? "자동차보험" : "", insuranceClass].filter(Boolean).join(" · "),
       chunaLabel: chunaTypes.join(" · "),
+      visitTimestamp: Number(visitEntry.timestamp || 0),
+      visitOrder: Number(visit.visit_order || 0),
       reference: notes.join(" · ")
     };
   }).filter(item => item.amount > 0 || item.insuranceLabel || item.chunaLabel)
-    .sort((a, b) => b.amount - a.amount || String(a.name).localeCompare(String(b.name), "ko"));
+    .sort((a, b) => {
+      if (a.visitTimestamp && b.visitTimestamp) return a.visitTimestamp - b.visitTimestamp;
+      if (a.visitTimestamp) return -1;
+      if (b.visitTimestamp) return 1;
+      return a.visitOrder - b.visitOrder || String(a.name).localeCompare(String(b.name), "ko");
+    });
 
   const rowNumber = aggregateRow.rowNumber;
   const updates = [

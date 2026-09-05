@@ -125,6 +125,10 @@
   .sync-detail-panel table { min-width: 760px; }
   .sync-detail-panel td.amount { color: var(--gold); font-weight: 900; white-space: nowrap; }
   .sync-detail-panel td.reference { color: var(--muted); word-break: break-word; }
+  .sync-detail-section { padding: 14px; }
+  .sync-detail-section + .sync-detail-section { border-top: 1px solid var(--line); }
+  .sync-detail-section h3 { margin: 0 0 9px; font-size: 15px; color: var(--accent); }
+  .sync-detail-empty { color: var(--muted); font-size: 13px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
   th { color: var(--muted); font-size: 11px; font-weight: 900; }
@@ -538,6 +542,39 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
     const noncoveredHtml = noncoveredRows.length
       ? noncoveredRows.map(item => `<tr><th>AK ${escapeHtml(item.label || "기타")}</th><td>${Number(item.amount || 0).toLocaleString()}원 (${Number(item.visitCount || 0).toLocaleString()}건)</td></tr>`).join("")
       : "";
+    const detailGroups = {
+      noncovered: noncoveredDetails.filter(item => Number(item.amount || 0) > 0),
+      autoInsurance: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("자동차보험")),
+      chuna: noncoveredDetails.filter(item => Boolean(item.chunaLabel)),
+      type1: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("1종")),
+      type2: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("2종"))
+    };
+    const renderDetailSection = (title, items, columns, cells) => `
+      <section class="sync-detail-section">
+        <h3>${escapeHtml(title)} (${items.length.toLocaleString()}명)</h3>
+        ${items.length ? `<table>
+          <thead><tr><th>환자명</th><th>차트번호</th>${columns}</tr></thead>
+          <tbody>${items.map(item => `<tr>
+            <td>${escapeHtml(item.name || "환자")}</td>
+            <td>${escapeHtml(item.chartNo || "-")}</td>
+            ${cells(item)}
+          </tr>`).join("")}</tbody>
+        </table>` : `<div class="sync-detail-empty">해당 환자가 없습니다.</div>`}
+      </section>`;
+    const separatedDetailHtml = [
+      renderDetailSection("비급여 금액", detailGroups.noncovered, "<th>분류</th><th>금액</th><th>판정 참고정보</th>", item => `
+        <td>${escapeHtml(item.categoryLabel || "기타")}</td>
+        <td class="amount">${Number(item.amount || 0).toLocaleString()}원</td>
+        <td class="reference">${escapeHtml(item.reference || "-")}</td>`),
+      renderDetailSection("자동차보험(자보)", detailGroups.autoInsurance, "<th>보험</th>", item => `
+        <td>${escapeHtml(item.insuranceLabel || "자동차보험")}</td>`),
+      renderDetailSection("추나(단추/복추)", detailGroups.chuna, "<th>시행 종류</th>", item => `
+        <td>${escapeHtml(item.chunaLabel || "-")}</td>`),
+      renderDetailSection("1종", detailGroups.type1, "<th>보험</th>", item => `
+        <td>${escapeHtml(item.insuranceLabel || "1종")}</td>`),
+      renderDetailSection("2종", detailGroups.type2, "<th>보험</th>", item => `
+        <td>${escapeHtml(item.insuranceLabel || "2종")}</td>`)
+    ].join("");
     dailyMetricsSyncResult.innerHTML = `
       <table>
         <tbody>
@@ -560,22 +597,9 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
           <tr><th>원본 시트</th><td><a class="sheet-link" href="${escapeHtml(data.sourceSpreadsheetUrl || "#")}" target="_blank" rel="noopener">열기</a></td></tr>
         </tbody>
       </table>
-      <button class="sync-detail-toggle" id="dailyNoncoveredDetailToggle" type="button">환자별 비급여·보험·추나 내역 보기 (${noncoveredDetails.length.toLocaleString()}명)</button>
+      <button class="sync-detail-toggle" id="dailyNoncoveredDetailToggle" type="button">환자별 항목 목록 보기 (${noncoveredDetails.length.toLocaleString()}명)</button>
       <div class="sync-detail-panel" id="dailyNoncoveredDetailPanel" hidden>
-        ${noncoveredDetails.length ? `
-          <table>
-            <thead><tr><th>환자명</th><th>차트번호</th><th>비급여 분류</th><th>비급여 금액</th><th>보험</th><th>추나</th><th>판정 참고정보</th></tr></thead>
-            <tbody>${noncoveredDetails.map(item => `
-              <tr>
-                <td>${escapeHtml(item.name || "환자")}</td>
-                <td>${escapeHtml(item.chartNo || "-")}</td>
-                <td>${Number(item.amount || 0) > 0 ? escapeHtml(item.categoryLabel || "기타") : "-"}</td>
-                <td class="amount">${Number(item.amount || 0) > 0 ? `${Number(item.amount).toLocaleString()}원` : "-"}</td>
-                <td>${escapeHtml(item.insuranceLabel || "-")}</td>
-                <td>${escapeHtml(item.chunaLabel || "-")}</td>
-                <td class="reference">${escapeHtml(item.reference || "-")}</td>
-              </tr>`).join("")}</tbody>
-          </table>` : `<div class="note" style="padding:12px;margin:0">해당 날짜의 비급여·자동차보험·의료급여·추나 대상 환자가 없습니다.</div>`}
+        ${separatedDetailHtml}
       </div>`;
     const toggle = document.getElementById("dailyNoncoveredDetailToggle");
     const panel = document.getElementById("dailyNoncoveredDetailPanel");
@@ -583,8 +607,8 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       const willOpen = panel.hasAttribute("hidden");
       panel.toggleAttribute("hidden", !willOpen);
       toggle.textContent = willOpen
-        ? `환자별 비급여·보험·추나 내역 닫기 (${noncoveredDetails.length.toLocaleString()}명)`
-        : `환자별 비급여·보험·추나 내역 보기 (${noncoveredDetails.length.toLocaleString()}명)`;
+        ? `환자별 항목 목록 닫기 (${noncoveredDetails.length.toLocaleString()}명)`
+        : `환자별 항목 목록 보기 (${noncoveredDetails.length.toLocaleString()}명)`;
     });
   }
 
