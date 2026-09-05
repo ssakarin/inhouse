@@ -395,6 +395,17 @@ const statements = {
       AND COALESCE(pv.noncovered_amount, 0) > 0
     ORDER BY pv.patient_id
   `),
+  listDailyIndicatorVisits: db.prepare(`
+    SELECT
+      pv.patient_id,
+      pv.visit_date,
+      pv.chief_complaint,
+      pv.diagnosis_code,
+      pv.noncovered_amount
+    FROM patient_visits pv
+    WHERE pv.visit_date = ?
+    ORDER BY pv.patient_id
+  `),
   getState: db.prepare("SELECT data_json FROM app_state WHERE state_key = ?"),
   upsertState: db.prepare(`
     INSERT INTO app_state (state_key, data_json, updated_at)
@@ -3527,13 +3538,26 @@ async function runDailyMetricsGoogleSheetSync(date) {
   });
   sheetBreakdown.sort((a, b) => a.rowNumber - b.rowNumber);
   const sheetCategoryLabels = new Map(sheetBreakdown.map(item => [item.category, item.label]));
-  const noncoveredDetails = dailyNoncoveredVisits.map(visit => {
+  const dailyIndicatorVisits = statements.listDailyIndicatorVisits.all(targetDate);
+  const noncoveredDetails = dailyIndicatorVisits.map(visit => {
     const patient = getPatientById(visit.patient_id) || {};
     const visitEntry = patient.visitHistory?.[targetDate] || {};
     const category = classifyNoncoveredVisit({ patient, visit, date: targetDate });
     const treatments = Array.isArray(visitEntry.treatments)
       ? visitEntry.treatments.map(value => String(value || "").trim()).filter(Boolean)
       : [];
+    const insuranceType = getPatientInsuranceType(patient);
+    const isAutoInsurance = insuranceType.includes("자동차") || insuranceType.includes("자보");
+    const insuranceClass = insuranceType.includes("2종")
+      ? "2종"
+      : insuranceType.includes("1종")
+        ? "1종"
+        : "";
+    const chunaTypes = [...new Set(treatments.flatMap(treatment => {
+      if (treatment === "복추" || treatment.includes("복잡추나")) return ["복추"];
+      if (treatment === "단추" || treatment === "추나" || treatment.includes("단순추나")) return ["단추"];
+      return [];
+    }))];
     const notes = [...new Set([
       ...treatments,
       visitEntry.memo2,
@@ -3547,9 +3571,12 @@ async function runDailyMetricsGoogleSheetSync(date) {
       category,
       categoryLabel: sheetCategoryLabels.get(category) || "기타",
       amount: Number(visit.noncovered_amount || 0),
+      insuranceLabel: [isAutoInsurance ? "자동차보험" : "", insuranceClass].filter(Boolean).join(" · "),
+      chunaLabel: chunaTypes.join(" · "),
       reference: notes.join(" · ")
     };
-  }).sort((a, b) => b.amount - a.amount || String(a.name).localeCompare(String(b.name), "ko"));
+  }).filter(item => item.amount > 0 || item.insuranceLabel || item.chunaLabel)
+    .sort((a, b) => b.amount - a.amount || String(a.name).localeCompare(String(b.name), "ko"));
 
   const rowNumber = aggregateRow.rowNumber;
   const updates = [
