@@ -214,7 +214,7 @@
 이단비님 d79,e35" autocomplete="off"></textarea>
       <button class="good" id="alerttalkCreateBtn" type="button">엑셀 생성</button>
     </div>
-    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 2개면 같은 엑셀에 두 행으로 함께 생성합니다.</div>
+    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 여러 개면 질환명과 자료코드를 한 행에 쉼표로 합쳐 생성합니다.</div>
     <div class="status" id="alerttalkStatus">대기 중</div>
     <div class="alerttalk-preview" id="alerttalkPreview"></div>
   </div>
@@ -1097,26 +1097,12 @@ const DISEASE = [
   }
 
   function buildAlerttalkRows(phone, tokens) {
-    const rows = [];
-    if (!phone || !tokens.length) return rows;
-
-    const t1 = tokens[0];
-    rows.push({
+    if (!phone || !tokens.length) return [];
+    return [{
       phone,
-      label: lookupAlerttalkLabel(t1.isD, t1.num),
-      code: t1.isD ? `e100,d${t1.num}` : `e100,e${t1.num}`
-    });
-
-    if (tokens.length >= 2) {
-      const t2 = tokens[1];
-      rows.push({
-        phone,
-        label: lookupAlerttalkLabel(t2.isD, t2.num),
-        code: t2.isD ? `d${t2.num}` : `e${t2.num}`
-      });
-    }
-
-    return rows;
+      label: tokens.map(token => lookupAlerttalkLabel(token.isD, token.num)).join(","),
+      code: ["e100", ...tokens.map(token => `${token.isD ? "d" : "e"}${token.num}`)].join(",")
+    }];
   }
 
   function makeAlerttalkWorkbook(XLSX, rows) {
