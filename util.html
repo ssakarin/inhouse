@@ -214,7 +214,7 @@
 이단비님 d79,e35" autocomplete="off"></textarea>
       <button class="good" id="alerttalkCreateBtn" type="button">엑셀 생성</button>
     </div>
-    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 1개면 첫번째 파일만, 2개면 첫번째/두번째 파일을 생성합니다.</div>
+    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 2개면 같은 엑셀에 두 행으로 함께 생성합니다.</div>
     <div class="status" id="alerttalkStatus">대기 중</div>
     <div class="alerttalk-preview" id="alerttalkPreview"></div>
   </div>
@@ -1097,12 +1097,11 @@ const DISEASE = [
   }
 
   function buildAlerttalkRows(phone, tokens) {
-    const file1 = [];
-    const file2 = [];
-    if (!phone || !tokens.length) return { file1, file2 };
+    const rows = [];
+    if (!phone || !tokens.length) return rows;
 
     const t1 = tokens[0];
-    file1.push({
+    rows.push({
       phone,
       label: lookupAlerttalkLabel(t1.isD, t1.num),
       code: t1.isD ? `e100,d${t1.num}` : `e100,e${t1.num}`
@@ -1110,14 +1109,14 @@ const DISEASE = [
 
     if (tokens.length >= 2) {
       const t2 = tokens[1];
-      file2.push({
+      rows.push({
         phone,
         label: lookupAlerttalkLabel(t2.isD, t2.num),
         code: t2.isD ? `d${t2.num}` : `e${t2.num}`
       });
     }
 
-    return { file1, file2 };
+    return rows;
   }
 
   function makeAlerttalkWorkbook(XLSX, rows) {
@@ -1145,7 +1144,7 @@ const DISEASE = [
     alerttalkStatus.textContent = text;
   }
 
-  function renderAlerttalkPreview(file1, file2) {
+  function renderAlerttalkPreview(rows) {
     function tableHtml(rows) {
       if (!rows.length) return `<div class="note">해당 데이터 없음</div>`;
       return `
@@ -1164,10 +1163,8 @@ const DISEASE = [
       `;
     }
     alerttalkPreview.innerHTML = `
-      <div class="note">첫번째 파일 (${file1.length}건)</div>
-      ${tableHtml(file1)}
-      <div class="note">두번째 파일 (${file2.length}건)</div>
-      ${tableHtml(file2)}
+      <div class="note">알림톡 엑셀 (${rows.length}건)</div>
+      ${tableHtml(rows)}
     `;
   }
 
@@ -1247,7 +1244,6 @@ const DISEASE = [
     setAlerttalkStatus(`환자 DB에서 ${entries.length.toLocaleString()}명 연락처 검색 중...`);
     try {
       const file1 = [];
-      const file2 = [];
       const errors = [];
 
       for (const entry of entries) {
@@ -1277,8 +1273,7 @@ const DISEASE = [
         }
 
         const rows = buildAlerttalkRows(phone, entry.tokens);
-        file1.push(...rows.file1);
-        file2.push(...rows.file2);
+        file1.push(...rows);
       }
 
       if (errors.length) {
@@ -1294,14 +1289,7 @@ const DISEASE = [
       XLSX.writeFile(makeAlerttalkWorkbook(XLSX, file1), `첫번째_알림톡_${ts}.xlsx`);
       saved.push(`첫번째_알림톡_${ts}.xlsx (${file1.length}건)`);
 
-      if (file2.length) {
-        window.setTimeout(() => {
-          XLSX.writeFile(makeAlerttalkWorkbook(XLSX, file2), `두번째_알림톡_${ts}.xlsx`);
-        }, 300);
-        saved.push(`두번째_알림톡_${ts}.xlsx (${file2.length}건)`);
-      }
-
-      renderAlerttalkPreview(file1, file2);
+      renderAlerttalkPreview(file1);
       setAlerttalkStatus(saved.join("\n"), "good");
     } catch (error) {
       console.error(error);
