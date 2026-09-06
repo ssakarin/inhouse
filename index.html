@@ -5077,6 +5077,26 @@
     max-width: min(1120px, calc(100vw - 32px));
     padding-inline: 28px;
   }
+  #dailyDetailOverlay {
+    z-index: 10000;
+    align-items: center;
+    padding: 24px;
+  }
+  #dailyDetailOverlay .daily-detail-popup {
+    width: min(900px, calc(100vw - 32px));
+    max-width: 900px;
+    height: min(760px, calc(100vh - 48px));
+    padding: 22px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+  }
+  #dailyDetailOverlay .daily-detail-result {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+  }
   @keyframes popIn {
     from { opacity: 0; transform: scale(0.8) translateY(-20px); }
     to { opacity: 1; transform: scale(1) translateY(0); }
@@ -11869,6 +11889,15 @@
       button.disabled = false;
     }
   }
+  window.loadDailyPatientDetails = loadDailyPatientDetails;
+  window.closeDailyPatientDetails = closeDailyPatientDetails;
+  const dailyDetailDateInput = document.getElementById('dailyDetailDate');
+  if (dailyDetailDateInput && !dailyDetailDateInput.value) {
+    dailyDetailDateInput.value = new Date().toLocaleDateString('sv-SE');
+  }
+  dailyDetailDateInput?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') loadDailyPatientDetails();
+  });
 
   function escapeHtmlJsString(value) {
     return JSON.stringify(String(value ?? '')).replace(/[&<>"]/g, ch => ({
@@ -20427,11 +20456,6 @@
     syncAutoBedAssignInputs();
     syncNurseAutoAssignInputs();
     updateChartDbCount();
-    const dailyDetailDate = document.getElementById('dailyDetailDate');
-    if (dailyDetailDate && !dailyDetailDate.value) dailyDetailDate.value = new Date().toLocaleDateString('sv-SE');
-    dailyDetailDate?.addEventListener('keydown', event => {
-      if (event.key === 'Enter') loadDailyPatientDetails();
-    });
     document.querySelectorAll('input[name="visitType"]').forEach(input => {
       input.addEventListener('change', () => syncInitialVisitTreatment('desk'));
     });
