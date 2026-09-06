@@ -2488,8 +2488,30 @@
   body.app-mode-notify .receive-waiting-card {
     display: none;
   }
-  .daily-detail-controls { display: flex; gap: 8px; align-items: center; }
-  .daily-detail-controls input { flex: 1; min-width: 0; }
+  .daily-detail-controls { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 10px; align-items: stretch; }
+  .daily-detail-controls input {
+    width: 100%;
+    min-width: 0;
+    height: 52px;
+    padding: 0 14px;
+    font-size: 17px;
+    font-weight: 800;
+    color-scheme: dark;
+    cursor: pointer;
+  }
+  .daily-detail-controls input::-webkit-calendar-picker-indicator {
+    width: 26px;
+    height: 26px;
+    padding: 8px;
+    cursor: pointer;
+    filter: brightness(1.7);
+  }
+  .daily-detail-controls .export-btn {
+    height: 52px;
+    margin-top: 0;
+    font-size: 15px;
+    font-weight: 800;
+  }
   .daily-detail-result { margin-top: 10px; max-height: 520px; overflow: auto; font-size: 12px; }
   .daily-detail-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
   .daily-detail-count { padding: 8px 5px; border: 1px solid var(--border); border-radius: 8px; text-align: center; background: var(--bg2); }
@@ -5956,7 +5978,7 @@
         <div class="card">
           <div class="card-label">일간 진료 상세</div>
           <div class="daily-detail-controls">
-            <input class="name-input" id="dailyDetailDate" type="date">
+            <input class="name-input" id="dailyDetailDate" type="date" onclick="this.showPicker?.()" aria-label="일간 진료 상세 조회 날짜">
             <button class="export-btn" id="dailyDetailBtn" type="button" onclick="loadDailyPatientDetails()">조회</button>
           </div>
           <div class="daily-detail-status" id="dailyDetailStatus">날짜를 선택해 주세요.</div>
