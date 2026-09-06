@@ -2512,7 +2512,11 @@
     font-size: 15px;
     font-weight: 800;
   }
-  .daily-detail-result { margin-top: 10px; max-height: 520px; overflow: auto; font-size: 12px; }
+  .daily-detail-popup { width: min(900px, calc(100vw - 32px)); max-width: 900px; padding: 22px; text-align: left; }
+  .daily-detail-popup-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .daily-detail-popup-title { font-size: 22px; font-weight: 900; }
+  .daily-detail-popup-close { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 25px; cursor: pointer; }
+  .daily-detail-result { margin-top: 10px; max-height: calc(100vh - 190px); overflow: auto; font-size: 12px; padding-right: 4px; }
   .daily-detail-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
   .daily-detail-count { padding: 8px 5px; border: 1px solid var(--border); border-radius: 8px; text-align: center; background: var(--bg2); }
   .daily-detail-count span { display: block; color: var(--text3); font-size: 10px; }
@@ -5981,8 +5985,6 @@
             <input class="name-input" id="dailyDetailDate" type="date" onclick="this.showPicker?.()" aria-label="일간 진료 상세 조회 날짜">
             <button class="export-btn" id="dailyDetailBtn" type="button" onclick="loadDailyPatientDetails()">조회</button>
           </div>
-          <div class="daily-detail-status" id="dailyDetailStatus">날짜를 선택해 주세요.</div>
-          <div class="daily-detail-result" id="dailyDetailResult"></div>
         </div>
         <div class="card settings-link-card">
           <div class="card-label">관리 페이지</div>
@@ -5993,6 +5995,17 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="notif-overlay" id="dailyDetailOverlay" onclick="closeDailyPatientDetails()">
+  <div class="notif-popup daily-detail-popup" onclick="event.stopPropagation()">
+    <div class="daily-detail-popup-head">
+      <div class="daily-detail-popup-title" id="dailyDetailTitle">일간 진료 상세</div>
+      <button class="daily-detail-popup-close" type="button" onclick="closeDailyPatientDetails()" aria-label="닫기">×</button>
+    </div>
+    <div class="daily-detail-status" id="dailyDetailStatus">조회 중...</div>
+    <div class="daily-detail-result" id="dailyDetailResult"></div>
   </div>
 </div>
 
@@ -11800,16 +11813,25 @@
     </div>`;
   }
 
+  function closeDailyPatientDetails() {
+    document.getElementById('dailyDetailOverlay')?.classList.remove('show');
+  }
+
   async function loadDailyPatientDetails() {
     const dateInput = document.getElementById('dailyDetailDate');
     const button = document.getElementById('dailyDetailBtn');
     const status = document.getElementById('dailyDetailStatus');
     const result = document.getElementById('dailyDetailResult');
+    const overlay = document.getElementById('dailyDetailOverlay');
+    const title = document.getElementById('dailyDetailTitle');
     const date = String(dateInput?.value || '').trim();
+    overlay?.classList.add('show');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       status.textContent = '조회할 날짜를 선택해 주세요.';
+      result.innerHTML = '';
       return;
     }
+    title.textContent = `${date} 일간 진료 상세`;
     button.disabled = true;
     status.textContent = '진료 상세를 조회하는 중...';
     result.innerHTML = '';
