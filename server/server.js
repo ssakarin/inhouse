@@ -3649,6 +3649,62 @@ async function runDailyMetricsGoogleSheetSync(date) {
   };
 }
 
+function getDailyPatientDetails(date) {
+  const targetDate = String(date || "").trim();
+  if (!isValidReportDate(targetDate)) {
+    const error = new Error("date must be YYYY-MM-DD");
+    error.statusCode = 400;
+    throw error;
+  }
+  const categoryLabels = {
+    [NONCOVERED_CATEGORY_KEYS.DEER_HERBAL]: "녹용한약",
+    [NONCOVERED_CATEGORY_KEYS.GENERAL_HERBAL]: "일반한약",
+    [NONCOVERED_CATEGORY_KEYS.DIET_HERBAL]: "다이어트한약",
+    [NONCOVERED_CATEGORY_KEYS.PHARMA_SINGLE]: "약침(1회성)",
+    [NONCOVERED_CATEGORY_KEYS.PHARMA_PACKAGE]: "약침패키지",
+    [NONCOVERED_CATEGORY_KEYS.PREMIUM_PILLS]: "경옥고·공진단",
+    [NONCOVERED_CATEGORY_KEYS.OTHER]: "기타"
+  };
+  const details = statements.listDailyIndicatorVisits.all(targetDate).map(visit => {
+    const patient = getPatientById(visit.patient_id) || {};
+    const visitEntry = patient.visitHistory?.[targetDate] || {};
+    const treatments = Array.isArray(visitEntry.treatments)
+      ? visitEntry.treatments.map(value => String(value || "").trim()).filter(Boolean)
+      : [];
+    const insuranceType = getPatientInsuranceType(patient);
+    const chunaTypes = [...new Set(treatments.flatMap(treatment => {
+      if (isComplexChunaTreatment(treatment)) return ["복추"];
+      if (isSimpleChunaTreatment(treatment)) return ["단추"];
+      return [];
+    }))];
+    const isAutoInsurance = insuranceType.includes("자동차") || insuranceType.includes("자보");
+    const insuranceClass = insuranceType.includes("2종") ? "2종" : insuranceType.includes("1종") ? "1종" : "";
+    const hasPharmaTreatment = treatments.some(isPharmaTreatment);
+    const category = classifyNoncoveredVisit({ patient, visit, date: targetDate });
+    return {
+      name: patient.name || "환자",
+      chartNo: patient.chartNo || visit.chart_no || "",
+      amount: Number(visit.noncovered_amount || 0),
+      categoryLabel: categoryLabels[category] || "기타",
+      insuranceLabel: [isAutoInsurance ? "자동차보험" : "", insuranceClass].filter(Boolean).join(" · "),
+      chunaLabel: chunaTypes.join(" · "),
+      isAge65OrOlder: Number(patient.age || 0) >= 65,
+      hasPharmaTreatment,
+      hasPharmaPackageUsage: hasPharmaTreatment && hasPharmaPackageUsage(patient, targetDate),
+      visitTimestamp: Number(visitEntry.timestamp || 0),
+      visitOrder: Number(visit.visit_order || 0)
+    };
+  }).filter(item => item.amount > 0 || item.insuranceLabel || item.chunaLabel
+    || item.isAge65OrOlder || item.hasPharmaTreatment || item.hasPharmaPackageUsage)
+    .sort((a, b) => {
+      if (a.visitTimestamp && b.visitTimestamp) return a.visitTimestamp - b.visitTimestamp;
+      if (a.visitTimestamp) return -1;
+      if (b.visitTimestamp) return 1;
+      return a.visitOrder - b.visitOrder || String(a.name).localeCompare(String(b.name), "ko");
+    });
+  return { ok: true, date: targetDate, details };
+}
+
 async function backupSlackText() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const file = path.join(SLACK_BACKUP_DIR, `slack-text-backup-${stamp}.txt`);
@@ -4776,6 +4832,12 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/google/daily-metrics-sync" && req.method === "POST") {
     const body = await readJson(req) || {};
     jsonResponse(res, 200, await runDailyMetricsGoogleSheetSync(body.date));
+    return true;
+  }
+
+  if (pathname === "/api/daily-patient-details" && req.method === "GET") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    jsonResponse(res, 200, getDailyPatientDetails(requestUrl.searchParams.get("date")));
     return true;
   }
 

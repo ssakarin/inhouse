@@ -2488,6 +2488,17 @@
   body.app-mode-notify .receive-waiting-card {
     display: none;
   }
+  .daily-detail-controls { display: flex; gap: 8px; align-items: center; }
+  .daily-detail-controls input { flex: 1; min-width: 0; }
+  .daily-detail-result { margin-top: 10px; max-height: 520px; overflow: auto; font-size: 12px; }
+  .daily-detail-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
+  .daily-detail-count { padding: 8px 5px; border: 1px solid var(--border); border-radius: 8px; text-align: center; background: var(--bg2); }
+  .daily-detail-count span { display: block; color: var(--text3); font-size: 10px; }
+  .daily-detail-count strong { display: block; margin-top: 2px; color: var(--accent); font-size: 16px; }
+  .daily-detail-group { margin-top: 10px; }
+  .daily-detail-group-title { margin-bottom: 5px; color: var(--text2); font-weight: 800; }
+  .daily-detail-row { display: grid; grid-template-columns: minmax(60px, 1fr) 70px minmax(90px, 1.5fr); gap: 6px; padding: 6px 4px; border-top: 1px solid var(--border); }
+  .daily-detail-empty, .daily-detail-status { color: var(--text3); padding: 6px 0; }
   .appointment-r-badge {
     display: inline-grid;
     place-items: center;
@@ -5941,6 +5952,15 @@
           <input id="chartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
             onchange="importChartFile(this.files?.[0]); this.value='';">
           <div id="chartImportStatus" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:18px;line-height:1.5"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">일간 진료 상세</div>
+          <div class="daily-detail-controls">
+            <input class="name-input" id="dailyDetailDate" type="date">
+            <button class="export-btn" id="dailyDetailBtn" type="button" onclick="loadDailyPatientDetails()">조회</button>
+          </div>
+          <div class="daily-detail-status" id="dailyDetailStatus">날짜를 선택해 주세요.</div>
+          <div class="daily-detail-result" id="dailyDetailResult"></div>
         </div>
         <div class="card settings-link-card">
           <div class="card-label">관리 페이지</div>
@@ -11745,6 +11765,65 @@
       '"': '&quot;',
       "'": '&#39;'
     }[ch]));
+  }
+
+  function renderDailyDetailGroup(title, items, valueOf) {
+    return `<div class="daily-detail-group">
+      <div class="daily-detail-group-title">${escapeHtml(title)} (${items.length}명)</div>
+      ${items.length ? items.map(item => `<div class="daily-detail-row">
+        <span>${escapeHtml(item.name || '환자')}</span>
+        <span>${escapeHtml(item.chartNo || '-')}</span>
+        <span>${escapeHtml(valueOf(item) || '-')}</span>
+      </div>`).join('') : '<div class="daily-detail-empty">해당 환자가 없습니다.</div>'}
+    </div>`;
+  }
+
+  async function loadDailyPatientDetails() {
+    const dateInput = document.getElementById('dailyDetailDate');
+    const button = document.getElementById('dailyDetailBtn');
+    const status = document.getElementById('dailyDetailStatus');
+    const result = document.getElementById('dailyDetailResult');
+    const date = String(dateInput?.value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      status.textContent = '조회할 날짜를 선택해 주세요.';
+      return;
+    }
+    button.disabled = true;
+    status.textContent = '진료 상세를 조회하는 중...';
+    result.innerHTML = '';
+    try {
+      const response = await fetch(`/api/daily-patient-details?date=${encodeURIComponent(date)}`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `조회 실패 (${response.status})`);
+      const details = Array.isArray(data.details) ? data.details : [];
+      const groups = {
+        noncovered: details.filter(item => Number(item.amount || 0) > 0),
+        auto: details.filter(item => String(item.insuranceLabel || '').includes('자동차보험')),
+        chuna: details.filter(item => Boolean(item.chunaLabel)),
+        type1: details.filter(item => String(item.insuranceLabel || '').includes('1종')),
+        type2: details.filter(item => String(item.insuranceLabel || '').includes('2종')),
+        age65: details.filter(item => item.isAge65OrOlder),
+        pharma: details.filter(item => item.hasPharmaTreatment),
+        pharmaPackage: details.filter(item => item.hasPharmaPackageUsage)
+      };
+      result.innerHTML = `
+        <div class="daily-detail-counts">
+          <div class="daily-detail-count"><span>65세 이상</span><strong>${groups.age65.length}명</strong></div>
+          <div class="daily-detail-count"><span>약침 시행</span><strong>${groups.pharma.length}명</strong></div>
+          <div class="daily-detail-count"><span>패키지 차감</span><strong>${groups.pharmaPackage.length}명</strong></div>
+          <div class="daily-detail-count"><span>추나 시행</span><strong>${groups.chuna.length}명</strong></div>
+        </div>
+        ${renderDailyDetailGroup('비급여 금액', groups.noncovered, item => `${item.categoryLabel} · ${Number(item.amount).toLocaleString()}원`)}
+        ${renderDailyDetailGroup('자동차보험(자보)', groups.auto, item => item.insuranceLabel)}
+        ${renderDailyDetailGroup('추나(단추/복추)', groups.chuna, item => item.chunaLabel)}
+        ${renderDailyDetailGroup('1종', groups.type1, item => item.insuranceLabel)}
+        ${renderDailyDetailGroup('2종', groups.type2, item => item.insuranceLabel)}`;
+      status.textContent = `${date} 조회 완료 · 방문순`;
+    } catch (error) {
+      status.textContent = error?.message || String(error);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function escapeHtmlJsString(value) {
@@ -20304,6 +20383,11 @@
     syncAutoBedAssignInputs();
     syncNurseAutoAssignInputs();
     updateChartDbCount();
+    const dailyDetailDate = document.getElementById('dailyDetailDate');
+    if (dailyDetailDate && !dailyDetailDate.value) dailyDetailDate.value = new Date().toLocaleDateString('sv-SE');
+    dailyDetailDate?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') loadDailyPatientDetails();
+    });
     document.querySelectorAll('input[name="visitType"]').forEach(input => {
       input.addEventListener('change', () => syncInitialVisitTreatment('desk'));
     });
