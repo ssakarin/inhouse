@@ -129,6 +129,10 @@
   .sync-detail-section + .sync-detail-section { border-top: 1px solid var(--line); }
   .sync-detail-section h3 { margin: 0 0 9px; font-size: 15px; color: var(--accent); }
   .sync-detail-empty { color: var(--muted); font-size: 13px; }
+  .sync-detail-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .sync-detail-count { padding: 11px 10px; border: 1px solid var(--line); border-radius: 8px; background: #101925; text-align: center; }
+  .sync-detail-count span { display: block; color: var(--muted); font-size: 12px; }
+  .sync-detail-count strong { display: block; margin-top: 3px; color: var(--accent); font-size: 19px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
   th { color: var(--muted); font-size: 11px; font-weight: 900; }
@@ -549,6 +553,12 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       type1: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("1종")),
       type2: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("2종"))
     };
+    const indicatorCounts = {
+      age65: noncoveredDetails.filter(item => item.isAge65OrOlder).length,
+      pharma: noncoveredDetails.filter(item => item.hasPharmaTreatment).length,
+      pharmaPackage: noncoveredDetails.filter(item => item.hasPharmaPackageUsage).length,
+      chuna: detailGroups.chuna.length
+    };
     const renderDetailSection = (title, items, columns, cells) => `
       <section class="sync-detail-section">
         <h3>${escapeHtml(title)} (${items.length.toLocaleString()}명)</h3>
@@ -597,6 +607,12 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
           <tr><th>원본 시트</th><td><a class="sheet-link" href="${escapeHtml(data.sourceSpreadsheetUrl || "#")}" target="_blank" rel="noopener">열기</a></td></tr>
         </tbody>
       </table>
+      <div class="sync-detail-counts">
+        <div class="sync-detail-count"><span>65세 이상</span><strong>${indicatorCounts.age65.toLocaleString()}명</strong></div>
+        <div class="sync-detail-count"><span>약침 시행</span><strong>${indicatorCounts.pharma.toLocaleString()}명</strong></div>
+        <div class="sync-detail-count"><span>약침 패키지 차감</span><strong>${indicatorCounts.pharmaPackage.toLocaleString()}명</strong></div>
+        <div class="sync-detail-count"><span>추나 시행</span><strong>${indicatorCounts.chuna.toLocaleString()}명</strong></div>
+      </div>
       <button class="sync-detail-toggle" id="dailyNoncoveredDetailToggle" type="button">환자별 항목 목록 보기 (${noncoveredDetails.length.toLocaleString()}명)</button>
       <div class="sync-detail-panel" id="dailyNoncoveredDetailPanel" hidden>
         ${separatedDetailHtml}

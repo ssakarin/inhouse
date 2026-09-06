@@ -9,6 +9,7 @@ const {
   CATEGORY_KEYS: NONCOVERED_CATEGORY_KEYS,
   buildNoncoveredBreakdown,
   classifyNoncoveredVisit,
+  hasPharmaPackageUsage,
   sheetCategoryKey
 } = require("./noncovered-breakdown");
 
@@ -3569,6 +3570,9 @@ async function runDailyMetricsGoogleSheetSync(date) {
       if (treatment === "단추" || treatment === "추나" || treatment.includes("단순추나")) return ["단추"];
       return [];
     }))];
+    const isAge65OrOlder = Number(patient.age || 0) >= 65;
+    const hasPharmaTreatment = treatments.some(isPharmaTreatment);
+    const hasPackageDeduction = hasPharmaTreatment && hasPharmaPackageUsage(patient, targetDate);
     const notes = [...new Set([
       ...treatments,
       visitEntry.memo2,
@@ -3584,11 +3588,15 @@ async function runDailyMetricsGoogleSheetSync(date) {
       amount: Number(visit.noncovered_amount || 0),
       insuranceLabel: [isAutoInsurance ? "자동차보험" : "", insuranceClass].filter(Boolean).join(" · "),
       chunaLabel: chunaTypes.join(" · "),
+      isAge65OrOlder,
+      hasPharmaTreatment,
+      hasPharmaPackageUsage: hasPackageDeduction,
       visitTimestamp: Number(visitEntry.timestamp || 0),
       visitOrder: Number(visit.visit_order || 0),
       reference: notes.join(" · ")
     };
-  }).filter(item => item.amount > 0 || item.insuranceLabel || item.chunaLabel)
+  }).filter(item => item.amount > 0 || item.insuranceLabel || item.chunaLabel
+    || item.isAge65OrOlder || item.hasPharmaTreatment || item.hasPharmaPackageUsage)
     .sort((a, b) => {
       if (a.visitTimestamp && b.visitTimestamp) return a.visitTimestamp - b.visitTimestamp;
       if (a.visitTimestamp) return -1;

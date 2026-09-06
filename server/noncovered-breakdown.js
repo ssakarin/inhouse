@@ -39,6 +39,16 @@ function hasPaidPharmaPackagePurchase(patient = {}, date = "") {
   });
 }
 
+function hasPharmaPackageUsage(patient = {}, date = "") {
+  return Object.entries(patient.packages || {}).some(([key, pkg]) => {
+    if (!String(key || "").startsWith("p")) return false;
+    return packageEntries(pkg?.usages).some(entry =>
+      normalizedText(entry?.date) === date
+      && (Number(entry?.qty ?? entry?.totalQty ?? 0) || 0) > 0
+    );
+  });
+}
+
 function relativeDistance(value, anchor) {
   return Math.abs(value - anchor) / Math.max(1, anchor);
 }
@@ -131,5 +141,6 @@ module.exports = {
   CATEGORY_KEYS,
   buildNoncoveredBreakdown,
   classifyNoncoveredVisit,
+  hasPharmaPackageUsage,
   sheetCategoryKey
 };

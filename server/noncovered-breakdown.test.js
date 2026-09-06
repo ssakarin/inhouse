@@ -4,6 +4,7 @@ const {
   CATEGORY_KEYS,
   buildNoncoveredBreakdown,
   classifyNoncoveredVisit,
+  hasPharmaPackageUsage,
   sheetCategoryKey
 } = require("./noncovered-breakdown");
 
@@ -69,4 +70,18 @@ test("keeps every noncovered won in the detailed total", () => {
   assert.equal(result.amounts.dietHerbal, 470000);
   assert.equal(result.amounts.other, 12300);
   assert.equal(result.totalAmount, 487300);
+});
+
+test("counts package patients from actual usage, not purchase", () => {
+  const date = "2026-09-06";
+  const patient = {
+    packages: {
+      p1: {
+        purchases: [{ date, qty: 13, kind: "purchase" }],
+        usages: [{ date, qty: 0.5 }]
+      }
+    }
+  };
+  assert.equal(hasPharmaPackageUsage(patient, date), true);
+  assert.equal(hasPharmaPackageUsage({ packages: { p1: { purchases: [{ date, qty: 13 }] } } }, date), false);
 });
