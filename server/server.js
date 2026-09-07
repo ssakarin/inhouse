@@ -2355,8 +2355,8 @@ const AI_WEEKLY_METRICS = [
   { label: "약환(일평균)", value: stats => Number(stats.prescriptionPatients || 0) / Math.max(1, Number(stats.clinicDays || 0)), digits: 1 },
   { label: "초진(일평균)", value: stats => Number(stats.newPatients || 0) / Math.max(1, Number(stats.clinicDays || 0)), digits: 1 },
   { label: "환자당 방문", value: stats => Number(stats.avgVisitsPerPatient || 0), digits: 2, suffix: "회", baseline: false },
-  { label: "재진율", value: stats => Number(stats.returnRate || 0), rate: true },
-  { label: "삼진율", value: stats => Number(stats.thirdVisitRate || 0), rate: true },
+  { label: "재진율(21일 완료)", value: stats => Number(stats.matureReturnRate ?? stats.returnRate ?? 0), rate: true },
+  { label: "삼진율(21일 완료)", value: stats => Number(stats.matureThirdVisitRate ?? stats.thirdVisitRate ?? 0), rate: true },
   { label: "추나 이용률", value: stats => Number(stats.chunaPatientRate || 0), rate: true },
   { label: "약침 이용률", value: stats => Number(stats.pharmaPatientRate || 0), rate: true },
   { label: "약침패키지 결제(일평균)", value: stats => Number(stats.pharmaPackagePurchasePatients || 0) / Math.max(1, Number(stats.clinicDays || 0)), digits: 1 }
@@ -2578,6 +2578,225 @@ ${unitLabel} | 진료환자 일평균 | 초진 일평균 | 재진율 | 삼진율
 ${lines.join("\n")}`;
 }
 
+function formatLongTermDbInsights(bundle) {
+  const { start, end } = bundle.range;
+  const patients = listPatients();
+  const patientHistoryRows = [];
+  const activeRows = [];
+  const ageBands = { "0~19세": 0, "20~39세": 0, "40~64세": 0, "65세 이상": 0, "연령 미확인": 0 };
+  const genderCounts = {};
+  const insuranceCounts = {};
+  const lifecycle = { newPatients: 0, reinitialPatients: 0, continuingPatients: 0 };
+  const coverageDates = { visit: "", treatment: "", diagnosis: "", fee: "", package: "", appointment: "" };
+  const packagePatients = new Set();
+  const packageUsagePatients = new Set();
+  let packagePurchases = 0;
+  let packagePurchaseQty = 0;
+  let packageUsages = 0;
+  let packageUsageQty = 0;
+  const rememberDate = (key, date) => {
+    const value = String(date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+    if (!coverageDates[key] || value < coverageDates[key]) coverageDates[key] = value;
+  };
+
+  for (const patient of patients) {
+    const coreDates = nonPrescriptionVisitDatesOf(patient);
+    patientHistoryRows.push({ patient, coreDates, newDates: newVisitDatesOf(patient) });
+    coreDates.forEach(date => {
+      rememberDate("visit", date);
+      const entry = getVisitRecord(patient, date);
+      if (Array.isArray(entry.treatments) && entry.treatments.length) rememberDate("treatment", date);
+      if (String(entry.diagnosisCode || "").trim()) rememberDate("diagnosis", date);
+      if ([entry.totalFee, entry.claimAmount, entry.insuredCopay, entry.nonCoveredAmount].some(value => Number(value || 0) !== 0)) rememberDate("fee", date);
+    });
+    Object.keys(patient.appointmentHistory || {}).forEach(date => rememberDate("appointment", date));
+
+    const rangeDates = coreDates.filter(date => date >= start && date <= end);
+    if (rangeDates.length) {
+      const firstRangeDate = rangeDates[0];
+      const previousDate = coreDates.filter(date => date < firstRangeDate).at(-1) || "";
+      if (!previousDate) lifecycle.newPatients += 1;
+      else if (firstRangeDate > addDays(previousDate, 90)) lifecycle.reinitialPatients += 1;
+      else lifecycle.continuingPatients += 1;
+      activeRows.push(patient);
+
+      const age = Number(patient.age || 0);
+      const ageKey = !age ? "연령 미확인" : age < 20 ? "0~19세" : age < 40 ? "20~39세" : age < 65 ? "40~64세" : "65세 이상";
+      ageBands[ageKey] += 1;
+      const gender = String(patient.gender || "").trim() || "성별 미확인";
+      genderCounts[gender] = (genderCounts[gender] || 0) + 1;
+      const insurance = getPatientInsuranceType(patient) || "보험 미확인";
+      insuranceCounts[insurance] = (insuranceCounts[insurance] || 0) + 1;
+    }
+
+    const packages = patient.packages && typeof patient.packages === "object" ? patient.packages : {};
+    Object.entries(packages).forEach(([key, pkg]) => {
+      if (!String(key).startsWith("p")) return;
+      for (const entry of Array.isArray(pkg?.purchases) ? pkg.purchases : []) {
+        const date = String(entry?.date || "").trim();
+        const qty = Number(entry?.qty ?? entry?.totalQty ?? 0) || 0;
+        if (qty > 0) rememberDate("package", date);
+        if (qty <= 0 || entry?.kind === "bonus" || date < start || date > end) continue;
+        packagePatients.add(patient.patientId || patient.chartNo);
+        packagePurchases += 1;
+        packagePurchaseQty += qty;
+      }
+      for (const entry of Array.isArray(pkg?.usages) ? pkg.usages : []) {
+        const date = String(entry?.date || "").trim();
+        const qty = Number(entry?.qty ?? entry?.totalQty ?? 0) || 0;
+        if (qty > 0) rememberDate("package", date);
+        if (qty <= 0 || date < start || date > end) continue;
+        packageUsagePatients.add(patient.patientId || patient.chartNo);
+        packageUsages += 1;
+        packageUsageQty += qty;
+      }
+    });
+  }
+
+  const cohortLines = [30, 90, 180].map(days => {
+    const cohortStart = addDays(start, -days);
+    const cohortEnd = addDays(end, -days);
+    let eligible = 0;
+    let second = 0;
+    let third = 0;
+    let fourth = 0;
+    let totalVisits = 0;
+    let totalFee = 0;
+    for (const { patient, coreDates: dates, newDates } of patientHistoryRows) {
+      for (const firstDate of newDates.filter(date => date >= cohortStart && date <= cohortEnd && !isPrescriptionVisit(patient, date))) {
+        eligible += 1;
+        const followupEnd = addDays(firstDate, days - 1);
+        const cohortDates = dates.filter(date => date >= firstDate && date <= followupEnd);
+        totalVisits += cohortDates.length;
+        if (cohortDates.length >= 2) second += 1;
+        if (cohortDates.length >= 3) third += 1;
+        if (cohortDates.length >= 4) fourth += 1;
+        cohortDates.forEach(date => {
+          const entry = getVisitRecord(patient, date);
+          totalFee += Number(entry.totalFee || 0) + Number(entry.nonCoveredAmount || 0);
+        });
+      }
+    }
+    const rate = value => eligible ? `${(value / eligible * 100).toFixed(1)}%` : "-";
+    return `- ${days}일 완료 코호트 (${cohortStart} ~ ${cohortEnd} 초진·재초진): ${eligible}명, 재진 ${second}명(${rate(second)}), 삼진 ${third}명(${rate(third)}), 4회 이상 ${fourth}명(${rate(fourth)}), 1명당 방문 ${eligible ? (totalVisits / eligible).toFixed(1) : "-"}회, 1명당 누적 진료비 ${eligible ? Math.round(totalFee / eligible).toLocaleString() : "-"}원`;
+  });
+  const countLines = counts => Object.entries(counts).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]).map(([label, count]) => `${label} ${count}명`).join(", ") || "(데이터 없음)";
+  const coverageLine = (label, key) => `- ${label}: ${coverageDates[key] || "확인 불가"}부터 확인됨`;
+
+  return `## 장기 DB 보강 지표
+### 현재 기간 환자 생애주기
+- 진료 환자 ${activeRows.length}명: 완전 신규 ${lifecycle.newPatients}명, 90일 초과 후 복귀(재초진) ${lifecycle.reinitialPatients}명, 지속 내원 ${lifecycle.continuingPatients}명
+
+### 완료 코호트 장기 전환·가치
+${cohortLines.join("\n")}
+- 서로 다른 관찰기간의 완료 코호트이므로 30일·90일·180일 수치를 같은 환자군의 연속 변화로 오해하지 마십시오.
+
+### 현재 기간 환자 구성
+- 연령: ${countLines(ageBands)}
+- 성별: ${countLines(genderCounts)}
+- 보험: ${countLines(insuranceCounts)}
+
+### 현재 기간 약침 패키지 흐름
+- 결제: ${packagePatients.size}명, ${packagePurchases}건, ${packagePurchaseQty}회 등록
+- 실제 차감: ${packageUsagePatients.size}명, ${packageUsages}건, ${packageUsageQty}회 사용
+- 결제와 차감은 같은 환자·같은 패키지 코호트를 직접 연결한 전환율이 아니라 기간 내 흐름입니다.
+
+### 장기 데이터 확인 시작일
+${coverageLine("방문", "visit")}
+${coverageLine("치료", "treatment")}
+${coverageLine("상병코드", "diagnosis")}
+${coverageLine("진료비", "fee")}
+${coverageLine("패키지", "package")}
+${coverageLine("예약", "appointment")}
+- 시작일 이전의 0건은 실제 미발생이 아니라 미기록일 수 있으므로 장기 감소로 단정하지 마십시오.`;
+}
+
+function formatPeriodAnalysisRequest(bundle) {
+  const periodLabel = AI_PERIOD_LABELS[bundle.period] || "기간";
+  const commonContext = `
+분석 대상 한의원은 부산광역시 사하구 다대동, 다대포해수욕장 인근의 경희홍익한의원입니다.
+고정 진료 일정상 허진혁 원장은 목요일 오후 휴진이며, 김상준 원장은 화요일 전일 휴진입니다. 원장별 진료량·초진 유입·진료비를 비교할 때 단순 총량만 비교하지 말고 실제 진료일 수와 진료 가능 시간 차이를 반드시 보정하십시오. 공휴일이나 임시 휴진이 고정 휴진일과 겹친 경우 중복해서 영향으로 계산하지 마십시오.
+내부 지표뿐 아니라 해당 기간의 확인 가능한 외부 환경도 함께 고려하십시오. 외부 환경에는 기온·강수·폭염·한파·태풍·미세먼지 등 날씨, 공휴일·명절·방학·개학, 다대포 지역 행사와 관광객 변화, 지하철·도로·주차 등 접근성, 감염병 유행, 주요 사회 일정과 소비 환경이 포함됩니다. 원장 휴진·진료시간 변경·직원 결원·대기시간·예약 여력·홍보·문자 발송·가격 및 행사 변경 등 병원 내부 운영 사건도 가능한 영향 요인으로 구분해 살펴보십시오.
+확인되지 않은 외부 상황을 만들어내지 말고, 자료가 없으면 ‘확인 필요’로 표시하십시오. 시점과 변화 방향이 일치하더라도 인과관계로 단정하지 말고 내부 요인, 외부 요인, 데이터 품질 문제를 구분하십시오.
+총진료비 변화는 환자 수, 실제 진료일 수, 진료일당 환자, 건당 진료비, 비급여 금액과 비율로 나누어 해석하십시오. 단순 수치 나열을 피하고 서로 관련된 지표를 연결하십시오. 표본이 작거나 데이터 보유율이 낮으면 단정하지 마십시오.`;
+
+  if (bundle.period === "week") {
+    return `# 주간 경영 분석 요청
+
+아래 데이터로 최근 완료된 7일 진료 기간의 단기 운영 변화를 분석하십시오.
+
+분석 우선순위:
+1. 환자 수와 초진 유입이 직전 주, 직전 4주 평균, 전년 동기와 비교해 실제로 달라졌는지
+2. 실제 진료일 수, 진료일당 환자, 원장별 진료량, 요일·시간대 혼잡과 예약 운영 병목
+3. 총진료비, 건당 진료비, 비급여 금액·비율 및 환자당 가치 변화
+4. 추나·약침 이용률과 치료 구성 변화
+5. 상병 부위·상병군 구성의 단기 변화
+6. 날씨·공휴일·지역 행사·접근성·병원 내부 운영 사건과 변화 시점의 일치 여부
+
+선택한 7일에 유입된 초진은 21일 추적이 끝나지 않았으므로 그 주의 재진·삼진·4회 이상 전환 성과를 평가하지 마십시오. 전환 지표는 21일 관찰이 완료된 과거 초진 코호트만 별도의 참고 신호로 해석하고, 완료 표본이 10명 미만이면 결론을 내리지 마십시오.
+${commonContext}
+마지막에 핵심 평가, 가능한 원인, 다음 주 실행·확인 항목 3~5개와 각 항목에서 확인할 지표를 제안하십시오.`;
+  }
+
+  if (bundle.period === "month") {
+    return `# 30일 경영 분석 요청
+
+아래 데이터로 최근 30일의 운영 및 환자 흐름 변화를 분석하십시오.
+
+분석 우선순위:
+1. 환자 수, 초진 유입, 진료일당 환자의 주차별 흐름과 직전 30일·직전 3개 30일 평균·전년 동기 비교
+2. 21일 추적 완료 초진의 재진·삼진·4회 이상 전환과 초진 당일 치료별 차이
+3. 총진료비, 건당 진료비, 비급여 금액·비율 및 환자당 가치 변화
+4. 추나·약침 이용률과 패키지 결제 변화
+5. 상병 부위·상병군 및 원장별 진료량·전환율·진료비 차이
+6. 요일·시간대 병목과 예약 운영
+7. 날씨·공휴일·지역 행사·접근성·병원 내부 운영 사건이 주차별 변화와 겹치는지
+
+최근 21일에 유입된 초진은 추적 중이므로 완료 코호트와 섞어 전환 성과를 평가하지 마십시오. 완료 코호트의 표본 크기와 데이터 보유율을 함께 제시하십시오.
+${commonContext}
+마지막에 핵심 평가, 가능한 원인, 다음 30일 실행·확인 항목 3~5개와 각 항목에서 확인할 지표를 제안하십시오.`;
+  }
+
+  if (bundle.period === "quarter") {
+    return `# 90일 경영 분석 요청
+
+아래 데이터로 최근 90일의 중기 변화와 구조적 신호를 분석하십시오.
+
+분석 우선순위:
+1. 환자 수, 초진 유입, 진료일당 환자의 월별 흐름과 직전 90일·직전 4개 90일 평균·전년 동기 비교
+2. 21일 추적 완료 초진의 재진·삼진·4회 이상 전환, 초진 당일 치료·상병군·원장별 차이
+3. 총진료비, 건당 진료비, 비급여 금액·비율 및 환자당 가치 변화
+4. 추나·약침 이용률, 치료 구성 및 패키지 결제 변화
+5. 상병 부위·상병군 구성과 계절적 변화
+6. 원장별 진료량·전환율·진료비 차이
+7. 요일·시간대 운영 병목과 예약 여력
+8. 계절 날씨·연휴·지역 행사·접근성·감염병·병원 내부 정책 변화와 월별 지표의 연관성
+
+전환 분석은 21일 추적 완료 코호트를 기준으로 하되 최근 미완료 초진은 분리하십시오. 관찰된 차이가 일시적 변동인지 반복되는 추세인지 장기 흐름과 비교하십시오.
+${commonContext}
+마지막에 핵심 평가, 가능한 원인, 다음 분기 실행·확인 항목 3~5개와 각 항목에서 확인할 지표를 제안하십시오.`;
+  }
+
+  return `# 연간 누계 경영 분석 요청
+
+아래 데이터로 올해 누계의 장기 성과와 구조 변화를 분석하십시오.
+
+분석 우선순위:
+1. 환자 수, 초진 유입, 진료일당 환자의 월별 추세와 전년 동일 누계·최근 3개년 동일 누계 평균 비교
+2. 21일 추적 완료 초진의 재진·삼진·4회 이상 전환과 연중 변화
+3. 총진료비, 건당 진료비, 비급여 금액·비율 및 환자당 가치의 구조 변화
+4. 추나·약침 이용률, 치료 구성 및 패키지 결제의 장기 변화
+5. 상병 부위·상병군의 계절성과 환자 구성 변화
+6. 원장별 진료량·전환율·진료비 및 환자 구성 차이
+7. 월별 운영 병목과 진료일·휴진·인력·예약 여력 변화
+8. 계절 날씨, 명절·방학·지역 관광과 행사, 감염병, 접근성, 가격·홍보·운영 정책 변경의 영향 가능성
+
+개별 며칠의 날씨나 사건으로 연간 변화를 설명하지 말고 월별 반복성, 전년 동기 및 장기 추세가 함께 뒷받침되는지 확인하십시오. 연중 최근 21일의 미완료 초진은 전환 평가에서 분리하십시오.
+${commonContext}
+마지막에 핵심 평가, 가능한 원인, 남은 연도의 실행·확인 항목 3~5개와 각 항목에서 확인할 지표를 제안하십시오.`;
+}
+
 function formatWeeklyDataExportText(bundle) {
   const scope = bundle.scopes["전체"];
   const doctors = bundle.scopeNames.filter(name => name !== "전체");
@@ -2587,21 +2806,7 @@ function formatWeeklyDataExportText(bundle) {
     ? `- ${labels.baseline}: 전년도부터 3년 전까지 각각 ${bundle.range.start.slice(5)} ~ ${bundle.range.end.slice(5)} 동일 누계 기간`
     : `- ${labels.baseline}: ${bundle.baselineRange.start} ~ ${bundle.baselineRange.end} 범위의 독립된 동일 길이 구간별 평균`;
   const yearAgoLine = bundle.period === "year" ? "" : `\n- 전년 동기: ${bundle.yearAgoRange.start} ~ ${bundle.yearAgoRange.end}`;
-  const actionPeriod = bundle.period === "week" ? "다음 주" : bundle.period === "month" ? "다음 30일" : bundle.period === "quarter" ? "다음 분기" : "남은 연도";
-  return [`# ${periodLabel} 경영 분석 요청
-
-아래 데이터로 ${periodLabel}의 변화를 분석하십시오.
-
-분석 우선순위:
-1. 환자 수와 초진 유입 변화
-2. 재진·삼진·4회 이상 전환
-3. 진료비와 환자당 가치 변화
-4. 추나·약침 이용률 변화
-5. 상병 부위 및 상병군 구성
-6. 원장별 진료량·전환율·진료비 차이
-7. 요일·시간대 운영상 병목
-
-단순 수치 나열을 피하고 서로 관련된 지표를 연결해 설명하십시오. 총진료비 변화는 환자 수, 진료일당 환자, 건당 진료비, 비급여 비율로 나누어 해석하십시오. 표본이 작거나 데이터 보유율이 낮으면 단정하지 마십시오. 마지막에 핵심 평가, 가능한 원인, ${actionPeriod} 실행·확인 항목 3~5개를 제안하십시오.`,
+  return [formatPeriodAnalysisRequest(bundle),
   `## 집계 기준
 - ${labels.current}: ${bundle.range.start} ~ ${bundle.range.end}
 - ${labels.previous}: ${bundle.previousRange.start} ~ ${bundle.previousRange.end}${yearAgoLine}
@@ -2612,6 +2817,7 @@ ${baselineLine}
 - 환자 이름·연락처 등 개인정보는 포함되어 있지 않습니다.`,
   formatWeeklyDataQuality(scope.current),
   formatWeeklyCoreKpis(bundle, scope),
+  formatLongTermDbInsights(bundle),
   formatHigherPeriodContext(bundle, scope.current),
   formatInnerPeriodFlow(bundle),
   formatWeeklyCohort(scope.current),
