@@ -130,9 +130,14 @@
   .sync-detail-section h3 { margin: 0 0 9px; font-size: 15px; color: var(--accent); }
   .sync-detail-empty { color: var(--muted); font-size: 13px; }
   .sync-detail-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-  .sync-detail-count { padding: 11px 10px; border: 1px solid var(--line); border-radius: 8px; background: #101925; text-align: center; }
+  .sync-detail-count { padding: 11px 10px; border: 1px solid var(--line); border-radius: 8px; background: #101925; color: inherit; text-align: center; cursor: pointer; font: inherit; }
+  .sync-detail-count:hover, .sync-detail-count:focus-visible { border-color: var(--accent); background: #162235; }
+  .sync-detail-count.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: #162235; }
   .sync-detail-count span { display: block; color: var(--muted); font-size: 12px; }
   .sync-detail-count strong { display: block; margin-top: 3px; color: var(--accent); font-size: 19px; }
+  .sync-detail-guide { padding: 24px 10px; color: var(--muted); text-align: center; }
+  .sync-detail-group-panel { display: none; }
+  .sync-detail-group-panel.active { display: block; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
   th { color: var(--muted); font-size: 11px; font-weight: 900; }
@@ -551,12 +556,15 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       autoInsurance: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("자동차보험")),
       chuna: noncoveredDetails.filter(item => Boolean(item.chunaLabel)),
       type1: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("1종")),
-      type2: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("2종"))
+      type2: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("2종")),
+      age65: noncoveredDetails.filter(item => item.isAge65OrOlder),
+      pharma: noncoveredDetails.filter(item => item.hasPharmaTreatment),
+      pharmaPackage: noncoveredDetails.filter(item => item.hasPharmaPackageUsage)
     };
     const indicatorCounts = {
-      age65: noncoveredDetails.filter(item => item.isAge65OrOlder).length,
-      pharma: noncoveredDetails.filter(item => item.hasPharmaTreatment).length,
-      pharmaPackage: noncoveredDetails.filter(item => item.hasPharmaPackageUsage).length,
+      age65: detailGroups.age65.length,
+      pharma: detailGroups.pharma.length,
+      pharmaPackage: detailGroups.pharmaPackage.length,
       chuna: detailGroups.chuna.length
     };
     const renderDetailSection = (title, items, columns, cells) => `
@@ -571,20 +579,23 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
           </tr>`).join("")}</tbody>
         </table>` : `<div class="sync-detail-empty">해당 환자가 없습니다.</div>`}
       </section>`;
-    const separatedDetailHtml = [
-      renderDetailSection("비급여 금액", detailGroups.noncovered, "<th>분류</th><th>금액</th><th>판정 참고정보</th>", item => `
+    const detailPanels = [
+      ["age65", renderDetailSection("65세 이상", detailGroups.age65, "<th>구분</th>", () => "<td>65세 이상</td>")],
+      ["pharma", renderDetailSection("약침 시행", detailGroups.pharma, "<th>구분</th>", () => "<td>약침</td>")],
+      ["pharmaPackage", renderDetailSection("약침 패키지 차감", detailGroups.pharmaPackage, "<th>구분</th>", () => "<td>패키지에서 차감</td>")],
+      ["chuna", renderDetailSection("추나(단추/복추)", detailGroups.chuna, "<th>시행 종류</th>", item => `
+        <td>${escapeHtml(item.chunaLabel || "-")}</td>`)],
+      ["noncovered", renderDetailSection("비급여 금액", detailGroups.noncovered, "<th>분류</th><th>금액</th><th>판정 참고정보</th>", item => `
         <td>${escapeHtml(item.categoryLabel || "기타")}</td>
         <td class="amount">${Number(item.amount || 0).toLocaleString()}원</td>
-        <td class="reference">${escapeHtml(item.reference || "-")}</td>`),
-      renderDetailSection("자동차보험(자보)", detailGroups.autoInsurance, "<th>보험</th>", item => `
-        <td>${escapeHtml(item.insuranceLabel || "자동차보험")}</td>`),
-      renderDetailSection("추나(단추/복추)", detailGroups.chuna, "<th>시행 종류</th>", item => `
-        <td>${escapeHtml(item.chunaLabel || "-")}</td>`),
-      renderDetailSection("1종", detailGroups.type1, "<th>보험</th>", item => `
-        <td>${escapeHtml(item.insuranceLabel || "1종")}</td>`),
-      renderDetailSection("2종", detailGroups.type2, "<th>보험</th>", item => `
-        <td>${escapeHtml(item.insuranceLabel || "2종")}</td>`)
-    ].join("");
+        <td class="reference">${escapeHtml(item.reference || "-")}</td>`)],
+      ["autoInsurance", renderDetailSection("자동차보험(자보)", detailGroups.autoInsurance, "<th>보험</th>", item => `
+        <td>${escapeHtml(item.insuranceLabel || "자동차보험")}</td>`)],
+      ["type1", renderDetailSection("1종", detailGroups.type1, "<th>보험</th>", item => `
+        <td>${escapeHtml(item.insuranceLabel || "1종")}</td>`)],
+      ["type2", renderDetailSection("2종", detailGroups.type2, "<th>보험</th>", item => `
+        <td>${escapeHtml(item.insuranceLabel || "2종")}</td>`)]
+    ].map(([key, html]) => `<div class="sync-detail-group-panel" data-group="${key}">${html}</div>`).join("");
     dailyMetricsSyncResult.innerHTML = `
       <table>
         <tbody>
@@ -608,23 +619,28 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
         </tbody>
       </table>
       <div class="sync-detail-counts">
-        <div class="sync-detail-count"><span>65세 이상</span><strong>${indicatorCounts.age65.toLocaleString()}명</strong></div>
-        <div class="sync-detail-count"><span>약침 시행</span><strong>${indicatorCounts.pharma.toLocaleString()}명</strong></div>
-        <div class="sync-detail-count"><span>약침 패키지 차감</span><strong>${indicatorCounts.pharmaPackage.toLocaleString()}명</strong></div>
-        <div class="sync-detail-count"><span>추나 시행</span><strong>${indicatorCounts.chuna.toLocaleString()}명</strong></div>
+        <button class="sync-detail-count" type="button" data-group="age65"><span>65세 이상</span><strong>${indicatorCounts.age65.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="pharma"><span>약침 시행</span><strong>${indicatorCounts.pharma.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="pharmaPackage"><span>패키지 차감</span><strong>${indicatorCounts.pharmaPackage.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="chuna"><span>추나 시행</span><strong>${indicatorCounts.chuna.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="noncovered"><span>비급여 금액</span><strong>${detailGroups.noncovered.length.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="autoInsurance"><span>자동차보험</span><strong>${detailGroups.autoInsurance.length.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="type1"><span>1종</span><strong>${detailGroups.type1.length.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="type2"><span>2종</span><strong>${detailGroups.type2.length.toLocaleString()}명</strong></button>
       </div>
-      <button class="sync-detail-toggle" id="dailyNoncoveredDetailToggle" type="button">환자별 항목 목록 보기 (${noncoveredDetails.length.toLocaleString()}명)</button>
-      <div class="sync-detail-panel" id="dailyNoncoveredDetailPanel" hidden>
-        ${separatedDetailHtml}
+      <div class="sync-detail-panel" id="dailyNoncoveredDetailPanel">
+        <div class="sync-detail-guide">위 카드를 누르면 해당 명단이 표시됩니다.</div>
+        ${detailPanels}
       </div>`;
-    const toggle = document.getElementById("dailyNoncoveredDetailToggle");
     const panel = document.getElementById("dailyNoncoveredDetailPanel");
-    toggle?.addEventListener("click", () => {
-      const willOpen = panel.hasAttribute("hidden");
-      panel.toggleAttribute("hidden", !willOpen);
-      toggle.textContent = willOpen
-        ? `환자별 항목 목록 닫기 (${noncoveredDetails.length.toLocaleString()}명)`
-        : `환자별 항목 목록 보기 (${noncoveredDetails.length.toLocaleString()}명)`;
+    dailyMetricsSyncResult.querySelector(".sync-detail-counts")?.addEventListener("click", event => {
+      const card = event.target.closest(".sync-detail-count");
+      if (!card || !panel) return;
+      const key = card.dataset.group;
+      dailyMetricsSyncResult.querySelectorAll(".sync-detail-count").forEach(item => item.classList.toggle("active", item === card));
+      panel.querySelectorAll(".sync-detail-group-panel").forEach(item => item.classList.toggle("active", item.dataset.group === key));
+      const guide = panel.querySelector(".sync-detail-guide");
+      if (guide) guide.style.display = "none";
     });
   }
 
