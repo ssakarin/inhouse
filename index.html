@@ -2518,9 +2518,14 @@
   .daily-detail-popup-close { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 25px; cursor: pointer; }
   .daily-detail-result { margin-top: 10px; max-height: calc(100vh - 190px); overflow: auto; font-size: 12px; padding-right: 4px; }
   .daily-detail-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
-  .daily-detail-count { padding: 8px 5px; border: 1px solid var(--border); border-radius: 8px; text-align: center; background: var(--bg2); }
+  .daily-detail-count { padding: 8px 5px; border: 1px solid var(--border); border-radius: 8px; text-align: center; background: var(--bg2); color: inherit; cursor: pointer; font: inherit; }
+  .daily-detail-count:hover, .daily-detail-count:focus-visible { border-color: var(--accent); background: var(--surface2); }
+  .daily-detail-count.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface2); }
   .daily-detail-count span { display: block; color: var(--text3); font-size: 10px; }
   .daily-detail-count strong { display: block; margin-top: 2px; color: var(--accent); font-size: 16px; }
+  .daily-detail-list-guide { padding: 24px 8px; color: var(--text3); text-align: center; }
+  .daily-detail-panel { display: none; }
+  .daily-detail-panel.active { display: block; }
   .daily-detail-group { margin-top: 10px; }
   .daily-detail-group-title { margin-bottom: 5px; color: var(--text2); font-weight: 800; }
   .daily-detail-row { display: grid; grid-template-columns: minmax(60px, 1fr) 70px minmax(90px, 1.5fr); gap: 6px; padding: 6px 4px; border-top: 1px solid var(--border); }
@@ -11833,6 +11838,19 @@
     </div>`;
   }
 
+  function showDailyDetailGroup(key) {
+    const result = document.getElementById('dailyDetailResult');
+    if (!result) return;
+    result.querySelectorAll('.daily-detail-count').forEach(card => {
+      card.classList.toggle('active', card.dataset.group === key);
+    });
+    result.querySelectorAll('.daily-detail-panel').forEach(panel => {
+      panel.classList.toggle('active', panel.dataset.group === key);
+    });
+    const guide = result.querySelector('.daily-detail-list-guide');
+    if (guide) guide.style.display = 'none';
+  }
+
   function closeDailyPatientDetails() {
     document.getElementById('dailyDetailOverlay')?.classList.remove('show');
   }
@@ -11872,16 +11890,24 @@
       };
       result.innerHTML = `
         <div class="daily-detail-counts">
-          <div class="daily-detail-count"><span>65세 이상</span><strong>${groups.age65.length}명</strong></div>
-          <div class="daily-detail-count"><span>약침 시행</span><strong>${groups.pharma.length}명</strong></div>
-          <div class="daily-detail-count"><span>패키지 차감</span><strong>${groups.pharmaPackage.length}명</strong></div>
-          <div class="daily-detail-count"><span>추나 시행</span><strong>${groups.chuna.length}명</strong></div>
+          <button class="daily-detail-count" type="button" data-group="age65" onclick="showDailyDetailGroup('age65')"><span>65세 이상</span><strong>${groups.age65.length}명</strong></button>
+          <button class="daily-detail-count" type="button" data-group="pharma" onclick="showDailyDetailGroup('pharma')"><span>약침 시행</span><strong>${groups.pharma.length}명</strong></button>
+          <button class="daily-detail-count" type="button" data-group="pharmaPackage" onclick="showDailyDetailGroup('pharmaPackage')"><span>패키지 차감</span><strong>${groups.pharmaPackage.length}명</strong></button>
+          <button class="daily-detail-count" type="button" data-group="chuna" onclick="showDailyDetailGroup('chuna')"><span>추나 시행</span><strong>${groups.chuna.length}명</strong></button>
+          <button class="daily-detail-count" type="button" data-group="noncovered" onclick="showDailyDetailGroup('noncovered')"><span>비급여 금액</span><strong>${groups.noncovered.length}명</strong></button>
+          <button class="daily-detail-count" type="button" data-group="auto" onclick="showDailyDetailGroup('auto')"><span>자동차보험</span><strong>${groups.auto.length}명</strong></button>
+          <button class="daily-detail-count" type="button" data-group="type1" onclick="showDailyDetailGroup('type1')"><span>1종</span><strong>${groups.type1.length}명</strong></button>
+          <button class="daily-detail-count" type="button" data-group="type2" onclick="showDailyDetailGroup('type2')"><span>2종</span><strong>${groups.type2.length}명</strong></button>
         </div>
-        ${renderDailyDetailGroup('비급여 금액', groups.noncovered, item => `${item.categoryLabel} · ${Number(item.amount).toLocaleString()}원`)}
-        ${renderDailyDetailGroup('자동차보험(자보)', groups.auto, item => item.insuranceLabel)}
-        ${renderDailyDetailGroup('추나(단추/복추)', groups.chuna, item => item.chunaLabel)}
-        ${renderDailyDetailGroup('1종', groups.type1, item => item.insuranceLabel)}
-        ${renderDailyDetailGroup('2종', groups.type2, item => item.insuranceLabel)}`;
+        <div class="daily-detail-list-guide">위 카드를 누르면 해당 명단이 표시됩니다.</div>
+        <div class="daily-detail-panel" data-group="age65">${renderDailyDetailGroup('65세 이상', groups.age65, () => '65세 이상')}</div>
+        <div class="daily-detail-panel" data-group="pharma">${renderDailyDetailGroup('약침 시행', groups.pharma, () => '약침')}</div>
+        <div class="daily-detail-panel" data-group="pharmaPackage">${renderDailyDetailGroup('약침 패키지 차감', groups.pharmaPackage, () => '패키지에서 차감')}</div>
+        <div class="daily-detail-panel" data-group="chuna">${renderDailyDetailGroup('추나(단추/복추)', groups.chuna, item => item.chunaLabel)}</div>
+        <div class="daily-detail-panel" data-group="noncovered">${renderDailyDetailGroup('비급여 금액', groups.noncovered, item => `${item.categoryLabel} · ${Number(item.amount).toLocaleString()}원`)}</div>
+        <div class="daily-detail-panel" data-group="auto">${renderDailyDetailGroup('자동차보험(자보)', groups.auto, item => item.insuranceLabel)}</div>
+        <div class="daily-detail-panel" data-group="type1">${renderDailyDetailGroup('1종', groups.type1, item => item.insuranceLabel)}</div>
+        <div class="daily-detail-panel" data-group="type2">${renderDailyDetailGroup('2종', groups.type2, item => item.insuranceLabel)}</div>`;
       status.textContent = `${date} 조회 완료 · 방문순`;
     } catch (error) {
       status.textContent = error?.message || String(error);
@@ -11891,6 +11917,7 @@
   }
   window.loadDailyPatientDetails = loadDailyPatientDetails;
   window.closeDailyPatientDetails = closeDailyPatientDetails;
+  window.showDailyDetailGroup = showDailyDetailGroup;
   const dailyDetailDateInput = document.getElementById('dailyDetailDate');
   if (dailyDetailDateInput && !dailyDetailDateInput.value) {
     dailyDetailDateInput.value = new Date().toLocaleDateString('sv-SE');
