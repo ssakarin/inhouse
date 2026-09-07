@@ -557,6 +557,8 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       chuna: noncoveredDetails.filter(item => Boolean(item.chunaLabel)),
       type1: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("1종")),
       type2: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("2종")),
+      newPatient: noncoveredDetails.filter(item => item.isNewPatient),
+      reinitial: noncoveredDetails.filter(item => item.isReinitialPatient),
       age65: noncoveredDetails.filter(item => item.isAge65OrOlder),
       pharma: noncoveredDetails.filter(item => item.hasPharmaTreatment),
       pharmaPackage: noncoveredDetails.filter(item => item.hasPharmaPackageUsage)
@@ -580,6 +582,8 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
         </table>` : `<div class="sync-detail-empty">해당 환자가 없습니다.</div>`}
       </section>`;
     const detailPanels = [
+      ["newPatient", renderDetailSection("초진", detailGroups.newPatient, "<th>구분</th>", () => "<td>초진</td>")],
+      ["reinitial", renderDetailSection("재초진", detailGroups.reinitial, "<th>구분</th>", () => "<td>재초진</td>")],
       ["age65", renderDetailSection("65세 이상", detailGroups.age65, "<th>구분</th>", () => "<td>65세 이상</td>")],
       ["pharma", renderDetailSection("약침 시행", detailGroups.pharma, "<th>구분</th>", () => "<td>약침</td>")],
       ["pharmaPackage", renderDetailSection("약침 패키지 차감", detailGroups.pharmaPackage, "<th>구분</th>", () => "<td>패키지에서 차감</td>")],
@@ -619,6 +623,8 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
         </tbody>
       </table>
       <div class="sync-detail-counts">
+        <button class="sync-detail-count" type="button" data-group="newPatient"><span>초진</span><strong>${detailGroups.newPatient.length.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="reinitial"><span>재초진</span><strong>${detailGroups.reinitial.length.toLocaleString()}명</strong></button>
         <button class="sync-detail-count" type="button" data-group="age65"><span>65세 이상</span><strong>${indicatorCounts.age65.toLocaleString()}명</strong></button>
         <button class="sync-detail-count" type="button" data-group="pharma"><span>약침 시행</span><strong>${indicatorCounts.pharma.toLocaleString()}명</strong></button>
         <button class="sync-detail-count" type="button" data-group="pharmaPackage"><span>패키지 차감</span><strong>${indicatorCounts.pharmaPackage.toLocaleString()}명</strong></button>

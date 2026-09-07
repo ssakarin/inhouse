@@ -11884,12 +11884,16 @@
         chuna: details.filter(item => Boolean(item.chunaLabel)),
         type1: details.filter(item => String(item.insuranceLabel || '').includes('1종')),
         type2: details.filter(item => String(item.insuranceLabel || '').includes('2종')),
+        newPatient: details.filter(item => item.isNewPatient),
+        reinitial: details.filter(item => item.isReinitialPatient),
         age65: details.filter(item => item.isAge65OrOlder),
         pharma: details.filter(item => item.hasPharmaTreatment),
         pharmaPackage: details.filter(item => item.hasPharmaPackageUsage)
       };
       result.innerHTML = `
         <div class="daily-detail-counts">
+          <button class="daily-detail-count" type="button" data-group="newPatient" onclick="showDailyDetailGroup('newPatient')"><span>초진</span><strong>${groups.newPatient.length}명</strong></button>
+          <button class="daily-detail-count" type="button" data-group="reinitial" onclick="showDailyDetailGroup('reinitial')"><span>재초진</span><strong>${groups.reinitial.length}명</strong></button>
           <button class="daily-detail-count" type="button" data-group="age65" onclick="showDailyDetailGroup('age65')"><span>65세 이상</span><strong>${groups.age65.length}명</strong></button>
           <button class="daily-detail-count" type="button" data-group="pharma" onclick="showDailyDetailGroup('pharma')"><span>약침 시행</span><strong>${groups.pharma.length}명</strong></button>
           <button class="daily-detail-count" type="button" data-group="pharmaPackage" onclick="showDailyDetailGroup('pharmaPackage')"><span>패키지 차감</span><strong>${groups.pharmaPackage.length}명</strong></button>
@@ -11900,6 +11904,8 @@
           <button class="daily-detail-count" type="button" data-group="type2" onclick="showDailyDetailGroup('type2')"><span>2종</span><strong>${groups.type2.length}명</strong></button>
         </div>
         <div class="daily-detail-list-guide">위 카드를 누르면 해당 명단이 표시됩니다.</div>
+        <div class="daily-detail-panel" data-group="newPatient">${renderDailyDetailGroup('초진', groups.newPatient, () => '초진')}</div>
+        <div class="daily-detail-panel" data-group="reinitial">${renderDailyDetailGroup('재초진', groups.reinitial, () => '재초진')}</div>
         <div class="daily-detail-panel" data-group="age65">${renderDailyDetailGroup('65세 이상', groups.age65, () => '65세 이상')}</div>
         <div class="daily-detail-panel" data-group="pharma">${renderDailyDetailGroup('약침 시행', groups.pharma, () => '약침')}</div>
         <div class="daily-detail-panel" data-group="pharmaPackage">${renderDailyDetailGroup('약침 패키지 차감', groups.pharmaPackage, () => '패키지에서 차감')}</div>

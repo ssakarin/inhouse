@@ -3573,6 +3573,12 @@ async function runDailyMetricsGoogleSheetSync(date) {
     const isAge65OrOlder = Number(patient.age || 0) >= 65;
     const hasPharmaTreatment = treatments.some(isPharmaTreatment);
     const hasPackageDeduction = hasPharmaTreatment && hasPharmaPackageUsage(patient, targetDate);
+    const previousVisitDate = visitDatesOf(patient)
+      .filter(visitDate => visitDate < targetDate)
+      .sort()
+      .at(-1) || "";
+    const isNewPatient = !previousVisitDate;
+    const isReinitialPatient = Boolean(previousVisitDate) && targetDate > addDays(previousVisitDate, 90);
     const notes = [...new Set([
       ...treatments,
       visitEntry.memo2,
@@ -3589,6 +3595,8 @@ async function runDailyMetricsGoogleSheetSync(date) {
       insuranceLabel: [isAutoInsurance ? "자동차보험" : "", insuranceClass].filter(Boolean).join(" · "),
       chunaLabel: chunaTypes.join(" · "),
       isAge65OrOlder,
+      isNewPatient,
+      isReinitialPatient,
       hasPharmaTreatment,
       hasPharmaPackageUsage: hasPackageDeduction,
       visitTimestamp: Number(visitEntry.timestamp || 0),
@@ -3596,7 +3604,8 @@ async function runDailyMetricsGoogleSheetSync(date) {
       reference: notes.join(" · ")
     };
   }).filter(item => item.amount > 0 || item.insuranceLabel || item.chunaLabel
-    || item.isAge65OrOlder || item.hasPharmaTreatment || item.hasPharmaPackageUsage)
+    || item.isAge65OrOlder || item.isNewPatient || item.isReinitialPatient
+    || item.hasPharmaTreatment || item.hasPharmaPackageUsage)
     .sort((a, b) => {
       if (a.visitTimestamp && b.visitTimestamp) return a.visitTimestamp - b.visitTimestamp;
       if (a.visitTimestamp) return -1;
@@ -3680,6 +3689,10 @@ function getDailyPatientDetails(date) {
     const isAutoInsurance = insuranceType.includes("자동차") || insuranceType.includes("자보");
     const insuranceClass = insuranceType.includes("2종") ? "2종" : insuranceType.includes("1종") ? "1종" : "";
     const hasPharmaTreatment = treatments.some(isPharmaTreatment);
+    const previousVisitDate = visitDatesOf(patient)
+      .filter(visitDate => visitDate < targetDate)
+      .sort()
+      .at(-1) || "";
     const category = classifyNoncoveredVisit({ patient, visit, date: targetDate });
     return {
       name: patient.name || "환자",
@@ -3689,13 +3702,16 @@ function getDailyPatientDetails(date) {
       insuranceLabel: [isAutoInsurance ? "자동차보험" : "", insuranceClass].filter(Boolean).join(" · "),
       chunaLabel: chunaTypes.join(" · "),
       isAge65OrOlder: Number(patient.age || 0) >= 65,
+      isNewPatient: !previousVisitDate,
+      isReinitialPatient: Boolean(previousVisitDate) && targetDate > addDays(previousVisitDate, 90),
       hasPharmaTreatment,
       hasPharmaPackageUsage: hasPharmaTreatment && hasPharmaPackageUsage(patient, targetDate),
       visitTimestamp: Number(visitEntry.timestamp || 0),
       visitOrder: Number(visit.visit_order || 0)
     };
   }).filter(item => item.amount > 0 || item.insuranceLabel || item.chunaLabel
-    || item.isAge65OrOlder || item.hasPharmaTreatment || item.hasPharmaPackageUsage)
+    || item.isAge65OrOlder || item.isNewPatient || item.isReinitialPatient
+    || item.hasPharmaTreatment || item.hasPharmaPackageUsage)
     .sort((a, b) => {
       if (a.visitTimestamp && b.visitTimestamp) return a.visitTimestamp - b.visitTimestamp;
       if (a.visitTimestamp) return -1;
