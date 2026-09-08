@@ -3101,6 +3101,16 @@
     font-size: 12px;
     margin-top: 3px;
   }
+  .discharged-treatments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+  }
+  .discharged-treatments .bed-treatment-chip {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .discharged-time {
     color: var(--accent);
     font-size: 12px;
@@ -13343,16 +13353,19 @@
         const time = data.dischargedTime || (data.dischargedAt
           ? new Date(Number(data.dischargedAt)).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
           : '');
-        const chips = [
+        const metadata = [
           data.chartNo ? `차트 ${escapeHtml(String(data.chartNo))}` : '',
-          data.bedLabel || data.bedNo ? escapeHtml(data.bedLabel || getBedLabel(data.bedNo)) : '',
-          Array.isArray(data.treatments) && data.treatments.length ? `${data.treatments.length}개 치료` : ''
+          data.bedLabel || data.bedNo ? escapeHtml(data.bedLabel || getBedLabel(data.bedNo)) : ''
         ].filter(Boolean).join(' · ');
+        const treatmentChips = (Array.isArray(data.treatments) ? data.treatments : [])
+          .map(treatment => `<span class="bed-treatment-chip waiting ${getTreatmentBadgeClass(treatment)}">${escapeHtml(getBedTreatmentDisplayName(data, treatment))}</span>`)
+          .join('');
         return `
           <button type="button" class="discharged-item" onclick="loadDischargedPatientToDesk('${escapeHtml(key)}')">
             <div>
               <div class="discharged-main"><span>${escapeHtml(data.name || '')}</span></div>
-              ${chips ? `<div class="discharged-sub">${chips}</div>` : ''}
+              ${metadata ? `<div class="discharged-sub">${metadata}</div>` : ''}
+              ${treatmentChips ? `<div class="discharged-treatments">${treatmentChips}</div>` : ''}
             </div>
             <div class="discharged-time">${escapeHtml(time)}</div>
           </button>`;
