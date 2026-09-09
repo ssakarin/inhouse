@@ -5,6 +5,7 @@ const { URL } = require("node:url");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 const { encrypt, decrypt, isEncrypted, KEY_PATH } = require("./crypto-util");
+const { stampBedStageTimes } = require("./bed-stage-time");
 const {
   CATEGORY_KEYS: NONCOVERED_CATEGORY_KEYS,
   buildNoncoveredBreakdown,
@@ -4506,7 +4507,7 @@ function sseBroadcastBedsDelta(version, updates = [], removes = [], previousBeds
 
 function commitBeds(beds, previousBeds = null) {
   const previous = previousBeds ? cloneJson(previousBeds) : cloneJson(getBedsState());
-  const next = beds || {};
+  const next = stampBedStageTimes(previous || {}, beds || {});
   setStateValue("beds", next);
   const version = getBedsVersion() + 1;
   setStateValue("__bedsVersion", version);

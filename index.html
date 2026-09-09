@@ -17934,7 +17934,7 @@
 
       const cleanup = getCleanupShortDoctorProcedureInfo(bed, bedNo);
       if (cleanup) {
-        const alertTimestamp = Number(String(bed.lastAlertId || '').split('-').pop()) || Number(bed.startedAt || bed.timestamp || 0);
+        const alertTimestamp = Number(bed.stageEnteredAt) || Number(String(bed.lastAlertId || '').split('-').pop()) || Number(bed.timestamp || 0);
         items.push({
           alertId: `${bed.lastAlertId}:cleanup:${cleanup.treatment}`,
           bedNo,
@@ -17995,7 +17995,7 @@
         treatments,
         alertPriority: 1,
         sortPriority: treatments.some(isShortDoctorProcedureTreatment) ? 0 : 2,
-        timestamp: Number(bed.doctorProcedureAlert?.dismissedAt || bed.startedAt || bed.timestamp || 0),
+        timestamp: Number(bed.stageEnteredAt || bed.timestamp || 0),
         message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${treatment}`
       });
     });
