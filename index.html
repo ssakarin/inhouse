@@ -17702,7 +17702,7 @@
     const isReceive = context === 'receive';
     const isInput = context === 'input';
     const canMoveBed = isInput || isReceive;
-    const monitorLabel = isInput && !SPECIAL_BED_LABELS[status.bedNo] && !HOLD_BED_NUMBERS.includes(Number(status.bedNo))
+    const monitorLabel = !SPECIAL_BED_LABELS[status.bedNo] && !HOLD_BED_NUMBERS.includes(Number(status.bedNo))
       ? getCompactBedMarker(status.bedNo)
       : getBedMonitorLabel(status.bedNo);
     const receivePanelOpen = document.getElementById('receivePanel')?.classList.contains('receive-form-open');
