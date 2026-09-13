@@ -4264,8 +4264,8 @@ function isDoctorRoomRelevantBed(client, bedNo, bed) {
   if (!client || client.role !== "doctor-room") return true;
   if (Number(client.bedNo) === Number(bedNo)) return true;
   if (!bed || typeof bed !== "object") return false;
-  if (bed.doctorId && bed.running && !bed.complete) return true;
-  return Boolean(bed.doctorId && !bed.complete && !bed.running && !bed.lastAlertId);
+  // Pending completion acknowledgments also participate in the doctor queue.
+  return Boolean(bed.doctorId && !bed.complete);
 }
 
 function isFixedBedRelevantBed(client, bedNo, bed) {
@@ -4275,8 +4275,8 @@ function isFixedBedRelevantBed(client, bedNo, bed) {
   // Fixed-bed screens calculate the shared doctor queue locally. Keep running
   // beds in their snapshot so an upcoming short procedure can move ahead of a
   // waiting chuna/exam when its local countdown reaches two minutes.
-  if (bed.doctorId && bed.running && !bed.complete) return true;
-  return Boolean(bed.doctorId && !bed.complete && !bed.running && !bed.lastAlertId);
+  // Include cleanup waits too: the queue may promote them while chuna waits.
+  return Boolean(bed.doctorId && !bed.complete);
 }
 
 function getBedsPayloadForClient(client, beds = getBedsState()) {
@@ -4316,24 +4316,14 @@ function sseClientAllowsState(client, key) {
     || /^dischargedPatients\/\d{4}-\d{2}-\d{2}$/.test(key);
 }
 
-function filterBedAssignmentAlertsForBed(value, bedNo) {
-  if (!isRegularFixedBedNo(bedNo) || !value || typeof value !== "object") return value || {};
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => Number(item?.bedNo) === Number(bedNo))
-  );
-}
-
 function stateValueForClient(client, key, value) {
-  if (key === "bedAssignmentAlerts" && client?.role === "fixed-bed" && isRegularFixedBedNo(client.bedNo)) {
-    return filterBedAssignmentAlertsForBed(value, client.bedNo);
-  }
+  // Every tablet computes the shared doctor queue, including arrival gates.
+  // Reuse the same frame; arrival changes remain event-driven, not timer ticks.
   return value;
 }
 
 function stateChildAllowsClient(client, key, value) {
-  if (key !== "bedAssignmentAlerts" || client?.role !== "fixed-bed" || !isRegularFixedBedNo(client.bedNo)) return true;
-  const values = Array.isArray(value) ? value : [value];
-  return values.some(item => Number(item?.bedNo) === Number(client.bedNo));
+  return true;
 }
 
 function clearSseBackpressureWait(client) {

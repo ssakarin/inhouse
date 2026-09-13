@@ -446,6 +446,12 @@
     <div id="cohortFunnelWrap"></div>
     <div class="chart-section-title">초진 치료별 전환율</div>
     <div id="treatmentRetentionWrap"></div>
+    <div class="chart-section-title">재방문 소요일 · 환자 특성별 분석</div>
+    <div class="controls">
+      <label class="field-label">비교 기준 <select id="followupDimension"><option value="insurance">보험별</option><option value="age">연령별</option><option value="gender">성별</option><option value="weekday">초진 요일별</option></select></label>
+      <label class="field-label">대상 <select id="followupGroup"><option value="">전체</option></select></label>
+    </div>
+    <div id="followupAnalysisWrap" aria-live="polite"></div>
     <div class="summary-breakdowns" id="summaryBreakdowns"></div>
   </div>
 
@@ -2298,6 +2304,73 @@
     }
   }
 
+  let followupAnalysis = { entries: [], pending: 0 };
+
+  function computeFollowupAnalysis(records, start, end, doctor = '') {
+    const cutoff = end < addDays(today(), -1) ? end : addDays(today(), -1);
+    const result = { entries: [], pending: 0 };
+    const dayNumber = date => Date.parse(date + 'T00:00:00Z') / 86400000;
+    for (const rec of records) {
+      const dates = nonPrescriptionVisitDatesOf(rec);
+      const starts = newVisitDatesOf(rec);
+      for (const first of starts) {
+        if (first < start || first > cutoff || isPrescriptionVisit(rec, first)) continue;
+        const visit = getVisitRecord(rec, first);
+        if (doctor && String(visit.doctorName || rec.doctorName || '').trim() !== doctor) continue;
+        if (dayNumber(cutoff) - dayNumber(first) < 21) { result.pending++; continue; }
+        const nextStart = starts.find(date => date > first);
+        const gaps = dates.filter(date => date > first && date <= cutoff && (!nextStart || date < nextStart))
+          .map(date => dayNumber(date) - dayNumber(first)).filter(days => days <= 21);
+        const rawInsurance = String(visit.insuranceType || rec.insuranceType || rec.insurance_type || rec['보험종별'] || '').trim();
+        const insurance = /자보|자동차|^TA$/i.test(rawInsurance) ? '자보' : /1종/.test(rawInsurance) ? '1종' : /2종/.test(rawInsurance) ? '2종' : /건강|건보|직장|지역/.test(rawInsurance) ? '건강보험' : rawInsurance ? '기타' : '미상';
+        const rawAge = String(visit.age ?? rec.age ?? '').trim();
+        const age = /^\d+(?:세)?$/.test(rawAge) ? Number(rawAge.replace('세', '')) : NaN;
+        const ageLabel = !Number.isFinite(age) || age > 120 ? '미상' : age < 20 ? '20세 미만' : age < 40 ? '20~39세' : age < 60 ? '40~59세' : age < 65 ? '60~64세' : '65세 이상';
+        const rawGender = String(visit.gender || rec.gender || '').trim();
+        const gender = /^(남|남성|남자|M|male)$/i.test(rawGender) ? '남' : /^(여|여성|여자|F|female)$/i.test(rawGender) ? '여' : '미상';
+        result.entries.push({ insurance, age: ageLabel, gender, weekday: ['일','월','화','수','목','금','토'][new Date(first + 'T00:00:00Z').getUTCDay()], second: gaps[0] ?? null, third: gaps[1] ?? null });
+      }
+    }
+    return result;
+  }
+
+  function renderFollowupAnalysis(resetGroup = false) {
+    const dimension = $('followupDimension').value;
+    const groups = [...new Set(followupAnalysis.entries.map(entry => entry[dimension]))].sort((a, b) => dimension === 'weekday' ? '월화수목금토일'.indexOf(a) - '월화수목금토일'.indexOf(b) : a.localeCompare(b, 'ko', { numeric: true }));
+    const selected = resetGroup ? '' : $('followupGroup').value;
+    $('followupGroup').innerHTML = '<option value="">전체</option>' + groups.map(group => `<option value="${escapePeriodReportHtml(group)}">${escapePeriodReportHtml(group)}</option>`).join('');
+    $('followupGroup').value = groups.includes(selected) ? selected : '';
+    const entries = followupAnalysis.entries.filter(entry => !selected || entry[dimension] === selected);
+    const median = values => {
+      if (!values.length) return '—';
+      values.sort((a, b) => a - b);
+      return `${((values[Math.floor((values.length - 1) / 2)] + values[Math.floor(values.length / 2)]) / 2).toFixed(1)}일`;
+    };
+    const rate = (count, total) => total ? `${(count / total * 100).toFixed(1)}%` : '—';
+    const second = entries.filter(entry => entry.second !== null);
+    const third = entries.filter(entry => entry.third !== null);
+    const buckets = [
+      ['1~3일', entry => entry.second !== null && entry.second <= 3],
+      ['4~7일', entry => entry.second > 3 && entry.second <= 7],
+      ['8~14일', entry => entry.second > 7 && entry.second <= 14],
+      ['15~21일', entry => entry.second > 14],
+      ['21일 내 재방문 없음', entry => entry.second === null]
+    ];
+    const summary = `<div class="cohort-funnel-note">조회 종료일(최대 어제)까지 초진 후 만 21일이 지난 초진 기록 기준 · 선택 대상 ${entries.length}건 · 전체 추적 중 ${followupAnalysis.pending}건 제외 · 동일 날짜 중복 방문과 처방 전용 방문 제외</div>`;
+    if (!entries.length) { $('followupAnalysisWrap').innerHTML = summary + '<div class="empty">21일 관찰이 완료된 초진 데이터가 없습니다.</div>'; return; }
+    $('followupAnalysisWrap').innerHTML = summary + `<div class="metrics">
+      <div class="metric"><div class="metric-label">초진 → 재진 중앙값</div><div class="metric-value">${median(second.map(entry => entry.second))}</div><div class="metric-sub">21일 내 재진 ${second.length}건 기준</div></div>
+      <div class="metric"><div class="metric-label">재진 → 삼진 중앙값</div><div class="metric-value">${median(third.map(entry => entry.third - entry.second))}</div><div class="metric-sub">초진 후 21일 내 삼진 ${third.length}건 기준</div></div>
+      <div class="metric"><div class="metric-label">재진 → 삼진 전환율</div><div class="metric-value">${rate(third.length, second.length)}</div><div class="metric-sub">재진 ${second.length}건 중 삼진 ${third.length}건</div></div>
+    </div><div class="cohort-funnel">${buckets.map(([label, test]) => { const count = entries.filter(test).length; return `<div class="cohort-funnel-step"><div class="cohort-funnel-label">${label}</div><div class="cohort-funnel-value">${count}건</div><div class="cohort-funnel-rate">${rate(count, entries.length)}</div><div class="cohort-funnel-track"><span class="cohort-funnel-fill" style="width:${count / entries.length * 100}%;background:var(--gold)"></span></div></div>`; }).join('')}</div>
+    <div class="table-scroll"><table><thead><tr><th>구분</th><th class="num">초진</th><th class="num">3일 내 재진</th><th class="num">7일 내 재진</th><th class="num">14일 내 재진</th><th class="num">21일 내 재진</th><th class="num">21일 내 삼진</th><th class="num">재진 소요일 중앙값</th></tr></thead><tbody>${['전체', ...groups].filter(group => !selected || group === selected).map(group => {
+      const rows = group === '전체' ? followupAnalysis.entries : followupAnalysis.entries.filter(entry => entry[dimension] === group);
+      return `<tr><td>${escapePeriodReportHtml(group)}${rows.length < 10 ? ' · 표본 적음' : ''}</td><td class="num">${rows.length}건</td>${[3,7,14,21].map(days => { const count = rows.filter(entry => entry.second !== null && entry.second <= days).length; return `<td class="num">${count}건 / ${rate(count, rows.length)}</td>`; }).join('')}<td class="num">${rows.filter(entry => entry.third !== null).length}건 / ${rate(rows.filter(entry => entry.third !== null).length, rows.length)}</td><td class="num">${median(rows.filter(entry => entry.second !== null).map(entry => entry.second))}</td></tr>`;
+    }).join('')}</tbody></table></div><div class="cohort-funnel-note">소요일은 초진 다음 날을 1일로 계산하며 21일째를 포함합니다. 기존 퍼널의 초진일 포함 21일 집계와 경계일이 다를 수 있습니다. 초진 표시가 없는 과거 기록은 첫 방문일을 사용합니다. 재초진은 별도 건으로 집계합니다.<br>보험·연령·성별은 초진 당일 기록 우선, 없으면 현재 환자 정보를 사용하므로 과거 특성과 다를 수 있습니다. 미상은 별도 표시합니다. 미내원은 치료 완료일 수도 있으며, 문자 발송 효과를 의미하지 않습니다.</div>`;
+  }
+  $('followupDimension').addEventListener('change', () => renderFollowupAnalysis(true));
+  $('followupGroup').addEventListener('change', () => renderFollowupAnalysis());
+
   async function run() {
     let start = $("startDate").value;
     let end = $("endDate").value;
@@ -2340,6 +2413,14 @@
       renderDiagnosisStats(s);
       renderRetentionStats(s);
       renderSummary(s, previousStats);
+      $('followupAnalysisWrap').textContent = '재방문 분석을 불러오는 중...';
+      try {
+        const records = SERVER_MODE ? await loadRecords() : allRecords;
+        followupAnalysis = computeFollowupAnalysis(records, start, end, docFilter);
+        renderFollowupAnalysis(true);
+      } catch (error) {
+        $('followupAnalysisWrap').textContent = '재방문 분석 조회 실패: ' + error.message;
+      }
       renderFinancialStats(s, previousStats);
       renderOperationalTrendChart(trendRows, chartUnit);
       renderPeriodComparisonChart(comparison, "range");
