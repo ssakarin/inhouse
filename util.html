@@ -157,6 +157,52 @@
   </div>
 
   <div class="card">
+    <div class="card-title">재진, 삼진 구글시트 반영</div>
+    <div class="tool-row">
+      <button class="good" id="thirdVisitSyncBtn" type="button">원본 시트 반영</button>
+    </div>
+    <div class="note">원본 구글시트(경희홍익한의원 초진환자해피콜)에 환자 DB의 진료 기록으로 계산한 초진/재진 칸을 바로 반영합니다.</div>
+    <div class="status" id="thirdVisitSyncStatus">대기 중</div>
+    <div class="sync-result" id="thirdVisitSyncResult"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">초진 후 미재방문 검색</div>
+    <div class="tool-row">
+      <input class="search-input" id="noFollowupDaysInput" type="number" min="7" max="365" step="1" value="7" autocomplete="off" aria-label="시작 일수">
+      <button class="good" id="noFollowupSearchBtn" type="button">검색</button>
+    </div>
+    <div class="note">숫자를 입력하고 검색하면 입력값~7일 전 초진 후 미재방문 환자를 표시합니다. 온라인관리 Slack에서 환자 이름 뒤 숫자 2개가 보이면 함께 표시합니다.</div>
+    <div class="status" id="noFollowupStatus">검색 전</div>
+    <div class="result-table" id="noFollowupResult"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">알림톡 엑셀 생성</div>
+    <div class="tool-row">
+      <textarea class="alerttalk-input" id="alerttalkInput" placeholder="예:
+홍길동 e11,33
+김영희님 200-52,100-90
+이단비님 d79,e35" autocomplete="off"></textarea>
+      <button class="good" id="alerttalkCreateBtn" type="button">엑셀 생성</button>
+    </div>
+    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 여러 개면 질환명과 자료코드를 한 행에 쉼표로 합쳐 생성합니다.</div>
+    <div class="status" id="alerttalkStatus">대기 중</div>
+    <div class="alerttalk-preview" id="alerttalkPreview"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">일간 지표 구글시트 반영</div>
+    <div class="tool-row">
+      <input class="search-input" id="dailyMetricsDateInput" type="date" aria-label="반영할 진료일">
+      <button class="good" id="dailyMetricsSyncBtn" type="button">선택 날짜 반영</button>
+    </div>
+    <div class="note">구글시트 ‘경희홍익한의원_지표관리양식_v26.0’의 선택 날짜 합계행과 비급여 상세행을 반영합니다. 예약 환자수(Q), 정상 이행(S), 노쇼(T)는 예약 기록과 실제 내원 기록으로 계산합니다. 비급여는 서버의 실제 결제금액을 AG 항목별로 분류해 AK 최초결제에 넣고, 재결제는 0으로 반영합니다. 재진 환자수와 65세 이상 비율은 시트 수식으로 자동 계산됩니다.</div>
+    <div class="status" id="dailyMetricsSyncStatus">대기 중</div>
+    <div class="sync-result" id="dailyMetricsSyncResult"></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">Slack 백업</div>
     <div class="tool-row">
       <button class="good" id="slackBackupBtn" type="button">슬랙 백업</button>
@@ -176,27 +222,6 @@
   </div>
 
   <div class="card">
-    <div class="card-title">재진, 삼진 구글시트 반영</div>
-    <div class="tool-row">
-      <button class="good" id="thirdVisitSyncBtn" type="button">원본 시트 반영</button>
-    </div>
-    <div class="note">원본 구글시트(경희홍익한의원 초진환자해피콜)에 환자 DB의 진료 기록으로 계산한 초진/재진 칸을 바로 반영합니다.</div>
-    <div class="status" id="thirdVisitSyncStatus">대기 중</div>
-    <div class="sync-result" id="thirdVisitSyncResult"></div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">일간 지표 구글시트 반영</div>
-    <div class="tool-row">
-      <input class="search-input" id="dailyMetricsDateInput" type="date" aria-label="반영할 진료일">
-      <button class="good" id="dailyMetricsSyncBtn" type="button">선택 날짜 반영</button>
-    </div>
-    <div class="note">구글시트 ‘경희홍익한의원_지표관리양식_v26.0’의 선택 날짜 합계행과 비급여 상세행을 반영합니다. 예약 환자수(Q), 정상 이행(S), 노쇼(T)는 예약 기록과 실제 내원 기록으로 계산합니다. 비급여는 서버의 실제 결제금액을 AG 항목별로 분류해 AK 최초결제에 넣고, 재결제는 0으로 반영합니다. 재진 환자수와 65세 이상 비율은 시트 수식으로 자동 계산됩니다.</div>
-    <div class="status" id="dailyMetricsSyncStatus">대기 중</div>
-    <div class="sync-result" id="dailyMetricsSyncResult"></div>
-  </div>
-
-  <div class="card">
     <div class="card-title">최근 진료 환자 연락처</div>
     <div class="tool-row">
       <select class="search-input" id="recentContactsPeriodSelect" aria-label="진료 환자 조회 기간">
@@ -208,20 +233,6 @@
     </div>
     <div class="note">오늘 기준 선택한 기간 내 진료 기록이 있는 환자를 중복 없이 정리합니다. 연락처가 없는 환자는 엑셀에서 제외됩니다.</div>
     <div class="status" id="recentContactsStatus">대기 중</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">알림톡 엑셀 생성</div>
-    <div class="tool-row">
-      <textarea class="alerttalk-input" id="alerttalkInput" placeholder="예:
-홍길동 e11,33
-김영희님 200-52,100-90
-이단비님 d79,e35" autocomplete="off"></textarea>
-      <button class="good" id="alerttalkCreateBtn" type="button">엑셀 생성</button>
-    </div>
-    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 여러 개면 질환명과 자료코드를 한 행에 쉼표로 합쳐 생성합니다.</div>
-    <div class="status" id="alerttalkStatus">대기 중</div>
-    <div class="alerttalk-preview" id="alerttalkPreview"></div>
   </div>
 
   <div class="card">
@@ -244,17 +255,6 @@
     </div>
     <div class="note">DB 저장 없이 현재 beds / patients만 비웁니다. 환자 차트 DB, 설정, 원장/간호사, 치료시간은 유지됩니다.</div>
     <div class="status" id="randomTestStatus">대기 중</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">초진 후 미재방문 검색</div>
-    <div class="tool-row">
-      <input class="search-input" id="noFollowupDaysInput" type="number" min="7" max="365" step="1" value="10" autocomplete="off" aria-label="시작 일수">
-      <button class="good" id="noFollowupSearchBtn" type="button">검색</button>
-    </div>
-    <div class="note">숫자를 입력하고 검색하면 입력값~7일 전 초진 후 미재방문 환자를 표시합니다. 온라인관리 Slack에서 환자 이름 뒤 숫자 2개가 보이면 함께 표시합니다.</div>
-    <div class="status" id="noFollowupStatus">검색 전</div>
-    <div class="result-table" id="noFollowupResult"></div>
   </div>
 </div>
 
@@ -459,7 +459,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
   }
 
   async function searchNoFollowupPatients() {
-    const days = Math.max(7, Math.min(365, Number.parseInt(noFollowupDaysInput.value, 10) || 10));
+    const days = Math.max(7, Math.min(365, Number.parseInt(noFollowupDaysInput.value, 10) || 7));
     noFollowupDaysInput.value = String(days);
     noFollowupSearchBtn.disabled = true;
     noFollowupResult.innerHTML = "";
