@@ -53,6 +53,10 @@ html.fit .stage { transform-origin: 0 0; }
 .brand-line { position: absolute; width: 260px; height: 10px; bottom: 860px; background: var(--orange); border-radius: 999px; }
 .brand-since { position: absolute; bottom: 710px; margin: 0; color: var(--navy); font-size: 58px; font-weight: 800; letter-spacing: .34em; }
 
+/* 10월 진료 일정 원본 포스터 */
+.slide--october-notice { display: flex; align-items: center; justify-content: center; background: #fff; }
+.slide--october-notice img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
 /* 휴진 안내 */
 .slide--holiday {
   padding: 410px 120px 160px;
