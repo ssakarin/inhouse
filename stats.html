@@ -523,6 +523,7 @@
   </div>
 </div>
 
+<script src="followup-analysis.js"></script>
 <script>
   const DB_NAME = "patientChartDB";
   const STORE = "patients";
@@ -2305,33 +2306,23 @@
   }
 
   let followupAnalysis = { entries: [], pending: 0 };
-
-  function computeFollowupAnalysis(records, start, end, doctor = '') {
-    const cutoff = end < addDays(today(), -1) ? end : addDays(today(), -1);
-    const result = { entries: [], pending: 0 };
-    const dayNumber = date => Date.parse(date + 'T00:00:00Z') / 86400000;
-    for (const rec of records) {
-      const dates = nonPrescriptionVisitDatesOf(rec);
-      const starts = newVisitDatesOf(rec);
-      for (const first of starts) {
-        if (first < start || first > cutoff || isPrescriptionVisit(rec, first)) continue;
-        const visit = getVisitRecord(rec, first);
-        if (doctor && String(visit.doctorName || rec.doctorName || '').trim() !== doctor) continue;
-        if (dayNumber(cutoff) - dayNumber(first) < 21) { result.pending++; continue; }
-        const nextStart = starts.find(date => date > first);
-        const gaps = dates.filter(date => date > first && date <= cutoff && (!nextStart || date < nextStart))
-          .map(date => dayNumber(date) - dayNumber(first)).filter(days => days <= 21);
-        const rawInsurance = String(visit.insuranceType || rec.insuranceType || rec.insurance_type || rec['보험종별'] || '').trim();
-        const insurance = /자보|자동차|^TA$/i.test(rawInsurance) ? '자보' : /1종/.test(rawInsurance) ? '1종' : /2종/.test(rawInsurance) ? '2종' : /건강|건보|직장|지역/.test(rawInsurance) ? '건강보험' : rawInsurance ? '기타' : '미상';
-        const rawAge = String(visit.age ?? rec.age ?? '').trim();
-        const age = /^\d+(?:세)?$/.test(rawAge) ? Number(rawAge.replace('세', '')) : NaN;
-        const ageLabel = !Number.isFinite(age) || age > 120 ? '미상' : age < 20 ? '20세 미만' : age < 40 ? '20~39세' : age < 60 ? '40~59세' : age < 65 ? '60~64세' : '65세 이상';
-        const rawGender = String(visit.gender || rec.gender || '').trim();
-        const gender = /^(남|남성|남자|M|male)$/i.test(rawGender) ? '남' : /^(여|여성|여자|F|female)$/i.test(rawGender) ? '여' : '미상';
-        result.entries.push({ insurance, age: ageLabel, gender, weekday: ['일','월','화','수','목','금','토'][new Date(first + 'T00:00:00Z').getUTCDay()], second: gaps[0] ?? null, third: gaps[1] ?? null });
-      }
-    }
-    return result;
+  let followupRequest = null;
+  let statsRunId = 0;
+  function loadFollowupAnalysis(start, end, doctor) {
+    if (!SERVER_MODE) return Promise.resolve(computeFollowupAnalysis(allRecords, start, end, doctor));
+    const key = JSON.stringify([start, end, doctor, today()]);
+    if (followupRequest?.key === key && Date.now() - followupRequest.createdAt < 30000) return followupRequest.promise;
+    const params = new URLSearchParams({ start, end, doctor });
+    const request = { key, createdAt: Date.now() };
+    request.promise = fetch(`/api/stats/followup?${params}`, { cache: 'no-store' }).then(async response => {
+      if (!response.ok) throw new Error(`서버 재방문 분석 조회 실패 (${response.status})`);
+      return response.json();
+    }).catch(error => {
+      if (followupRequest === request) followupRequest = null;
+      throw error;
+    });
+    followupRequest = request;
+    return request.promise;
   }
 
   function renderFollowupAnalysis(resetGroup = false) {
@@ -2378,6 +2369,15 @@
     if (start > end) { [start, end] = [end, start]; $("startDate").value = start; $("endDate").value = end; }
     const docFilter = $("doctorFilter").value;
     const docLabel = docFilter || "전체";
+    const runId = ++statsRunId;
+    $('followupAnalysisWrap').textContent = '재방문 분석을 불러오는 중...';
+    loadFollowupAnalysis(start, end, docFilter).then(result => {
+      if (runId !== statsRunId) return;
+      followupAnalysis = result;
+      renderFollowupAnalysis(true);
+    }).catch(error => {
+      if (runId === statsRunId) $('followupAnalysisWrap').textContent = '재방문 분석 조회 실패: ' + error.message;
+    });
     if (!chartUnitTouched) $("chartUnit").value = defaultChartUnit(start, end);
     const chartUnit = $("chartUnit").value || "week";
     const unitLabel = { day: "일", week: "주", month: "월", quarter: "분기", year: "년" }[chartUnit] || "주";
@@ -2398,6 +2398,7 @@
         statsLoader(previousStart, previousEnd),
         includeYearAgo ? statsLoader(yearAgoStart, yearAgoEnd) : Promise.resolve(null)
       ]);
+      if (runId !== statsRunId) return;
       const trendRows = markRecentFollowupRates(s.trendStats, chartUnit, addDays(today(), -21));
       const comparison = {
         current: { start, end },
@@ -2413,14 +2414,6 @@
       renderDiagnosisStats(s);
       renderRetentionStats(s);
       renderSummary(s, previousStats);
-      $('followupAnalysisWrap').textContent = '재방문 분석을 불러오는 중...';
-      try {
-        const records = SERVER_MODE ? await loadRecords() : allRecords;
-        followupAnalysis = computeFollowupAnalysis(records, start, end, docFilter);
-        renderFollowupAnalysis(true);
-      } catch (error) {
-        $('followupAnalysisWrap').textContent = '재방문 분석 조회 실패: ' + error.message;
-      }
       renderFinancialStats(s, previousStats);
       renderOperationalTrendChart(trendRows, chartUnit);
       renderPeriodComparisonChart(comparison, "range");
@@ -2430,6 +2423,7 @@
       lastResult = { start, end, docLabel, chartUnit, comparisonUnit: "range", stats: s, trendRows, comparison };
       $("periodReportPrintBtn").disabled = false;
     } catch (e) {
+      if (runId !== statsRunId) return;
       $("status").textContent = "오류: " + (e?.message || e);
       $("status").classList.add("error");
     }

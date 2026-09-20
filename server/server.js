@@ -6,6 +6,9 @@ const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 const { encrypt, decrypt, isEncrypted, KEY_PATH } = require("./crypto-util");
 const { stampBedStageTimes } = require("./bed-stage-time");
+const { computeFollowupAnalysis } = require("../followup-analysis");
+const followupCache = new Map();
+let followupCacheRevision = -1;
 const {
   CATEGORY_KEYS: NONCOVERED_CATEGORY_KEYS,
   buildNoncoveredBreakdown,
@@ -4799,6 +4802,30 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/dashboard/weekly" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     jsonResponse(res, 200, getDeskWeeklyWidget(requestUrl.searchParams.get("days")));
+    return true;
+  }
+
+  if (pathname === "/api/stats/followup" && req.method === "GET") {
+    const params = new URL(req.url, `http://${req.headers.host || "localhost"}`).searchParams;
+    const start = params.get("start") || "";
+    const end = params.get("end") || "";
+    const doctor = params.get("doctor") || "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end) {
+      jsonResponse(res, 400, { error: "Invalid date range" });
+      return true;
+    }
+    ensurePatientCache();
+    if (followupCacheRevision !== patientDataRevision) {
+      followupCache.clear();
+      followupCacheRevision = patientDataRevision;
+    }
+    const key = JSON.stringify([start, end, doctor, ymd(new Date())]);
+    if (!followupCache.has(key)) {
+      const result = computeFollowupAnalysis(patientCache.values(), start, end, doctor);
+      if (followupCache.size >= 24) followupCache.delete(followupCache.keys().next().value);
+      followupCache.set(key, result);
+    }
+    jsonResponse(res, 200, followupCache.get(key));
     return true;
   }
 
