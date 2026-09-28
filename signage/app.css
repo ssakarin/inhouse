@@ -130,6 +130,8 @@ html.fit .stage { transform-origin: 0 0; }
 .slide--event-memory img { object-fit: cover; }
 .slide--event-lindiet { background: #fff; }
 .slide--event-lindiet img { object-fit: cover; }
+.slide--event-lindiet-group { background: #40377f; }
+.slide.is-active.slide--event-lindiet-group img { animation: none; transform: none; }
 
 /* 맞춤 한약 처방 안내 */
 .slide--herbal-list {
