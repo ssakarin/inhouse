@@ -6062,7 +6062,7 @@
       <div class="needle-safety-title" id="needleCountSetupTitle">침 개수 설정</div>
       <div class="needle-count-options" id="needleBaseCountOptions"></div>
       <div class="needle-count-options" id="needleExtraCountOptions"></div>
-      <input class="needle-custom-count-input" id="needleCustomCountInput" type="number" min="25" step="1" inputmode="numeric" placeholder="25개 이상 직접 입력" oninput="selectNeedleCustomCount(this.value)">
+      <input class="needle-custom-count-input" id="needleCustomCountInput" type="number" min="25" step="1" inputmode="numeric" placeholder="26개 이상 직접 입력" oninput="selectNeedleCustomCount(this.value)">
       <div class="needle-count-actions">
         <button class="timer-btn primary needle-start-btn" id="needleCountStartButton" type="button" onclick="confirmNeedleCountSetup()">시작</button>
         <button class="timer-btn needle-cancel-btn" type="button" onclick="cancelNeedleCountSetup()">취소</button>
@@ -15629,7 +15629,7 @@
     const customMode = state.basePreset === 'custom';
     const customValid = customMode && Number(state.customCount) >= 25;
     if (extraOptions) {
-      extraOptions.innerHTML = [0, 1, 2, 3, 4].map(value => `
+      extraOptions.innerHTML = [1, 2, 3, 4, 5].map(value => `
         <button class="needle-count-option ${!customMode && state.extraCount === value ? 'selected' : ''}" type="button" ${customMode ? 'disabled' : ''} onclick="selectNeedleExtraCount(${value})">+${value}</button>`).join('');
     }
     const total = customMode ? Number(state.customCount || 0) : state.baseCount + state.extraCount;
