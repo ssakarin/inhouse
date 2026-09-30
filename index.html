@@ -3809,6 +3809,7 @@
     margin: auto 0;
   }
   .body-map-grid {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
@@ -3927,6 +3928,36 @@
     background: rgba(251,191,36,0.16);
     border-color: rgba(251,191,36,0.7);
     color: #fde68a;
+  }
+  .body-position-chip[data-position="lateral"],
+  .body-position-toggle[data-position="lateral"][aria-pressed="true"] {
+    background: rgba(251,146,60,0.18);
+    border-color: rgba(251,146,60,0.75);
+    color: #fed7aa;
+  }
+  .body-left-position-controls {
+    position: relative;
+    align-self: center;
+    flex-shrink: 0;
+  }
+  .body-position-toggle.body-side-position {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 26px;
+    min-height: 32px;
+    padding: 5px 3px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text2);
+    font-size: 11px;
+    font-weight: 900;
+  }
+  .body-position-toggle.body-side-position[aria-pressed="true"] {
+    background: #81451e;
+    border-color: #fb923c;
+    color: #fed7aa;
   }
   .body-position-chip select {
     position: absolute;
@@ -7118,6 +7149,7 @@
     { id: 'supine', label: '바로 눕기' },
     { id: 'left_lateral', label: '왼쪽이 위로 오게 눕기' },
     { id: 'right_lateral', label: '오른쪽이 위로 오게 눕기' },
+    { id: 'lateral', label: '옆으로 눕기' },
     { id: 'prone', label: '엎드리기' }
   ];
 
@@ -15020,6 +15052,14 @@
     ['desk', 'receive', 'bed'].forEach(scope => renderFormBodyPartSelector(scope));
   }
 
+  function renderSidePositionButton(position, scope = '') {
+    const active = position === 'lateral';
+    return `<button type="button" class="body-position-toggle body-side-position" data-position="lateral"
+      aria-pressed="${active}" aria-label="옆으로 눕기 ${active ? '해제' : '선택'}"
+      title="옆으로 눕기 (방향 미지정) · 다시 누르면 해제"
+      onclick="togglePatientPosition('lateral', '${scope}', this)">옆</button>`;
+  }
+
   function renderBodyFigure(side, title, selectedParts, onclickTemplate = `toggleBodyPart('${side}', '__PART__')`, position = '', scope = '') {
     const leftPosition = side === 'back' ? 'left_lateral' : 'right_lateral';
     const rightPosition = side === 'back' ? 'right_lateral' : 'left_lateral';
@@ -15034,7 +15074,10 @@
       <div class="body-figure-panel">
         ${positionButton(side === 'front' ? 'supine' : 'prone', title, 'body-figure-title')}
         <div class="body-figure-lr-wrap">
-          ${positionButton(leftPosition, side === 'back' ? '좌' : '우', 'body-lr-label')}
+          <div class="body-left-position-controls">
+            ${renderSidePositionButton(position, scope)}
+            ${positionButton(leftPosition, side === 'back' ? '좌' : '우', 'body-lr-label')}
+          </div>
           <div class="body-figure">
             ${renderBodySvg(side, selectedParts, onclickTemplate)}
           </div>
