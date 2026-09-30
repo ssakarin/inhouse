@@ -3885,113 +3885,17 @@
     flex-shrink: 0;
     margin-bottom: 10px;
   }
-  .body-position-chip {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    min-height: 38px;
-    box-sizing: border-box;
-    padding: 8px 12px;
-    border: 1px solid rgba(148,163,184,0.65);
-    border-radius: 7px;
-    background: rgba(148,163,184,0.16);
-    color: #cbd5e1;
-    font-size: 15px;
-    font-weight: 900;
-    white-space: nowrap;
-  }
-  .body-position-chip:focus-within {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
-  }
-  .body-position-chip[data-position="supine"],
-  .body-position-toggle[data-position="supine"][aria-pressed="true"] {
-    background: rgba(56,189,248,0.16);
-    border-color: rgba(56,189,248,0.65);
-    color: #a5e4ff;
-  }
-  .body-position-chip[data-position="left_lateral"],
-  .body-position-toggle[data-position="left_lateral"][aria-pressed="true"] {
-    background: rgba(167,139,250,0.18);
-    border-color: rgba(167,139,250,0.7);
-    color: #ddd0ff;
-  }
-  .body-position-chip[data-position="right_lateral"],
-  .body-position-toggle[data-position="right_lateral"][aria-pressed="true"] {
-    background: rgba(52,211,153,0.16);
-    border-color: rgba(52,211,153,0.65);
-    color: #a7f3d0;
-  }
-  .body-position-chip[data-position="prone"],
-  .body-position-toggle[data-position="prone"][aria-pressed="true"] {
-    background: rgba(251,191,36,0.16);
-    border-color: rgba(251,191,36,0.7);
-    color: #fde68a;
-  }
-  .body-position-chip[data-position="lateral"],
-  .body-position-toggle[data-position="lateral"][aria-pressed="true"] {
-    background: rgba(251,146,60,0.18);
-    border-color: rgba(251,146,60,0.75);
-    color: #fed7aa;
-  }
-  .body-left-position-controls {
-    position: relative;
-    align-self: center;
-    flex-shrink: 0;
-  }
-  .body-position-toggle.body-side-position {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    min-width: 26px;
-    min-height: 32px;
-    padding: 5px 3px;
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--text2);
-    font-size: 11px;
-    font-weight: 900;
-  }
-  .body-position-toggle.body-side-position[aria-pressed="true"] {
-    background: #81451e;
-    border-color: #fb923c;
-    color: #fed7aa;
-  }
-  .body-position-chip select {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    opacity: 0;
-    cursor: pointer;
-    font-size: 16px;
-  }
-  .body-position-chip:has(select:disabled) { opacity: 0.6; }
-  .body-position-toggle {
-    appearance: none;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 7px;
-    font-family: inherit;
-    cursor: pointer;
-  }
-  .body-position-toggle.body-figure-title { width: 100%; padding: 6px; }
-  .body-position-toggle.body-lr-label {
-    align-self: center;
-    flex-shrink: 0;
-    min-width: 26px;
-    min-height: 44px;
-    writing-mode: horizontal-tb;
-    letter-spacing: 0;
-    opacity: 1;
-  }
-  .body-position-toggle:hover { border-color: currentColor; }
-  .body-position-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-  .body-position-toggle:disabled { opacity: 0.6; cursor: wait; }
-
+  .body-position-options { display:flex; align-items:center; justify-content:center; gap:3px; flex-wrap:wrap; }
+  .body-position-divider { color:var(--text3); font-size:13px; }
+  .body-position-toggle { appearance:none; background:transparent; border:1px solid transparent; border-radius:7px; color:var(--text2); font-family:inherit; font-size:15px; font-weight:900; padding:7px 8px; min-height:36px; cursor:pointer; }
+  .body-position-toggle:hover { border-color:currentColor; }
+  .body-position-toggle:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+  .body-position-toggle:disabled { opacity:0.6; cursor:wait; }
+  .body-position-toggle[data-position="supine"][aria-pressed="true"] { background:rgba(56,189,248,0.18); border-color:rgba(56,189,248,0.7); color:#a5e4ff; }
+  .body-position-toggle[data-position="left_lateral"][aria-pressed="true"] { background:rgba(167,139,250,0.18); border-color:rgba(167,139,250,0.7); color:#ddd0ff; }
+  .body-position-toggle[data-position="lateral"][aria-pressed="true"] { background:rgba(251,146,60,0.18); border-color:rgba(251,146,60,0.7); color:#fed7aa; }
+  .body-position-toggle[data-position="right_lateral"][aria-pressed="true"] { background:rgba(52,211,153,0.18); border-color:rgba(52,211,153,0.7); color:#a7f3d0; }
+  .body-position-toggle[data-position="prone"][aria-pressed="true"] { background:rgba(251,191,36,0.18); border-color:rgba(251,191,36,0.7); color:#fde68a; }
   .bed-clear-btn,
   .bed-move-btn,
   .bed-next-btn {
@@ -15021,8 +14925,8 @@
     setStableInnerHTML(map, `
       <div class="body-position-toolbar">${renderPatientPositionChip(selectedParts.position)}</div>
       <div class="body-map-grid">
-        ${renderBodyFigure('front', '전면', selectedParts.front, undefined, selectedParts.position)}
-        ${renderBodyFigure('back', '후면', selectedParts.back, undefined, selectedParts.position)}
+        ${renderBodyFigure('front', '전면', selectedParts.front)}
+        ${renderBodyFigure('back', '후면', selectedParts.back)}
       </div>
       <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>
       <div class="body-treatment-chip-slot" id="${getTreatmentChipSlotId('bedTreatmentGrid')}"></div>`);
@@ -15040,8 +14944,8 @@
       <div class="card-label">치료부위 선택</div>
       <div class="body-position-toolbar">${renderPatientPositionChip(selectedParts.position, scope)}</div>
       <div class="body-map-grid">
-        ${renderBodyFigure('front', '전면', selectedParts.front, `toggleFormBodyPart('${scope}', 'front', '__PART__')`, selectedParts.position, scope)}
-        ${renderBodyFigure('back', '후면', selectedParts.back, `toggleFormBodyPart('${scope}', 'back', '__PART__')`, selectedParts.position, scope)}
+        ${renderBodyFigure('front', '전면', selectedParts.front, `toggleFormBodyPart('${scope}', 'front', '__PART__')`)}
+        ${renderBodyFigure('back', '후면', selectedParts.back, `toggleFormBodyPart('${scope}', 'back', '__PART__')`)}
       </div>
       <div class="body-selected-list">${renderBodyPartChips({ bodyParts: selectedParts })}</div>
       <div class="body-treatment-chip-slot" id="${getTreatmentChipSlotId(ids.treatmentGrid)}"></div>`);
@@ -15052,38 +14956,14 @@
     ['desk', 'receive', 'bed'].forEach(scope => renderFormBodyPartSelector(scope));
   }
 
-  function renderSidePositionButton(position, scope = '') {
-    const active = position === 'lateral';
-    return `<button type="button" class="body-position-toggle body-side-position" data-position="lateral"
-      aria-pressed="${active}" aria-label="옆으로 눕기 ${active ? '해제' : '선택'}"
-      title="옆으로 눕기 (방향 미지정) · 다시 누르면 해제"
-      onclick="togglePatientPosition('lateral', '${scope}', this)">옆</button>`;
-  }
-
-  function renderBodyFigure(side, title, selectedParts, onclickTemplate = `toggleBodyPart('${side}', '__PART__')`, position = '', scope = '') {
-    const leftPosition = side === 'back' ? 'left_lateral' : 'right_lateral';
-    const rightPosition = side === 'back' ? 'right_lateral' : 'left_lateral';
-    const positionButton = (target, text, className) => {
-      const label = PATIENT_POSITIONS.find(item => item.id === target).label;
-      const active = position === target;
-      return `<button type="button" class="body-position-toggle ${className}" data-position="${target}"
-        aria-pressed="${active}" aria-label="${label}${active ? ' 해제' : ' 선택'}" title="${label} · 다시 누르면 해제"
-        onclick="togglePatientPosition('${target}', '${scope}', this)">${text}</button>`;
-    };
-    return `
-      <div class="body-figure-panel">
-        ${positionButton(side === 'front' ? 'supine' : 'prone', title, 'body-figure-title')}
-        <div class="body-figure-lr-wrap">
-          <div class="body-left-position-controls">
-            ${renderSidePositionButton(position, scope)}
-            ${positionButton(leftPosition, side === 'back' ? '좌' : '우', 'body-lr-label')}
-          </div>
-          <div class="body-figure">
-            ${renderBodySvg(side, selectedParts, onclickTemplate)}
-          </div>
-          ${positionButton(rightPosition, side === 'back' ? '우' : '좌', 'body-lr-label')}
-        </div>
-      </div>`;
+  function renderBodyFigure(side, title, selectedParts, onclickTemplate = `toggleBodyPart('${side}', '__PART__')`) {
+    return `<div class="body-figure-panel">
+      <div class="body-figure-title">${title}</div>
+      <div class="body-figure-lr-wrap">
+        <span class="body-lr-label">${side === 'back' ? '좌' : '우'}</span>
+        <div class="body-figure">${renderBodySvg(side, selectedParts, onclickTemplate)}</div>
+        <span class="body-lr-label">${side === 'back' ? '우' : '좌'}</span>
+      </div></div>`;
   }
 
   function renderBodySvg(side, selectedParts = [], onclickTemplate = '') {
@@ -15297,18 +15177,11 @@
 
   function renderPatientPositionChip(position, scope = '') {
     const value = normalizePatientPosition(position);
-    const label = PATIENT_POSITIONS.find(item => item.id === value)?.label;
-    const onchange = scope
-      ? `setFormPatientPosition('${scope}', this.value)`
-      : 'setBedPatientPosition(this.value, this)';
-    return `<label class="body-position-chip" data-position="${value}" title="환자 자세 · 좌우는 환자 기준이며 선택한 쪽이 위로 오게 눕습니다">
-      <span class="body-position-label" aria-hidden="true">${label || '자세 미선택'}</span>
-      <span aria-hidden="true">▾</span>
-      <select aria-label="환자 자세 (환자 기준, 선택한 쪽이 위로)" onchange="${onchange}">
-        <option value="" ${!value ? 'selected' : ''}>선택 해제</option>
-        ${PATIENT_POSITIONS.map(item => `<option value="${item.id}" ${value === item.id ? 'selected' : ''}>${item.label}</option>`).join('')}
-      </select>
-    </label>`;
+    const options = [['supine', '전면'], ['left_lateral', '왼쪽'], ['lateral', '옆'], ['right_lateral', '오른쪽'], ['prone', '후면']];
+    return `<div class="body-position-options" role="group" aria-label="환자 자세 선택">${options.map(([id, text]) => {
+      const label = PATIENT_POSITIONS.find(item => item.id === id).label;
+      return `<button type="button" class="body-position-toggle" data-position="${id}" aria-pressed="${value === id}" aria-label="${label}" title="${label} · 다시 누르면 해제" onclick="togglePatientPosition('${id}', '${scope}', this)">${text}</button>`;
+    }).join('<span class="body-position-divider" aria-hidden="true">|</span>')}</div>`;
   }
 
   function renderBodyPartChips(bed) {
@@ -16077,33 +15950,26 @@
     return window.setBedPatientPosition(next, button);
   };
 
-  window.setBedPatientPosition = async (value, select) => {
+  window.setBedPatientPosition = async (value, button) => {
     const bedNo = selectedBedNo;
     const bed = getBedData(bedNo);
     if (!bed || (value && !normalizePatientPosition(value))) return;
     const bodyParts = normalizeBodyParts(bed.bodyParts);
     if (bodyParts.position === value) return;
     const nextBodyParts = { ...bodyParts, position: value };
-    const chip = select?.closest('.body-position-chip');
-    const label = chip?.querySelector('.body-position-label');
-    const previousLabel = label?.textContent;
-    if (select) select.disabled = true;
+    const buttons = Array.from(button?.closest('.body-position-options')?.querySelectorAll('button') || []);
+    buttons.forEach(control => { control.disabled = true; });
     try {
       await Promise.all([
         updateBedRecord(bedNo, { bodyParts: nextBodyParts }),
         ...(bed.patientKey ? [updatePatient(bed.patientKey, { bodyParts: nextBodyParts })] : [])
       ]);
-      if (chip) chip.dataset.position = value;
-      if (label) label.textContent = value
-        ? PATIENT_POSITIONS.find(item => item.id === value).label
-        : '자세 미선택';
+      buttons.forEach(control => control.setAttribute('aria-pressed', String(control.dataset.position === value)));
     } catch (error) {
-      if (select) select.value = bodyParts.position;
-      if (label) label.textContent = previousLabel;
       console.error('patient position save failed', error);
       showToast('자세 저장에 실패했습니다. 다시 선택해 주세요.');
     } finally {
-      if (select) select.disabled = false;
+      buttons.forEach(control => { control.disabled = false; });
     }
   };
 
