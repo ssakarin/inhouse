@@ -15,10 +15,10 @@ function publicStatus(patients={},beds={},alerts={},calls=[],now=Date.now()){
  Object.values(alerts).forEach(a=>{const b=beds[String(a?.bedNo)];if(b&&b.patientKey===a.patientKey&&!b.signageArrivedAt)(Number(a.bedNo)>=101?consultation:waiting).add(a.patientKey);});
  consultation.forEach(key=>waiting.delete(key));
  const fresh=calls.filter(c=>c.createdAt>now-1800000&&matches(c,beds));
- const safe=c=>({id:c.id,groupId:c.groupId||c.id,maskedName:maskName(c.patientName),bedNo:c.bedNo,bedLabel:c.bedNo>=101?'원장실'+(c.bedNo-100):c.bedNo===15?'스파인':c.bedNo+'번 베드',startAt:c.startAt,endAt:c.endAt});
+ const safe=(c,forSpeech=false)=>({...(forSpeech?{speechName:c.patientName}:{}),id:c.id,groupId:c.groupId||c.id,maskedName:maskName(c.patientName),bedNo:c.bedNo,bedLabel:c.bedNo>=101?'원장실'+(c.bedNo-100):c.bedNo===15?'스파인':c.bedNo+'번 베드',startAt:c.startAt,endAt:c.endAt});
  const active=fresh.find(c=>c.startAt<=now&&c.endAt>now);
- const activeCalls=active?fresh.filter(c=>(c.groupId||c.id)===(active.groupId||active.id)).map(safe):[];
- return {serverTime:now,waitingCount:waiting.size,consultationWaitingCount:consultation.size,active:active?safe(active):null,activeCalls,recent:fresh.filter(c=>c.startAt<=now).slice(-3).reverse().map(safe)};
+ const activeCalls=active?fresh.filter(c=>(c.groupId||c.id)===(active.groupId||active.id)).map(c=>safe(c,true)):[];
+ return {serverTime:now,waitingCount:waiting.size,consultationWaitingCount:consultation.size,active:active?safe(active,true):null,activeCalls,recent:fresh.filter(c=>c.startAt<=now).slice(-3).reverse().map(c=>safe(c))};
 }
 function enqueue(calls,bedNo,bed,now,id){
  let fresh=calls.filter(c=>c.createdAt>now-1800000).slice(-99);

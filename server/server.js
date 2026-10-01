@@ -5320,7 +5320,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Public display exposes only masked names and aggregate counts.
+    // Display names are masked; active calls include the full name for spoken announcements.
     if(pathname === "/signage/status" && req.method === "GET"){
       const calls=getStateValue("signageCalls");
       jsonResponse(res,200,signageState.publicStatus(getStateValue("patients")||{},getBedsState(),getStateValue("bedAssignmentAlerts")||{},Array.isArray(calls)?calls:[]));return;

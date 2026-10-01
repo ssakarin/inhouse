@@ -327,8 +327,8 @@ html.fit .stage { transform-origin: 0 0; }
 .waiting-count { display:flex; flex-direction:column; align-items:center; font-size:90px; font-weight:700; white-space:nowrap; line-height:1.2; gap:12px; }
 .waiting-count-label { font-size:98px; }
 .waiting-count-value { display:flex; align-items:baseline; gap:18px; }
-.waiting-counts { display:grid; grid-template-columns:1fr 1fr 1fr; align-items:center; gap:32px; text-align:center; }
-.waiting-clock { font-size:160px; font-weight:700; font-variant-numeric:tabular-nums; color:#ffd477; white-space:nowrap; }
+.waiting-counts { display:grid; grid-template-columns:1fr 1fr; align-items:center; gap:0; width:90%; margin:0 auto; text-align:center; }
+.waiting-count + .waiting-count { border-left:3px solid #ffffff25; }
 .stage.is-calling .recent-calls { display:none; }
 .stage.is-calling .waiting-counts, .stage.is-calling #connectionStatus { display:none; }
 #connectionStatus:empty { display:none; }

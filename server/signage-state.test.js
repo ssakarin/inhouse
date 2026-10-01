@@ -5,7 +5,7 @@ test('public payload masks name and excludes patient identifiers',()=>{
  const calls=signage.enqueue([],8,bed,now,'one');
  const out=signage.publicStatus({p1:bed,p2:{name:'대기환자'},p3:{name:'퇴실',bedStatus:'discharged'}},{8:bed},{a:{bedNo:8,patientKey:'p1'}},calls,now+3000);
  assert.equal(out.waitingCount,2);assert.equal(out.active.maskedName,'김민＊');assert.equal(out.active.bedLabel,'8번 베드');
- assert.ok(!JSON.stringify(out).includes('김민석'));assert.ok(!JSON.stringify(out).includes('patientKey'));assert.ok(!JSON.stringify(out).includes('대기환자'));
+ assert.equal(out.active.speechName,'김민석');assert.equal(out.activeCalls[0].speechName,'김민석');assert.ok(!JSON.stringify(out.recent).includes('김민석'));assert.ok(!JSON.stringify(out).includes('patientKey'));assert.ok(!JSON.stringify(out).includes('대기환자'));
 });
 test('single call waits three seconds to collect assignments and displays for fifteen seconds',()=>{
  const calls=signage.enqueue([],8,bed,now,'one');
