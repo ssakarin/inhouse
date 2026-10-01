@@ -1,5 +1,6 @@
 "use strict";
 const DURATION=15000;
+const GROUP_DURATION=30000;
 function maskName(name){const chars=Array.from(String(name||'').trim());return chars.length>1?chars.slice(0,-1).join('')+'＊':'＊';}
 function validBed(no){return Number.isInteger(no)&&((no>=1&&no<=15&&no!==7)||(no>=101&&no<=110));}
 function matches(c,beds){const b=beds[String(c.bedNo)];return b&&b.patientKey===c.patientKey&&b.name===c.patientName&&!b.signageArrivedAt;}
@@ -30,7 +31,7 @@ function enqueue(calls,bedNo,bed,now,id){
  let groupId=id,startAt=Math.max(now+3000,...fresh.filter(c=>c.endAt>now).map(c=>c.endAt)),endAt=startAt+DURATION;
  if(group){
   groupId=group[0].groupId||group[0].id;startAt=group[0].startAt;
-  const previousEnd=group[0].endAt;endAt=Math.max(previousEnd,now+DURATION);
+  const previousEnd=group[0].endAt;endAt=Math.max(previousEnd,Math.max(startAt,now)+GROUP_DURATION);
   const extension=endAt-previousEnd;
   fresh=fresh.map(c=>(c.groupId||c.id)===groupId?{...c,groupId,endAt}:extension>0&&c.startAt>=previousEnd?{...c,startAt:c.startAt+extension,endAt:c.endAt+extension}:c);
  }

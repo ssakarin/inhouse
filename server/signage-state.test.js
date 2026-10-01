@@ -51,22 +51,22 @@ test('ten simultaneous assignments share a call group and extend from the last a
  const beds={};for(let i=1;i<=6;i++)beds[i]={patientKey:'p'+i,name:'환자'+i};for(let i=8;i<=11;i++)beds[i]={patientKey:'p'+i,name:'환자'+i};
  let id=0;let calls=signage.onAssignment([],{},beds,now,()=>String(++id));
  let out=signage.publicStatus({},beds,{},calls,now+3000);
- assert.equal(out.activeCalls.length,10);assert.equal(new Set(out.activeCalls.map(c=>c.groupId)).size,1);
+ assert.equal(out.activeCalls.length,10);assert.equal(out.active.endAt,now+33000);assert.equal(new Set(out.activeCalls.map(c=>c.groupId)).size,1);
  assert.ok(!JSON.stringify(out).includes('patientKey'));
  const expanded={...beds,12:{patientKey:'p12',name:'추가환자'}};
  calls=signage.onAssignment(calls,beds,expanded,now+5000,()=>String(++id));
  assert.equal(signage.publicStatus({},expanded,{},calls,now+5000).activeCalls.length,10);
- assert.equal(signage.publicStatus({},expanded,{},calls,now+18000).activeCalls.length,1);
+ assert.equal(signage.publicStatus({},expanded,{},calls,now+33000).activeCalls.length,1);
 });
-test('active batch accepts new patients without a new group and remains fifteen seconds after addition',()=>{
+test('active batch accepts new patients without a new group and remains thirty seconds after addition',()=>{
  const beds={8:bed,9:{patientKey:'p2',name:'이환자'}};let id=0;
  let calls=signage.onAssignment([],{},beds,now,()=>String(++id));
  const expanded={...beds,10:{patientKey:'p3',name:'박환자'}};
  calls=signage.onAssignment(calls,beds,expanded,now+10000,()=>String(++id));
  const out=signage.publicStatus({},expanded,{},calls,now+10000);
  assert.equal(out.activeCalls.length,3);assert.equal(new Set(out.activeCalls.map(c=>c.groupId)).size,1);
- assert.equal(out.active.endAt,now+25000);
- assert.equal(signage.publicStatus({},expanded,{},calls,now+25000).active,null);
+ assert.equal(out.active.endAt,now+40000);
+ assert.equal(signage.publicStatus({},expanded,{},calls,now+40000).active,null);
 });
 test('assignments outside the collection window do not join an active single call',()=>{
  const beds={8:bed};let id=0;let calls=signage.onAssignment([],{},beds,now,()=>String(++id));
