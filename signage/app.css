@@ -318,3 +318,42 @@ html.fit .stage { transform-origin: 0 0; }
 @media (prefers-reduced-motion: reduce) {
   .slide, .slide * { animation: none !important; transition: none !important; }
 }
+
+/* Scale whole posters to reserve the lower band without cropping. */
+.advertising { position:absolute; width:2160px; height:3840px; transform-origin:top left; transform:translateX(172.8px) scale(.84); transition:transform .45s ease; }
+.stage.is-calling .advertising { transform:translateX(302.4px) scale(.72); }
+.waiting-strip { position:absolute; z-index:10; bottom:0; left:0; width:100%; height:614.4px; background:#06275f; color:white; padding:48px 70px; display:flex; flex-direction:column; justify-content:center; gap:24px; transition:height .45s ease; border-top:10px solid #f6a800; }
+.stage.is-calling .waiting-strip { height:1075.2px; }
+.waiting-count { display:flex; flex-direction:column; align-items:center; font-size:90px; font-weight:700; white-space:nowrap; line-height:1.2; gap:12px; }
+.waiting-count-label { font-size:98px; }
+.waiting-count-value { display:flex; align-items:baseline; gap:18px; }
+.waiting-counts { display:grid; grid-template-columns:1fr 1fr 1fr; align-items:center; gap:32px; text-align:center; }
+.waiting-clock { font-size:160px; font-weight:700; font-variant-numeric:tabular-nums; color:#ffd477; white-space:nowrap; }
+.stage.is-calling .recent-calls { display:none; }
+.stage.is-calling .waiting-counts, .stage.is-calling #connectionStatus { display:none; }
+#connectionStatus:empty { display:none; }
+.recent-calls[hidden] { display:none; }
+.waiting-count strong { font-size:190px; margin:0; color:#ffd477; }
+.recent-calls { display:flex; justify-content:center; gap:40px; flex-wrap:wrap; font-size:58px; font-weight:600; }
+.recent-calls span { white-space:nowrap; }
+.stage.is-calling .waiting-strip { padding-left:40px; padding-right:40px; }
+.calling-message { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; text-align:center; white-space:nowrap; line-height:1.2; }
+.calling-message > * { flex-shrink:0; }
+.calling-message[hidden] { display:none; }
+.calling-message #callingName { font-size:140px; font-weight:700; margin-bottom:44px; }
+.calling-message strong { display:block; color:#ffd477; font-size:240px; font-weight:800; line-height:1.2; }
+.calling-message p { margin:24px 0 0; font-size:90px; color:#e5edf8; }
+#connectionStatus { font-size:30px; color:#bad0f0; }
+.stage.is-group-calling .advertising { visibility:hidden; }
+.stage.is-group-calling .waiting-strip { height:3840px; padding:160px 90px; border-top:0; }
+.group-calling { width:100%; text-align:center; }
+.group-calling[hidden] { display:none; }
+.group-calling h1 { margin:0 0 90px; font-size:140px; color:#fff; }
+.group-calling > p { margin:70px 0 0; font-size:70px; color:#d8e4f5; }
+.group-call-list { display:grid; grid-template-columns:1fr 1fr; grid-auto-flow:column; gap:28px; }
+.group-call-row { display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:220px; padding:40px 30px; border:2px solid #ffffff25; border-radius:28px; background:#ffffff09; font-size:84px; font-weight:700; white-space:nowrap; }
+.group-call-row strong { font-size:90px; color:#ffd477; }
+.group-call-arrow { font-size:48px; color:#91abc8; }
+.group-call-list.single-column { grid-template-columns:1fr; width:85%; margin:0 auto; }
+.group-call-list.single-column .group-call-row { font-size:120px; }
+.group-call-list.single-column .group-call-row strong { font-size:140px; }

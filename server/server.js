@@ -1,4 +1,5 @@
 const http = require("node:http");
+const signageState = require("./signage-state");
 const fs = require("node:fs");
 const path = require("node:path");
 const { URL } = require("node:url");
@@ -4502,6 +4503,8 @@ function commitBeds(beds, previousBeds = null) {
   const previous = previousBeds ? cloneJson(previousBeds) : cloneJson(getBedsState());
   const next = stampBedStageTimes(previous || {}, beds || {});
   setStateValue("beds", next);
+  const existingCalls = getStateValue("signageCalls");
+  setStateValue("signageCalls", signageState.onAssignment(Array.isArray(existingCalls) ? existingCalls : [], previous || {}, next, Date.now(), () => crypto.randomUUID()));
   const version = getBedsVersion() + 1;
   setStateValue("__bedsVersion", version);
   const { updates, removes } = diffBeds(previous || {}, next);
@@ -5250,8 +5253,8 @@ function mergeShortLinkQuery(target, sourceSearchParams) {
 }
 
 // 대기실 사이니지(/signage/)는 로그인 예외로 둔다. 모니터 내장 브라우저는 리모컨
-// 로그인이 현실적으로 불가능하고 세션 쿠키도 유지되지 않는다. 환자 정보가 없는
-// 정적 파일만 두는 경로이며, 퍼센트 인코딩(%2e%2e)을 푼 뒤에도 실제 경로가
+// 로그인이 현실적으로 불가능하고 세션 쿠키도 유지되지 않는다.
+// 정적 광고와 별도 집계/가린 이름 조회만 공개하며, 퍼센트 인코딩(%2e%2e)을 푼 뒤에도 실제 경로가
 // signage 밖으로 나가지 않는지까지 확인한다.
 const SIGNAGE_DIR = path.resolve(ROOT_DIR, "signage");
 
@@ -5285,6 +5288,11 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const pathname = url.pathname;
+    if ((pathname === "/signage" || pathname === "/signage/") && (req.method === "GET" || req.method === "HEAD")) {
+      res.writeHead(302, { Location: "/signage/index.html" + url.search, "Cache-Control": "no-store" });
+      res.end();
+      return;
+    }
     const shortLinkTarget = SHORT_LINKS.get(pathname.toLowerCase());
     if (shortLinkTarget && (req.method === "GET" || req.method === "HEAD")) {
       res.writeHead(302, { Location: mergeShortLinkQuery(shortLinkTarget, url.searchParams) });
@@ -5312,6 +5320,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // Public display exposes only masked names and aggregate counts.
+    if(pathname === "/signage/status" && req.method === "GET"){
+      const calls=getStateValue("signageCalls");
+      jsonResponse(res,200,signageState.publicStatus(getStateValue("patients")||{},getBedsState(),getStateValue("bedAssignmentAlerts")||{},Array.isArray(calls)?calls:[]));return;
+    }
     // Authentication gate. Login/logout endpoints stay open so a user can sign
     // in; everything else requires a valid session.
     const isAuthEndpoint = pathname === "/api/login" || pathname === "/api/logout";

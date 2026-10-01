@@ -8,7 +8,8 @@
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <div class="stage" id="stage" aria-live="polite">
+  <div class="stage" id="stage">
+    <div class="advertising">
     <section class="slide slide--brand is-active" data-duration="10000" aria-label="경희홍익한의원 로고">
       <div class="brand-glow"></div>
       <img class="brand-logo" src="assets/clinic-logo-wide.png" alt="경희홍익한의원">
@@ -137,6 +138,15 @@
     </section>
 
   </div>
+    <aside class="waiting-strip" aria-live="polite">
+      <div class="waiting-counts"><div class="waiting-count"><span class="waiting-count-label">진찰 대기</span><span class="waiting-count-value"><strong id="consultationWaitingCount">—</strong><span>명</span></span></div><div class="waiting-count"><span class="waiting-count-label">치료 대기</span><span class="waiting-count-value"><strong id="waitingCount">—</strong><span>명</span></span></div><time class="waiting-clock" id="waitingClock" aria-live="off" aria-label="현재 시각">--:--</time></div>
+      <div class="calling-message" id="callingMessage" hidden><div id="callingName"></div><strong id="callingDestination"></strong><p>들어와 주세요</p></div>
+      <div class="group-calling" id="groupCalling" hidden><h1>배정 안내</h1><div class="group-call-list" id="groupCallList"></div><p>안내된 베드 또는 원장실로 이동해 주세요</p></div>
+      <div class="recent-calls" id="recentCalls" hidden></div>
+      <small id="connectionStatus">대기 현황 연결 중</small>
+    </aside>
+  </div>
   <script src="app.js"></script>
+  <script src="waiting.js"></script>
 </body>
 </html>
