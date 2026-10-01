@@ -324,8 +324,11 @@ html.fit .stage { transform-origin: 0 0; }
 /* Scale whole posters to reserve the lower band without cropping. */
 .advertising { position:absolute; width:2160px; height:3840px; transform-origin:top left; transform:translateX(172.8px) scale(.84); }
 .stage.is-calling .advertising { transform:translateX(302.4px) scale(.72); }
-.stage.no-waiting:not(.is-calling) .advertising { transform:scale(1); }
-.stage.no-waiting:not(.is-calling) .waiting-strip { display:none; }
+.stage.no-waiting:not(.has-recent):not(.is-calling) .advertising { transform:scale(1); }
+.stage.no-waiting:not(.has-recent):not(.is-calling) .waiting-strip { display:none; }
+.stage.no-waiting.has-recent:not(.is-calling) .advertising { transform:translateX(64.8px) scale(.94); }
+.stage.no-waiting.has-recent:not(.is-calling) .waiting-strip { height:230.4px; padding:40px 70px; }
+.stage.no-waiting .waiting-counts { display:none; }
 .waiting-strip { position:absolute; z-index:10; bottom:0; left:0; width:100%; height:614.4px; background:#06275f; color:white; padding:48px 70px; display:flex; flex-direction:column; justify-content:center; gap:24px; transition:height .45s ease; border-top:10px solid #f6a800; }
 .stage.is-calling .waiting-strip { height:1075.2px; }
 .waiting-count { display:flex; flex-direction:column; align-items:center; font-size:90px; font-weight:700; white-space:nowrap; line-height:1.2; gap:12px; }
@@ -338,8 +341,11 @@ html.fit .stage { transform-origin: 0 0; }
 #connectionStatus:empty { display:none; }
 .recent-calls[hidden] { display:none; }
 .waiting-count strong { font-size:190px; margin:0; color:#ffd477; }
-.recent-calls { display:flex; justify-content:center; gap:40px; flex-wrap:wrap; font-size:58px; font-weight:600; }
+.recent-calls { display:flex; justify-content:center; gap:0; flex-wrap:nowrap; font-size:58px; font-weight:600; }
 .recent-calls span { white-space:nowrap; }
+.recent-call-item { display:flex; flex:1; justify-content:center; align-items:center; gap:16px; min-width:0; font-size:62px; }
+.recent-call-item + .recent-call-item { border-left:2px solid #ffffff40; }
+.recent-call-item strong { color:#ffd477; font-size:68px; }
 .stage.is-calling .waiting-strip { padding-left:40px; padding-right:40px; }
 .calling-message { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; text-align:center; white-space:nowrap; line-height:1.2; }
 .calling-message > * { flex-shrink:0; }

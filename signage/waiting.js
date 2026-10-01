@@ -51,11 +51,20 @@
       if(!response.ok)throw Error('status');var data=await response.json();
       document.getElementById('waitingCount').textContent=data.waitingCount;
       document.getElementById('consultationWaitingCount').textContent=data.consultationWaitingCount;
-      stage.classList.toggle('no-waiting',data.waitingCount===0&&data.consultationWaitingCount===0);
+      var noWaiting=data.waitingCount===0&&data.consultationWaitingCount===0;
+      var previousLayout=String(stage.classList.contains('no-waiting'))+String(stage.classList.contains('has-recent'));
+      stage.classList.toggle('no-waiting',noWaiting);
       document.getElementById('connectionStatus').textContent='';
       var recent=document.getElementById('recentCalls');recent.replaceChildren();
-      (data.recent||[]).filter(function(call){return data.serverTime-call.endAt<60000;}).slice(0,3).forEach(function(call){var row=document.createElement('span');row.textContent=call.maskedName+'님 → '+call.bedLabel;recent.appendChild(row);});
+      (data.recent||[]).filter(function(call){return data.serverTime-call.endAt<60000;}).slice(0,3).forEach(function(call){
+        var row=document.createElement('span'),name=document.createElement('span'),destination=document.createElement('strong');
+        row.className='recent-call-item';name.textContent=call.maskedName+'님';destination.textContent=call.bedLabel;
+        row.appendChild(name);row.appendChild(destination);recent.appendChild(row);
+      });
       recent.hidden=!recent.childElementCount;
+      stage.classList.toggle('has-recent',!recent.hidden);
+      var layout=String(noWaiting)+String(!recent.hidden);
+      if(layout!==previousLayout&&!data.active&&!stage.classList.contains('is-calling')&&window.restoreSignageAdvertising)window.restoreSignageAdvertising();
       clearTimeout(timer);
       if(data.active){
         document.getElementById('callingName').textContent=data.active.maskedName+'님';

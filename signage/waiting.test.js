@@ -59,6 +59,15 @@ test('batch fills the whole display and chimes once even as more patients join',
   assert.equal(element('stage').classList.contains('is-group-calling'),false);
   assert.equal(element('stage').classList.contains('no-waiting'),true);
   assert.equal(restored,1);await poll();assert.equal(restored,1);
+  data = {...data,recent:[call('r1'),call('r2'),call('r3'),call('r4')]};
+  await poll();
+  assert.equal(element('recentCalls').childElementCount,3);
+  assert.equal(element('stage').classList.contains('has-recent'),true);
+  assert.equal(element('stage').classList.contains('no-waiting'),true);
+  assert.equal(element('recentCalls').children[0].children[0].textContent,'김민＊님');
+  data.serverTime=now+76000;await poll();
+  assert.equal(element('stage').classList.contains('has-recent'),false);
+  assert.equal(element('recentCalls').hidden,true);
   data = {...data,waitingCount:1,active:call('next','next'),activeCalls:[call('next','next')]};
   await poll();
   assert.equal(element('callingMessage').hidden,false);
