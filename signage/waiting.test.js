@@ -33,7 +33,7 @@ test('batch fills the whole display and chimes once even as more patients join',
   let data = {serverTime:now, waitingCount:0, consultationWaitingCount:0, active:call('one'), activeCalls:[call('one'),call('two')], recent:[]};
   const context = {
     window:{restoreSignageAdvertising(){restored++;},AudioContext:Audio,SpeechSynthesisUtterance:class {constructor(text){this.text=text;}},speechSynthesis:{getVoices:()=>[],cancel() {},speak(utterance){spoken.push(utterance.text);}}},
-    document:{getElementById:element,createElement:()=>element(String(Math.random())),querySelectorAll:()=>[],addEventListener() {}},
+    document:{getElementById(id) { assert.ok(!['waitingCount','consultationWaitingCount'].includes(id)); return element(id); },createElement:()=>element(String(Math.random())),querySelectorAll:()=>[],addEventListener() {}},
     Intl, Date, AbortController, setInterval() {}, clearTimeout() {},
     setTimeout(fn, ms) { timers.push({fn,ms}); return timers.length; },
     fetch:async url => url.includes('.wav') ? {ok:true,arrayBuffer:async()=>new ArrayBuffer(1)} : {ok:true,json:async()=>data}
@@ -57,14 +57,15 @@ test('batch fills the whole display and chimes once even as more patients join',
   await poll();
   assert.equal(element('groupCalling').hidden,true);
   assert.equal(element('stage').classList.contains('is-group-calling'),false);
-  assert.equal(element('stage').classList.contains('no-waiting'),true);
   assert.equal(restored,1);await poll();assert.equal(restored,1);
   data = {...data,recent:[call('r1'),call('r2'),call('r3'),call('r4')]};
   await poll();
   assert.equal(element('recentCalls').childElementCount,3);
   assert.equal(element('stage').classList.contains('has-recent'),true);
-  assert.equal(element('stage').classList.contains('no-waiting'),true);
   assert.equal(element('recentCalls').children[0].children[0].textContent,'김민＊님');
+  data.waitingCount=5;data.consultationWaitingCount=3;await poll();
+  assert.equal(element('stage').classList.contains('has-recent'),true);
+  assert.equal(restored,2);
   data.serverTime=now+76000;await poll();
   assert.equal(element('stage').classList.contains('has-recent'),false);
   assert.equal(element('recentCalls').hidden,true);
@@ -73,7 +74,6 @@ test('batch fills the whole display and chimes once even as more patients join',
   assert.equal(element('callingMessage').hidden,false);
   assert.equal(element('callingName').textContent,'김민＊님');
   assert.equal(element('groupCalling').hidden,true);
-  assert.equal(element('stage').classList.contains('no-waiting'),false);
   assert.equal(plays,2);sources[1].onended();
   assert.equal(spoken[1],'김민석님, 팔 번 베드로 들어와 주세요.');
 });

@@ -49,11 +49,7 @@
       var response;
       try{response=await fetch('/signage/status',{cache:'no-store',signal:controller.signal});}finally{clearTimeout(timeout);}
       if(!response.ok)throw Error('status');var data=await response.json();
-      document.getElementById('waitingCount').textContent=data.waitingCount;
-      document.getElementById('consultationWaitingCount').textContent=data.consultationWaitingCount;
-      var noWaiting=data.waitingCount===0&&data.consultationWaitingCount===0;
-      var previousLayout=String(stage.classList.contains('no-waiting'))+String(stage.classList.contains('has-recent'));
-      stage.classList.toggle('no-waiting',noWaiting);
+      var previousLayout=stage.classList.contains('has-recent');
       document.getElementById('connectionStatus').textContent='';
       var recent=document.getElementById('recentCalls');recent.replaceChildren();
       (data.recent||[]).filter(function(call){return data.serverTime-call.endAt<60000;}).slice(0,3).forEach(function(call){
@@ -63,7 +59,7 @@
       });
       recent.hidden=!recent.childElementCount;
       stage.classList.toggle('has-recent',!recent.hidden);
-      var layout=String(noWaiting)+String(!recent.hidden);
+      var layout=!recent.hidden;
       if(layout!==previousLayout&&!data.active&&!stage.classList.contains('is-calling')&&window.restoreSignageAdvertising)window.restoreSignageAdvertising();
       clearTimeout(timer);
       if(data.active){
@@ -94,7 +90,7 @@
         if(lastSoundCall!==groupKey&&chime(groupKey))lastSoundCall=groupKey;
         timer=setTimeout(clearCall,Math.max(0,data.active.endAt-data.serverTime));
       }else clearCall();
-    }catch(error){stage.classList.remove('no-waiting');document.getElementById('waitingCount').textContent='—';document.getElementById('consultationWaitingCount').textContent='—';document.getElementById('connectionStatus').textContent='대기 현황 연결 확인 중';clearCall();}
+    }catch(error){document.getElementById('connectionStatus').textContent='배정 안내 연결 확인 중';clearCall();}
     setTimeout(refresh,1000);
   }
   refresh();
