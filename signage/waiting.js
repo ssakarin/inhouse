@@ -1,6 +1,7 @@
 (function () {
   "use strict";
   var stage=document.getElementById('stage'), timer, lastCall='', audio, enabled=true, lastSoundCall='', chimeBuffer, chimeLoading=false, soundSources=[], speechGroup='', speechCalls=[];
+  function displayName(call){return String(call.displayName||call.speechName||call.maskedName||'')+'님';}
   function unlockAudio(){
     var Audio=window.AudioContext||window.webkitAudioContext;
     if(!Audio)return;
@@ -54,7 +55,7 @@
       var recent=document.getElementById('recentCalls');recent.replaceChildren();
       (data.recent||[]).filter(function(call){return data.serverTime-call.endAt<60000;}).slice(0,3).forEach(function(call){
         var row=document.createElement('span'),name=document.createElement('span'),destination=document.createElement('strong');
-        row.className='recent-call-item';name.textContent=call.maskedName+'님';destination.textContent=call.bedLabel;
+        row.className='recent-call-item';name.textContent=displayName(call);destination.textContent=call.bedLabel;
         row.appendChild(name);row.appendChild(destination);recent.appendChild(row);
       });
       recent.hidden=!recent.childElementCount;
@@ -63,7 +64,7 @@
       if(layout!==previousLayout&&!data.active&&!stage.classList.contains('is-calling')&&window.restoreSignageAdvertising)window.restoreSignageAdvertising();
       clearTimeout(timer);
       if(data.active){
-        document.getElementById('callingName').textContent=data.active.maskedName+'님';
+        document.getElementById('callingName').textContent=displayName(data.active);
         document.getElementById('callingDestination').textContent=data.active.bedLabel;
         var calls=data.activeCalls&&data.activeCalls.length?data.activeCalls:[data.active];
         var isGroup=calls.length>1,groupKey=data.active.groupId||data.active.id;
@@ -76,7 +77,7 @@
           list.style.gridTemplateRows='repeat('+(calls.length<=5?calls.length:Math.ceil(calls.length/2))+', auto)';
           calls.forEach(function(call){
             var row=document.createElement('div'),name=document.createElement('span'),destination=document.createElement('strong');
-            row.className='group-call-row';name.textContent=call.maskedName+'님';destination.textContent=call.bedLabel;
+            row.className='group-call-row';name.textContent=displayName(call);destination.textContent=call.bedLabel;
             row.appendChild(name);row.appendChild(destination);list.appendChild(row);
           });
         }
