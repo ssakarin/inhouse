@@ -42,7 +42,7 @@
     source.onended=function(){source.disconnect();soundSources=soundSources.filter(function(item){return item!==source;});announce(group);};
     source.start();return true;
   }
-  function clearCall(){speechGroup='';speechCalls=[];if(window.speechSynthesis)window.speechSynthesis.cancel();soundSources.forEach(function(source){try{source.stop();}catch(error){}});soundSources=[];stage.classList.remove('is-calling','is-group-calling');document.getElementById('callingMessage').hidden=true;document.getElementById('groupCalling').hidden=true;document.querySelectorAll('video,audio').forEach(function(media){if(media.dataset.callVolume!==undefined){media.volume=Number(media.dataset.callVolume);delete media.dataset.callVolume;}});}
+  function clearCall(){var wasCalling=stage.classList.contains('is-calling');speechGroup='';speechCalls=[];if(window.speechSynthesis)window.speechSynthesis.cancel();soundSources.forEach(function(source){try{source.stop();}catch(error){}});soundSources=[];stage.classList.remove('is-calling','is-group-calling');document.getElementById('callingMessage').hidden=true;document.getElementById('groupCalling').hidden=true;if(wasCalling&&window.restoreSignageAdvertising)window.restoreSignageAdvertising();document.querySelectorAll('video,audio').forEach(function(media){if(media.dataset.callVolume!==undefined){media.volume=Number(media.dataset.callVolume);delete media.dataset.callVolume;}});}
   async function refresh(){
     try{
       var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},5000);
@@ -51,6 +51,7 @@
       if(!response.ok)throw Error('status');var data=await response.json();
       document.getElementById('waitingCount').textContent=data.waitingCount;
       document.getElementById('consultationWaitingCount').textContent=data.consultationWaitingCount;
+      stage.classList.toggle('no-waiting',data.waitingCount===0&&data.consultationWaitingCount===0);
       document.getElementById('connectionStatus').textContent='';
       var recent=document.getElementById('recentCalls');recent.replaceChildren();
       (data.recent||[]).filter(function(call){return data.serverTime-call.endAt<60000;}).slice(0,3).forEach(function(call){var row=document.createElement('span');row.textContent=call.maskedName+'님 → '+call.bedLabel;recent.appendChild(row);});
@@ -69,9 +70,9 @@
           list.classList.toggle('single-column',calls.length<=5);
           list.style.gridTemplateRows='repeat('+(calls.length<=5?calls.length:Math.ceil(calls.length/2))+', auto)';
           calls.forEach(function(call){
-            var row=document.createElement('div'),name=document.createElement('span'),arrow=document.createElement('span'),destination=document.createElement('strong');
-            row.className='group-call-row';name.textContent=call.maskedName+'님';arrow.className='group-call-arrow';arrow.textContent='→';destination.textContent=call.bedLabel;
-            row.appendChild(name);row.appendChild(arrow);row.appendChild(destination);list.appendChild(row);
+            var row=document.createElement('div'),name=document.createElement('span'),destination=document.createElement('strong');
+            row.className='group-call-row';name.textContent=call.maskedName+'님';destination.textContent=call.bedLabel;
+            row.appendChild(name);row.appendChild(destination);list.appendChild(row);
           });
         }
         if(lastCall!==data.active.id){
@@ -84,7 +85,7 @@
         if(lastSoundCall!==groupKey&&chime(groupKey))lastSoundCall=groupKey;
         timer=setTimeout(clearCall,Math.max(0,data.active.endAt-data.serverTime));
       }else clearCall();
-    }catch(error){document.getElementById('waitingCount').textContent='—';document.getElementById('consultationWaitingCount').textContent='—';document.getElementById('connectionStatus').textContent='대기 현황 연결 확인 중';clearCall();}
+    }catch(error){stage.classList.remove('no-waiting');document.getElementById('waitingCount').textContent='—';document.getElementById('consultationWaitingCount').textContent='—';document.getElementById('connectionStatus').textContent='대기 현황 연결 확인 중';clearCall();}
     setTimeout(refresh,1000);
   }
   refresh();

@@ -1,6 +1,6 @@
 "use strict";
-const DURATION=15000;
-const GROUP_DURATION=30000;
+const DURATION=20000;
+const GROUP_DURATION=35000;
 function maskName(name){const chars=Array.from(String(name||'').trim());return chars.length>1?chars.slice(0,-1).join('')+'＊':'＊';}
 function validBed(no){return Number.isInteger(no)&&((no>=1&&no<=15&&no!==7)||(no>=101&&no<=110));}
 function matches(c,beds){const b=beds[String(c.bedNo)];return b&&b.patientKey===c.patientKey&&b.name===c.patientName&&!b.signageArrivedAt;}
@@ -9,11 +9,10 @@ function publicStatus(patients={},beds={},alerts={},calls=[],now=Date.now()){
  const waiting=new Set(),consultation=new Set();
  Object.entries(patients).forEach(([key,p])=>{
   if(!p?.name||p.bedStatus==='discharged'||assigned.has(key))return;
-  const needsConsultation=p.visitType==='초진'||p.treatments?.[0]==='진찰';
+  const needsConsultation=p.treatments?.[0]==='진찰';
   (needsConsultation?consultation:waiting).add(key);
  });
- Object.entries(beds).forEach(([no,b])=>{if(b?.name&&b.patientKey&&Number(no)>=901&&Number(no)<=920)(Number(b.pendingTargetBedNo)>=101?consultation:waiting).add(b.patientKey);});
- Object.values(alerts).forEach(a=>{const b=beds[String(a?.bedNo)];if(b&&b.patientKey===a.patientKey&&!b.signageArrivedAt)(Number(a.bedNo)>=101?consultation:waiting).add(a.patientKey);});
+ Object.entries(beds).forEach(([no,b])=>{if(b?.name&&b.patientKey&&Number(no)>=901&&Number(no)<=920)(b.treatments?.[0]==='진찰'?consultation:waiting).add(b.patientKey);});
  consultation.forEach(key=>waiting.delete(key));
  const fresh=calls.filter(c=>c.createdAt>now-1800000&&matches(c,beds));
  const safe=(c,forSpeech=false)=>({...(forSpeech?{speechName:c.patientName}:{}),id:c.id,groupId:c.groupId||c.id,maskedName:maskName(c.patientName),bedNo:c.bedNo,bedLabel:c.bedNo>=101?'원장실'+(c.bedNo-100):c.bedNo===15?'스파인':c.bedNo+'번 베드',startAt:c.startAt,endAt:c.endAt});

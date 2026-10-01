@@ -13,6 +13,17 @@
     stage.style.marginLeft = Math.max(0, (window.innerWidth - 2160 * scale) / 2) + "px";
   }
 
+  // Recreate the advertising layout after its large scaled surface changes.
+  // Some TV browsers otherwise retain only a partially painted compositor tile.
+  window.restoreSignageAdvertising = function () {
+    var advertising = document.querySelector('.advertising');
+    if (!advertising) return;
+    advertising.style.display = 'none';
+    void stage.offsetHeight;
+    advertising.style.display = '';
+    fitStage();
+  };
+
   function show(index) {
     window.clearTimeout(timer);
     current = (index + slides.length) % slides.length;
@@ -20,6 +31,7 @@
       slide.classList.toggle("is-active", slideIndex === current);
       slide.setAttribute("aria-hidden", slideIndex === current ? "false" : "true");
     });
+    window.restoreSignageAdvertising();
     var duration = Number(slides[current].getAttribute("data-duration")) || 12000;
     timer = window.setTimeout(function () { show(current + 1); }, duration);
   }

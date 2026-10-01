@@ -4504,7 +4504,8 @@ function commitBeds(beds, previousBeds = null) {
   const next = stampBedStageTimes(previous || {}, beds || {});
   setStateValue("beds", next);
   const existingCalls = getStateValue("signageCalls");
-  setStateValue("signageCalls", signageState.onAssignment(Array.isArray(existingCalls) ? existingCalls : [], previous || {}, next, Date.now(), () => crypto.randomUUID()));
+  const nextCalls = signageState.onAssignment(Array.isArray(existingCalls) ? existingCalls : [], previous || {}, next, Date.now(), () => crypto.randomUUID());
+  if (!stateEquals(existingCalls || [], nextCalls)) setStateValue("signageCalls", nextCalls);
   const version = getBedsVersion() + 1;
   setStateValue("__bedsVersion", version);
   const { updates, removes } = diffBeds(previous || {}, next);

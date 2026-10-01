@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 test('batch fills the whole display and chimes once even as more patients join', async () => {
   const elements = {}, timers = [];
-  let plays = 0;
+  let plays = 0, restored = 0;
   const sources=[],spoken=[];
   function element(id) {
     if (elements[id]) return elements[id];
@@ -32,7 +32,7 @@ test('batch fills the whole display and chimes once even as more patients join',
   const call = (id, groupId = 'batch') => ({id, groupId, maskedName:'김민＊',speechName:'김민석', bedLabel:'8번 베드',bedNo:8, startAt:now, endAt:now+15000});
   let data = {serverTime:now, waitingCount:0, consultationWaitingCount:0, active:call('one'), activeCalls:[call('one'),call('two')], recent:[]};
   const context = {
-    window:{AudioContext:Audio,SpeechSynthesisUtterance:class {constructor(text){this.text=text;}},speechSynthesis:{getVoices:()=>[],cancel() {},speak(utterance){spoken.push(utterance.text);}}},
+    window:{restoreSignageAdvertising(){restored++;},AudioContext:Audio,SpeechSynthesisUtterance:class {constructor(text){this.text=text;}},speechSynthesis:{getVoices:()=>[],cancel() {},speak(utterance){spoken.push(utterance.text);}}},
     document:{getElementById:element,createElement:()=>element(String(Math.random())),querySelectorAll:()=>[],addEventListener() {}},
     Intl, Date, AbortController, setInterval() {}, clearTimeout() {},
     setTimeout(fn, ms) { timers.push({fn,ms}); return timers.length; },
@@ -57,11 +57,14 @@ test('batch fills the whole display and chimes once even as more patients join',
   await poll();
   assert.equal(element('groupCalling').hidden,true);
   assert.equal(element('stage').classList.contains('is-group-calling'),false);
-  data = {...data,active:call('next','next'),activeCalls:[call('next','next')]};
+  assert.equal(element('stage').classList.contains('no-waiting'),true);
+  assert.equal(restored,1);await poll();assert.equal(restored,1);
+  data = {...data,waitingCount:1,active:call('next','next'),activeCalls:[call('next','next')]};
   await poll();
   assert.equal(element('callingMessage').hidden,false);
   assert.equal(element('callingName').textContent,'김민＊님');
   assert.equal(element('groupCalling').hidden,true);
+  assert.equal(element('stage').classList.contains('no-waiting'),false);
   assert.equal(plays,2);sources[1].onended();
   assert.equal(spoken[1],'김민석님, 팔 번 베드로 들어와 주세요.');
 });
