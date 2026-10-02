@@ -54,22 +54,12 @@
       if(data.active){
         document.getElementById('callingName').textContent=displayName(data.active);
         document.getElementById('callingDestination').textContent=data.active.bedLabel;
-        var calls=data.activeCalls&&data.activeCalls.length?data.activeCalls:[data.active];
-        var isGroup=calls.length>1,groupKey=data.active.groupId||data.active.id;
-        document.getElementById('callingMessage').hidden=isGroup;
-        document.getElementById('groupCalling').hidden=!isGroup;
-        stage.classList.add('is-calling');stage.classList.toggle('is-group-calling',isGroup);
-        if(isGroup){
-          var list=document.getElementById('groupCallList');list.replaceChildren();
-          list.classList.toggle('single-column',calls.length<=5);
-          list.style.gridTemplateRows='repeat('+(calls.length<=5?calls.length:Math.ceil(calls.length/2))+', auto)';
-          calls.forEach(function(call){
-            var row=document.createElement('div'),name=document.createElement('span'),destination=document.createElement('strong');
-            row.className='group-call-row';name.textContent=displayName(call);destination.textContent=call.bedLabel;
-            row.appendChild(name);row.appendChild(destination);list.appendChild(row);
-          });
-        }
+        var calls=[data.active],groupKey=data.active.groupId||data.active.id;
+        document.getElementById('callingMessage').hidden=false;
+        document.getElementById('groupCalling').hidden=true;
+        stage.classList.add('is-calling');stage.classList.remove('is-group-calling');
         if(lastCall!==data.active.id){
+          soundSources.forEach(function(source){try{source.stop();}catch(error){}});soundSources=[];
           lastCall=data.active.id;
           document.querySelectorAll('video,audio').forEach(function(media){if(media.dataset.callVolume===undefined)media.dataset.callVolume=String(media.volume);media.volume=.1;});
 

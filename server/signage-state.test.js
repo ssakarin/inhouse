@@ -28,12 +28,12 @@ test('public payload includes full display names and excludes patient identifier
  assert.equal(out.waitingCount,1);assert.equal(out.active.maskedName,'김민＊');assert.equal(out.active.bedLabel,'8번 베드');
  assert.equal(out.active.displayName,'김민석');assert.equal(out.activeCalls[0].displayName,'김민석');assert.equal(out.recent[0].displayName,'김민석');assert.equal(out.active.speechName,'김민석');assert.equal(out.activeCalls[0].speechName,'김민석');assert.ok(!JSON.stringify(out).includes('patientKey'));assert.ok(!JSON.stringify(out).includes('대기환자'));
 });
-test('single call waits three seconds to collect assignments and displays for twenty seconds',()=>{
+test('single call waits three seconds to collect assignments and displays for ten seconds',()=>{
  const calls=signage.enqueue([],8,bed,now,'one');
  assert.equal(signage.publicStatus({}, {8:bed},{},calls,now+2999).active,null);
  assert.equal(signage.publicStatus({}, {8:bed},{},calls,now+3000).active.id,'one');
- assert.equal(signage.publicStatus({}, {8:bed},{},calls,now+22999).active.id,'one');
- const expired=signage.publicStatus({}, {8:bed},{},calls,now+23000);assert.equal(expired.active,null);assert.equal(expired.recent.length,1);
+ assert.equal(signage.publicStatus({}, {8:bed},{},calls,now+12999).active.id,'one');
+ const expired=signage.publicStatus({}, {8:bed},{},calls,now+13000);assert.equal(expired.active,null);assert.equal(expired.recent.length,1);
 });
 test('arrival and bed reassignment suppress obsolete calls and wait counts',()=>{
  const calls=signage.enqueue([],8,bed,now,'one');
@@ -73,37 +73,31 @@ test('only waiting room arrivals call, including swaps and doctor room transfers
  assert.equal(calls.length,1);assert.equal(calls[0].patientKey,'p2');
 });
 
-test('doctor room assignments are grouped with room labels and no repeat on edits',()=>{
+test('doctor room assignments are sequential with room labels and no repeat on edits',()=>{
  const beds={101:{patientKey:'d1',name:'김환자'},102:{patientKey:'d2',name:'이환자'}};let serial=0;
  const calls=signage.onAssignment([],{},beds,now,()=>String(++serial));
  assert.equal(calls.length,2);
  assert.equal(signage.publicStatus({},beds,{},calls,now+3000).active.bedLabel,'진료실1');
- assert.equal(signage.publicStatus({},beds,{},calls,now+3000).activeCalls[1].bedLabel,'진료실2');
+ assert.equal(signage.publicStatus({},beds,{},calls,now+13000).active.bedLabel,'진료실2');
  assert.equal(signage.onAssignment(calls,beds,{...beds,101:{...beds[101],memo:'수정'}},now+100,()=>String(++serial)).length,2);
  const held={901:beds[101]};const moved=signage.onAssignment([],held,{101:beds[101]},now,()=>String(++serial));assert.equal(moved.length,1);assert.equal(moved[0].bedNo,101);
 });
 
-test('ten simultaneous assignments share a call group and extend from the last added patient',()=>{
- const beds={};for(let i=1;i<=6;i++)beds[i]={patientKey:'p'+i,name:'환자'+i};for(let i=8;i<=11;i++)beds[i]={patientKey:'p'+i,name:'환자'+i};
+test('ten simultaneous arrivals display individually for ten seconds in order',()=>{
+ const beds={};for(let i=1;i<=6;i++)beds[i]={patientKey:'p'+i,name:'patient'+i};for(let i=8;i<=11;i++)beds[i]={patientKey:'p'+i,name:'patient'+i};
  let id=0;let calls=signage.onAssignment([],{},beds,now,()=>String(++id));
- let out=signage.publicStatus({},beds,{},calls,now+3000);
- assert.equal(out.activeCalls.length,10);assert.equal(out.active.endAt,now+38000);assert.equal(new Set(out.activeCalls.map(c=>c.groupId)).size,1);
- assert.ok(!JSON.stringify(out).includes('patientKey'));
- const expanded={...beds,12:{patientKey:'p12',name:'추가환자'}};
+ assert.equal(new Set(calls.map(c=>c.groupId)).size,10);
+ for(let i=0;i<10;i++){
+  const out=signage.publicStatus({},beds,{},calls,now+3000+i*10000);
+  assert.equal(out.active.id,calls[i].id);assert.equal(out.activeCalls.length,1);
+  assert.equal(out.active.endAt-out.active.startAt,10000);
+ }
+ const expanded={...beds,12:{patientKey:'new',name:'new patient'}};
  calls=signage.onAssignment(calls,beds,expanded,now+5000,()=>String(++id));
- assert.equal(signage.publicStatus({},expanded,{},calls,now+5000).activeCalls.length,10);
- assert.equal(signage.publicStatus({},expanded,{},calls,now+38000).activeCalls.length,1);
+ assert.equal(calls.at(-1).startAt,now+103000);
+ assert.equal(signage.publicStatus({},expanded,{},calls,now+113000).active,null);
 });
-test('active batch accepts new patients without a new group and remains thirty-five seconds after addition',()=>{
- const beds={8:bed,9:{patientKey:'p2',name:'이환자'}};let id=0;
- let calls=signage.onAssignment([],{},beds,now,()=>String(++id));
- const expanded={...beds,10:{patientKey:'p3',name:'박환자'}};
- calls=signage.onAssignment(calls,beds,expanded,now+10000,()=>String(++id));
- const out=signage.publicStatus({},expanded,{},calls,now+10000);
- assert.equal(out.activeCalls.length,3);assert.equal(new Set(out.activeCalls.map(c=>c.groupId)).size,1);
- assert.equal(out.active.endAt,now+45000);
- assert.equal(signage.publicStatus({},expanded,{},calls,now+45000).active,null);
-});
+
 test('assignments outside the collection window do not join an active single call',()=>{
  const beds={8:bed};let id=0;let calls=signage.onAssignment([],{},beds,now,()=>String(++id));
  const expanded={...beds,9:{patientKey:'p2',name:'이환자'}};

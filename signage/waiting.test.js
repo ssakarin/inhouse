@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-test('batch fills the whole display and chimes once even as more patients join', async () => {
+test('queued calls display one patient at a time and chime once per patient', async () => {
   const elements = {}, timers = [];
   let plays = 0, restored = 0;
   const sources=[],spoken=[];
@@ -29,7 +29,7 @@ test('batch fills the whole display and chimes once even as more patients join',
     createBufferSource() { const source={connect() {}, disconnect() {}, start() { plays++; }, stop() {}};sources.push(source);return source; }
   }
   const now = Date.now();
-  const call = (id, groupId = 'batch') => ({id, groupId, displayName:'김민석',maskedName:'김민＊',speechName:'김민석', bedLabel:'8번 베드',bedNo:8, startAt:now, endAt:now+15000});
+  const call = (id, groupId = 'batch') => ({id, groupId, displayName:'김민석',maskedName:'김민＊',speechName:'김민석', bedLabel:'8번 베드',bedNo:8, startAt:now, endAt:now+10000});
   let data = {serverTime:now, waitingCount:0, consultationWaitingCount:0, active:call('one'), activeCalls:[call('one'),call('two')], recent:[]};
   const context = {
     window:{restoreSignageAdvertising(){restored++;},AudioContext:Audio,SpeechSynthesisUtterance:class {constructor(text){this.text=text;}},speechSynthesis:{getVoices:()=>[],cancel() {},speak(utterance){spoken.push(utterance.text);}}},
@@ -47,14 +47,11 @@ test('batch fills the whole display and chimes once even as more patients join',
   await new Promise(setImmediate);
   assert.equal(plays,2);
   assert.equal(spoken.length,0);
-  assert.equal(element('callingMessage').hidden,true);
-  assert.equal(element('groupCalling').hidden,false);
-  assert.equal(element('stage').classList.contains('is-group-calling'),true);
-  assert.equal(element('groupCallList').childElementCount,2);
-  assert.equal(element('groupCallList').children[0].children[0].textContent,'김민석님');
+  assert.equal(element('callingMessage').hidden,false);
+  assert.equal(element('groupCalling').hidden,true);
+  assert.equal(element('stage').classList.contains('is-group-calling'),false);
   data.activeCalls.push(call('three'));
   await poll();
-  assert.equal(element('groupCallList').childElementCount,3);
   assert.equal(plays,2);
   data = {...data,active:null,activeCalls:[]};
   await poll();
