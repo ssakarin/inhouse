@@ -5,7 +5,7 @@ function announcement(calls){
  if(calls.length!==1)return '화면의 성함과 배정 위치를 확인하시고 이동해 주세요.';
  const call=calls[0],no=Number(call.bedNo);
  const numbers=['','일','이','삼','사','오','육','칠','팔','구','십','십일','십이','십삼','십사','십오'];
- const destination=no>=101?numbers[no-100]+' 번 원장실':no===15?'스파인':numbers[no]+' 번 베드';
+ const destination=no>=101?numbers[no-100]+' 번 진료실':no===15?'스파인':numbers[no]+' 번 베드';
  return (call.speechName||call.displayName)+'님, '+destination+'로 들어와 주세요.';
 }
 async function synthesizeLocal(text){

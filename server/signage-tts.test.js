@@ -2,7 +2,8 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {announcement,createSpeechCache,synthesizeAzure,createSynthesizer}=require('./signage-tts');
 test('announcement uses full names, Korean bed numbers and generic batch guidance',()=>{
  assert.equal(announcement([{displayName:'홍길동',bedNo:8}]),'홍길동님, 팔 번 베드로 들어와 주세요.');
- assert.equal(announcement([{displayName:'홍길동',bedNo:101}]),'홍길동님, 일 번 원장실로 들어와 주세요.');
+ assert.equal(announcement([{displayName:'홍길동',bedNo:101}]),'홍길동님, 일 번 진료실로 들어와 주세요.');
+ assert.equal(announcement([{displayName:'홍길동',bedNo:102}]),'홍길동님, 이 번 진료실로 들어와 주세요.');
  assert.equal(announcement([{},{}]),'화면의 성함과 배정 위치를 확인하시고 이동해 주세요.');
 });
 test('Azure request selects SunHi, escapes names and returns validated WAV',async()=>{

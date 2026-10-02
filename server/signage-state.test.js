@@ -77,8 +77,8 @@ test('doctor room assignments are grouped with room labels and no repeat on edit
  const beds={101:{patientKey:'d1',name:'김환자'},102:{patientKey:'d2',name:'이환자'}};let serial=0;
  const calls=signage.onAssignment([],{},beds,now,()=>String(++serial));
  assert.equal(calls.length,2);
- assert.equal(signage.publicStatus({},beds,{},calls,now+3000).active.bedLabel,'원장실1');
- assert.equal(signage.publicStatus({},beds,{},calls,now+3000).activeCalls[1].bedLabel,'원장실2');
+ assert.equal(signage.publicStatus({},beds,{},calls,now+3000).active.bedLabel,'진료실1');
+ assert.equal(signage.publicStatus({},beds,{},calls,now+3000).activeCalls[1].bedLabel,'진료실2');
  assert.equal(signage.onAssignment(calls,beds,{...beds,101:{...beds[101],memo:'수정'}},now+100,()=>String(++serial)).length,2);
  const held={901:beds[101]};const moved=signage.onAssignment([],held,{101:beds[101]},now,()=>String(++serial));assert.equal(moved.length,1);assert.equal(moved[0].bedNo,101);
 });
@@ -112,8 +112,8 @@ test('assignments outside the collection window do not join an active single cal
 });
 
 test('waiting room classification depends only on first treatment and ignores assignment alerts',()=>{
- const patients={a:{name:'재진진찰',visitType:'재진',treatments:['진찰','핫팩']},b:{name:'초진치료',visitType:'초진',treatments:['핫팩','진찰']},c:{name:'미선택',treatments:[]},d:{name:'베드배정',treatments:['진찰']},e:{name:'원장실배정',treatments:['진찰']}};
- const beds={8:{patientKey:'d',name:'베드배정'},101:{patientKey:'e',name:'원장실배정'},901:{patientKey:'held',name:'대기',treatments:['핫팩'],pendingTargetBedNo:101}};
+ const patients={a:{name:'재진진찰',visitType:'재진',treatments:['진찰','핫팩']},b:{name:'초진치료',visitType:'초진',treatments:['핫팩','진찰']},c:{name:'미선택',treatments:[]},d:{name:'베드배정',treatments:['진찰']},e:{name:'진료실배정',treatments:['진찰']}};
+ const beds={8:{patientKey:'d',name:'베드배정'},101:{patientKey:'e',name:'진료실배정'},901:{patientKey:'held',name:'대기',treatments:['핫팩'],pendingTargetBedNo:101}};
  const alerts={d:{bedNo:8,patientKey:'d'},e:{bedNo:101,patientKey:'e'}};
  const out=signage.publicStatus(patients,beds,alerts,[],now);
  assert.equal(out.consultationWaitingCount,1);assert.equal(out.waitingCount,3);

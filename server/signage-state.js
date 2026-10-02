@@ -15,7 +15,7 @@ function publicStatus(patients={},beds={},alerts={},calls=[],now=Date.now()){
  Object.entries(beds).forEach(([no,b])=>{if(b?.name&&b.patientKey&&Number(no)>=901&&Number(no)<=920)(b.treatments?.[0]==='진찰'?consultation:waiting).add(b.patientKey);});
  consultation.forEach(key=>waiting.delete(key));
  const fresh=calls.filter(c=>c.createdAt>now-1800000&&matches(c,beds));
- const safe=(c,forSpeech=false)=>({displayName:c.patientName,...(forSpeech?{speechName:c.patientName}:{}),id:c.id,groupId:c.groupId||c.id,maskedName:maskName(c.patientName),bedNo:c.bedNo,bedLabel:c.bedNo>=101?'원장실'+(c.bedNo-100):c.bedNo===15?'스파인':c.bedNo+'번 베드',startAt:c.startAt,endAt:c.endAt});
+ const safe=(c,forSpeech=false)=>({displayName:c.patientName,...(forSpeech?{speechName:c.patientName}:{}),id:c.id,groupId:c.groupId||c.id,maskedName:maskName(c.patientName),bedNo:c.bedNo,bedLabel:c.bedNo>=101?'진료실'+(c.bedNo-100):c.bedNo===15?'스파인':c.bedNo+'번 베드',startAt:c.startAt,endAt:c.endAt});
  const active=fresh.find(c=>c.startAt<=now&&c.endAt>now);
  const activeCalls=active?fresh.filter(c=>(c.groupId||c.id)===(active.groupId||active.id)).map(c=>safe(c,true)):[];
  return {serverTime:now,waitingCount:waiting.size,consultationWaitingCount:consultation.size,active:active?safe(active,true):null,activeCalls,recent:fresh.filter(c=>c.startAt<=now).slice(-3).reverse().map(c=>safe(c))};
