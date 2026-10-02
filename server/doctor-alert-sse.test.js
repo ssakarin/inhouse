@@ -6,7 +6,8 @@ const vm = require('node:vm');
 const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
 const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 function extract(source, name) {
-  const start = source.indexOf(`function ${name}(`);
+  const functionStart = source.indexOf(`function ${name}(`);
+  const start = source.slice(functionStart - 6, functionStart) === 'async ' ? functionStart - 6 : functionStart;
   assert.ok(start >= 0, name);
   const rest = source.slice(start);
   for (const match of rest.matchAll(/^\s*}\r?$/gm)) {
@@ -112,4 +113,42 @@ test('doctor rooms retain pending cleanup in reconnect snapshots',()=>{
   const {context:c}=serverContext();
   const payload=c.getBedsPayloadForClient({role:'doctor-room',bedNo:101},{1:bed(1,{lastAlertId:'done'}),2:bed(2,{complete:true})});
   assert.deepEqual(Object.keys(payload),['1']);
+});
+
+
+test('fixed doctor screens never prune shared alerts from filtered or initial bed snapshots', () => {
+  for (const fixed of [true, false]) {
+    const context = vm.createContext({
+      isFixedBedScreen: () => fixed,
+      hasLoadedBedsOnce: fixed,
+      bedAssignmentAlertItems: new Map([['room2', {bedNo:102,patientKey:'p2'}]]),
+      getBedData: () => { throw Error('must not inspect incomplete snapshots'); },
+    });
+    load(context, html, ['pruneStaleBedAssignmentAlerts']);
+    context.pruneStaleBedAssignmentAlerts();
+    assert.equal(context.bedAssignmentAlertItems.size, 1);
+  }
+});
+
+
+test('initial and reconnect GET cannot overwrite a newer SSE snapshot', async () => {
+  let resolveGet;
+  const snapshots = new Map([['bedAssignmentAlerts', {pending: true}]]);
+  const applied = [];
+  const context = vm.createContext({
+    localStateSnapshots: snapshots,
+    localStateGet: () => new Promise(resolve => {resolveGet = resolve;}),
+    clonePlain: value => structuredClone(value),
+  });
+  load(context, html, ['refreshLocalNodeSnapshot']);
+  const refresh = context.refreshLocalNodeSnapshot('bedAssignmentAlerts', value => applied.push(value));
+  snapshots.set('bedAssignmentAlerts', {});
+  resolveGet({pending: true});
+  await refresh;
+  assert.equal(applied.length, 0);
+  assert.deepEqual(snapshots.get('bedAssignmentAlerts'), {});
+  const nextRefresh = context.refreshLocalNodeSnapshot('bedAssignmentAlerts', value => applied.push(value));
+  resolveGet({fresh: true});
+  await nextRefresh;
+  assert.deepEqual(applied, [{fresh: true}]);
 });

@@ -6451,7 +6451,7 @@
     const autoAssignRelevantChange = !lastAutoAssignBedSignature || autoAssignBedSignature !== lastAutoAssignBedSignature;
     lastAutoAssignBedSignature = autoAssignBedSignature;
 
-    if (!isRegularFixedBedScreen()) pruneStaleBedAssignmentAlerts();
+    if (!isFixedBedScreen()) pruneStaleBedAssignmentAlerts();
     if (selectedMoveBedNo && (DISABLED_BED_NUMBERS.has(selectedMoveBedNo) || !getBedData(selectedMoveBedNo))) selectedMoveBedNo = null;
     syncAssignedPatientKeys(hasLoadedBedsOnce);
     syncTimerAlertsWithBeds();
@@ -6555,10 +6555,7 @@
         // Re-pull every subscribed state key on (re)connect so we don't miss
         // changes that happened while disconnected.
         localStateSubscribers.forEach((handler, key) => {
-          localStateGet(key).then(value => {
-            localStateSnapshots.set(key, clonePlain(value || {}));
-            handler(value);
-          }).catch(() => {});
+          refreshLocalNodeSnapshot(key, handler).catch(() => {});
         });
       };
       // EventSource auto-reconnects on its own after a drop.
@@ -6608,13 +6605,20 @@
       || key === BED_ASSIGNMENT_ALERTS_PATH;
   }
 
+  async function refreshLocalNodeSnapshot(key, applyFn) {
+    const previousSnapshot = localStateSnapshots.get(key);
+    const value = await localStateGet(key);
+    // A live SSE update received during this GET is newer than its response.
+    if (localStateSnapshots.get(key) !== previousSnapshot) return;
+    localStateSnapshots.set(key, clonePlain(value || {}));
+    applyFn(value);
+  }
+
   async function subscribeLocalNode(key, applyFn) {
     if (!shouldSubscribeLocalNode(key)) return;
     localStateSubscribers.set(key, applyFn);
     try {
-      const value = await localStateGet(key);
-      localStateSnapshots.set(key, clonePlain(value || {}));
-      applyFn(value);
+      await refreshLocalNodeSnapshot(key, applyFn);
     } catch (error) {
       console.warn('로컬 노드 초기 로드 실패', key, error);
     }
@@ -11818,7 +11822,7 @@
     const autoAssignBedSignature = getAutoAssignBedSignatureFromBeds(beds);
     const autoAssignRelevantChange = !lastAutoAssignBedSignature || autoAssignBedSignature !== lastAutoAssignBedSignature;
     lastAutoAssignBedSignature = autoAssignBedSignature;
-    if (!isRegularFixedBedScreen()) pruneStaleBedAssignmentAlerts();
+    if (!isFixedBedScreen()) pruneStaleBedAssignmentAlerts();
     if (DISABLED_BED_NUMBERS.has(selectedBedNo)) selectedBedNo = getUrlBedNo();
     if (DISABLED_BED_NUMBERS.has(selectedReceiveBedNo)) selectedReceiveBedNo = getUrlBedNo();
     if (selectedMoveBedNo && (DISABLED_BED_NUMBERS.has(selectedMoveBedNo) || !getBedData(selectedMoveBedNo))) selectedMoveBedNo = null;
@@ -13021,6 +13025,8 @@
   // 베드가 비워지거나 다른 환자로 바뀌면 배정 알림을 정리한다.
   // 단, 치료 시작 전 다른 일반 베드로 이동한 경우에는 알림도 환자를 따라 이동한다.
   function pruneStaleBedAssignmentAlerts() {
+    // Fixed screens receive filtered bed snapshots and cannot safely delete shared alerts.
+    if (isFixedBedScreen() || !hasLoadedBedsOnce) return;
     [...bedAssignmentAlertItems.entries()].forEach(([key, data]) => {
       const bedNo = Number(data?.bedNo);
       const patientKey = String(data?.patientKey || '');
@@ -20050,11 +20056,11 @@
     if (fixedBedArrivalVisibleAlertKey) fixedBedArrivalAcknowledgedByBed[bedNo] = fixedBedArrivalVisibleAlertKey;
     selectedBedNo = bedNo;
     hideFixedBedArrivalOverlay();
+    await removeBedAssignmentAlertForBedPatient(bedNo, patientKey);
     renderBedSelector();
     renderBedDetail();
     updateBedHeaderBedChip();
     updateBedRemainingChip();
-    await removeBedAssignmentAlertForBedPatient(bedNo, patientKey);
     syncDoctorProcedureAlerts();
     renderUpcomingAlerts();
     renderBedMonitors();
