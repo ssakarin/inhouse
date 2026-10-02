@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var stage=document.getElementById('stage'), timer, lastCall='', audio, enabled=true, lastSoundCall='', chimeBuffer, chimeLoading=false, soundSources=[], speechGroup='', speechCalls=[];
+  var stage=document.getElementById('stage'), timer, lastCall='', audio, enabled=true, lastSoundCall='', chimeBuffer, chimeLoading=false, soundSources=[], speechGroup='', speechCalls=[], speechBufferPromise;
   function displayName(call){return String(call.displayName||call.speechName||call.maskedName||'')+'님';}
   function unlockAudio(){
     var Audio=window.AudioContext||window.webkitAudioContext;
@@ -20,21 +20,20 @@
   document.addEventListener('keydown',unlockAudio);
   document.addEventListener('visibilitychange',function(){if(!document.hidden)unlockAudio();});
   unlockAudio();
+  function prepareSpeech(group){
+    speechBufferPromise=fetch('/signage/speech?group='+encodeURIComponent(group),{cache:'no-store'}).then(function(response){
+      if(!response.ok)throw Error('speech');return response.arrayBuffer();
+    }).then(function(buffer){return new Promise(function(resolve,reject){audio.decodeAudioData(buffer,resolve,reject);});}).catch(function(){return null;});
+  }
   function announce(group){
-    if(group!==speechGroup||!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;
-    var numbers=['','일','이','삼','사','오','육','칠','팔','구','십','십일','십이','십삼','십사','십오'];
-    var text='화면의 성함과 배정 위치를 확인하시고 이동해 주세요.';
-    if(speechCalls.length===1){
-      var call=speechCalls[0],no=Number(call.bedNo);
-      var destination=no>=101?(numbers[no-100]+' 번 원장실'):no===15?'스파인':numbers[no]+' 번 베드';
-      text=(call.speechName||call.maskedName.replace(/＊/g,''))+'님, '+destination+'로 들어와 주세요.';
-    }
-    var utterance=new window.SpeechSynthesisUtterance(text);
-    utterance.lang='ko-KR';utterance.rate=.85;utterance.pitch=1.04;
-    var voices=window.speechSynthesis.getVoices().filter(function(voice){return /^ko(?:-|_)?/i.test(voice.lang);});
-    var voice=voices.find(function(item){return /natural|neural|online/i.test(item.name);})||voices.find(function(item){return item.default;})||voices[0];
-    if(voice)utterance.voice=voice;
-    window.speechSynthesis.cancel();window.speechSynthesis.speak(utterance);
+    if(!speechBufferPromise)return;
+    speechBufferPromise.then(function(buffer){
+      if(!buffer||group!==speechGroup||!audio||audio.state!=='running')return;
+      var source=audio.createBufferSource();source.buffer=buffer;source.connect(audio.destination);
+      soundSources.push(source);
+      source.onended=function(){source.disconnect();soundSources=soundSources.filter(function(item){return item!==source;});};
+      source.start();
+    });
   }
   function chime(group){
     if(!enabled||!audio||audio.state!=='running'||!chimeBuffer)return false;
@@ -43,7 +42,7 @@
     source.onended=function(){source.disconnect();soundSources=soundSources.filter(function(item){return item!==source;});announce(group);};
     source.start();return true;
   }
-  function clearCall(){var wasCalling=stage.classList.contains('is-calling');speechGroup='';speechCalls=[];if(window.speechSynthesis)window.speechSynthesis.cancel();soundSources.forEach(function(source){try{source.stop();}catch(error){}});soundSources=[];stage.classList.remove('is-calling','is-group-calling');document.getElementById('callingMessage').hidden=true;document.getElementById('groupCalling').hidden=true;if(wasCalling&&window.restoreSignageAdvertising)window.restoreSignageAdvertising();document.querySelectorAll('video,audio').forEach(function(media){if(media.dataset.callVolume!==undefined){media.volume=Number(media.dataset.callVolume);delete media.dataset.callVolume;}});}
+  function clearCall(){var wasCalling=stage.classList.contains('is-calling');speechGroup='';speechCalls=[];speechBufferPromise=null;if(window.speechSynthesis)window.speechSynthesis.cancel();soundSources.forEach(function(source){try{source.stop();}catch(error){}});soundSources=[];stage.classList.remove('is-calling','is-group-calling');document.getElementById('callingMessage').hidden=true;document.getElementById('groupCalling').hidden=true;if(wasCalling&&window.restoreSignageAdvertising)window.restoreSignageAdvertising();document.querySelectorAll('video,audio').forEach(function(media){if(media.dataset.callVolume!==undefined){media.volume=Number(media.dataset.callVolume);delete media.dataset.callVolume;}});}
   async function refresh(){
     try{
       var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},5000);
@@ -87,6 +86,7 @@
 
         }
         if(speechGroup!==groupKey&&window.speechSynthesis)window.speechSynthesis.cancel();
+        if(audio&&(speechGroup!==groupKey||(speechCalls.length===1)!==(calls.length===1)))prepareSpeech(groupKey);
         speechGroup=groupKey;speechCalls=calls;
         if(lastSoundCall!==groupKey&&chime(groupKey))lastSoundCall=groupKey;
         timer=setTimeout(clearCall,Math.max(0,data.active.endAt-data.serverTime));

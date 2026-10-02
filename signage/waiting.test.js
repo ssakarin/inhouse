@@ -36,7 +36,7 @@ test('batch fills the whole display and chimes once even as more patients join',
     document:{getElementById(id) { assert.ok(!['waitingCount','consultationWaitingCount'].includes(id)); return element(id); },createElement:()=>element(String(Math.random())),querySelectorAll:()=>[],addEventListener() {}},
     Intl, Date, AbortController, setInterval() {}, clearTimeout() {},
     setTimeout(fn, ms) { timers.push({fn,ms}); return timers.length; },
-    fetch:async url => url.includes('.wav') ? {ok:true,arrayBuffer:async()=>new ArrayBuffer(1)} : {ok:true,json:async()=>data}
+    fetch:async url => url.includes('.wav')||url.includes('/signage/speech?') ? {ok:true,arrayBuffer:async()=>new ArrayBuffer(1)} : {ok:true,json:async()=>data}
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('./waiting.js'),'utf8'),context);
   await new Promise(setImmediate);
@@ -44,7 +44,9 @@ test('batch fills the whole display and chimes once even as more patients join',
   await poll();
   assert.equal(plays,1);
   assert.equal(spoken.length,0);sources[0].onended();
-  assert.equal(spoken[0],'화면의 성함과 배정 위치를 확인하시고 이동해 주세요.');
+  await new Promise(setImmediate);
+  assert.equal(plays,2);
+  assert.equal(spoken.length,0);
   assert.equal(element('callingMessage').hidden,true);
   assert.equal(element('groupCalling').hidden,false);
   assert.equal(element('stage').classList.contains('is-group-calling'),true);
@@ -53,7 +55,7 @@ test('batch fills the whole display and chimes once even as more patients join',
   data.activeCalls.push(call('three'));
   await poll();
   assert.equal(element('groupCallList').childElementCount,3);
-  assert.equal(plays,1);
+  assert.equal(plays,2);
   data = {...data,active:null,activeCalls:[]};
   await poll();
   assert.equal(element('groupCalling').hidden,true);
@@ -75,6 +77,7 @@ test('batch fills the whole display and chimes once even as more patients join',
   assert.equal(element('callingMessage').hidden,false);
   assert.equal(element('callingName').textContent,'김민석님');
   assert.equal(element('groupCalling').hidden,true);
-  assert.equal(plays,2);sources[1].onended();
-  assert.equal(spoken[1],'김민석님, 팔 번 베드로 들어와 주세요.');
+  assert.equal(plays,3);sources[2].onended();await new Promise(setImmediate);
+  assert.equal(plays,4);
+  assert.equal(spoken.length,0);
 });

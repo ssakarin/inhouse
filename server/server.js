@@ -1,5 +1,7 @@
 const http = require("node:http");
 const signageState = require("./signage-state");
+const signageTts = require("./signage-tts");
+const getSignageSpeech = signageTts.createSpeechCache();
 const fs = require("node:fs");
 const path = require("node:path");
 const { URL } = require("node:url");
@@ -5321,7 +5323,20 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Display names are masked; active calls include the full name for spoken announcements.
+    // Speech requests resolve only current call groups; arbitrary text is not accepted.
+    if(pathname === "/signage/speech" && req.method === "GET"){
+      const calls=getStateValue("signageCalls");
+      const status=signageState.publicStatus({},getBedsState(),{},Array.isArray(calls)?calls:[]);
+      if(!status.active||url.searchParams.get('group')!==(status.active.groupId||status.active.id)){
+        res.writeHead(404,{"Cache-Control":"no-store"});res.end();return;
+      }
+      try{
+        const buffer=await getSignageSpeech(signageTts.announcement(status.activeCalls));
+        res.writeHead(200,{"Content-Type":"audio/wav","Content-Length":buffer.length,"Cache-Control":"no-store"});res.end(buffer);
+      }catch(error){res.writeHead(503,{"Cache-Control":"no-store"});res.end();}
+      return;
+    }
+    // Full display names are included for signage announcements.
     if(pathname === "/signage/status" && req.method === "GET"){
       const calls=getStateValue("signageCalls");
       jsonResponse(res,200,signageState.publicStatus(getStateValue("patients")||{},getBedsState(),getStateValue("bedAssignmentAlerts")||{},Array.isArray(calls)?calls:[]));return;

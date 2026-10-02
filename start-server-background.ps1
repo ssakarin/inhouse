@@ -1,5 +1,11 @@
 $ErrorActionPreference = "Stop"
 
+# Load recently saved user settings even when launched from an older desktop process.
+foreach ($speechSetting in @('AZURE_SPEECH_KEY', 'AZURE_SPEECH_REGION')) {
+  $speechSettingValue = [Environment]::GetEnvironmentVariable($speechSetting, 'User')
+  if ($speechSettingValue) { [Environment]::SetEnvironmentVariable($speechSetting, $speechSettingValue, 'Process') }
+}
+
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logDir = Join-Path $root "server\logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null

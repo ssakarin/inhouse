@@ -38,9 +38,12 @@ function enqueue(calls,bedNo,bed,now,id){
 }
 function onAssignment(calls,previous,beds,now,id){
  let next=calls.filter(c=>matches(c,beds));
+ // Patients already in a treatment bed or doctor room are moving internally.
+ const alreadyInside=new Set(Object.entries(previous).filter(([no,b])=>b?.patientKey&&!(Number(no)>=901&&Number(no)<=920)).map(([,b])=>b.patientKey));
  Object.entries(beds).forEach(([no,b])=>{
   if(!validBed(Number(no))||!b?.patientKey||!b.name)return;
   if(previous[no]?.patientKey===b.patientKey)return;
+  if(alreadyInside.has(b.patientKey))return;
   next=enqueue(next,Number(no),b,now,id());
  });
  return next;

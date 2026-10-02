@@ -57,6 +57,21 @@ test('consultation and treatment queues are separate and exclude discharged and 
  const out=signage.publicStatus(patients,beds,{a:{bedNo:8,patientKey:'p1'}},[],now);
  assert.equal(out.consultationWaitingCount,2);assert.equal(out.waitingCount,3);
 });
+test('only waiting room arrivals call, including swaps and doctor room transfers',()=>{
+ let serial=0;const id=()=>String(++serial);
+ for(const [from,to] of [[1,8],[101,8],[8,101],[101,102],[7,8],[15,8]]){
+  const existing=signage.enqueue([],from,bed,now,'old');
+  assert.equal(signage.onAssignment(existing,{[from]:bed},{[to]:bed},now+100,id).length,0);
+ }
+ const other={patientKey:'p2',name:'이환자'};
+ assert.equal(signage.onAssignment([],{1:bed,8:other},{1:other,8:bed},now,id).length,0);
+ for(const target of [8,15,101]){
+  assert.equal(signage.onAssignment([],{901:bed},{[target]:bed},now,id).length,1);
+  assert.equal(signage.onAssignment([],{}, {[target]:bed},now,id).length,1);
+ }
+ const calls=signage.onAssignment([],{1:bed,901:other},{8:bed,9:other},now,id);
+ assert.equal(calls.length,1);assert.equal(calls[0].patientKey,'p2');
+});
 
 test('doctor room assignments are grouped with room labels and no repeat on edits',()=>{
  const beds={101:{patientKey:'d1',name:'김환자'},102:{patientKey:'d2',name:'이환자'}};let serial=0;
