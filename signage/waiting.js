@@ -49,18 +49,7 @@
       var response;
       try{response=await fetch('/signage/status',{cache:'no-store',signal:controller.signal});}finally{clearTimeout(timeout);}
       if(!response.ok)throw Error('status');var data=await response.json();
-      var previousLayout=stage.classList.contains('has-recent');
       document.getElementById('connectionStatus').textContent='';
-      var recent=document.getElementById('recentCalls');recent.replaceChildren();
-      (data.recent||[]).filter(function(call){return data.serverTime-call.endAt<60000;}).slice(0,3).forEach(function(call){
-        var row=document.createElement('span'),name=document.createElement('span'),destination=document.createElement('strong');
-        row.className='recent-call-item';name.textContent=displayName(call);destination.textContent=call.bedLabel;
-        row.appendChild(name);row.appendChild(destination);recent.appendChild(row);
-      });
-      recent.hidden=!recent.childElementCount;
-      stage.classList.toggle('has-recent',!recent.hidden);
-      var layout=!recent.hidden;
-      if(layout!==previousLayout&&!data.active&&!stage.classList.contains('is-calling')&&window.restoreSignageAdvertising)window.restoreSignageAdvertising();
       clearTimeout(timer);
       if(data.active){
         document.getElementById('callingName').textContent=displayName(data.active);
