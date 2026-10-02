@@ -52,10 +52,16 @@ function createSpeechCache(generate=synthesize){
   const now=Date.now(),key=crypto.createHash('sha256').update(text).digest('hex');
   for(const [id,item] of cache)if(item.expires<now)cache.delete(id);
   if(cache.has(key))return cache.get(key).promise;
-  if(cache.size>=32)return Promise.reject(Error('TTS queue full'));
+  if(cache.size>=32){
+   const oldest=Array.from(cache).find(([,item])=>item.settled);
+   if(oldest)cache.delete(oldest[0]);
+   else return Promise.reject(Error('TTS queue full'));
+  }
   const promise=queue.then(()=>generate(text));
   queue=promise.catch(()=>{});
-  cache.set(key,{promise,expires:now+1800000});
+  const entry={promise,expires:now+1800000,settled:false};
+  cache.set(key,entry);
+  promise.then(()=>{entry.settled=true;},()=>{entry.settled=true;});
   promise.catch(()=>cache.delete(key));
   return promise;
  };

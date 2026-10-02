@@ -1,6 +1,26 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const signage=require('./signage-state');
 const now=2000000000,bed={patientKey:'p1',name:'김민석'};
+test('one thousand simultaneous duplicate confirmations write and broadcast only once',async()=>{
+ const source=fs.readFileSync(require.resolve('./server.js'),'utf8');
+ const block=source.slice(source.indexOf('  const childMatch = pathname.match'),source.indexOf('  if (pathname === "/api/discharged-patients/cleanup"'));
+ const beds={101:bed};let id=0,writes=0,broadcasts=0;
+ const state={bedAssignmentAlerts:{one:{bedNo:101,patientKey:'p1'}},signageCalls:signage.onAssignment([],{},beds,now,()=>String(++id))};
+ const ctx=vm.createContext({
+  signageState:signage,Date,crypto:{randomUUID:()=>String(++id)},
+  readJson:async req=>req.body,normalizeStateKey:key=>key,getStateValue:key=>state[key],getBedsState:()=>beds,
+  setStateValue:(key,value)=>{state[key]=value;writes++;},stateEquals:(a,b)=>JSON.stringify(a)===JSON.stringify(b),
+  sseBroadcastStateChild:()=>broadcasts++,jsonResponse:()=>{},assertValidChartNoRecord:()=>{}
+ });
+ vm.runInContext('async function handle(req,res,pathname){'+block+'}',ctx);
+ await Promise.all(Array.from({length:1000},()=>ctx.handle({method:'POST',body:{key:'bedAssignmentAlerts',childKey:'one',confirmed:true}},{},'/api/state-child/delete')));
+ assert.equal(writes,2);assert.equal(broadcasts,1);assert.equal(state.signageCalls.length,1);assert.equal(state.signageCalls[0].pending,undefined);
+ // Automatic cleanup deletes the alert but never starts a signage call.
+ state.bedAssignmentAlerts={two:{bedNo:101,patientKey:'p1'}};
+ state.signageCalls=signage.onAssignment([],{},beds,now,()=>String(++id));
+ await ctx.handle({method:'POST',body:{key:'bedAssignmentAlerts',childKey:'two'}},{},'/api/state-child/delete');
+ assert.equal(state.signageCalls[0].pending,true);
+});
 test('one thousand treatment updates do not rewrite or broadcast unchanged signage calls',()=>{
  const source=fs.readFileSync(require.resolve('./server.js'),'utf8');
  const code=source.slice(source.indexOf('function commitBeds('),source.indexOf('async function handleApi('));
@@ -75,8 +95,10 @@ test('only waiting room arrivals call, including swaps and doctor room transfers
 
 test('doctor room assignments are sequential with room labels and no repeat on edits',()=>{
  const beds={101:{patientKey:'d1',name:'김환자'},102:{patientKey:'d2',name:'이환자'}};let serial=0;
- const calls=signage.onAssignment([],{},beds,now,()=>String(++serial));
+ let calls=signage.onAssignment([],{},beds,now,()=>String(++serial));
  assert.equal(calls.length,2);
+ assert.equal(signage.publicStatus({},beds,{},calls,now+3000).active,null);
+ for(const call of [...calls])calls=signage.onConfirmation(calls,beds,call,now+3000,()=>String(++serial));
  assert.equal(signage.publicStatus({},beds,{},calls,now+3000).active.bedLabel,'진료실1');
  assert.equal(signage.publicStatus({},beds,{},calls,now+13000).active.bedLabel,'진료실2');
  assert.equal(signage.onAssignment(calls,beds,{...beds,101:{...beds[101],memo:'수정'}},now+100,()=>String(++serial)).length,2);
@@ -86,23 +108,41 @@ test('doctor room assignments are sequential with room labels and no repeat on e
 test('ten simultaneous arrivals display individually for ten seconds in order',()=>{
  const beds={};for(let i=1;i<=6;i++)beds[i]={patientKey:'p'+i,name:'patient'+i};for(let i=8;i<=11;i++)beds[i]={patientKey:'p'+i,name:'patient'+i};
  let id=0;let calls=signage.onAssignment([],{},beds,now,()=>String(++id));
+ for(const call of [...calls])calls=signage.onConfirmation(calls,beds,call,now,()=>String(++id));
  assert.equal(new Set(calls.map(c=>c.groupId)).size,10);
  for(let i=0;i<10;i++){
-  const out=signage.publicStatus({},beds,{},calls,now+3000+i*10000);
+  const out=signage.publicStatus({},beds,{},calls,now+i*10000);
   assert.equal(out.active.id,calls[i].id);assert.equal(out.activeCalls.length,1);
   assert.equal(out.active.endAt-out.active.startAt,10000);
  }
  const expanded={...beds,12:{patientKey:'new',name:'new patient'}};
  calls=signage.onAssignment(calls,beds,expanded,now+5000,()=>String(++id));
- assert.equal(calls.at(-1).startAt,now+103000);
- assert.equal(signage.publicStatus({},expanded,{},calls,now+113000).active,null);
+ calls=signage.onConfirmation(calls,expanded,{bedNo:12,patientKey:'new'},now+5000,()=>String(++id));
+ assert.equal(calls.at(-1).startAt,now+100000);
+ assert.equal(signage.publicStatus({},expanded,{},calls,now+110000).active,null);
 });
 
 test('assignments outside the collection window do not join an active single call',()=>{
  const beds={8:bed};let id=0;let calls=signage.onAssignment([],{},beds,now,()=>String(++id));
+ calls=signage.onConfirmation(calls,beds,{bedNo:8,patientKey:bed.patientKey},now,()=>String(++id));
  const expanded={...beds,9:{patientKey:'p2',name:'이환자'}};
  calls=signage.onAssignment(calls,beds,expanded,now+4000,()=>String(++id));
+ calls=signage.onConfirmation(calls,expanded,{bedNo:9,patientKey:'p2'},now+4000,()=>String(++id));
  assert.notEqual(calls[0].groupId,calls[1].groupId);assert.equal(calls[1].startAt,calls[0].endAt);
+});
+test('bed assignment stays silent until confirmed, confirms once and ignores stale confirmations',()=>{
+ let serial=0;const id=()=>String(++serial),beds={8:bed};
+ const pending=signage.onAssignment([],{},beds,now,id);
+ assert.equal(pending[0].pending,true);
+ assert.equal(signage.publicStatus({},beds,{},pending,now+5000).active,null);
+ const called=signage.onConfirmation(pending,beds,{bedNo:8,patientKey:'p1'},now+5000,id);
+ assert.equal(called.length,1);assert.equal(called[0].startAt,now+5000);
+ assert.equal(signage.publicStatus({},beds,{},called,now+8000).activeCalls.length,1);
+ assert.deepEqual(signage.onConfirmation(called,beds,{bedNo:8,patientKey:'p1'},now+6000,id),called);
+ assert.deepEqual(signage.onConfirmation(pending,{8:{patientKey:'new',name:'다른환자'}},{bedNo:8,patientKey:'p1'},now+5000,id),pending);
+ const moved=signage.onAssignment(pending,beds,{9:bed},now+1000,id);
+ assert.equal(moved.length,0);
+ assert.equal(signage.onConfirmation(moved,{9:bed},{bedNo:9,patientKey:'p1'},now+5000,id).length,0);
 });
 
 test('waiting room classification depends only on first treatment and ignores assignment alerts',()=>{

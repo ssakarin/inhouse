@@ -32,3 +32,9 @@ test('speech cache shares pending requests, serializes generation and retries fa
  await get('one');assert.equal(count,2);
  await assert.rejects(get('fail'));await assert.rejects(get('fail'));assert.equal(count,4);
 });
+test('more than thirty-two different calls evict completed audio instead of blocking speech',async()=>{
+ let count=0;const get=createSpeechCache(async text=>{count++;return Buffer.from(text);});
+ for(let i=0;i<50;i++)assert.equal((await get('call'+i)).toString(),'call'+i);
+ assert.equal(count,50);await get('call49');assert.equal(count,50);
+ await get('call0');assert.equal(count,51);
+});

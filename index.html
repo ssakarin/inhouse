@@ -6661,7 +6661,7 @@
   const removeAppointmentDeskAlert = (key) => removeLocalNodeChild(APPOINTMENT_DESK_ALERTS_PATH, key);
   const clearAppointmentDeskAlerts = (value = {}) => setLocalNode(APPOINTMENT_DESK_ALERTS_PATH, value);
   const pushBedAssignmentAlert = (data) => pushLocalNode(BED_ASSIGNMENT_ALERTS_PATH, data);
-  const removeBedAssignmentAlert = (key) => removeLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, key);
+  const removeBedAssignmentAlert = (key, confirmed = false) => localStateChild('delete', { key: BED_ASSIGNMENT_ALERTS_PATH, childKey: key, confirmed });
   const clearBedAssignmentAlerts = () => setLocalNode(BED_ASSIGNMENT_ALERTS_PATH, {});
 
   const longTermChartSaveTimers = new Map();
@@ -9966,10 +9966,6 @@
     bedAssignmentAlertItems.clear();
     Object.entries(value || {}).forEach(([key, data]) => {
       if (!data) return;
-      if (Number(data.bedNo) >= 101) {
-        removeBedAssignmentAlert(key).catch((e) => console.error('원장실 배정 알림 삭제 실패', e));
-        return;
-      }
       bedAssignmentAlertItems.set(key, data);
     });
     syncDoctorProcedureAlerts();
@@ -13067,7 +13063,6 @@
 
   async function createBedAssignmentAlert(patientKey, data, bedNo) {
     if (!patientKey || !bedNo) return;
-    if (Number(bedNo) >= 101) return;
     const name = data.name || '환자';
     try {
       await pushBedAssignmentAlert({
@@ -14228,7 +14223,7 @@
     bedAssignmentAlertItems.delete(id);
     renderUpcomingAlerts();
     try {
-      await removeBedAssignmentAlert(id);
+      await removeBedAssignmentAlert(id, true);
     } catch (e) {
       console.error(e);
       showToast('베드 배정 알림 확인 실패');
@@ -19950,10 +19945,10 @@
   function getFixedBedArrivalBedNo() {
     const bedParam = Number(new URLSearchParams(window.location.search).get('bed'));
     const isRegular = Number.isInteger(bedParam) && bedParam >= 1 && bedParam <= 15 && bedParam !== 7;
-    const fixedBedNo = isRegular ? bedParam : 0;
+    const fixedBedNo = isRegular ? bedParam : getFixedDoctorBedNoFromUrl();
     if (fixedBedNo) return fixedBedNo;
     const bedPanelActive = document.getElementById('bedPanel')?.classList.contains('active');
-    return bedPanelActive && selectedBedNo < 101 ? selectedBedNo : 0;
+    return bedPanelActive && (ACTIVE_BED_NUMBERS.includes(selectedBedNo) || getDoctorBedNumbers().includes(selectedBedNo)) ? selectedBedNo : 0;
   }
 
   function getBedAssignmentAlertForBedPatient(bedNo, patientKey) {
@@ -19994,7 +19989,7 @@
     renderBedMonitors();
     syncFixedBedArrivalOverlay();
     try {
-      await removeBedAssignmentAlert(alert.key);
+      await removeBedAssignmentAlert(alert.key, true);
     } catch (e) {
       console.error(e);
       showToast('베드 배정 알림 확인 실패');

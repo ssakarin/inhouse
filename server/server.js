@@ -4711,9 +4711,17 @@ async function handleApi(req, res, pathname) {
       previousChild = null;
       map[childKey] = body.value ?? null;
     } else if (op === "delete") {
+      if(!Object.prototype.hasOwnProperty.call(map,childKey)){
+        jsonResponse(res,200,{ok:true,key,childKey,noop:true});return true;
+      }
       delete map[childKey];
     }
     setStateValue(key, map);
+    if(key === "bedAssignmentAlerts" && op === "delete" && body.confirmed === true && previousChild){
+      const calls=getStateValue("signageCalls")||[];
+      const nextCalls=signageState.onConfirmation(calls,getBedsState(),previousChild,Date.now(),()=>crypto.randomUUID());
+      if(!stateEquals(calls,nextCalls))setStateValue("signageCalls",nextCalls);
+    }
     sseBroadcastStateChild(
       key,
       op,

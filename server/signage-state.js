@@ -13,15 +13,15 @@ function publicStatus(patients={},beds={},alerts={},calls=[],now=Date.now()){
  });
  Object.entries(beds).forEach(([no,b])=>{if(b?.name&&b.patientKey&&Number(no)>=901&&Number(no)<=920)(b.treatments?.[0]==='진찰'?consultation:waiting).add(b.patientKey);});
  consultation.forEach(key=>waiting.delete(key));
- const fresh=calls.filter(c=>c.createdAt>now-1800000&&matches(c,beds));
+ const fresh=calls.filter(c=>!c.pending&&c.createdAt>now-1800000&&matches(c,beds));
  const safe=(c,forSpeech=false)=>({displayName:c.patientName,...(forSpeech?{speechName:c.patientName}:{}),id:c.id,groupId:c.groupId||c.id,maskedName:maskName(c.patientName),bedNo:c.bedNo,bedLabel:c.bedNo>=101?'진료실'+(c.bedNo-100):c.bedNo===15?'스파인':c.bedNo+'번 베드',startAt:c.startAt,endAt:c.endAt});
  const active=fresh.find(c=>c.startAt<=now&&c.endAt>now);
  const activeCalls=active?[safe(active,true)]:[];
  return {serverTime:now,waitingCount:waiting.size,consultationWaitingCount:consultation.size,active:active?safe(active,true):null,activeCalls,recent:fresh.filter(c=>c.startAt<=now).slice(-3).reverse().map(c=>safe(c))};
 }
-function enqueue(calls,bedNo,bed,now,id){
- let fresh=calls.filter(c=>c.createdAt>now-1800000).slice(-99);
- const groupId=id,startAt=Math.max(now+3000,...fresh.filter(c=>c.endAt>now).map(c=>c.endAt)),endAt=startAt+DURATION;
+function enqueue(calls,bedNo,bed,now,id,delay=3000){
+ let fresh=calls.filter(c=>c.pending||c.createdAt>now-1800000).slice(-99);
+ const groupId=id,startAt=Math.max(now+delay,...fresh.filter(c=>!c.pending&&c.endAt>now).map(c=>c.endAt)),endAt=startAt+DURATION;
  fresh.push({id,groupId,bedNo,patientKey:bed.patientKey,patientName:bed.name,createdAt:now,startAt,endAt});return fresh;
 }
 function onAssignment(calls,previous,beds,now,id){
@@ -32,8 +32,14 @@ function onAssignment(calls,previous,beds,now,id){
   if(!validBed(Number(no))||!b?.patientKey||!b.name)return;
   if(previous[no]?.patientKey===b.patientKey)return;
   if(alreadyInside.has(b.patientKey))return;
-  next=enqueue(next,Number(no),b,now,id());
+  next.push({id:id(),bedNo:Number(no),patientKey:b.patientKey,patientName:b.name,createdAt:now,pending:true});
  });
  return next;
 }
-module.exports={maskName,validBed,matches,publicStatus,enqueue,onAssignment};
+function onConfirmation(calls,beds,alert,now,id){
+ const no=Number(alert?.bedNo),bed=beds[String(no)];
+ const pending=calls.find(c=>c.pending&&c.bedNo===no&&c.patientKey===alert?.patientKey&&matches(c,beds));
+ if(!pending||!validBed(no))return calls;
+ return enqueue(calls.filter(c=>c!==pending),no,bed,now,id(),0);
+}
+module.exports={maskName,validBed,matches,publicStatus,enqueue,onAssignment,onConfirmation};

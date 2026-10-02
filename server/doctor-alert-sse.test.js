@@ -60,6 +60,21 @@ test('all 14 independent tablets agree on pending arrival, acknowledgment and cl
 test('local current-treatment display gate is preserved',()=>{
   assert.equal(tablet(2,{1:bed(1),2:bed(2,{treatments:['핫팩']})},{}),null);
 });
+test('doctor room arrival alerts reach tablets and target the fixed or selected room popup',()=>{
+ const {context:s}=serverContext();
+ const alerts={room1:{bedNo:101,patientKey:'d1'},room2:{bedNo:102,patientKey:'d2'}};
+ assert.deepEqual(JSON.parse(JSON.stringify(s.stateValueForClient({role:'doctor-room',room:1},'bedAssignmentAlerts',alerts))),alerts);
+ const c=vm.createContext({
+  URLSearchParams,window:{location:{search:'?view=bed&bed=101'}},
+  getFixedDoctorBedNoFromUrl:()=>101,ACTIVE_BED_NUMBERS:active,getDoctorBedNumbers:()=>[101,102],selectedBedNo:102,
+  document:{getElementById:()=>({classList:{contains:()=>true}})},
+  bedAssignmentAlertItems:new Map(Object.entries(alerts)),fixedBedArrivalAcknowledgedByBed:{},getBedData:()=>({patientKey:'d1'})
+ });
+ load(c,html,['getFixedBedArrivalBedNo','getBedAssignmentAlertForBed','isFixedBedArrivalPending']);
+ assert.equal(c.getFixedBedArrivalBedNo(),101);assert.equal(c.isFixedBedArrivalPending(101),true);
+ c.fixedBedArrivalAcknowledgedByBed[101]='room1';assert.equal(c.isFixedBedArrivalPending(101),false);
+ c.window.location.search='';c.getFixedDoctorBedNoFromUrl=()=>0;assert.equal(c.getFixedBedArrivalBedNo(),102);
+});
 test('upcoming queue crosses 120 seconds consistently without new server state',()=>{
   const beds=Object.fromEntries(active.map(n=>[n,bed(n,{running:true,remaining:300})]));
   beds[1]=bed(1,{treatments:['단추']});
