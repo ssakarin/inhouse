@@ -1940,6 +1940,20 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .staff-item.nurse-staff-item {
+    background: #12382f;
+    border: 2px solid #34d399;
+  }
+  .nurse-staff-item .staff-name { color: #ecfdf5; font-weight: 900; }
+  .staff-item.nurse-staff-item.vacation {
+    opacity: 1;
+    background: #3b202b;
+    border: 2px dashed #fb7185;
+  }
+  .nurse-staff-item.vacation .staff-name { color: #fda4af; font-weight: 600; }
+  .nurse-staff-item.vacation .staff-vacation-toggle,
+  .nurse-staff-item.vacation .staff-delete-btn { color: #fecdd3; }
+  .nurse-staff-item.vacation .staff-delete-btn { border-color: #be6074; }
   .staff-delete-btn {
     background: transparent;
     border: 1px solid var(--border);
@@ -9859,7 +9873,7 @@
       const getListHtml = (isQuickList = false) => staff.length
         ? staff.map(([key, data]) => {
           return `
-          <div class="staff-item${(type === 'nurses' ? isNurseUnavailable(data) : isDoctorUnavailable(data)) ? ' vacation' : ''}">
+          <div class="staff-item${type === 'nurses' ? ' nurse-staff-item' : ''}${(type === 'nurses' ? isNurseUnavailable(data) : isDoctorUnavailable(data)) ? ' vacation' : ''}">
             <div class="staff-name">${escapeHtml(data.name || '')}</div>
             ${(type === 'nurses' || type === 'doctors') ? `
               <label class="staff-vacation-toggle">
