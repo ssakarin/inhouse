@@ -1974,6 +1974,9 @@
   .nurse-monthly-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 12px 0; color: var(--text3); font-size: 12px; }
   .nurse-monthly-help { font-size: 12px; color: var(--text3); line-height: 1.5; }
   .nurse-monthly-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .nurse-monthly-cell { min-width: 0; }
+  .nurse-monthly-cell .nurse-monthly-day { width: 100%; }
+  .nurse-date-dropdown { width: 100%; min-width: 0; margin-top: 4px; background: var(--surface2); color: var(--text); border: 1px solid var(--accent); border-radius: 6px; padding: 5px 2px; font-size: 11px; }
   .nurse-monthly-day { min-width: 0; min-height: 66px; display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 7px; background: var(--surface2); color: var(--text); cursor: pointer; padding: 4px; font: inherit; font-size: 11px; }
   .nurse-leave-action.active { outline: 2px solid var(--accent); outline-offset: 2px; font-weight: 900; }
   .nurse-monthly-day.closed strong, .nurse-monthly-day small { color: #fb7185; }
@@ -9408,7 +9411,7 @@
     normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).forEach(date => {
       if (!Object.prototype.hasOwnProperty.call(draft, date)) draft[date] = 'monthly';
     });
-    renderNurseMonthlyEditor.state = { key, month: getTodayKey().slice(0, 7), draft, activeKind: 'full', busy: false };
+    renderNurseMonthlyEditor.state = { key, month: getTodayKey().slice(0, 7), draft, activeKind: '', editingDate: '', busy: false };
     let overlay = document.getElementById('nurseMonthlyEditor');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -9442,22 +9445,28 @@
       const adjusted = !closed && effectiveLeave !== baseLeave;
       const holidayName = getClinicPublicHolidays()[key] || '';
       const cellLabel = closed ? (leave === 'work' ? '휴진' : labels[leave]) : date.getDay() === 6 && effectiveLeave === 'work' ? '근무' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? (leave === 'p_am' ? '오전' : '오후') : labels[effectiveLeave];
-      return `<button type="button" class="nurse-monthly-day leave-${closed ? 'closed' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? leave : effectiveLeave}${closed ? ' closed' : ''}" ${state.busy || closed || (date.getDay() === 6 && state.activeKind === 'pm') ? 'disabled' : ''} onclick="toggleNurseMonthlyDate('${key}')"><strong>${day}</strong><span>${cellLabel}</span>${adjusted ? '<small>공휴일 보정</small>' : ''}${closed ? `<small>${escapeHtml(holidayName || '일요일')}</small>` : ''}</button>`;
+      return `<div class="nurse-monthly-cell"><button type="button" class="nurse-monthly-day leave-${closed ? 'closed' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? leave : effectiveLeave}${closed ? ' closed' : ''}" ${state.busy || closed ? 'disabled' : ''} onclick="toggleNurseMonthlyDate('${key}')"><strong>${day}</strong><span>${cellLabel}</span>${adjusted ? '<small>공휴일 보정</small>' : ''}${closed ? `<small>${escapeHtml(holidayName || '일요일')}</small>` : ''}</button>${state.editingDate === key && !closed ? `<select class="nurse-date-dropdown" aria-label="${month}월 ${day}일 근무 휴무" onchange="setNurseMonthlyDateLeave('${key}', this.value)" ${state.busy ? 'disabled' : ''}><option value="" selected disabled>선택</option>${Object.entries(labels).filter(([kind]) => !kind.startsWith('p_') && !(date.getDay() === 6 && kind === 'pm')).map(([kind,label]) => `<option value="${kind}">${label}${kind === leave ? ' · 현재' : ''}</option>`).join('')}</select>` : ''}</div>`;
     }).join('');
     overlay.innerHTML = `<div class="nurse-monthly-dialog" role="dialog" aria-modal="true" aria-label="간호사 월간 휴무 설정">
-      <div class="staff-schedule-head"><strong>${escapeHtml(nurse.name || '')} 월간 휴무</strong><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="document.getElementById('nurseMonthlyEditor').remove()">닫기</button></div>
-      <div class="nurse-monthly-tools"><button class="staff-delete-btn" type="button" aria-label="이전 달" ${state.busy ? 'disabled' : ''} onclick="moveNurseMonthlyMonth(-1)">&lt;</button><input class="staff-monthly-leave-date" type="month" value="${state.month}" ${state.busy ? 'disabled' : ''} onchange="changeNurseMonthlyMonth(this.value)"><button class="staff-delete-btn" type="button" aria-label="다음 달" ${state.busy ? 'disabled' : ''} onclick="moveNurseMonthlyMonth(1)">&gt;</button></div>
-      <p class="nurse-monthly-help">휴무 종류를 먼저 선택하고 날짜를 누르면 바로 적용됩니다. 마지막에 저장하세요. P오전,P오후는 오전 오후 아르바이트인경우 선택하면 됩니다</p>
-      <div class="nurse-monthly-tools" role="group" aria-label="날짜에 적용할 근무 휴무 종류">${Object.entries(labels).map(([kind,label]) => `<button class="staff-delete-btn nurse-leave-action leave-${kind}${state.activeKind === kind ? ' active' : ''}" type="button" aria-pressed="${state.activeKind === kind}" ${state.busy ? 'disabled' : ''} onclick="selectNurseMonthlyLeaveKind('${kind}')">${label}</button>`).join('')}<span>선택: ${labels[state.activeKind]}</span></div>
+      <div class="staff-schedule-head"><strong>${escapeHtml(nurse.name || '')} 월간 휴무</strong><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="closeNurseMonthlySchedule(event)">닫기</button></div>
+      <div class="nurse-monthly-tools"><button class="staff-delete-btn" type="button" aria-label="이전 달" ${state.busy ? 'disabled' : ''} onclick="moveNurseMonthlyMonth(-1)">&lt;</button><input class="staff-monthly-leave-date" type="month" value="${state.month}" ${state.busy ? 'disabled' : ''} onchange="changeNurseMonthlyMonth(this.value)"><button class="staff-delete-btn" type="button" aria-label="다음 달" ${state.busy ? 'disabled' : ''} onclick="moveNurseMonthlyMonth(1)">&gt;</button><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="changeNurseMonthlyMonth(getTodayKey().slice(0, 7))">이번달</button>${['p_am','p_pm'].map(kind => `<button class="staff-delete-btn nurse-leave-action leave-${kind}" type="button" ${state.busy ? 'disabled' : ''} onclick="selectNurseMonthlyLeaveKind('${kind}')">${labels[kind]}</button>`).join('')}</div>
+      <p class="nurse-monthly-help">날짜를 누르고 드롭다운에서 근무·휴무를 선택하세요. 마지막에 저장하세요. P오전,P오후는 오전 오후 아르바이트인경우 선택하면 됩니다</p>
+
       <div class="nurse-monthly-grid">${['일','월','화','수','목','금','토'].map(day => `<span class="doctor-weekday-heading">${day}</span>`).join('')}${cells}</div>
 
       <button class="submit-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="saveNurseMonthlySchedule()">${state.busy ? '저장 중' : '월간 휴무 저장'}</button>
     </div>`;
   }
 
+  window.closeNurseMonthlySchedule = function(event) {
+    event?.stopPropagation();
+    document.getElementById('nurseMonthlyEditor')?.remove();
+    openNurseQuickPopover();
+  };
   window.changeNurseMonthlyMonth = function(value) {
     if (!/^\d{4}-\d{2}$/.test(value) || Number(value.slice(5)) < 1 || Number(value.slice(5)) > 12) return;
     renderNurseMonthlyEditor.state.month = value;
+    renderNurseMonthlyEditor.state.editingDate = '';
     renderNurseMonthlyEditor();
   };
   window.moveNurseMonthlyMonth = function(offset) {
@@ -9470,15 +9479,24 @@
   window.toggleNurseMonthlyDate = function(dateKey) {
     const state = renderNurseMonthlyEditor.state;
     if (!state || state.busy || isClinicClosedDate(new Date(`${dateKey}T12:00:00`))) return;
-    if (!['work', 'full', 'am', 'pm', 'monthly', 'p_am', 'p_pm'].includes(state.activeKind)) return;
-    if (new Date(`${dateKey}T12:00:00`).getDay() === 6 && state.activeKind === 'pm') return;
-    state.draft[dateKey] = state.activeKind;
+    state.editingDate = state.editingDate === dateKey ? '' : dateKey;
+    renderNurseMonthlyEditor();
+    document.querySelector('#nurseMonthlyEditor .nurse-date-dropdown')?.focus();
+  };
+  window.setNurseMonthlyDateLeave = function(dateKey, kind) {
+    const state = renderNurseMonthlyEditor.state;
+    const date = new Date(`${dateKey}T12:00:00`);
+    if (!state || state.busy || isClinicClosedDate(date) || !['work','full','am','pm','monthly'].includes(kind)) return;
+    if (date.getDay() === 6 && kind === 'pm') return;
+    state.draft[dateKey] = kind;
+    state.editingDate = '';
     renderNurseMonthlyEditor();
   };
   window.selectNurseMonthlyLeaveKind = function(kind) {
     const state = renderNurseMonthlyEditor.state;
     if (!state || state.busy || !['work', 'full', 'am', 'pm', 'monthly', 'p_am', 'p_pm'].includes(kind)) return;
     state.activeKind = kind;
+    state.editingDate = '';
     if (kind === 'p_am' || kind === 'p_pm') {
       const [year, month] = state.month.split('-').map(Number);
       for (let day = 1; day <= new Date(year, month, 0).getDate(); day++) {
@@ -9503,7 +9521,7 @@
       staffByType.nurses.set(state.key, { ...staffByType.nurses.get(state.key), leaveByDate: next, monthlyLeaveDates: monthly });
       if (wasUnavailable && !isNurseUnavailable(staffByType.nurses.get(state.key))) await alignReturningNurseAssignmentCount(state.key);
       renderStaffControls();
-      document.getElementById('nurseMonthlyEditor')?.remove();
+      closeNurseMonthlySchedule();
       showToast('간호사 월간 휴무 저장 완료');
     } catch (e) {
       console.error(e);
