@@ -1952,7 +1952,7 @@
     padding: 7px 10px;
   }
   .staff-delete-btn:hover { border-color: var(--danger); color: var(--danger); }
-  .staff-monthly-leave { grid-column: 1 / -1; display: grid; gap: 7px; }
+  .staff-monthly-leave { order: 3; grid-column: 1 / -1; display: grid; gap: 7px; }
   .staff-monthly-leave-add, .staff-monthly-leave-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .staff-monthly-leave-date { min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; color-scheme: dark; }
   .staff-monthly-leave-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 7px; color: var(--text2); font-size: 12px; }
@@ -9282,7 +9282,7 @@
     return !workingRestDays.includes(date.getDay());
   }
 
-  function getDoctorVacationPeriods(doctor = {}) {
+  function getStaffVacationPeriods(doctor = {}) {
     const legacy = normalizeDoctorVacationWeekdays(doctor.vacationWeekdays);
     const periods = doctor.vacationWeekdayPeriods;
     return {
@@ -9291,13 +9291,13 @@
     };
   }
 
-  function isDoctorPeriodVacation(doctor, date, period) {
-    const periods = getDoctorVacationPeriods(doctor);
+  function isStaffPeriodVacation(doctor, date, period) {
+    const periods = getStaffVacationPeriods(doctor);
     return isStaffWeeklyVacation({ vacationWeekdays: periods[period] }, date);
   }
 
   function isDoctorAutoVacationToday(doctor = {}, date = new Date()) {
-    return isDoctorPeriodVacation(doctor, date, date.getHours() < 12 ? 'am' : 'pm');
+    return isStaffPeriodVacation(doctor, date, date.getHours() < 12 ? 'am' : 'pm');
   }
 
   function isDoctorUnavailable(doctor = {}) {
@@ -9319,7 +9319,7 @@
 
   function isNurseUnavailable(nurse = {}, date = new Date()) {
     return Boolean(nurse.vacation
-      || isStaffWeeklyVacation(nurse, date)
+      || isStaffPeriodVacation(nurse, date, date.getHours() < 12 ? 'am' : 'pm')
       || normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).includes(formatNurseLeaveDate(date)));
   }
 
@@ -9337,10 +9337,10 @@
     if (type === 'nurses' && normalizeNurseMonthlyLeaveDates(staff.monthlyLeaveDates).includes(dateKey)) {
       return { label: '월차', kind: 'leave' };
     }
-    if (type === 'doctors') {
+    if (type === 'doctors' || type === 'nurses') {
       if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
-      const amOff = isDoctorPeriodVacation(staff, date, 'am');
-      const pmOff = isDoctorPeriodVacation(staff, date, 'pm');
+      const amOff = isStaffPeriodVacation(staff, date, 'am');
+      const pmOff = isStaffPeriodVacation(staff, date, 'pm');
       if (amOff && pmOff) return { label: '요일 휴무', kind: 'weekday' };
       return { label: amOff ? '오후' : pmOff ? '오전' : '근무', kind: 'work' };
     }
@@ -9587,7 +9587,7 @@
           <span>${day}</span>${isToday ? '<span class="staff-schedule-today">오늘</span>' : ''}
         </div>
         ${closed ? `<div class="staff-schedule-closed">${holidayName ? `<span>${escapeHtml(holidayName)}</span>` : ''}<strong>휴진</strong></div>` : holidayName ? `<div class="staff-schedule-holiday-open">${escapeHtml(holidayName)} · 진료</div>` : ''}
-        <div class="staff-schedule-workers">${workers.map(({ type, data }) => `<span class="staff-schedule-worker ${type}">${escapeHtml(data.name || '')}${type === 'doctors' && getStaffScheduleStatus(type, data, date, todayKey).label !== '근무' ? ` · ${getStaffScheduleStatus(type, data, date, todayKey).label}` : ''}</span>`).join('')}</div>
+        <div class="staff-schedule-workers">${workers.map(({ type, data }) => `<span class="staff-schedule-worker ${type}">${escapeHtml(data.name || '')}${getStaffScheduleStatus(type, data, date, todayKey).label !== '근무' ? ` · ${getStaffScheduleStatus(type, data, date, todayKey).label}` : ''}</span>`).join('')}</div>
       </div>`;
     }).join('');
     container.innerHTML = `<div class="staff-schedule-calendar" role="group" aria-label="${year}년 ${month}월 전체 근무 현황">
@@ -9630,7 +9630,6 @@
 
       const getListHtml = (isQuickList = false) => staff.length
         ? staff.map(([key, data]) => {
-          const vacationWeekdays = normalizeDoctorVacationWeekdays(data.vacationWeekdays);
           return `
           <div class="staff-item${(type === 'nurses' ? isNurseUnavailable(data) : isDoctorUnavailable(data)) ? ' vacation' : ''}">
             <div class="staff-name">${escapeHtml(data.name || '')}</div>
@@ -9639,21 +9638,14 @@
                 <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacation' : 'toggleNurseVacation'}('${key}', this.checked)">
                 <span>자리비움</span>
               </label>` : ''}
-            ${type === 'doctors' ? `
+            ${`
               <div class="doctor-weekday-periods" aria-label="요일별 오전 오후 자리비움">
                 <span></span>${DOCTOR_VACATION_WEEKDAYS.map(({ label }) => `<span class="doctor-weekday-heading">${label}</span>`).join('')}
                 ${['am', 'pm'].map(period => `<span class="doctor-weekday-heading">${period === 'am' ? '오전' : '오후'}</span>${DOCTOR_VACATION_WEEKDAYS.map(({ day, label }) => `
                   <label class="doctor-period-toggle" title="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움">
-                    <input type="checkbox" aria-label="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움" ${getDoctorVacationPeriods(data)[period].includes(day) ? 'checked' : ''} onchange="toggleDoctorVacationWeekday('${key}', ${day}, this.checked, '${period}')">
+                    <input type="checkbox" aria-label="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움" ${getStaffVacationPeriods(data)[period].includes(day) ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacationWeekday' : 'toggleNurseVacationWeekday'}('${key}', ${day}, this.checked, '${period}')">
                   </label>`).join('')}`).join('')}
                 <div class="doctor-period-note">체크: 자리비움 · 오전/오후 구분: 낮 12시</div>
-              </div>` : `
-              <div class="staff-weekday-toggle" aria-label="요일별 자동 자리비움">
-                ${DOCTOR_VACATION_WEEKDAYS.map(({ day, label: dayLabel }) => `
-                  <label title="${dayLabel}요일 자동 자리비움">
-                    <input type="checkbox" ${vacationWeekdays.includes(day) ? 'checked' : ''} onchange="toggleNurseVacationWeekday('${key}', ${day}, this.checked)">
-                    <span>${dayLabel}</span>
-                  </label>`).join('')}
               </div>`}
             ${isQuickList ? '' : `<button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>`}
             ${type === 'nurses' ? `
@@ -10213,28 +10205,33 @@
   window.addNurseMonthlyLeave = (key, dateKey) => saveNurseMonthlyLeave(key, dateKey, true);
   window.removeNurseMonthlyLeave = (key, dateKey) => saveNurseMonthlyLeave(key, dateKey, false);
 
-  window.toggleNurseVacationWeekday = async (key, day, checked) => {
+  window.toggleNurseVacationWeekday = async (key, day, checked, period = 'both') => {
     if (!staffByType.nurses.has(key)) return;
     const current = staffByType.nurses.get(key) || {};
     const wasUnavailable = isNurseUnavailable(current);
-    const prev = normalizeDoctorVacationWeekdays(current.vacationWeekdays);
-    const nextSet = new Set(prev);
-    if (checked) nextSet.add(Number(day));
-    else nextSet.delete(Number(day));
-    const next = normalizeDoctorVacationWeekdays([...nextSet]);
-    staffByType.nurses.set(key, { ...current, vacationWeekdays: next });
+    const prev = getStaffVacationPeriods(current);
+    const next = { am: [...prev.am], pm: [...prev.pm] };
+    for (const scope of period === 'both' ? ['am', 'pm'] : [period]) {
+      if (!['am', 'pm'].includes(scope)) return;
+      const days = new Set(next[scope]);
+      if (checked) days.add(Number(day));
+      else days.delete(Number(day));
+      next[scope] = normalizeDoctorVacationWeekdays([...days]);
+    }
+    const fullDays = next.am.filter(value => next.pm.includes(value));
+    staffByType.nurses.set(key, { ...current, vacationWeekdayPeriods: next, vacationWeekdays: fullDays });
     renderStaffControls();
     try {
-      await updateLocalNodeChild('staff/nurses', key, { vacationWeekdays: next });
+      await updateLocalNodeChild('staff/nurses', key, { vacationWeekdayPeriods: next, vacationWeekdays: fullDays });
       if (wasUnavailable && !isNurseUnavailable(staffByType.nurses.get(key))) {
         await alignReturningNurseAssignmentCount(key);
       }
-      showToast('간호사 자동 자리비움 요일 저장 완료');
+      showToast('간호사 오전·오후 자리비움 저장 완료');
     } catch (e) {
       console.error(e);
-      staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacationWeekdays: prev });
+      staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacationWeekdayPeriods: prev, vacationWeekdays: current.vacationWeekdays || [] });
       renderStaffControls();
-      showToast('자동 자리비움 요일 저장 실패');
+      showToast('자동 자리비움 저장 실패');
     }
   };
 
@@ -10261,7 +10258,7 @@
   window.toggleDoctorVacationWeekday = async (key, day, checked, period = 'both') => {
     if (!staffByType.doctors.has(key)) return;
     const current = staffByType.doctors.get(key) || {};
-    const prev = getDoctorVacationPeriods(current);
+    const prev = getStaffVacationPeriods(current);
     const next = { am: [...prev.am], pm: [...prev.pm] };
     for (const scope of period === 'both' ? ['am', 'pm'] : [period]) {
       if (!['am', 'pm'].includes(scope)) return;
