@@ -1969,6 +1969,35 @@
     white-space: nowrap;
   }
   .staff-vacation-toggle input { accent-color: var(--danger); }
+  .nurse-monthly-editor { position: fixed; inset: 0; z-index: 2500; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; padding: 12px; }
+  .nurse-monthly-dialog { width: min(660px, 100%); max-height: calc(100vh - 24px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .nurse-monthly-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 12px 0; color: var(--text3); font-size: 12px; }
+  .nurse-monthly-help { font-size: 12px; color: var(--text3); line-height: 1.5; }
+  .nurse-monthly-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .nurse-monthly-day { min-width: 0; min-height: 66px; display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 7px; background: var(--surface2); color: var(--text); cursor: pointer; padding: 4px; font: inherit; font-size: 11px; }
+  .nurse-leave-action.active { outline: 2px solid var(--accent); outline-offset: 2px; font-weight: 900; }
+  .nurse-monthly-day.closed strong, .nurse-monthly-day small { color: #fb7185; }
+  .nurse-quick-calendar-section { min-width: 0; }
+  .nurse-quick-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+  .nurse-quick-settings { min-width: 0; padding-left: 16px; border-left: 1px solid var(--border); }
+  .nurse-quick-settings-title { color: var(--text); font-size: 14px; font-weight: 900; margin-bottom: 12px; }
+  #nurseQuickScheduleCalendar .staff-schedule-workers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+  #nurseQuickScheduleCalendar .staff-schedule-worker { min-width: 0; padding: 2px 4px; justify-content: center; text-align: center; font-size: 10px; }
+  #nurseQuickScheduleCalendar .staff-schedule-calendar { min-width: 700px; }
+  @media (max-width: 900px) {
+    .nurse-quick-layout { grid-template-columns: minmax(0, 1fr); }
+    .nurse-quick-settings { padding-left: 0; padding-top: 14px; border-left: 0; border-top: 1px solid var(--border); }
+  }
+  .nurse-monthly-day.leave-work, .nurse-leave-action.leave-work { background: rgba(52,211,153,.14); border-color: rgba(52,211,153,.5); }
+  .nurse-monthly-day.leave-full, .nurse-leave-action.leave-full { background: rgba(251,113,133,.14); border-color: rgba(251,113,133,.5); }
+  .nurse-monthly-day.leave-am, .nurse-leave-action.leave-am { background: rgba(251,191,36,.14); border-color: rgba(251,191,36,.5); }
+  .nurse-monthly-day.leave-pm, .nurse-leave-action.leave-pm { background: rgba(96,165,250,.14); border-color: rgba(96,165,250,.5); }
+  .nurse-monthly-day.leave-monthly, .nurse-leave-action.leave-monthly { background: rgba(192,132,252,.14); border-color: rgba(192,132,252,.5); }
+  .nurse-monthly-day.leave-p_am, .nurse-leave-action.leave-p_am { background: rgba(45,212,191,.18); border-color: #2dd4bf; }
+  .nurse-monthly-day.leave-p_pm, .nurse-leave-action.leave-p_pm { background: rgba(251,146,60,.18); border-color: #fb923c; }
+  .nurse-monthly-day.leave-closed { background: var(--surface2); color: var(--text3); }
+  .nurse-monthly-dialog .nurse-monthly-day.closed:disabled { opacity: 1; }
+  .nurse-monthly-dialog button:disabled { opacity: .5; cursor: default; }
   .doctor-weekday-periods { order: 2; grid-column: 1 / -1; display: grid; grid-template-columns: 34px repeat(6, minmax(24px, 1fr)); gap: 5px; align-items: center; }
   .doctor-weekday-heading { text-align: center; color: var(--text2); font-size: 11px; font-weight: 900; }
   .doctor-period-toggle { display: flex; align-items: center; justify-content: center; min-height: 26px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
@@ -2052,9 +2081,9 @@
     display: none;
     position: fixed;
     top: 76px;
-    right: 210px;
+    right: 12px;
     z-index: 1800;
-    width: min(360px, calc(100vw - 24px));
+    width: min(1180px, calc(100vw - 24px));
     max-height: calc(100vh - 96px);
     overflow: auto;
     background: var(--surface);
@@ -2067,7 +2096,7 @@
   .nurse-quick-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 12px;
     margin-bottom: 10px;
   }
@@ -5746,9 +5775,20 @@
 
   <div class="nurse-quick-popover" id="nurseQuickPopover" onclick="event.stopPropagation()">
     <div class="nurse-quick-head">
-      <div class="nurse-quick-title">간호사 관리</div>
       <button class="nurse-quick-close" type="button" onclick="closeNurseQuickPopover()" aria-label="닫기">×</button>
     </div>
+    <div class="nurse-quick-layout">
+    <div class="nurse-quick-calendar-section">
+      <div class="staff-schedule-head"><strong>전체 근무 달력</strong><div class="staff-schedule-controls">
+        <button class="staff-delete-btn" type="button" onclick="changeStaffScheduleMonth(-1, 'quick')" aria-label="이전 달">‹</button>
+        <input id="nurseQuickScheduleMonth" class="staff-monthly-leave-date" type="month" aria-label="전체 근무 조회 월" onchange="renderStaffSchedule('quick')">
+        <button class="staff-delete-btn" type="button" onclick="changeStaffScheduleMonth(1, 'quick')" aria-label="다음 달">›</button>
+        <button class="staff-delete-btn" type="button" onclick="changeStaffScheduleMonth(0, 'quick')">이번 달</button>
+      </div></div>
+      <div class="staff-schedule-calendar-wrap" id="nurseQuickScheduleCalendar"></div>
+    </div>
+      <div class="nurse-quick-settings">
+        <div class="nurse-quick-settings-title" id="nurseQuickSettingsDate"></div>
     <label class="rr-setting" style="margin-top:0;margin-bottom:10px">
       <span class="rr-setting-text">간호사 자동배정</span>
       <span class="rr-switch">
@@ -5757,6 +5797,8 @@
       </span>
     </label>
     <div class="staff-list" id="nurseQuickList"></div>
+      </div>
+    </div>
   </div>
 
   <!-- 입력 패널 -->
@@ -9263,7 +9305,7 @@
     return date.getDay() === 0 || Boolean(holidayName && !holidayName.startsWith('대체공휴일'));
   }
 
-  function isStaffWeeklyVacation(staff = {}, date = new Date()) {
+  function isStaffWeeklyVacation(staff = {}, date = new Date(), period = 'am') {
     const weekdays = normalizeDoctorVacationWeekdays(staff.vacationWeekdays);
     if (!weekdays.includes(date.getDay())) return false;
     // 월~토의 일반 공휴일이 근무일에 있으면 정기 휴무를 근무로 전환한다.
@@ -9271,13 +9313,13 @@
     const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
     const holidays = [];
-    for (let offset = 0; offset < 6; offset += 1) {
+    for (let offset = 0; offset < (period === 'pm' ? 5 : 6); offset += 1) {
       const day = new Date(monday);
       day.setDate(monday.getDate() + offset);
       if (isClinicClosedDate(day)) holidays.push(day.getDay());
     }
     const replacementCount = holidays.filter(day => !weekdays.includes(day)).length;
-    const availableRestDays = weekdays.filter(day => !holidays.includes(day));
+    const availableRestDays = weekdays.filter(day => !holidays.includes(day) && (period !== 'pm' || day !== 6));
     const workingRestDays = availableRestDays.slice(0, replacementCount);
     return !workingRestDays.includes(date.getDay());
   }
@@ -9292,12 +9334,13 @@
   }
 
   function isStaffPeriodVacation(doctor, date, period) {
+    if (date.getDay() === 6 && period === 'pm') return true;
     const periods = getStaffVacationPeriods(doctor);
-    return isStaffWeeklyVacation({ vacationWeekdays: periods[period] }, date);
+    return isStaffWeeklyVacation({ vacationWeekdays: periods[period] }, date, period);
   }
 
   function isDoctorAutoVacationToday(doctor = {}, date = new Date()) {
-    return isStaffPeriodVacation(doctor, date, date.getHours() < 12 ? 'am' : 'pm');
+    return isStaffPeriodVacation(doctor, date, date.getHours() < 14 ? 'am' : 'pm');
   }
 
   function isDoctorUnavailable(doctor = {}) {
@@ -9317,10 +9360,174 @@
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
 
+  function getNurseDateLeave(nurse, dateKey) {
+    const explicit = nurse.leaveByDate?.[dateKey];
+    if (['work', 'full', 'am', 'pm', 'monthly', 'p_am', 'p_pm'].includes(explicit)) return explicit;
+    return normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).includes(dateKey) ? 'monthly' : 'work';
+  }
+
+  function getPartTimeBaseLeave(kind, date) {
+    if (kind === 'p_pm') return date.getDay() >= 1 && date.getDay() <= 5 ? 'am' : 'full';
+    return [1, 2, 3, 5, 6].includes(date.getDay()) ? (date.getDay() === 6 ? 'work' : 'pm') : 'full';
+  }
+
+  function getEffectiveNurseDateLeave(nurse, date) {
+    const dateKey = formatNurseLeaveDate(date);
+    const rawLeave = getNurseDateLeave(nurse, dateKey);
+    if (rawLeave === 'p_pm') return getPartTimeBaseLeave(rawLeave, date);
+    if (rawLeave === 'p_am') {
+      const converted = Object.fromEntries(Object.entries(nurse.leaveByDate || {}).map(([key, value]) => [key, value === 'p_am' || value === 'p_pm' ? getPartTimeBaseLeave(value, new Date(`${key}T12:00:00`)) : value]));
+      const adjusted = getEffectiveNurseDateLeave({ ...nurse, leaveByDate: converted }, date);
+      if (date.getDay() !== 6 && adjusted === 'work') return 'pm';
+      return adjusted;
+    }
+    const leave = date.getDay() === 6 && rawLeave === 'pm' ? 'work' : rawLeave;
+    if (leave === 'work' || leave === 'monthly' || isClinicClosedDate(date)) return leave;
+    const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const week = Array.from({ length: 6 }, (_, offset) => {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + offset);
+      return { weekday: day.getDay(), key: formatNurseLeaveDate(day), closed: isClinicClosedDate(day), leave: getNurseDateLeave(nurse, formatNurseLeaveDate(day)) };
+    });
+    const remainsOff = period => {
+      if (leave !== 'full' && leave !== period) return false;
+      const replacementCount = week.filter(day => (period !== 'pm' || day.weekday !== 6) && day.closed && day.leave !== 'monthly' && day.leave !== 'full' && day.leave !== period).length;
+      const restDates = week.filter(day => (period !== 'pm' || day.weekday !== 6) && !day.closed && (day.leave === 'full' || day.leave === period)).map(day => day.key);
+      return !restDates.slice(0, replacementCount).includes(dateKey);
+    };
+    const amOff = remainsOff('am'), pmOff = remainsOff('pm');
+    if (date.getDay() === 6) return amOff ? 'full' : 'work';
+    return amOff && pmOff ? 'full' : amOff ? 'am' : pmOff ? 'pm' : 'work';
+  }
+
+  window.openNurseMonthlySchedule = function(key) {
+    if (!staffByType.nurses.has(key)) return;
+    const nurse = staffByType.nurses.get(key);
+    const nextMonth = new Date();
+    nextMonth.setDate(1);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const draft = { ...(nurse.leaveByDate || {}) };
+    normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).forEach(date => {
+      if (!Object.prototype.hasOwnProperty.call(draft, date)) draft[date] = 'monthly';
+    });
+    renderNurseMonthlyEditor.state = { key, month: formatNurseLeaveDate(nextMonth).slice(0, 7), draft, activeKind: 'full', busy: false };
+    let overlay = document.getElementById('nurseMonthlyEditor');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'nurseMonthlyEditor';
+      overlay.className = 'nurse-monthly-editor';
+      document.body.appendChild(overlay);
+    }
+    closeNurseQuickPopover();
+    renderNurseMonthlyEditor();
+  };
+
+  function renderNurseMonthlyEditor() {
+    const state = renderNurseMonthlyEditor.state;
+    const overlay = document.getElementById('nurseMonthlyEditor');
+    if (!state || !overlay) return;
+    const nurse = staffByType.nurses.get(state.key);
+    if (!nurse) { overlay.remove(); return; }
+    const [year, month] = state.month.split('-').map(Number);
+    const first = new Date(year, month - 1, 1, 12).getDay();
+    const days = new Date(year, month, 0).getDate();
+    const labels = { work: '근무', full: '종일 휴무', am: '오전 휴무', pm: '오후 휴무', monthly: '월차', p_am: 'P오전', p_pm: 'P오후' };
+    const cells = Array.from({ length: Math.ceil((first + days) / 7) * 7 }, (_, index) => {
+      const day = index - first + 1;
+      if (day < 1 || day > days) return '<div class="nurse-monthly-blank"></div>';
+      const date = new Date(year, month - 1, day, 12);
+      const key = formatNurseLeaveDate(date);
+      const leave = state.draft[key] || 'work';
+      const closed = isClinicClosedDate(date);
+      const effectiveLeave = getEffectiveNurseDateLeave({ leaveByDate: state.draft }, date);
+      const baseLeave = leave === 'p_am' || leave === 'p_pm' ? getPartTimeBaseLeave(leave, date) : leave;
+      const adjusted = !closed && effectiveLeave !== baseLeave;
+      const holidayName = getClinicPublicHolidays()[key] || '';
+      const cellLabel = closed ? (leave === 'work' ? '휴진' : labels[leave]) : date.getDay() === 6 && effectiveLeave === 'work' ? '근무' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? (leave === 'p_am' ? '오전' : '오후') : labels[effectiveLeave];
+      return `<button type="button" class="nurse-monthly-day leave-${closed ? 'closed' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? leave : effectiveLeave}${closed ? ' closed' : ''}" ${state.busy || closed || (date.getDay() === 6 && state.activeKind === 'pm') ? 'disabled' : ''} onclick="toggleNurseMonthlyDate('${key}')"><strong>${day}</strong><span>${cellLabel}</span>${adjusted ? '<small>공휴일 보정</small>' : ''}${closed ? `<small>${escapeHtml(holidayName || '일요일')}</small>` : ''}</button>`;
+    }).join('');
+    overlay.innerHTML = `<div class="nurse-monthly-dialog" role="dialog" aria-modal="true" aria-label="간호사 월간 휴무 설정">
+      <div class="staff-schedule-head"><strong>${escapeHtml(nurse.name || '')} 월간 휴무</strong><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="document.getElementById('nurseMonthlyEditor').remove()">닫기</button></div>
+      <div class="nurse-monthly-tools"><input class="staff-monthly-leave-date" type="month" value="${state.month}" ${state.busy ? 'disabled' : ''} onchange="changeNurseMonthlyMonth(this.value)"><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="copyNurseLegacySchedule()">기존 요일로 초안 만들기</button></div>
+      <p class="nurse-monthly-help">휴무 종류를 먼저 선택하고 날짜를 누르면 바로 적용됩니다. 마지막에 저장하세요. P오전·P오후는 선택한 달의 근무 패턴을 채웁니다(월차 유지). P오전: 월·화·수·금·토 오전, P오후: 월~금 오후.</p>
+      <div class="nurse-monthly-tools" role="group" aria-label="날짜에 적용할 근무 휴무 종류">${Object.entries(labels).map(([kind,label]) => `<button class="staff-delete-btn nurse-leave-action leave-${kind}${state.activeKind === kind ? ' active' : ''}" type="button" aria-pressed="${state.activeKind === kind}" ${state.busy ? 'disabled' : ''} onclick="selectNurseMonthlyLeaveKind('${kind}')">${label}</button>`).join('')}<span>선택: ${labels[state.activeKind]}</span></div>
+      <div class="nurse-monthly-grid">${['일','월','화','수','목','금','토'].map(day => `<span class="doctor-weekday-heading">${day}</span>`).join('')}${cells}</div>
+
+      <button class="submit-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="saveNurseMonthlySchedule()">${state.busy ? '저장 중' : '월간 휴무 저장'}</button>
+    </div>`;
+  }
+
+  window.changeNurseMonthlyMonth = function(value) {
+    if (!/^\d{4}-\d{2}$/.test(value) || Number(value.slice(5)) < 1 || Number(value.slice(5)) > 12) return;
+    renderNurseMonthlyEditor.state.month = value;
+    renderNurseMonthlyEditor();
+  };
+  window.toggleNurseMonthlyDate = function(dateKey) {
+    const state = renderNurseMonthlyEditor.state;
+    if (!state || state.busy || isClinicClosedDate(new Date(`${dateKey}T12:00:00`))) return;
+    if (!['work', 'full', 'am', 'pm', 'monthly', 'p_am', 'p_pm'].includes(state.activeKind)) return;
+    if (new Date(`${dateKey}T12:00:00`).getDay() === 6 && state.activeKind === 'pm') return;
+    state.draft[dateKey] = state.activeKind;
+    renderNurseMonthlyEditor();
+  };
+  window.selectNurseMonthlyLeaveKind = function(kind) {
+    const state = renderNurseMonthlyEditor.state;
+    if (!state || state.busy || !['work', 'full', 'am', 'pm', 'monthly', 'p_am', 'p_pm'].includes(kind)) return;
+    state.activeKind = kind;
+    if (kind === 'p_am' || kind === 'p_pm') {
+      const [year, month] = state.month.split('-').map(Number);
+      for (let day = 1; day <= new Date(year, month, 0).getDate(); day++) {
+        const date = new Date(year, month - 1, day, 12);
+        const key = formatNurseLeaveDate(date);
+        if (state.draft[key] !== 'monthly') state.draft[key] = kind;
+      }
+    }
+    renderNurseMonthlyEditor();
+  };
+  window.copyNurseLegacySchedule = function() {
+    const state = renderNurseMonthlyEditor.state;
+    const nurse = staffByType.nurses.get(state.key);
+    const periods = getStaffVacationPeriods(nurse);
+    const [year, month] = state.month.split('-').map(Number);
+    for (let day = 1; day <= new Date(year, month, 0).getDate(); day++) {
+      const date = new Date(year, month - 1, day, 12);
+      const dateKey = formatNurseLeaveDate(date);
+      if (isClinicClosedDate(date) || Object.prototype.hasOwnProperty.call(state.draft, dateKey)) continue;
+      const am = periods.am.includes(date.getDay()), pm = date.getDay() !== 6 && periods.pm.includes(date.getDay());
+      if (am || pm) state.draft[dateKey] = am && pm ? 'full' : am ? 'am' : 'pm';
+    }
+    renderNurseMonthlyEditor();
+    showToast('기존 요일을 초안으로 복사했습니다. 확인 후 저장하세요');
+  };
+  window.saveNurseMonthlySchedule = async function() {
+    const state = renderNurseMonthlyEditor.state;
+    if (!state || state.busy || !staffByType.nurses.has(state.key)) return;
+    const current = staffByType.nurses.get(state.key);
+    const next = { ...state.draft };
+    const monthly = Object.keys(next).filter(date => next[date] === 'monthly').sort();
+    state.busy = true;
+    renderNurseMonthlyEditor();
+    try {
+      await updateLocalNodeChild('staff/nurses', state.key, { leaveByDate: next, monthlyLeaveDates: monthly });
+      const wasUnavailable = isNurseUnavailable(current);
+      staffByType.nurses.set(state.key, { ...staffByType.nurses.get(state.key), leaveByDate: next, monthlyLeaveDates: monthly });
+      if (wasUnavailable && !isNurseUnavailable(staffByType.nurses.get(state.key))) await alignReturningNurseAssignmentCount(state.key);
+      renderStaffControls();
+      document.getElementById('nurseMonthlyEditor')?.remove();
+      showToast('간호사 월간 휴무 저장 완료');
+    } catch (e) {
+      console.error(e);
+      state.busy = false;
+      renderNurseMonthlyEditor();
+      showToast('저장 실패. 다시 저장해주세요');
+    }
+  };
+
   function isNurseUnavailable(nurse = {}, date = new Date()) {
     return Boolean(nurse.vacation
-      || isStaffPeriodVacation(nurse, date, date.getHours() < 12 ? 'am' : 'pm')
-      || normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).includes(formatNurseLeaveDate(date)));
+      || (date.getDay() === 6 && date.getHours() >= 14)
+      || ['full', 'monthly', date.getHours() < 14 ? 'am' : 'pm'].includes(getEffectiveNurseDateLeave(nurse, date)));
   }
 
   function getActiveDoctors() {
@@ -9334,14 +9541,21 @@
 
   function getStaffScheduleStatus(type, staff, date, todayKey = getTodayKey()) {
     const dateKey = formatNurseLeaveDate(date);
-    if (type === 'nurses' && normalizeNurseMonthlyLeaveDates(staff.monthlyLeaveDates).includes(dateKey)) {
-      return { label: '월차', kind: 'leave' };
+    if (type === 'nurses') {
+      if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
+      const leave = getEffectiveNurseDateLeave(staff, date);
+      if (leave === 'monthly') return { label: '월차', kind: 'leave' };
+      if (leave === 'full') return { label: '휴무', kind: 'weekday' };
+      if (date.getDay() === 6) return { label: '근무', kind: 'work' };
+      const raw = getNurseDateLeave(staff, dateKey);
+      return { label: raw === 'p_am' && (leave === 'pm' || date.getDay() === 6) ? '오전' : raw === 'p_pm' ? '오후' : date.getDay() === 6 ? '오전' : leave === 'am' ? '오후' : leave === 'pm' ? '오전' : '근무', kind: 'work' };
     }
-    if (type === 'doctors' || type === 'nurses') {
+    if (type === 'doctors') {
       if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
       const amOff = isStaffPeriodVacation(staff, date, 'am');
       const pmOff = isStaffPeriodVacation(staff, date, 'pm');
       if (amOff && pmOff) return { label: '요일 휴무', kind: 'weekday' };
+      if (date.getDay() === 6) return { label: '근무', kind: 'work' };
       return { label: amOff ? '오후' : pmOff ? '오전' : '근무', kind: 'work' };
     }
     if (isStaffWeeklyVacation(staff, date)) {
@@ -9554,9 +9768,10 @@
     return getClinicPublicHolidays.data;
   }
 
-  function renderStaffSchedule() {
-    const input = document.getElementById('staffScheduleMonth');
-    const container = document.getElementById('staffScheduleCalendar');
+  function renderStaffSchedule(scope = 'settings') {
+    if (scope === 'settings') renderStaffSchedule('quick');
+    const input = document.getElementById(scope === 'quick' ? 'nurseQuickScheduleMonth' : 'staffScheduleMonth');
+    const container = document.getElementById(scope === 'quick' ? 'nurseQuickScheduleCalendar' : 'staffScheduleCalendar');
     if (!input || !container) return;
     if (!/^\d{4}-\d{2}$/.test(input.value) || Number(input.value.slice(5)) < 1 || Number(input.value.slice(5)) > 12) {
       input.value = getTodayKey().slice(0, 7);
@@ -9597,17 +9812,23 @@
   }
 
   window.renderStaffSchedule = renderStaffSchedule;
-  window.changeStaffScheduleMonth = function(offset) {
-    const input = document.getElementById('staffScheduleMonth');
+  window.changeStaffScheduleMonth = function(offset, scope = 'settings') {
+    const input = document.getElementById(scope === 'quick' ? 'nurseQuickScheduleMonth' : 'staffScheduleMonth');
     if (!input) return;
-    renderStaffSchedule();
+    renderStaffSchedule(scope);
     const [year, month] = input.value.split('-').map(Number);
     const date = offset === 0 ? new Date() : new Date(year, month - 1 + offset, 1, 12);
     input.value = formatNurseLeaveDate(date).slice(0, 7);
-    renderStaffSchedule();
+    renderStaffSchedule(scope);
   };
 
   function renderStaffControls() {
+    const dateTitle = document.getElementById('nurseQuickSettingsDate');
+    if (dateTitle) {
+      const today = getTodayKey();
+      const date = new Date(`${today}T12:00:00`);
+      dateTitle.textContent = `${today.replaceAll('-', '.')} (${'일월화수목금토'[date.getDay()]})`;
+    }
     ['doctors', 'nurses'].forEach(type => {
       const label = getStaffLabel(type);
       const staff = getSortedStaff(type);
@@ -9638,30 +9859,16 @@
                 <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacation' : 'toggleNurseVacation'}('${key}', this.checked)">
                 <span>자리비움</span>
               </label>` : ''}
-            ${`
+            ${type === 'doctors' ? `
               <div class="doctor-weekday-periods" aria-label="요일별 오전 오후 자리비움">
                 <span></span>${DOCTOR_VACATION_WEEKDAYS.map(({ label }) => `<span class="doctor-weekday-heading">${label}</span>`).join('')}
                 ${['am', 'pm'].map(period => `<span class="doctor-weekday-heading">${period === 'am' ? '오전' : '오후'}</span>${DOCTOR_VACATION_WEEKDAYS.map(({ day, label }) => `
                   <label class="doctor-period-toggle" title="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움">
-                    <input type="checkbox" aria-label="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움" ${getStaffVacationPeriods(data)[period].includes(day) ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacationWeekday' : 'toggleNurseVacationWeekday'}('${key}', ${day}, this.checked, '${period}')">
+                    <input type="checkbox" aria-label="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움" ${period === 'pm' && day === 6 ? 'disabled' : ''} ${getStaffVacationPeriods(data)[period].includes(day) && !(period === 'pm' && day === 6) ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacationWeekday' : 'toggleNurseVacationWeekday'}('${key}', ${day}, this.checked, '${period}')">
                   </label>`).join('')}`).join('')}
-                <div class="doctor-period-note">체크: 자리비움 · 오전/오후 구분: 낮 12시</div>
-              </div>`}
+                <div class="doctor-period-note">체크: 자리비움 · 오전 13시까지 / 오후 14시부터</div>
+              </div>` : `<button class="staff-delete-btn" type="button" onclick="openNurseMonthlySchedule('${key}')">월간 휴무</button>`}
             ${isQuickList ? '' : `<button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>`}
-            ${type === 'nurses' ? `
-              <div class="staff-monthly-leave">
-                <div class="staff-monthly-leave-add">
-                  <input type="date" class="staff-monthly-leave-date" value="${getTodayKey()}" aria-label="${escapeHtml(data.name || '')} 월차 날짜">
-                  <button type="button" class="staff-delete-btn" onclick="addNurseMonthlyLeave('${key}', this.previousElementSibling.value)">월차 추가</button>
-                </div>
-                <div class="staff-monthly-leave-list">
-                  ${normalizeNurseMonthlyLeaveDates(data.monthlyLeaveDates).map(dateKey => `
-                    <span class="staff-monthly-leave-chip${dateKey === getTodayKey() ? ' today' : ''}">
-                      ${dateKey} 월차
-                      <button type="button" onclick="removeNurseMonthlyLeave('${key}', '${dateKey}')" aria-label="${dateKey} 월차 취소">×</button>
-                    </span>`).join('')}
-                </div>
-              </div>` : ''}
           </div>`;
         }).join('')
         : `<div class="empty-state"><div class="empty-icon">+</div><div class="empty-text">등록된 ${label}이 없습니다</div></div>`;
@@ -10171,70 +10378,6 @@
     }
   };
 
-  async function saveNurseMonthlyLeave(key, dateKey, add) {
-    if (!staffByType.nurses.has(key)) return;
-    if (!normalizeNurseMonthlyLeaveDates([dateKey]).length) {
-      showToast('올바른 월차 날짜를 선택해주세요');
-      return;
-    }
-    const current = staffByType.nurses.get(key) || {};
-    const prev = normalizeNurseMonthlyLeaveDates(current.monthlyLeaveDates);
-    if (add && prev.includes(dateKey)) {
-      showToast('이미 등록된 월차 날짜입니다');
-      return;
-    }
-    if (!add && !prev.includes(dateKey)) return;
-    const wasUnavailable = isNurseUnavailable(current);
-    const next = add ? normalizeNurseMonthlyLeaveDates([...prev, dateKey]) : prev.filter(value => value !== dateKey);
-    staffByType.nurses.set(key, { ...current, monthlyLeaveDates: next });
-    renderStaffControls();
-    try {
-      await updateLocalNodeChild('staff/nurses', key, { monthlyLeaveDates: next });
-      if (wasUnavailable && !isNurseUnavailable(staffByType.nurses.get(key))) {
-        await alignReturningNurseAssignmentCount(key);
-      }
-      showToast(add ? '간호사 월차 등록 완료' : '간호사 월차 취소 완료');
-    } catch (e) {
-      console.error(e);
-      staffByType.nurses.set(key, { ...staffByType.nurses.get(key), monthlyLeaveDates: prev });
-      renderStaffControls();
-      showToast('월차 저장 실패');
-    }
-  }
-
-  window.addNurseMonthlyLeave = (key, dateKey) => saveNurseMonthlyLeave(key, dateKey, true);
-  window.removeNurseMonthlyLeave = (key, dateKey) => saveNurseMonthlyLeave(key, dateKey, false);
-
-  window.toggleNurseVacationWeekday = async (key, day, checked, period = 'both') => {
-    if (!staffByType.nurses.has(key)) return;
-    const current = staffByType.nurses.get(key) || {};
-    const wasUnavailable = isNurseUnavailable(current);
-    const prev = getStaffVacationPeriods(current);
-    const next = { am: [...prev.am], pm: [...prev.pm] };
-    for (const scope of period === 'both' ? ['am', 'pm'] : [period]) {
-      if (!['am', 'pm'].includes(scope)) return;
-      const days = new Set(next[scope]);
-      if (checked) days.add(Number(day));
-      else days.delete(Number(day));
-      next[scope] = normalizeDoctorVacationWeekdays([...days]);
-    }
-    const fullDays = next.am.filter(value => next.pm.includes(value));
-    staffByType.nurses.set(key, { ...current, vacationWeekdayPeriods: next, vacationWeekdays: fullDays });
-    renderStaffControls();
-    try {
-      await updateLocalNodeChild('staff/nurses', key, { vacationWeekdayPeriods: next, vacationWeekdays: fullDays });
-      if (wasUnavailable && !isNurseUnavailable(staffByType.nurses.get(key))) {
-        await alignReturningNurseAssignmentCount(key);
-      }
-      showToast('간호사 오전·오후 자리비움 저장 완료');
-    } catch (e) {
-      console.error(e);
-      staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacationWeekdayPeriods: prev, vacationWeekdays: current.vacationWeekdays || [] });
-      renderStaffControls();
-      showToast('자동 자리비움 저장 실패');
-    }
-  };
-
   window.toggleDoctorVacation = async (key, checked) => {
     if (!staffByType.doctors.has(key)) return;
     const prev = Boolean(staffByType.doctors.get(key)?.vacation);
@@ -10310,7 +10453,7 @@
     document.getElementById('nurseQuickBtn')?.classList.add('active');
     document.getElementById('nurseQuickBtnDesk')?.classList.add('active');
     renderStaffControls();
-    setTimeout(() => document.getElementById('nurseQuickNameInput')?.focus(), 0);
+
   };
 
   window.closeNurseQuickPopover = () => {
@@ -13537,6 +13680,7 @@
         bedNo: Number(bedNo),
         bedLabel: getBedLabel(bedNo),
         patientName: name,
+        visitType: data.visitType || '',
         doctorId: data.doctorId || '',
         doctorName: data.doctorName || '',
         nurseId: data.nurseId || '',
@@ -18813,6 +18957,15 @@
     }, 1000);
   }
 
+  // 원장실 태블릿의 첫 터치에서 오디오를 준비해 이후 배정 알림을 재생한다.
+  window.addEventListener('pointerdown', () => {
+    if (!isFixedDoctorBedScreen()) return;
+    try {
+      if (!timerAlertAudioCtx) timerAlertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (timerAlertAudioCtx.state === 'suspended') timerAlertAudioCtx.resume().catch(() => {});
+    } catch (e) {}
+  }, { passive: true });
+
   function playSoftTimerChime() {
     try {
       if (!timerAlertAudioCtx) {
@@ -20470,6 +20623,13 @@
     fixedBedArrivalVisibleAlertKey = '';
   }
 
+  function shouldChimeDoctorArrival(bedNo, alert, bed) {
+    if (!isFixedDoctorBedScreen() || Number(getFixedDoctorBedNoFromUrl()) !== Number(bedNo)) return false;
+    if (!alert?.key || fixedBedArrivalShownByBed[bedNo] === alert.key) return false;
+    const patient = patientsByKey.get(String(alert.patientKey || ''));
+    return (alert.visitType || bed?.visitType || patient?.visitType) === '초진';
+  }
+
   function syncFixedBedArrivalOverlay() {
     const bedNo = getFixedBedArrivalBedNo();
     const overlay = document.getElementById('bedArrivalOverlay');
@@ -20500,6 +20660,7 @@
     nameEl.textContent = maskPatientNameForBedPopup(assignmentAlert.patientName || bed?.name || '');
     requestBedScreenWakeLock('bed-assignment-overlay');
     overlay.classList.add('show');
+    if (shouldChimeDoctorArrival(bedNo, assignmentAlert, bed)) playSoftTimerChime();
     fixedBedArrivalShownByBed[bedNo] = assignmentAlert.key;
   }
   window.syncFixedBedArrivalOverlay = syncFixedBedArrivalOverlay;
