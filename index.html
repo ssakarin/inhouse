@@ -9252,9 +9252,32 @@
       .sort((a, b) => a - b);
   }
 
+  function isClinicClosedDate(date) {
+    const holidayName = getClinicPublicHolidays()[formatNurseLeaveDate(date)] || '';
+    return date.getDay() === 0 || Boolean(holidayName && !holidayName.startsWith('대체공휴일'));
+  }
+
+  function isStaffWeeklyVacation(staff = {}, date = new Date()) {
+    const weekdays = normalizeDoctorVacationWeekdays(staff.vacationWeekdays);
+    if (!weekdays.includes(date.getDay())) return false;
+    // 월~토의 일반 공휴일이 근무일에 있으면 정기 휴무를 근무로 전환한다.
+    // 공휴일과 정기 휴무가 겹치면 추가 보정하지 않는다. 월차는 별도 휴무다.
+    const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const holidays = [];
+    for (let offset = 0; offset < 6; offset += 1) {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + offset);
+      if (isClinicClosedDate(day)) holidays.push(day.getDay());
+    }
+    const replacementCount = holidays.filter(day => !weekdays.includes(day)).length;
+    const availableRestDays = weekdays.filter(day => !holidays.includes(day));
+    const workingRestDays = availableRestDays.slice(0, replacementCount);
+    return !workingRestDays.includes(date.getDay());
+  }
+
   function isDoctorAutoVacationToday(doctor = {}, date = new Date()) {
-    const weekdays = normalizeDoctorVacationWeekdays(doctor.vacationWeekdays);
-    return weekdays.includes(date.getDay());
+    return isStaffWeeklyVacation(doctor, date);
   }
 
   function isDoctorUnavailable(doctor = {}) {
@@ -9276,7 +9299,7 @@
 
   function isNurseUnavailable(nurse = {}, date = new Date()) {
     return Boolean(nurse.vacation
-      || normalizeDoctorVacationWeekdays(nurse.vacationWeekdays).includes(date.getDay())
+      || isStaffWeeklyVacation(nurse, date)
       || normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).includes(formatNurseLeaveDate(date)));
   }
 
@@ -9294,7 +9317,7 @@
     if (type === 'nurses' && normalizeNurseMonthlyLeaveDates(staff.monthlyLeaveDates).includes(dateKey)) {
       return { label: '월차', kind: 'leave' };
     }
-    if (normalizeDoctorVacationWeekdays(staff.vacationWeekdays).includes(date.getDay())) {
+    if (isStaffWeeklyVacation(staff, date)) {
       return { label: '요일 휴무', kind: 'weekday' };
     }
     if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
