@@ -9404,14 +9404,11 @@
   window.openNurseMonthlySchedule = function(key) {
     if (!staffByType.nurses.has(key)) return;
     const nurse = staffByType.nurses.get(key);
-    const nextMonth = new Date();
-    nextMonth.setDate(1);
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
     const draft = { ...(nurse.leaveByDate || {}) };
     normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).forEach(date => {
       if (!Object.prototype.hasOwnProperty.call(draft, date)) draft[date] = 'monthly';
     });
-    renderNurseMonthlyEditor.state = { key, month: formatNurseLeaveDate(nextMonth).slice(0, 7), draft, activeKind: 'full', busy: false };
+    renderNurseMonthlyEditor.state = { key, month: getTodayKey().slice(0, 7), draft, activeKind: 'full', busy: false };
     let overlay = document.getElementById('nurseMonthlyEditor');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -9449,8 +9446,8 @@
     }).join('');
     overlay.innerHTML = `<div class="nurse-monthly-dialog" role="dialog" aria-modal="true" aria-label="간호사 월간 휴무 설정">
       <div class="staff-schedule-head"><strong>${escapeHtml(nurse.name || '')} 월간 휴무</strong><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="document.getElementById('nurseMonthlyEditor').remove()">닫기</button></div>
-      <div class="nurse-monthly-tools"><input class="staff-monthly-leave-date" type="month" value="${state.month}" ${state.busy ? 'disabled' : ''} onchange="changeNurseMonthlyMonth(this.value)"><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="copyNurseLegacySchedule()">기존 요일로 초안 만들기</button></div>
-      <p class="nurse-monthly-help">휴무 종류를 먼저 선택하고 날짜를 누르면 바로 적용됩니다. 마지막에 저장하세요. P오전·P오후는 선택한 달의 근무 패턴을 채웁니다(월차 유지). P오전: 월·화·수·금·토 오전, P오후: 월~금 오후.</p>
+      <div class="nurse-monthly-tools"><button class="staff-delete-btn" type="button" aria-label="이전 달" ${state.busy ? 'disabled' : ''} onclick="moveNurseMonthlyMonth(-1)">&lt;</button><input class="staff-monthly-leave-date" type="month" value="${state.month}" ${state.busy ? 'disabled' : ''} onchange="changeNurseMonthlyMonth(this.value)"><button class="staff-delete-btn" type="button" aria-label="다음 달" ${state.busy ? 'disabled' : ''} onclick="moveNurseMonthlyMonth(1)">&gt;</button></div>
+      <p class="nurse-monthly-help">휴무 종류를 먼저 선택하고 날짜를 누르면 바로 적용됩니다. 마지막에 저장하세요. P오전,P오후는 오전 오후 아르바이트인경우 선택하면 됩니다</p>
       <div class="nurse-monthly-tools" role="group" aria-label="날짜에 적용할 근무 휴무 종류">${Object.entries(labels).map(([kind,label]) => `<button class="staff-delete-btn nurse-leave-action leave-${kind}${state.activeKind === kind ? ' active' : ''}" type="button" aria-pressed="${state.activeKind === kind}" ${state.busy ? 'disabled' : ''} onclick="selectNurseMonthlyLeaveKind('${kind}')">${label}</button>`).join('')}<span>선택: ${labels[state.activeKind]}</span></div>
       <div class="nurse-monthly-grid">${['일','월','화','수','목','금','토'].map(day => `<span class="doctor-weekday-heading">${day}</span>`).join('')}${cells}</div>
 
@@ -9462,6 +9459,13 @@
     if (!/^\d{4}-\d{2}$/.test(value) || Number(value.slice(5)) < 1 || Number(value.slice(5)) > 12) return;
     renderNurseMonthlyEditor.state.month = value;
     renderNurseMonthlyEditor();
+  };
+  window.moveNurseMonthlyMonth = function(offset) {
+    const state = renderNurseMonthlyEditor.state;
+    if (!state || state.busy) return;
+    const [year, month] = state.month.split('-').map(Number);
+    const date = new Date(year, month - 1 + offset, 1, 12);
+    window.changeNurseMonthlyMonth(formatNurseLeaveDate(date).slice(0, 7));
   };
   window.toggleNurseMonthlyDate = function(dateKey) {
     const state = renderNurseMonthlyEditor.state;
@@ -9484,21 +9488,6 @@
       }
     }
     renderNurseMonthlyEditor();
-  };
-  window.copyNurseLegacySchedule = function() {
-    const state = renderNurseMonthlyEditor.state;
-    const nurse = staffByType.nurses.get(state.key);
-    const periods = getStaffVacationPeriods(nurse);
-    const [year, month] = state.month.split('-').map(Number);
-    for (let day = 1; day <= new Date(year, month, 0).getDate(); day++) {
-      const date = new Date(year, month - 1, day, 12);
-      const dateKey = formatNurseLeaveDate(date);
-      if (isClinicClosedDate(date) || Object.prototype.hasOwnProperty.call(state.draft, dateKey)) continue;
-      const am = periods.am.includes(date.getDay()), pm = date.getDay() !== 6 && periods.pm.includes(date.getDay());
-      if (am || pm) state.draft[dateKey] = am && pm ? 'full' : am ? 'am' : 'pm';
-    }
-    renderNurseMonthlyEditor();
-    showToast('기존 요일을 초안으로 복사했습니다. 확인 후 저장하세요');
   };
   window.saveNurseMonthlySchedule = async function() {
     const state = renderNurseMonthlyEditor.state;
