@@ -5245,6 +5245,7 @@ setInterval(() => {
 
 const SHORT_LINKS = new Map([
   ["/desk", "/?view=desk"],
+  ["/settings", "/?view=settings"],
   ["/clinic", "/?view=clinic"],
   ["/notify", "/?view=notify"],
   ["/doctor1", "/?view=bed&bed=101"],

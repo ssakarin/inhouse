@@ -1952,6 +1952,12 @@
     padding: 7px 10px;
   }
   .staff-delete-btn:hover { border-color: var(--danger); color: var(--danger); }
+  .staff-monthly-leave { grid-column: 1 / -1; display: grid; gap: 7px; }
+  .staff-monthly-leave-add, .staff-monthly-leave-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .staff-monthly-leave-date { min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; color-scheme: dark; }
+  .staff-monthly-leave-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 7px; color: var(--text2); font-size: 12px; }
+  .staff-monthly-leave-chip.today { border-color: var(--danger); color: var(--danger); }
+  .staff-monthly-leave-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 16px; line-height: 1; }
   .staff-vacation-toggle {
     display: inline-flex;
     align-items: center;
@@ -2078,6 +2084,13 @@
   }
   .nurse-quick-popover .staff-list {
     margin-top: 10px;
+  }
+  .nurse-quick-popover .staff-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .nurse-quick-popover .staff-weekday-toggle {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
   .rr-setting {
     display: flex;
@@ -2382,6 +2395,26 @@
   }
 
   /* ─── 수신 / 베드 패널 ─── */
+  .staff-schedule-card { margin-bottom: 16px; }
+  .staff-schedule-head, .staff-schedule-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .staff-schedule-head { justify-content: space-between; margin-bottom: 8px; }
+  .staff-schedule-head .card-label { margin-bottom: 0; }
+  .staff-schedule-calendar-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .staff-schedule-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 560px; gap: 1px; background: var(--border); }
+  .staff-schedule-weekday { padding: 9px; text-align: center; background: var(--surface2); color: var(--text2); font-size: 12px; font-weight: 900; }
+  .staff-schedule-day { min-height: 84px; padding: 7px; background: var(--surface); }
+  .staff-schedule-day.blank { background: var(--surface2); }
+  .staff-schedule-day.today { box-shadow: inset 0 0 0 2px var(--accent); background: var(--surface2); }
+  .staff-schedule-date { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; font-size: 13px; font-weight: 900; color: var(--text); }
+  .staff-schedule-today { color: var(--accent); font-size: 10px; }
+  .staff-schedule-calendar .sunday { color: #fb7185; }
+  .staff-schedule-calendar .saturday { color: #60a5fa; }
+  .staff-schedule-closed { display: grid; gap: 5px; color: #fb7185; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+  .staff-schedule-holiday-open { color: var(--text3); font-size: 10px; line-height: 1.4; margin-bottom: 5px; overflow-wrap: anywhere; }
+  .staff-schedule-workers { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; gap: 3px; }
+  .staff-schedule-worker { display: inline-flex; max-width: 100%; border-radius: 10px; padding: 2px 6px; overflow-wrap: anywhere; color: var(--text); font-size: 11px; line-height: 1.4; }
+  .staff-schedule-worker.doctors { background: rgba(96,165,250,.14); }
+  .staff-schedule-worker.nurses { background: rgba(52,211,153,.12); }
   .receive-panel,
   .bed-panel,
   .settings-panel { display: none; }
@@ -5717,10 +5750,6 @@
         <span class="rr-slider"></span>
       </span>
     </label>
-    <div class="staff-add-row">
-      <input class="name-input" id="nurseQuickNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
-      <button class="timer-set-btn" type="button" onclick="addStaff('nurses', 'nurseQuickNameInput')">추가</button>
-    </div>
     <div class="staff-list" id="nurseQuickList"></div>
   </div>
 
@@ -5971,6 +6000,18 @@
 
   <!-- 설정 패널 -->
   <div class="settings-panel" id="settingsPanel">
+    <div class="card staff-schedule-card">
+      <div class="staff-schedule-head">
+        <div class="card-label">전체 근무 현황</div>
+        <div class="staff-schedule-controls">
+          <button class="staff-delete-btn" type="button" onclick="changeStaffScheduleMonth(-1)" aria-label="이전 달">‹</button>
+          <input id="staffScheduleMonth" class="staff-monthly-leave-date" type="month" aria-label="근무 현황 조회 월" onchange="renderStaffSchedule()">
+          <button class="staff-delete-btn" type="button" onclick="changeStaffScheduleMonth(1)" aria-label="다음 달">›</button>
+          <button class="staff-delete-btn" type="button" onclick="changeStaffScheduleMonth(0)">이번 달</button>
+        </div>
+      </div>
+      <div class="staff-schedule-calendar-wrap" id="staffScheduleCalendar" aria-live="polite"></div>
+    </div>
     <div class="staff-manager-grid">
       <div class="settings-column">
         <div class="card">
@@ -9221,6 +9262,24 @@
     return Boolean(doctor?.vacation || isDoctorAutoVacationToday(doctor));
   }
 
+  function normalizeNurseMonthlyLeaveDates(value) {
+    return [...new Set((Array.isArray(value) ? value : []).filter(dateKey => {
+      if (typeof dateKey !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false;
+      const date = new Date(`${dateKey}T12:00:00`);
+      return !Number.isNaN(date.getTime()) && formatNurseLeaveDate(date) === dateKey;
+    }))].sort();
+  }
+
+  function formatNurseLeaveDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  function isNurseUnavailable(nurse = {}, date = new Date()) {
+    return Boolean(nurse.vacation
+      || normalizeDoctorVacationWeekdays(nurse.vacationWeekdays).includes(date.getDay())
+      || normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).includes(formatNurseLeaveDate(date)));
+  }
+
   function getActiveDoctors() {
     return getSortedStaff('doctors').filter(([, doctor]) => !isDoctorUnavailable(doctor));
   }
@@ -9229,6 +9288,274 @@
     const [id, doctor] = getActiveDoctors()[0] || [];
     return id ? { id, name: doctor?.name || '' } : { id: '', name: '' };
   }
+
+  function getStaffScheduleStatus(type, staff, date, todayKey = getTodayKey()) {
+    const dateKey = formatNurseLeaveDate(date);
+    if (type === 'nurses' && normalizeNurseMonthlyLeaveDates(staff.monthlyLeaveDates).includes(dateKey)) {
+      return { label: '월차', kind: 'leave' };
+    }
+    if (normalizeDoctorVacationWeekdays(staff.vacationWeekdays).includes(date.getDay())) {
+      return { label: '요일 휴무', kind: 'weekday' };
+    }
+    if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
+    return { label: '근무', kind: 'work' };
+  }
+
+  // 대한민국 공휴일 Google Calendar 공개 데이터 (2026-10-06 스냅샷).
+  // 추가 임시공휴일 지정 시 갱신 필요. 근로자의 날은 관공서 공휴일과 구분해 제외.
+  function getClinicPublicHolidays() {
+    if (!getClinicPublicHolidays.data) getClinicPublicHolidays.data = {
+    "2021-01-01": "새해첫날",
+    "2021-02-12": "설날",
+    "2021-02-13": "설날 연휴",
+    "2021-03-01": "삼일절",
+    "2021-05-05": "어린이날",
+    "2021-05-19": "부처님오신날",
+    "2021-06-06": "현충일",
+    "2021-08-15": "광복절",
+    "2021-08-16": "대체공휴일 · 광복절",
+    "2021-09-20": "추석 연휴",
+    "2021-09-21": "추석",
+    "2021-09-22": "추석 연휴",
+    "2021-10-03": "개천절",
+    "2021-10-04": "대체공휴일 · 개천절",
+    "2021-10-09": "한글날",
+    "2021-10-11": "대체공휴일 · 한글날",
+    "2021-12-25": "크리스마스",
+    "2022-01-01": "새해첫날",
+    "2022-01-31": "설날 연휴",
+    "2022-02-01": "설날",
+    "2022-02-02": "설날 연휴",
+    "2022-03-01": "삼일절",
+    "2022-03-09": "대통령 선거",
+    "2022-05-05": "어린이날",
+    "2022-05-08": "부처님오신날",
+    "2022-06-01": "지방선거일",
+    "2022-06-06": "현충일",
+    "2022-08-15": "광복절",
+    "2022-09-09": "추석 연휴",
+    "2022-09-10": "추석",
+    "2022-09-11": "추석 연휴",
+    "2022-09-12": "대체공휴일 · 추석 연휴",
+    "2022-10-03": "개천절",
+    "2022-10-09": "한글날",
+    "2022-10-10": "대체공휴일 · 한글날",
+    "2022-12-25": "크리스마스",
+    "2023-01-01": "새해첫날",
+    "2023-01-21": "설날 연휴",
+    "2023-01-22": "설날",
+    "2023-01-23": "설날 연휴",
+    "2023-01-24": "설날 연휴",
+    "2023-03-01": "삼일절",
+    "2023-05-05": "어린이날",
+    "2023-05-27": "부처님오신날",
+    "2023-05-29": "석가탄신일 대체공휴일",
+    "2023-06-06": "현충일",
+    "2023-08-15": "광복절",
+    "2023-09-28": "추석 연휴",
+    "2023-09-29": "추석",
+    "2023-09-30": "추석 연휴",
+    "2023-10-02": "추석 (대체공휴일)",
+    "2023-10-03": "개천절",
+    "2023-10-09": "한글날",
+    "2023-12-25": "크리스마스",
+    "2024-01-01": "새해첫날",
+    "2024-02-09": "설날 연휴",
+    "2024-02-10": "설날",
+    "2024-02-11": "설날 연휴",
+    "2024-02-12": "설날 연휴",
+    "2024-03-01": "삼일절",
+    "2024-04-10": "국회의원선거일",
+    "2024-05-05": "어린이날",
+    "2024-05-06": "대체공휴일 · 어린이날",
+    "2024-05-15": "부처님오신날",
+    "2024-06-06": "현충일",
+    "2024-08-15": "광복절",
+    "2024-09-17": "추석",
+    "2024-09-18": "추석 연휴",
+    "2024-10-01": "국군의날",
+    "2024-10-03": "개천절",
+    "2024-10-09": "한글날",
+    "2024-12-25": "크리스마스",
+    "2025-01-01": "새해첫날",
+    "2025-01-27": "설날 연휴",
+    "2025-01-28": "설날 연휴",
+    "2025-01-29": "설날",
+    "2025-01-30": "설날 연휴",
+    "2025-03-01": "삼일절",
+    "2025-03-03": "대체공휴일 · 삼일절",
+    "2025-05-05": "어린이날",
+    "2025-05-06": "대체공휴일 · 어린이날",
+    "2025-06-03": "대통령 선거",
+    "2025-06-06": "현충일",
+    "2025-08-15": "광복절",
+    "2025-10-03": "개천절",
+    "2025-10-05": "추석 연휴",
+    "2025-10-06": "추석",
+    "2025-10-07": "추석 연휴",
+    "2025-10-08": "대체공휴일 · 추석 연휴",
+    "2025-10-09": "한글날",
+    "2025-12-25": "크리스마스",
+    "2026-01-01": "새해첫날",
+    "2026-02-16": "설날 연휴",
+    "2026-02-17": "설날",
+    "2026-02-18": "설날 연휴",
+    "2026-03-01": "삼일절",
+    "2026-03-02": "대체공휴일 · 삼일절",
+    "2026-05-05": "어린이날",
+    "2026-05-24": "부처님오신날",
+    "2026-05-25": "대체공휴일 · 부처님오신날",
+    "2026-06-03": "지방선거일",
+    "2026-06-06": "현충일",
+    "2026-07-17": "제헌절",
+    "2026-08-15": "광복절",
+    "2026-08-17": "대체공휴일 · 광복절",
+    "2026-09-24": "추석 연휴",
+    "2026-09-25": "추석",
+    "2026-09-26": "추석 연휴",
+    "2026-10-03": "개천절",
+    "2026-10-05": "대체공휴일 · 개천절",
+    "2026-10-09": "한글날",
+    "2026-12-25": "크리스마스",
+    "2027-01-01": "새해첫날",
+    "2027-02-07": "설날",
+    "2027-02-08": "설날 연휴",
+    "2027-02-09": "대체공휴일 · 설날",
+    "2027-03-01": "삼일절",
+    "2027-05-03": "대체공휴일 · 노동절",
+    "2027-05-05": "어린이날",
+    "2027-05-13": "부처님오신날",
+    "2027-06-06": "현충일",
+    "2027-07-17": "제헌절",
+    "2027-07-19": "대체공휴일 · 제헌절",
+    "2027-08-15": "광복절",
+    "2027-08-16": "대체공휴일 · 광복절",
+    "2027-09-14": "추석 연휴",
+    "2027-09-15": "추석",
+    "2027-09-16": "추석 연휴",
+    "2027-10-03": "개천절",
+    "2027-10-04": "대체공휴일 · 개천절",
+    "2027-10-09": "한글날",
+    "2027-10-11": "대체공휴일 · 한글날",
+    "2027-12-25": "크리스마스",
+    "2027-12-27": "대체공휴일 · 크리스마스",
+    "2028-01-01": "새해첫날",
+    "2028-01-26": "설날",
+    "2028-01-27": "설날 연휴",
+    "2028-03-01": "삼일절",
+    "2028-05-02": "부처님오신날",
+    "2028-05-05": "어린이날",
+    "2028-06-06": "현충일",
+    "2028-07-17": "제헌절",
+    "2028-08-15": "광복절",
+    "2028-10-02": "추석 연휴",
+    "2028-10-03": "추석",
+    "2028-10-04": "추석 연휴",
+    "2028-10-09": "한글날",
+    "2028-12-25": "크리스마스",
+    "2029-01-01": "새해첫날",
+    "2029-02-13": "설날",
+    "2029-02-14": "설날 연휴",
+    "2029-03-01": "삼일절",
+    "2029-05-05": "어린이날",
+    "2029-05-20": "부처님오신날",
+    "2029-05-21": "대체공휴일 · 부처님오신날",
+    "2029-06-06": "현충일",
+    "2029-07-17": "제헌절",
+    "2029-08-15": "광복절",
+    "2029-09-21": "추석 연휴",
+    "2029-09-22": "추석",
+    "2029-09-23": "추석 연휴",
+    "2029-09-24": "대체공휴일 · 추석 연휴",
+    "2029-10-03": "개천절",
+    "2029-10-09": "한글날",
+    "2029-12-25": "크리스마스",
+    "2030-01-01": "새해첫날",
+    "2030-02-04": "설날 연휴",
+    "2030-03-01": "삼일절",
+    "2030-05-05": "어린이날",
+    "2030-05-09": "부처님오신날",
+    "2030-06-06": "현충일",
+    "2030-07-17": "제헌절",
+    "2030-08-15": "광복절",
+    "2030-09-11": "추석 연휴",
+    "2030-09-12": "추석",
+    "2030-09-13": "추석 연휴",
+    "2030-10-03": "개천절",
+    "2030-10-09": "한글날",
+    "2030-12-25": "크리스마스",
+    "2031-01-01": "새해첫날",
+    "2031-01-23": "설날",
+    "2031-01-24": "설날 연휴",
+    "2031-03-01": "삼일절",
+    "2031-03-03": "대체공휴일 · 삼일절",
+    "2031-05-05": "어린이날",
+    "2031-05-28": "부처님오신날",
+    "2031-06-06": "현충일",
+    "2031-07-17": "제헌절",
+    "2031-08-15": "광복절",
+    "2031-09-30": "추석 연휴",
+    "2031-10-01": "추석",
+    "2031-10-02": "추석 연휴",
+    "2031-10-03": "개천절",
+    "2031-10-09": "한글날",
+    "2031-12-25": "크리스마스"
+};
+    return getClinicPublicHolidays.data;
+  }
+
+  function renderStaffSchedule() {
+    const input = document.getElementById('staffScheduleMonth');
+    const container = document.getElementById('staffScheduleCalendar');
+    if (!input || !container) return;
+    if (!/^\d{4}-\d{2}$/.test(input.value) || Number(input.value.slice(5)) < 1 || Number(input.value.slice(5)) > 12) {
+      input.value = getTodayKey().slice(0, 7);
+    }
+    const [year, month] = input.value.split('-').map(Number);
+    const staff = ['doctors', 'nurses'].flatMap(type => getSortedStaff(type).map(([key, data]) => ({ type, key, data })));
+    if (!staff.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-text">등록된 원장·간호사가 없습니다</div></div>';
+      return;
+    }
+    const todayKey = getTodayKey();
+    const holidays = getClinicPublicHolidays();
+    const days = new Date(year, month, 0).getDate();
+    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    const firstWeekday = new Date(year, month - 1, 1, 12).getDay();
+    const cellCount = Math.ceil((firstWeekday + days) / 7) * 7;
+    const cells = Array.from({ length: cellCount }, (_, index) => {
+      const day = index - firstWeekday + 1;
+      if (day < 1 || day > days) return '<div class="staff-schedule-day blank" aria-hidden="true"></div>';
+      const date = new Date(year, month - 1, day, 12);
+      const isToday = formatNurseLeaveDate(date) === todayKey;
+      const holidayName = holidays[formatNurseLeaveDate(date)] || '';
+      const isSubstituteHoliday = holidayName.startsWith('대체공휴일');
+      const closed = date.getDay() === 0 || (Boolean(holidayName) && !isSubstituteHoliday);
+      const workers = closed ? [] : staff.filter(({ type, data }) => getStaffScheduleStatus(type, data, date, todayKey).kind === 'work');
+      return `<div class="staff-schedule-day${isToday ? ' today' : ''}" role="group" aria-label="${month}월 ${day}일 ${weekdays[date.getDay()]}요일">
+        <div class="staff-schedule-date${date.getDay() === 0 || holidayName ? ' sunday' : date.getDay() === 6 ? ' saturday' : ''}">
+          <span>${day}</span>${isToday ? '<span class="staff-schedule-today">오늘</span>' : ''}
+        </div>
+        ${closed ? `<div class="staff-schedule-closed">${holidayName ? `<span>${escapeHtml(holidayName)}</span>` : ''}<strong>휴진</strong></div>` : holidayName ? `<div class="staff-schedule-holiday-open">${escapeHtml(holidayName)} · 진료</div>` : ''}
+        <div class="staff-schedule-workers">${workers.map(({ type, data }) => `<span class="staff-schedule-worker ${type}">${escapeHtml(data.name || '')}</span>`).join('')}</div>
+      </div>`;
+    }).join('');
+    container.innerHTML = `<div class="staff-schedule-calendar" role="group" aria-label="${year}년 ${month}월 전체 근무 현황">
+      ${weekdays.map((day, index) => `<div class="staff-schedule-weekday${index === 0 ? ' sunday' : index === 6 ? ' saturday' : ''}">${day}</div>`).join('')}
+      ${cells}
+    </div>`;
+  }
+
+  window.renderStaffSchedule = renderStaffSchedule;
+  window.changeStaffScheduleMonth = function(offset) {
+    const input = document.getElementById('staffScheduleMonth');
+    if (!input) return;
+    renderStaffSchedule();
+    const [year, month] = input.value.split('-').map(Number);
+    const date = offset === 0 ? new Date() : new Date(year, month - 1 + offset, 1, 12);
+    input.value = formatNurseLeaveDate(date).slice(0, 7);
+    renderStaffSchedule();
+  };
 
   function renderStaffControls() {
     ['doctors', 'nurses'].forEach(type => {
@@ -9251,26 +9578,40 @@
         };
       });
 
-      const listHtml = staff.length
+      const getListHtml = (isQuickList = false) => staff.length
         ? staff.map(([key, data]) => {
-          const doctorWeekdays = type === 'doctors' ? normalizeDoctorVacationWeekdays(data.vacationWeekdays) : [];
+          const vacationWeekdays = normalizeDoctorVacationWeekdays(data.vacationWeekdays);
           return `
-          <div class="staff-item${data.vacation ? ' vacation' : ''}">
+          <div class="staff-item${(type === 'nurses' ? isNurseUnavailable(data) : isDoctorUnavailable(data)) ? ' vacation' : ''}">
             <div class="staff-name">${escapeHtml(data.name || '')}</div>
             ${(type === 'nurses' || type === 'doctors') ? `
               <label class="staff-vacation-toggle">
                 <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacation' : 'toggleNurseVacation'}('${key}', this.checked)">
                 <span>자리비움</span>
               </label>` : ''}
-            ${type === 'doctors' ? `
+            ${type === 'doctors' || type === 'nurses' ? `
               <div class="staff-weekday-toggle" aria-label="요일별 자동 자리비움">
                 ${DOCTOR_VACATION_WEEKDAYS.map(({ day, label: dayLabel }) => `
                   <label title="${dayLabel}요일 자동 자리비움">
-                    <input type="checkbox" ${doctorWeekdays.includes(day) ? 'checked' : ''} onchange="toggleDoctorVacationWeekday('${key}', ${day}, this.checked)">
+                    <input type="checkbox" ${vacationWeekdays.includes(day) ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacationWeekday' : 'toggleNurseVacationWeekday'}('${key}', ${day}, this.checked)">
                     <span>${dayLabel}</span>
                   </label>`).join('')}
               </div>` : ''}
-            <button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>
+            ${isQuickList ? '' : `<button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>`}
+            ${type === 'nurses' ? `
+              <div class="staff-monthly-leave">
+                <div class="staff-monthly-leave-add">
+                  <input type="date" class="staff-monthly-leave-date" value="${getTodayKey()}" aria-label="${escapeHtml(data.name || '')} 월차 날짜">
+                  <button type="button" class="staff-delete-btn" onclick="addNurseMonthlyLeave('${key}', this.previousElementSibling.value)">월차 추가</button>
+                </div>
+                <div class="staff-monthly-leave-list">
+                  ${normalizeNurseMonthlyLeaveDates(data.monthlyLeaveDates).map(dateKey => `
+                    <span class="staff-monthly-leave-chip${dateKey === getTodayKey() ? ' today' : ''}">
+                      ${dateKey} 월차
+                      <button type="button" onclick="removeNurseMonthlyLeave('${key}', '${dateKey}')" aria-label="${dateKey} 월차 취소">×</button>
+                    </span>`).join('')}
+                </div>
+              </div>` : ''}
           </div>`;
         }).join('')
         : `<div class="empty-state"><div class="empty-icon">+</div><div class="empty-text">등록된 ${label}이 없습니다</div></div>`;
@@ -9278,10 +9619,11 @@
       getStaffListIds(type).forEach(listId => {
         const list = document.getElementById(listId);
         if (!list) return;
-        list.innerHTML = listHtml;
+        list.innerHTML = getListHtml(listId === 'nurseQuickList');
       });
     });
     renderDoctorAlertSelect();
+    renderStaffSchedule();
   }
 
   function renderDoctorAlertSelect() {
@@ -9776,6 +10118,65 @@
       staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacation: prev });
       renderStaffControls();
       showToast('자리비움 상태 저장 실패');
+    }
+  };
+
+  async function saveNurseMonthlyLeave(key, dateKey, add) {
+    if (!staffByType.nurses.has(key)) return;
+    if (!normalizeNurseMonthlyLeaveDates([dateKey]).length) {
+      showToast('올바른 월차 날짜를 선택해주세요');
+      return;
+    }
+    const current = staffByType.nurses.get(key) || {};
+    const prev = normalizeNurseMonthlyLeaveDates(current.monthlyLeaveDates);
+    if (add && prev.includes(dateKey)) {
+      showToast('이미 등록된 월차 날짜입니다');
+      return;
+    }
+    if (!add && !prev.includes(dateKey)) return;
+    const wasUnavailable = isNurseUnavailable(current);
+    const next = add ? normalizeNurseMonthlyLeaveDates([...prev, dateKey]) : prev.filter(value => value !== dateKey);
+    staffByType.nurses.set(key, { ...current, monthlyLeaveDates: next });
+    renderStaffControls();
+    try {
+      await updateLocalNodeChild('staff/nurses', key, { monthlyLeaveDates: next });
+      if (wasUnavailable && !isNurseUnavailable(staffByType.nurses.get(key))) {
+        await alignReturningNurseAssignmentCount(key);
+      }
+      showToast(add ? '간호사 월차 등록 완료' : '간호사 월차 취소 완료');
+    } catch (e) {
+      console.error(e);
+      staffByType.nurses.set(key, { ...staffByType.nurses.get(key), monthlyLeaveDates: prev });
+      renderStaffControls();
+      showToast('월차 저장 실패');
+    }
+  }
+
+  window.addNurseMonthlyLeave = (key, dateKey) => saveNurseMonthlyLeave(key, dateKey, true);
+  window.removeNurseMonthlyLeave = (key, dateKey) => saveNurseMonthlyLeave(key, dateKey, false);
+
+  window.toggleNurseVacationWeekday = async (key, day, checked) => {
+    if (!staffByType.nurses.has(key)) return;
+    const current = staffByType.nurses.get(key) || {};
+    const wasUnavailable = isNurseUnavailable(current);
+    const prev = normalizeDoctorVacationWeekdays(current.vacationWeekdays);
+    const nextSet = new Set(prev);
+    if (checked) nextSet.add(Number(day));
+    else nextSet.delete(Number(day));
+    const next = normalizeDoctorVacationWeekdays([...nextSet]);
+    staffByType.nurses.set(key, { ...current, vacationWeekdays: next });
+    renderStaffControls();
+    try {
+      await updateLocalNodeChild('staff/nurses', key, { vacationWeekdays: next });
+      if (wasUnavailable && !isNurseUnavailable(staffByType.nurses.get(key))) {
+        await alignReturningNurseAssignmentCount(key);
+      }
+      showToast('간호사 자동 자리비움 요일 저장 완료');
+    } catch (e) {
+      console.error(e);
+      staffByType.nurses.set(key, { ...staffByType.nurses.get(key), vacationWeekdays: prev });
+      renderStaffControls();
+      showToast('자동 자리비움 요일 저장 실패');
     }
   };
 
@@ -12641,7 +13042,7 @@
   }
 
   function getActiveRoundRobinNurses() {
-    return getSortedStaff('nurses').filter(([, nurse]) => !nurse?.vacation);
+    return getSortedStaff('nurses').filter(([, nurse]) => !isNurseUnavailable(nurse));
   }
 
   function getCurrentNurseBedCounts() {
@@ -20188,6 +20589,7 @@
     doctor: 'doctor',
     notify: 'notify',
     clinic: 'receive',
+    settings: 'settings',
     bed: 'bed'
   };
 
@@ -20233,7 +20635,7 @@
   function syncAppViewClass() {
     const view = getAppView();
     document.body.classList.toggle('app-role-locked', Boolean(view));
-    ['desk', 'doctor', 'notify', 'clinic', 'bed'].forEach(name => {
+    ['desk', 'doctor', 'notify', 'clinic', 'bed', 'settings'].forEach(name => {
       document.body.classList.toggle(`app-role-${name}`, view === name);
     });
     document.body.classList.toggle(
@@ -20254,6 +20656,7 @@
     document.getElementById('receivePanel').classList.toggle('active', mode === 'doctor' || mode === 'receive' || mode === 'notify');
     document.getElementById('bedPanel').classList.toggle('active', mode === 'bed');
     document.getElementById('settingsPanel').classList.toggle('active', mode === 'settings');
+    if (mode === 'settings') renderStaffSchedule();
     ['input', 'doctor', 'notify', 'receive', 'bed', 'settings'].forEach(name => {
       document.body.classList.toggle(`app-mode-${name}`, mode === name);
     });
@@ -20675,9 +21078,6 @@
     });
     document.getElementById('nurseNameInput')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') addStaff('nurses');
-    });
-    document.getElementById('nurseQuickNameInput')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') addStaff('nurses', 'nurseQuickNameInput');
     });
     document.addEventListener('click', event => {
       if (!document.getElementById('nurseQuickPopover')?.classList.contains('open')) return;
