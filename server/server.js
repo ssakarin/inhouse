@@ -1,4 +1,5 @@
 const http = require("node:http");
+const dailyMetrics = require("../daily-metrics");
 const signageState = require("./signage-state");
 const signageTts = require("./signage-tts");
 const getSignageSpeech = signageTts.createSpeechCache();
@@ -100,6 +101,23 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_patient_visits_doctor ON patient_visits (doctor_name);
   CREATE INDEX IF NOT EXISTS idx_patient_visits_chart_no ON patient_visits (chart_no);
 `);
+
+db.exec(`CREATE TABLE IF NOT EXISTS daily_clinic_metrics (date TEXT PRIMARY KEY, data_json TEXT NOT NULL, source_file TEXT NOT NULL, imported_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS daily_clinic_metrics_imports (id INTEGER PRIMARY KEY AUTOINCREMENT, source_file TEXT NOT NULL, imported_at TEXT NOT NULL, previous_json TEXT NOT NULL);`);
+function readDailyMetrics(start, end) {
+  return db.prepare("SELECT date,data_json,source_file,imported_at FROM daily_clinic_metrics WHERE date BETWEEN ? AND ? ORDER BY date").all(start,end).map(row=>({...JSON.parse(decrypt(row.data_json)),sourceFile:row.source_file,importedAt:row.imported_at}));
+}
+function saveDailyMetrics(rows, sourceFile) {
+  const clean=dailyMetrics.validate(rows);const stamp=new Date().toISOString();const file=String(sourceFile||"엑셀").slice(0,255);
+  const previous=clean.map(row=>db.prepare("SELECT * FROM daily_clinic_metrics WHERE date=?").get(row.date)).filter(Boolean);
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare("INSERT INTO daily_clinic_metrics_imports(source_file,imported_at,previous_json) VALUES(?,?,?)").run(file,stamp,encrypt(JSON.stringify(previous)));
+    const upsert=db.prepare("INSERT INTO daily_clinic_metrics VALUES(?,?,?,?) ON CONFLICT(date) DO UPDATE SET data_json=excluded.data_json,source_file=excluded.source_file,imported_at=excluded.imported_at");
+    for(const row of clean)upsert.run(row.date,encrypt(JSON.stringify(row)),file,stamp);
+    db.exec("COMMIT");return {ok:true,days:clean.length,start:clean[0].date,end:clean.at(-1).date};
+  } catch(e) {db.exec("ROLLBACK");throw e;}
+}
 
 // 1회 마이그레이션: 예전 DB(auto_vacuum=NONE)를 INCREMENTAL로 전환하면서
 // VACUUM으로 단편화(빈 페이지)를 회수하고 비대해진 WAL을 잘라낸다.
@@ -1490,7 +1508,19 @@ async function noFollowupNewPatientsReport({ days = 20, includeSlack = true } = 
   return { ok: true, days: safeDays, rows, slackError };
 }
 
-function computeClinicStats({ start, end, docFilter = "", chartUnit = "week" }) {
+function computeClinicStats(options) {
+  const base=computeBoardClinicStats(options);
+  if(options.docFilter || !options.useDaily)return base;
+  const rows=readDailyMetrics(options.start,options.end);
+  if(!rows.length)return base;
+  const board=db.prepare(`SELECT pv.visit_date date,COUNT(*) visits,SUM(COALESCE(pv.total_fee,0)) totalFee,
+    SUM(COALESCE(pv.insured_copay,0)) insuredCopay,SUM(COALESCE(pv.noncovered_amount,0)) nonCoveredAmount,
+    SUM(CASE WHEN COALESCE(p.insurance_type,'') LIKE '%자동차%' OR COALESCE(p.insurance_type,'') LIKE '%자보%' THEN 0 ELSE COALESCE(pv.claim_amount,0) END) claimAmount,
+    SUM(CASE WHEN COALESCE(p.insurance_type,'') LIKE '%자동차%' OR COALESCE(p.insurance_type,'') LIKE '%자보%' THEN COALESCE(pv.total_fee,0) ELSE 0 END) autoAmount
+    FROM patient_visits pv LEFT JOIN patients p ON p.patient_id=pv.patient_id WHERE pv.visit_date BETWEEN ? AND ? GROUP BY pv.visit_date`).all(options.start,options.end);
+  return dailyMetrics.overlay(base,rows,board,date=>periodKey(date,options.chartUnit));
+}
+function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week" }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start || "") || !/^\d{4}-\d{2}-\d{2}$/.test(end || "")) {
     throw new Error("start and end must be YYYY-MM-DD");
   }
@@ -4843,13 +4873,23 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (pathname === "/api/daily-metrics" && req.method === "POST") {
+    const body=await readJson(req);
+    try {jsonResponse(res,200,saveDailyMetrics(body.rows,body.sourceFile));}
+    catch(e){e.statusCode=400;throw e;}
+    return true;
+  }
+  if (pathname === "/api/daily-metrics" && req.method === "GET") {
+    const url=new URL(req.url,`http://${req.headers.host||"localhost"}`);
+    jsonResponse(res,200,{rows:readDailyMetrics(url.searchParams.get("start")||"0000-01-01",url.searchParams.get("end")||"9999-12-31")});return true;
+  }
   if (pathname === "/api/stats" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const start = requestUrl.searchParams.get("start") || "";
     const end = requestUrl.searchParams.get("end") || "";
     const docFilter = requestUrl.searchParams.get("doctor") || "";
     const chartUnit = requestUrl.searchParams.get("unit") || "week";
-    jsonResponse(res, 200, computeClinicStats({ start, end, docFilter, chartUnit }));
+    jsonResponse(res, 200, computeClinicStats({ start, end, docFilter, chartUnit, useDaily: true }));
     return true;
   }
 

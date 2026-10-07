@@ -146,3 +146,13 @@ Import accepts either a JSON array or:
 ```
 
 Use `"mode": "replace"` only when intentionally replacing all server patients.
+
+## 수기차트 일별 통계
+
+stats.html의 “수기차트 일별 자료”에서 기존 지표관리 XLS/XLSX 파일을 선택하고 기간·일수를 확인한 뒤 서버에 저장합니다. 일간데이터 합계행(AQ=Y)을 우선 읽고, 해당 시트가 없으면 Raw Data를 읽습니다.
+
+저장 항목은 본인부담금, 공단청구금, 비급여, 자보, 예약 환자수, 정상 이행, 노쇼, 취소 및 유입경로뿐입니다. 환자 수·연령·상품별 매출 등 다른 항목은 저장하지 않습니다. 같은 날짜는 해당 날짜의 새 자료로 교체하며 공란은 진료보드 보충 대상, 명시된 0은 확정값입니다. 이전 날짜별 자료는 암호화된 가져오기 이력에 보존합니다.
+
+전체 원장 조회의 매출과 금액 추이는 날짜별 자료를 우선 사용합니다. 원장별·환자별 분석 및 다른 보고서에는 환자 기록을 사용합니다. 날짜별 합계가 적용된 기간에는 환자당 금액을 계산하지 않습니다. 예약·유입경로 공란은 자료 없음이며 자동으로 0으로 바꾸지 않습니다.
+
+서버 API: GET /api/daily-metrics?start=YYYY-MM-DD&end=YYYY-MM-DD, POST /api/daily-metrics ({rows, sourceFile}). SQLite의 daily_clinic_metrics에 날짜별 자료를 암호화 저장하며 daily_clinic_metrics_imports에 변경 이력을 남깁니다.
