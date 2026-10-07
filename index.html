@@ -2010,7 +2010,7 @@
   .nurse-monthly-day.leave-am, .nurse-leave-action.leave-am { background: rgba(251,191,36,.14); border-color: rgba(251,191,36,.5); }
   .nurse-monthly-day.leave-pm, .nurse-leave-action.leave-pm { background: rgba(96,165,250,.14); border-color: rgba(96,165,250,.5); }
   .nurse-monthly-day.leave-monthly, .nurse-leave-action.leave-monthly { background: rgba(192,132,252,.14); border-color: rgba(192,132,252,.5); }
-  .nurse-leave-action.leave-desk { background: rgba(96,165,250,.22); border-color: #60a5fa; color: #bfdbfe; }
+  .nurse-monthly-day.leave-desk, .nurse-leave-action.leave-desk { background: rgba(96,165,250,.22); border-color: #60a5fa; color: #bfdbfe; }
   .nurse-monthly-day.leave-p_am, .nurse-leave-action.leave-p_am { background: rgba(45,212,191,.18); border-color: #2dd4bf; }
   .nurse-monthly-day.leave-p_pm, .nurse-leave-action.leave-p_pm { background: rgba(251,146,60,.18); border-color: #fb923c; }
   .nurse-monthly-day.leave-closed { background: var(--surface2); color: var(--text3); }
@@ -9460,8 +9460,9 @@
       const baseLeave = leave === 'desk' ? 'work' : leave === 'p_am' || leave === 'p_pm' ? getPartTimeBaseLeave(leave, date) : leave;
       const adjusted = !closed && effectiveLeave !== baseLeave;
       const holidayName = getClinicPublicHolidays()[key] || '';
-      const cellLabel = closed ? (leave === 'work' || leave === 'desk' ? '휴진' : labels[leave]) : date.getDay() === 6 && effectiveLeave === 'work' ? '근무' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? (leave === 'p_am' ? '오전' : '오후') : labels[effectiveLeave];
-      return `<div class="nurse-monthly-cell"><button type="button" class="nurse-monthly-day leave-${closed ? 'closed' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? leave : effectiveLeave}${closed ? ' closed' : ''}" ${state.busy || closed ? 'disabled' : ''} onclick="toggleNurseMonthlyDate('${key}')"><strong>${day}</strong><span>${cellLabel}</span>${adjusted ? '<small>공휴일 보정</small>' : ''}${closed ? `<small>${escapeHtml(holidayName || '일요일')}</small>` : ''}</button>${state.editingDate === key && !closed ? `<select class="nurse-date-dropdown" aria-label="${month}월 ${day}일 근무 휴무" onchange="setNurseMonthlyDateLeave('${key}', this.value)" ${state.busy ? 'disabled' : ''}><option value="" selected disabled>선택</option>${Object.entries(labels).filter(([kind]) => !kind.startsWith('p_') && !(date.getDay() === 6 && kind === 'pm')).map(([kind,label]) => `<option value="${kind}">${label}${kind === leave ? ' · 현재' : ''}</option>`).join('')}</select>` : ''}</div>`;
+      const deskWorking = !closed && effectiveLeave !== 'full' && effectiveLeave !== 'monthly' && (state.deskMonths.includes(state.month) || leave === 'desk');
+      const cellLabel = closed ? (leave === 'work' || leave === 'desk' ? '휴진' : labels[leave]) : deskWorking ? (effectiveLeave === 'am' ? '오후 데스크' : effectiveLeave === 'pm' && date.getDay() !== 6 ? '오전 데스크' : '데스크') : date.getDay() === 6 && effectiveLeave === 'work' ? '근무' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? (leave === 'p_am' ? '오전' : '오후') : labels[effectiveLeave];
+      return `<div class="nurse-monthly-cell"><button type="button" class="nurse-monthly-day leave-${closed ? 'closed' : deskWorking ? 'desk' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? leave : effectiveLeave}${closed ? ' closed' : ''}" ${state.busy || closed ? 'disabled' : ''} onclick="toggleNurseMonthlyDate('${key}')"><strong>${day}</strong><span>${cellLabel}</span>${adjusted ? '<small>공휴일 보정</small>' : ''}${closed ? `<small>${escapeHtml(holidayName || '일요일')}</small>` : ''}</button>${state.editingDate === key && !closed ? `<select class="nurse-date-dropdown" aria-label="${month}월 ${day}일 근무 휴무" onchange="setNurseMonthlyDateLeave('${key}', this.value)" ${state.busy ? 'disabled' : ''}><option value="" selected disabled>선택</option>${Object.entries(labels).filter(([kind]) => !kind.startsWith('p_') && !(date.getDay() === 6 && kind === 'pm')).map(([kind,label]) => `<option value="${kind}">${label}${kind === leave ? ' · 현재' : ''}</option>`).join('')}</select>` : ''}</div>`;
     }).join('');
     overlay.innerHTML = `<div class="nurse-monthly-dialog" role="dialog" aria-modal="true" aria-label="간호사 월간 휴무 설정">
       <div class="staff-schedule-head"><strong>${escapeHtml(nurse.name || '')} 월간 휴무</strong><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="closeNurseMonthlySchedule(event)">닫기</button></div>
@@ -9885,7 +9886,7 @@
       const getListHtml = (isQuickList = false) => staff.length
         ? staff.map(([key, data]) => {
           return `
-          <div class="staff-item${type === 'nurses' ? ' nurse-staff-item' : ''}${(type === 'nurses' ? isNurseUnavailable(data) : isDoctorUnavailable(data)) ? ' vacation' : ''}">
+          <div class="staff-item${type === 'nurses' ? ' nurse-staff-item' : ''}${(type === 'nurses' ? !isNurseAssignable(data) : isDoctorUnavailable(data)) ? ' vacation' : ''}">
             <div class="staff-name">${escapeHtml(data.name || '')}</div>
             ${(type === 'nurses' || type === 'doctors') ? `
               <label class="staff-vacation-toggle">
