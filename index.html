@@ -9358,7 +9358,7 @@
   }
 
   function isDoctorAutoVacationToday(doctor = {}, date = new Date()) {
-    return isStaffPeriodVacation(doctor, date, date.getHours() < 14 ? 'am' : 'pm');
+    return isStaffPeriodVacation(doctor, date, date.getHours() < (date.getDay() === 6 ? 14 : 13) ? 'am' : 'pm');
   }
 
   function isDoctorUnavailable(doctor = {}) {
@@ -9554,7 +9554,7 @@
   function isNurseUnavailable(nurse = {}, date = new Date()) {
     return Boolean(nurse.vacation
       || (date.getDay() === 6 && date.getHours() >= 14)
-      || ['full', 'monthly', date.getHours() < 14 ? 'am' : 'pm'].includes(getEffectiveNurseDateLeave(nurse, date)));
+      || ['full', 'monthly', date.getHours() < (date.getDay() === 6 ? 14 : 13) ? 'am' : 'pm'].includes(getEffectiveNurseDateLeave(nurse, date)));
   }
 
   function isNurseDesk(nurse, date = new Date()) {
@@ -9900,7 +9900,7 @@
                   <label class="doctor-period-toggle" title="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움">
                     <input type="checkbox" aria-label="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움" ${period === 'pm' && day === 6 ? 'disabled' : ''} ${getStaffVacationPeriods(data)[period].includes(day) && !(period === 'pm' && day === 6) ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacationWeekday' : 'toggleNurseVacationWeekday'}('${key}', ${day}, this.checked, '${period}')">
                   </label>`).join('')}`).join('')}
-                <div class="doctor-period-note">체크: 자리비움 · 오전 13시까지 / 오후 14시부터</div>
+                <div class="doctor-period-note">체크: 자리비움 · 오후 배정 13시부터 / 토요일 오전 14시까지</div>
               </div>` : `<button class="staff-delete-btn" type="button" onclick="openNurseMonthlySchedule('${key}')">월간 휴무</button>`}
             ${isQuickList ? '' : `<button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>`}
           </div>`;
