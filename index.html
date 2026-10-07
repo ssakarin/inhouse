@@ -1966,6 +1966,9 @@
     padding: 7px 10px;
   }
   .staff-delete-btn:hover { border-color: var(--danger); color: var(--danger); }
+  .nurse-assignment-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; font-size: 12px; line-height: 1.5; }
+  .nurse-assignment-legend .assignable { color: #6ee7b7; }
+  .nurse-assignment-legend .excluded { color: #fda4af; }
   .staff-monthly-leave { order: 3; grid-column: 1 / -1; display: grid; gap: 7px; }
   .staff-monthly-leave-add, .staff-monthly-leave-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .staff-monthly-leave-date { min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; color-scheme: dark; }
@@ -5814,6 +5817,7 @@
         <span class="rr-slider"></span>
       </span>
     </label>
+    <div class="nurse-assignment-legend"><span class="assignable">● 녹색: 배정 가능</span><span class="excluded">● 핑크색: 배정 제외 (휴무·월차·자리비움·데스크)</span></div>
     <div class="staff-list" id="nurseQuickList"></div>
       </div>
     </div>
@@ -6123,6 +6127,7 @@
               <span class="rr-slider"></span>
             </span>
           </label>
+          <div class="nurse-assignment-legend"><span class="assignable">● 녹색: 배정 가능</span><span class="excluded">● 핑크색: 배정 제외 (휴무·월차·자리비움·데스크)</span></div>
           <div class="staff-add-row">
             <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
             <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
