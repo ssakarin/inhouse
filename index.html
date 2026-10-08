@@ -9908,7 +9908,10 @@
       const closed = date.getDay() === 0 || (Boolean(holidayName) && !isSubstituteHoliday);
       const deskWorking = !closed && staff.some(({ type, data }) => type === 'nurses' && isNurseDesk(data, date) && getStaffScheduleViewStatus(type, data, date, view, todayKey).kind === 'work');
       const groups = closed || (view === 'pm' && date.getDay() === 6) ? '' : [true, false].map(working => {
-        const members = staff.filter(({ type, data }) => (getStaffScheduleViewStatus(type, data, date, view, todayKey).kind === 'work') === working);
+        const members = staff.filter(({ type, data }) => {
+          if (!working && type === 'nurses' && date.getDay() === 6 && (getNurseRole(data) === 'afternoon' || getNurseDateLeave(data, formatNurseLeaveDate(date)) === 'p_pm')) return false;
+          return (getStaffScheduleViewStatus(type, data, date, view, todayKey).kind === 'work') === working;
+        });
         return `<div class="staff-schedule-group${working ? '' : ' off'}" aria-label="${working ? '근무자' : '비번자'}"><div class="staff-schedule-workers">${members.length ? members.map(({ type, key, data }) => {
           const status = getStaffScheduleViewStatus(type, data, date, view, todayKey);
           const dateKey = formatNurseLeaveDate(date);
