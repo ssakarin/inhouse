@@ -1966,6 +1966,9 @@
     padding: 7px 10px;
   }
   .staff-delete-btn:hover { border-color: var(--danger); color: var(--danger); }
+  .nurse-role-control { display: inline-flex; flex-direction: column; vertical-align: middle; align-items: flex-start; }
+  .nurse-role-dropdown { margin-left: 8px; }
+  .nurse-role-chip { margin-left: 8px; max-width: 100%; padding: 3px 7px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
   .nurse-assignment-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; font-size: 12px; line-height: 1.5; }
   .nurse-assignment-legend .assignable { color: #6ee7b7; }
   .nurse-assignment-legend .excluded { color: #fda4af; }
@@ -1997,15 +2000,25 @@
   .nurse-monthly-day { min-width: 0; min-height: 66px; display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 7px; background: var(--surface2); color: var(--text); cursor: pointer; padding: 4px; font: inherit; font-size: 11px; }
   .nurse-leave-action.active { outline: 2px solid var(--accent); outline-offset: 2px; font-weight: 900; }
   .nurse-monthly-day.closed strong, .nurse-monthly-day small { color: #fb7185; }
-  .nurse-quick-calendar-section { min-width: 0; }
-  .nurse-quick-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
-  .nurse-quick-settings { min-width: 0; padding-left: 16px; border-left: 1px solid var(--border); }
+  .nurse-quick-calendar-section { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .nurse-quick-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; align-items: stretch; min-height: 0; flex: 1; }
+  .nurse-quick-settings { min-width: 0; min-height: 0; overflow-y: auto; padding-left: 12px; border-left: 1px solid var(--border); }
   .nurse-quick-settings-title { color: var(--text); font-size: 14px; font-weight: 900; margin-bottom: 12px; }
-  #nurseQuickScheduleCalendar .staff-schedule-workers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
-  #nurseQuickScheduleCalendar .staff-schedule-worker { min-width: 0; padding: 2px 4px; justify-content: center; text-align: center; font-size: 10px; }
-  #nurseQuickScheduleCalendar .staff-schedule-calendar { min-width: 700px; }
+  #nurseQuickScheduleCalendar .staff-schedule-workers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+  #nurseQuickScheduleCalendar .staff-schedule-worker { min-width: 0; padding: 1px 3px; justify-content: center; text-align: center; font-size: clamp(9px, .7vw, 11px); }
+  #nurseQuickScheduleCalendar { min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: auto; }
+  #nurseQuickScheduleCalendar .staff-schedule-calendar { width: 100%; min-width: 560px; flex: 1; grid-template-rows: 22px; grid-auto-rows: minmax(0, 1fr); }
+  #nurseQuickScheduleCalendar .staff-schedule-day { min-height: 0; padding: 3px; overflow-y: auto; }
+  #nurseQuickScheduleCalendar .staff-schedule-date { margin-bottom: 3px; font-size: 11px; }
+  #nurseQuickScheduleCalendar .staff-schedule-weekday { padding: 3px; font-size: 11px; }
+  #nurseQuickScheduleCalendar .staff-schedule-group { padding: 2px; }
+  #nurseQuickScheduleCalendar .staff-schedule-group.off { margin-top: 4px; }
+  #nurseQuickScheduleCalendar .staff-schedule-view-controls { margin-bottom: 5px; }
+  #nurseQuickScheduleCalendar .staff-schedule-legend { gap: 3px; margin-bottom: 5px; }
+  #nurseQuickScheduleCalendar .staff-schedule-legend-note { font-size: 10px; }
   @media (max-width: 900px) {
-    .nurse-quick-layout { grid-template-columns: minmax(0, 1fr); }
+    .nurse-quick-popover { width: calc(100vw - 24px); }
+    .nurse-quick-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
     .nurse-quick-settings { padding-left: 0; padding-top: 14px; border-left: 0; border-top: 1px solid var(--border); }
   }
   .nurse-monthly-day.leave-work, .nurse-leave-action.leave-work { background: rgba(52,211,153,.14); border-color: rgba(52,211,153,.5); }
@@ -2102,18 +2115,21 @@
     display: none;
     position: fixed;
     top: 76px;
-    right: 12px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 1800;
-    width: min(1180px, calc(100vw - 24px));
-    max-height: calc(100vh - 96px);
-    overflow: auto;
+    width: min(1500px, calc(100vw - 80px));
+    box-sizing: border-box;
+    height: calc(100vh - 88px);
+    max-height: calc(100vh - 88px);
+    overflow: hidden;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: 0 18px 44px rgba(0,0,0,0.36);
     padding: 14px;
   }
-  .nurse-quick-popover.open { display: block; }
+  .nurse-quick-popover.open { display: flex; flex-direction: column; }
   .nurse-quick-head {
     display: flex;
     align-items: center;
@@ -2469,8 +2485,26 @@
   .staff-schedule-holiday-open { color: var(--text3); font-size: 10px; line-height: 1.4; margin-bottom: 5px; overflow-wrap: anywhere; }
   .staff-schedule-workers { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; gap: 3px; }
   .staff-schedule-worker { display: inline-flex; max-width: 100%; border-radius: 10px; padding: 2px 6px; overflow-wrap: anywhere; color: var(--text); font-size: 11px; line-height: 1.4; }
-  .staff-schedule-worker.doctors { background: rgba(96,165,250,.14); }
-  .staff-schedule-worker.nurses { background: rgba(52,211,153,.12); }
+  .staff-schedule-worker.doctors { --shift-fill: #1e40af; background: #1e40af; color: #eff6ff; border: 1px solid #60a5fa; }
+  .staff-schedule-worker.nurses { --shift-fill: #065f46; background: #065f46; color: #ecfdf5; border: 1px solid #34d399; }
+  .staff-schedule-worker.role-desk { --shift-fill: #6b21a8; background: #6b21a8; color: #faf5ff; border: 1px solid #d8b4fe; }
+  .staff-schedule-worker.role-desk2 { background: linear-gradient(to right, #065f46 0 50%, #6b21a8 50% 100%); color: #f0fdfa; border: 1px solid #5eead4; }
+  .staff-schedule-worker.role-treatment { --shift-fill: #065f46; background: #065f46; color: #ecfdf5; border: 1px solid #34d399; }
+  .staff-schedule-worker.shift-am { background: linear-gradient(to right, var(--shift-fill, #065f46) 0 50%, var(--surface2) 50% 100%); }
+  .staff-schedule-worker.shift-pm { background: linear-gradient(to right, var(--surface2) 0 50%, var(--shift-fill, #065f46) 50% 100%); }
+  .staff-schedule-legend { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-bottom: 10px; }
+  .staff-schedule-legend-note { font-size: 11px; color: var(--text3); }
+  button.staff-schedule-worker { font-family: inherit; cursor: pointer; font-weight: 700; }
+  .staff-schedule-group { padding: 5px; border-radius: 7px; background: rgba(52,211,153,.08); }
+  .staff-schedule-group.off { margin-top: 10px; background: rgba(148,163,184,.10); border-top: 1px dashed #64748b; }
+  .staff-schedule-group-label { font-size: 10px; color: #6ee7b7; margin-bottom: 4px; }
+  .staff-schedule-group.off .staff-schedule-group-label { color: #cbd5e1; }
+  .staff-schedule-group.off .staff-schedule-worker { background: #334155; border: 1px solid #64748b; color: #cbd5e1; }
+  .staff-schedule-view-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .staff-schedule-view-controls .selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .staff-schedule-view-controls > span { font-size: 11px; color: var(--text3); }
+  .staff-schedule-person { max-width: 100%; min-width: 0; }
+  .staff-schedule-choice { display: block; width: 100%; min-width: 0; margin-top: 4px; padding: 4px 0; font: inherit; font-size: 11px; color: var(--text); background: var(--surface2); border: 1px solid var(--accent); border-radius: 5px; }
   .receive-panel,
   .bed-panel,
   .settings-panel { display: none; }
@@ -5817,7 +5851,7 @@
         <span class="rr-slider"></span>
       </span>
     </label>
-    <div class="nurse-assignment-legend"><span class="assignable">● 녹색: 배정 가능</span><span class="excluded">● 핑크색: 배정 제외 (휴무·월차·자리비움·데스크)</span></div>
+    <div class="nurse-assignment-legend"><span class="assignable">● 녹색: 배정 가능</span><span class="excluded">● 핑크색: 배정 제외 (비번·월차·자리비움·데스크)</span></div>
     <div class="staff-list" id="nurseQuickList"></div>
       </div>
     </div>
@@ -6127,7 +6161,7 @@
               <span class="rr-slider"></span>
             </span>
           </label>
-          <div class="nurse-assignment-legend"><span class="assignable">● 녹색: 배정 가능</span><span class="excluded">● 핑크색: 배정 제외 (휴무·월차·자리비움·데스크)</span></div>
+          <div class="nurse-assignment-legend"><span class="assignable">● 녹색: 배정 가능</span><span class="excluded">● 핑크색: 배정 제외 (비번·월차·자리비움·데스크)</span></div>
           <div class="staff-add-row">
             <input class="name-input" id="nurseNameInput" type="text" placeholder="간호사 이름 입력" maxlength="20">
             <button class="timer-set-btn" onclick="addStaff('nurses')">추가</button>
@@ -7141,8 +7175,13 @@
   let treatmentPresets = [];
   let autoBedAssignEnabled = false;
   let nurseAutoAssignEnabled = true;
+  let holidayReplacementEnabled = true;
 
   const patientsByKey = new Map();
+  const staffScheduleViews = { settings: 'all', quick: 'all' };
+  let staffScheduleEditing = null;
+  let nurseRoleEditing = null;
+  const staffScheduleSaving = new Set();
   const staffByType = {
     doctors: new Map(),
     nurses: new Map()
@@ -9331,6 +9370,7 @@
   function isStaffWeeklyVacation(staff = {}, date = new Date(), period = 'am') {
     const weekdays = normalizeDoctorVacationWeekdays(staff.vacationWeekdays);
     if (!weekdays.includes(date.getDay())) return false;
+    if (!holidayReplacementEnabled) return true;
     // 월~토의 일반 공휴일이 근무일에 있으면 정기 휴무를 근무로 전환한다.
     // 공휴일과 정기 휴무가 겹치면 추가 보정하지 않는다. 월차는 별도 휴무다.
     const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
@@ -9359,7 +9399,22 @@
   function isStaffPeriodVacation(doctor, date, period) {
     if (date.getDay() === 6 && period === 'pm') return true;
     const periods = getStaffVacationPeriods(doctor);
-    return isStaffWeeklyVacation({ vacationWeekdays: periods[period] }, date, period);
+    const plannedOff = day => {
+      const override = doctor.scheduleByDate?.[formatNurseLeaveDate(day)];
+      if (['work', 'full', 'am', 'pm'].includes(override)) return override === 'full' || override === period;
+      return periods[period].includes(day.getDay());
+    };
+    if (!plannedOff(date)) return false;
+    if (!holidayReplacementEnabled || isClinicClosedDate(date)) return true;
+    const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const week = Array.from({ length: period === 'pm' ? 5 : 6 }, (_, offset) => {
+      const day = new Date(monday); day.setDate(monday.getDate() + offset);
+      return { key: formatNurseLeaveDate(day), closed: isClinicClosedDate(day), off: plannedOff(day) };
+    });
+    const replacementCount = week.filter(day => day.closed && !day.off).length;
+    const replacements = week.filter(day => !day.closed && day.off).slice(0, replacementCount);
+    return !replacements.some(day => day.key === formatNurseLeaveDate(date));
   }
 
   function isDoctorAutoVacationToday(doctor = {}, date = new Date()) {
@@ -9386,7 +9441,8 @@
   function getNurseDateLeave(nurse, dateKey) {
     const explicit = nurse.leaveByDate?.[dateKey];
     if (['work', 'full', 'am', 'pm', 'monthly', 'p_am', 'p_pm', 'desk'].includes(explicit)) return explicit;
-    return normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).includes(dateKey) ? 'monthly' : 'work';
+    if (normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).includes(dateKey)) return 'monthly';
+    return nurse.role === 'morning' ? 'p_am' : nurse.role === 'afternoon' ? 'p_pm' : 'work';
   }
 
   function getPartTimeBaseLeave(kind, date) {
@@ -9394,25 +9450,24 @@
     return [1, 2, 3, 5, 6].includes(date.getDay()) ? (date.getDay() === 6 ? 'work' : 'pm') : 'full';
   }
 
+  function getNursePlannedDateLeave(nurse, date) {
+    const dateKey = formatNurseLeaveDate(date);
+    const override = nurse.scheduleByDate?.[dateKey];
+    const raw = ['work','full','am','pm','monthly'].includes(override) ? override : getNurseDateLeave(nurse, dateKey);
+    const leave = raw === 'desk' ? 'work' : raw === 'p_am' || raw === 'p_pm' ? getPartTimeBaseLeave(raw, date) : raw;
+    return date.getDay() === 6 && leave === 'pm' ? 'work' : leave;
+  }
+
   function getEffectiveNurseDateLeave(nurse, date) {
     const dateKey = formatNurseLeaveDate(date);
-    const rawLeave = getNurseDateLeave(nurse, dateKey);
-    if (rawLeave === 'desk') return 'work';
-    if (rawLeave === 'p_pm') return getPartTimeBaseLeave(rawLeave, date);
-    if (rawLeave === 'p_am') {
-      const converted = Object.fromEntries(Object.entries(nurse.leaveByDate || {}).map(([key, value]) => [key, value === 'p_am' || value === 'p_pm' ? getPartTimeBaseLeave(value, new Date(`${key}T12:00:00`)) : value]));
-      const adjusted = getEffectiveNurseDateLeave({ ...nurse, leaveByDate: converted }, date);
-      if (date.getDay() !== 6 && adjusted === 'work') return 'pm';
-      return adjusted;
-    }
-    const leave = date.getDay() === 6 && rawLeave === 'pm' ? 'work' : rawLeave;
-    if (leave === 'work' || leave === 'monthly' || isClinicClosedDate(date)) return leave;
+    const leave = getNursePlannedDateLeave(nurse, date);
+    const pattern = getNurseDateLeave(nurse, dateKey);
+    if (leave === 'work' || leave === 'monthly' || isClinicClosedDate(date) || !holidayReplacementEnabled || nurse.role === 'afternoon' || pattern === 'p_pm') return leave;
     const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
     const week = Array.from({ length: 6 }, (_, offset) => {
-      const day = new Date(monday);
-      day.setDate(monday.getDate() + offset);
-      return { weekday: day.getDay(), key: formatNurseLeaveDate(day), closed: isClinicClosedDate(day), leave: getNurseDateLeave(nurse, formatNurseLeaveDate(day)) };
+      const day = new Date(monday); day.setDate(monday.getDate() + offset);
+      return { weekday: day.getDay(), key: formatNurseLeaveDate(day), closed: isClinicClosedDate(day), leave: getNursePlannedDateLeave(nurse, day) };
     });
     const remainsOff = period => {
       if (leave !== 'full' && leave !== period) return false;
@@ -9422,17 +9477,19 @@
     };
     const amOff = remainsOff('am'), pmOff = remainsOff('pm');
     if (date.getDay() === 6) return amOff ? 'full' : 'work';
-    return amOff && pmOff ? 'full' : amOff ? 'am' : pmOff ? 'pm' : 'work';
+    const adjusted = amOff && pmOff ? 'full' : amOff ? 'am' : pmOff ? 'pm' : 'work';
+    if ((nurse.role === 'morning' || pattern === 'p_am') && adjusted === 'work') return 'pm';
+    return adjusted;
   }
 
   window.openNurseMonthlySchedule = function(key) {
     if (!staffByType.nurses.has(key)) return;
     const nurse = staffByType.nurses.get(key);
-    const draft = { ...(nurse.leaveByDate || {}) };
+    const draft = { ...(nurse.leaveByDate || {}), ...(nurse.scheduleByDate || {}) };
     normalizeNurseMonthlyLeaveDates(nurse.monthlyLeaveDates).forEach(date => {
       if (!Object.prototype.hasOwnProperty.call(draft, date)) draft[date] = 'monthly';
     });
-    renderNurseMonthlyEditor.state = { key, month: getTodayKey().slice(0, 7), draft, deskMonths: [...(Array.isArray(nurse.deskMonths) ? nurse.deskMonths : [])], activeKind: '', editingDate: '', busy: false };
+    renderNurseMonthlyEditor.state = { key, month: getTodayKey().slice(0, 7), draft, scheduleByDate: { ...(nurse.scheduleByDate || {}) }, deskMonths: [...(Array.isArray(nurse.deskMonths) ? nurse.deskMonths : [])], activeKind: '', editingDate: '', busy: false };
     let overlay = document.getElementById('nurseMonthlyEditor');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -9453,7 +9510,7 @@
     const [year, month] = state.month.split('-').map(Number);
     const first = new Date(year, month - 1, 1, 12).getDay();
     const days = new Date(year, month, 0).getDate();
-    const labels = { work: '근무', full: '종일 휴무', am: '오전 휴무', pm: '오후 휴무', monthly: '월차', p_am: 'P오전', p_pm: 'P오후', desk: '데스크' };
+    const labels = { work: '근무', full: '종일 비번', am: '오전 비번', pm: '오후 비번', monthly: '월차', p_am: 'P오전', p_pm: 'P오후', desk: '데스크' };
     const cells = Array.from({ length: Math.ceil((first + days) / 7) * 7 }, (_, index) => {
       const day = index - first + 1;
       if (day < 1 || day > days) return '<div class="nurse-monthly-blank"></div>';
@@ -9461,22 +9518,22 @@
       const key = formatNurseLeaveDate(date);
       const leave = state.draft[key] || 'work';
       const closed = isClinicClosedDate(date);
-      const effectiveLeave = getEffectiveNurseDateLeave({ leaveByDate: state.draft }, date);
+      const effectiveLeave = getEffectiveNurseDateLeave({ leaveByDate: state.draft, scheduleByDate: state.scheduleByDate }, date);
       const baseLeave = leave === 'desk' ? 'work' : leave === 'p_am' || leave === 'p_pm' ? getPartTimeBaseLeave(leave, date) : leave;
       const adjusted = !closed && effectiveLeave !== baseLeave;
       const holidayName = getClinicPublicHolidays()[key] || '';
       const deskWorking = !closed && effectiveLeave !== 'full' && effectiveLeave !== 'monthly' && (state.deskMonths.includes(state.month) || leave === 'desk');
       const cellLabel = closed ? (leave === 'work' || leave === 'desk' ? '휴진' : labels[leave]) : deskWorking ? (effectiveLeave === 'am' ? '오후 데스크' : effectiveLeave === 'pm' && date.getDay() !== 6 ? '오전 데스크' : '데스크') : date.getDay() === 6 && effectiveLeave === 'work' ? '근무' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? (leave === 'p_am' ? '오전' : '오후') : labels[effectiveLeave];
-      return `<div class="nurse-monthly-cell"><button type="button" class="nurse-monthly-day leave-${closed ? 'closed' : deskWorking ? 'desk' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? leave : effectiveLeave}${closed ? ' closed' : ''}" ${state.busy || closed ? 'disabled' : ''} onclick="toggleNurseMonthlyDate('${key}')"><strong>${day}</strong><span>${cellLabel}</span>${adjusted ? '<small>공휴일 보정</small>' : ''}${closed ? `<small>${escapeHtml(holidayName || '일요일')}</small>` : ''}</button>${state.editingDate === key && !closed ? `<select class="nurse-date-dropdown" aria-label="${month}월 ${day}일 근무 휴무" onchange="setNurseMonthlyDateLeave('${key}', this.value)" ${state.busy ? 'disabled' : ''}><option value="" selected disabled>선택</option>${Object.entries(labels).filter(([kind]) => !kind.startsWith('p_') && !(date.getDay() === 6 && kind === 'pm')).map(([kind,label]) => `<option value="${kind}">${label}${kind === leave ? ' · 현재' : ''}</option>`).join('')}</select>` : ''}</div>`;
+      return `<div class="nurse-monthly-cell"><button type="button" class="nurse-monthly-day leave-${closed ? 'closed' : deskWorking ? 'desk' : (leave === 'p_am' || leave === 'p_pm') && effectiveLeave !== 'full' ? leave : effectiveLeave}${closed ? ' closed' : ''}" ${state.busy || closed ? 'disabled' : ''} onclick="toggleNurseMonthlyDate('${key}')"><strong>${day}</strong><span>${cellLabel}</span>${adjusted ? '<small>공휴일 보정</small>' : ''}${closed ? `<small>${escapeHtml(holidayName || '일요일')}</small>` : ''}</button>${state.editingDate === key && !closed ? `<select class="nurse-date-dropdown" aria-label="${month}월 ${day}일 근무 비번" onchange="setNurseMonthlyDateLeave('${key}', this.value)" ${state.busy ? 'disabled' : ''}><option value="" selected disabled>선택</option>${Object.entries(labels).filter(([kind]) => !kind.startsWith('p_') && !(date.getDay() === 6 && kind === 'pm')).map(([kind,label]) => `<option value="${kind}">${label}${kind === leave ? ' · 현재' : ''}</option>`).join('')}</select>` : ''}</div>`;
     }).join('');
-    overlay.innerHTML = `<div class="nurse-monthly-dialog" role="dialog" aria-modal="true" aria-label="간호사 월간 휴무 설정">
-      <div class="staff-schedule-head"><strong>${escapeHtml(nurse.name || '')} 월간 휴무</strong><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="closeNurseMonthlySchedule(event)">닫기</button></div>
+    overlay.innerHTML = `<div class="nurse-monthly-dialog" role="dialog" aria-modal="true" aria-label="간호사 월간 비번 설정">
+      <div class="staff-schedule-head"><strong>${escapeHtml(nurse.name || '')} 월간 비번</strong><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="closeNurseMonthlySchedule(event)">닫기</button></div>
       <div class="nurse-monthly-tools"><button class="staff-delete-btn" type="button" aria-label="이전 달" ${state.busy ? 'disabled' : ''} onclick="moveNurseMonthlyMonth(-1)">&lt;</button><input class="staff-monthly-leave-date" type="month" value="${state.month}" ${state.busy ? 'disabled' : ''} onchange="changeNurseMonthlyMonth(this.value)"><button class="staff-delete-btn" type="button" aria-label="다음 달" ${state.busy ? 'disabled' : ''} onclick="moveNurseMonthlyMonth(1)">&gt;</button><button class="staff-delete-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="changeNurseMonthlyMonth(getTodayKey().slice(0, 7))">이번달</button>${['p_am','p_pm','desk'].map(kind => `<button class="staff-delete-btn nurse-leave-action leave-${kind}" type="button" ${state.busy ? 'disabled' : ''} onclick="selectNurseMonthlyLeaveKind('${kind}')">${labels[kind]}${kind === 'desk' && state.deskMonths.includes(state.month) ? ' ✓' : ''}</button>`).join('')}</div>
-      <p class="nurse-monthly-help">날짜를 누르고 드롭다운에서 근무·휴무를 선택하세요. 마지막에 저장하세요. P오전,P오후는 오전 오후 아르바이트인경우 선택하면 됩니다. 데스크는 기존 근무·휴무를 유지하고 선택한 달의 치료실 배정에서 제외됩니다. 다시 누르면 해제됩니다</p>
+      <p class="nurse-monthly-help">날짜를 누르고 드롭다운에서 근무·비번를 선택하세요. 마지막에 저장하세요. P오전,P오후는 오전 오후 아르바이트인경우 선택하면 됩니다. 데스크는 기존 근무·비번를 유지하고 선택한 달의 치료실 배정에서 제외됩니다. 다시 누르면 해제됩니다</p>
 
       <div class="nurse-monthly-grid">${['일','월','화','수','목','금','토'].map(day => `<span class="doctor-weekday-heading">${day}</span>`).join('')}${cells}</div>
 
-      <button class="submit-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="saveNurseMonthlySchedule()">${state.busy ? '저장 중' : '월간 휴무 저장'}</button>
+      <button class="submit-btn" type="button" ${state.busy ? 'disabled' : ''} onclick="saveNurseMonthlySchedule()">${state.busy ? '저장 중' : '월간 비번 저장'}</button>
     </div>`;
   }
 
@@ -9511,6 +9568,7 @@
     if (!state || state.busy || isClinicClosedDate(date) || !['work','full','am','pm','monthly','desk'].includes(kind)) return;
     if (date.getDay() === 6 && kind === 'pm') return;
     state.draft[dateKey] = kind;
+    delete state.scheduleByDate[dateKey];
     state.editingDate = '';
     renderNurseMonthlyEditor();
   };
@@ -9527,7 +9585,7 @@
       for (let day = 1; day <= new Date(year, month, 0).getDate(); day++) {
         const date = new Date(year, month - 1, day, 12);
         const key = formatNurseLeaveDate(date);
-        if (state.draft[key] !== 'monthly') state.draft[key] = kind;
+        if (state.draft[key] !== 'monthly') { state.draft[key] = kind; delete state.scheduleByDate[key]; }
       }
     }
     renderNurseMonthlyEditor();
@@ -9541,13 +9599,13 @@
     state.busy = true;
     renderNurseMonthlyEditor();
     try {
-      await updateLocalNodeChild('staff/nurses', state.key, { leaveByDate: next, monthlyLeaveDates: monthly, deskMonths: state.deskMonths });
+      await updateLocalNodeChild('staff/nurses', state.key, { leaveByDate: next, monthlyLeaveDates: monthly, scheduleByDate: state.scheduleByDate, deskMonths: state.deskMonths });
       const wasAssignable = isNurseAssignable(current);
-      staffByType.nurses.set(state.key, { ...staffByType.nurses.get(state.key), leaveByDate: next, monthlyLeaveDates: monthly, deskMonths: state.deskMonths });
+      staffByType.nurses.set(state.key, { ...staffByType.nurses.get(state.key), leaveByDate: next, monthlyLeaveDates: monthly, scheduleByDate: state.scheduleByDate, deskMonths: state.deskMonths });
       if (!wasAssignable && isNurseAssignable(staffByType.nurses.get(state.key))) await alignReturningNurseAssignmentCount(state.key);
       renderStaffControls();
       closeNurseMonthlySchedule();
-      showToast('간호사 월간 휴무 저장 완료');
+      showToast('간호사 월간 비번 저장 완료');
     } catch (e) {
       console.error(e);
       state.busy = false;
@@ -9563,7 +9621,7 @@
   }
 
   function isNurseDesk(nurse, date = new Date()) {
-    return (Array.isArray(nurse.deskMonths) && nurse.deskMonths.includes(formatNurseLeaveDate(date).slice(0, 7))) || getNurseDateLeave(nurse, formatNurseLeaveDate(date)) === 'desk';
+    return nurse.role === 'desk' || (Array.isArray(nurse.deskMonths) && nurse.deskMonths.includes(formatNurseLeaveDate(date).slice(0, 7))) || getNurseDateLeave(nurse, formatNurseLeaveDate(date)) === 'desk';
   }
   function isNurseAssignable(nurse, date = new Date()) {
     return !isNurseDesk(nurse, date) && !isNurseUnavailable(nurse, date);
@@ -9584,21 +9642,20 @@
       if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
       const leave = getEffectiveNurseDateLeave(staff, date);
       if (leave === 'monthly') return { label: '월차', kind: 'leave' };
-      if (leave === 'full') return { label: '휴무', kind: 'weekday' };
+      if (leave === 'full') return { label: '비번', kind: 'weekday' };
       if (date.getDay() === 6) return { label: '근무', kind: 'work' };
-      const raw = getNurseDateLeave(staff, dateKey);
-      return { label: raw === 'p_am' && (leave === 'pm' || date.getDay() === 6) ? '오전' : raw === 'p_pm' ? '오후' : date.getDay() === 6 ? '오전' : leave === 'am' ? '오후' : leave === 'pm' ? '오전' : '근무', kind: 'work' };
+      return { label: leave === 'am' ? '오후' : leave === 'pm' ? '오전' : '근무', kind: 'work' };
     }
     if (type === 'doctors') {
       if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
       const amOff = isStaffPeriodVacation(staff, date, 'am');
       const pmOff = isStaffPeriodVacation(staff, date, 'pm');
-      if (amOff && pmOff) return { label: '요일 휴무', kind: 'weekday' };
+      if (amOff && pmOff) return { label: '요일 비번', kind: 'weekday' };
       if (date.getDay() === 6) return { label: '근무', kind: 'work' };
       return { label: amOff ? '오후' : pmOff ? '오전' : '근무', kind: 'work' };
     }
     if (isStaffWeeklyVacation(staff, date)) {
-      return { label: '요일 휴무', kind: 'weekday' };
+      return { label: '요일 비번', kind: 'weekday' };
     }
     if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
     return { label: '근무', kind: 'work' };
@@ -9807,6 +9864,14 @@
     return getClinicPublicHolidays.data;
   }
 
+
+  function getStaffScheduleViewStatus(type, staff, date, view = 'all', todayKey = getTodayKey()) {
+    const status = getStaffScheduleStatus(type, staff, date, todayKey);
+    if (view === 'all' || status.kind !== 'work') return status;
+    if ((view === 'am' && status.label === '오후') || (view === 'pm' && (status.label === '오전' || date.getDay() === 6))) return { label: '비번', kind: 'weekday' };
+    return status;
+  }
+
   function renderStaffSchedule(scope = 'settings') {
     if (scope === 'settings') renderStaffSchedule('quick');
     const input = document.getElementById(scope === 'quick' ? 'nurseQuickScheduleMonth' : 'staffScheduleMonth');
@@ -9815,8 +9880,14 @@
     if (!/^\d{4}-\d{2}$/.test(input.value) || Number(input.value.slice(5)) < 1 || Number(input.value.slice(5)) > 12) {
       input.value = getTodayKey().slice(0, 7);
     }
+    const view = 'all';
     const [year, month] = input.value.split('-').map(Number);
-    const staff = ['doctors', 'nurses'].flatMap(type => getSortedStaff(type).map(([key, data]) => ({ type, key, data })));
+    const roleOrder = { desk: 0, desk2: 1, treatment: 2, morning: 3, afternoon: 4 };
+    const staff = ['doctors', 'nurses'].flatMap(type => {
+      const entries = getSortedStaff(type);
+      if (type === 'nurses') entries.sort((a, b) => roleOrder[getNurseRole(a[1])] - roleOrder[getNurseRole(b[1])]);
+      return entries.map(([key, data]) => ({ type, key, data }));
+    });
     if (!staff.length) {
       container.innerHTML = '<div class="empty-state"><div class="empty-text">등록된 원장·간호사가 없습니다</div></div>';
       return;
@@ -9835,30 +9906,143 @@
       const holidayName = holidays[formatNurseLeaveDate(date)] || '';
       const isSubstituteHoliday = holidayName.startsWith('대체공휴일');
       const closed = date.getDay() === 0 || (Boolean(holidayName) && !isSubstituteHoliday);
-      const workers = closed ? [] : staff.filter(({ type, data }) => getStaffScheduleStatus(type, data, date, todayKey).kind === 'work');
+      const deskWorking = !closed && staff.some(({ type, data }) => type === 'nurses' && isNurseDesk(data, date) && getStaffScheduleViewStatus(type, data, date, view, todayKey).kind === 'work');
+      const groups = closed || (view === 'pm' && date.getDay() === 6) ? '' : [true, false].map(working => {
+        const members = staff.filter(({ type, data }) => (getStaffScheduleViewStatus(type, data, date, view, todayKey).kind === 'work') === working);
+        return `<div class="staff-schedule-group${working ? '' : ' off'}" aria-label="${working ? '근무자' : '비번자'}"><div class="staff-schedule-workers">${members.length ? members.map(({ type, key, data }) => {
+          const status = getStaffScheduleViewStatus(type, data, date, view, todayKey);
+          const dateKey = formatNurseLeaveDate(date);
+          const fullStatus = getStaffScheduleStatus(type, data, date, todayKey);
+          const role = type === 'nurses' ? getNurseRole(data) : '';
+          const colorRole = type === 'nurses' && isNurseDesk(data, date) ? 'desk' : role === 'desk2' ? (deskWorking ? 'treatment' : 'desk') : type === 'nurses' ? 'treatment' : '';
+          const shift = fullStatus.kind === 'work' && (fullStatus.label === '오전' || (type === 'nurses' && date.getDay() === 6 && (role === 'morning' || getNurseDateLeave(data, dateKey) === 'p_am'))) ? 'am' : fullStatus.kind === 'work' && fullStatus.label === '오후' ? 'pm' : '';
+          const editing = staffScheduleEditing?.scope === scope && staffScheduleEditing?.type === type && staffScheduleEditing?.key === key && staffScheduleEditing?.dateKey === dateKey;
+          const choices = [['work', date.getDay() === 6 ? '오전 근무' : '종일 근무'], ...(date.getDay() === 6 ? [] : [['pm', '오전만 근무'], ['am', '오후만 근무']]), ['full', '종일 비번'], ...(type === 'nurses' ? [['monthly', '월차']] : [])];
+          return `<div class="staff-schedule-person"><button type="button" class="staff-schedule-worker ${type}${colorRole ? ` role-${colorRole}` : ''}${shift ? ` shift-${shift}` : ''}" title="${type === 'doctors' ? '원장' : '간호사'} · ${role === 'desk2' ? '데스크2 · ' : ''}${{desk:'데스크',desk2:'데스크2',treatment:'치료실',morning:'오전',afternoon:'오후'}[colorRole] || '종일'} · ${escapeHtml(status.label)} · 근무 선택" aria-expanded="${editing}" onclick="openStaffScheduleChoice('${type}', '${escapeHtml(key)}', '${dateKey}', '${scope}')">${escapeHtml(data.name || '')}${!['근무','오전','오후','비번','요일 비번'].includes(status.label) ? ` · ${escapeHtml(status.label)}` : ''}</button>${editing ? `<select class="staff-schedule-choice" aria-label="${escapeHtml(data.name || '')} ${dateKey} 근무 선택" onchange="setStaffScheduleDate('${type}', '${escapeHtml(key)}', '${dateKey}', this.value)"><option value="" selected disabled>근무 선택</option>${choices.map(([kind,label]) => `<option value="${kind}">${label}</option>`).join('')}<option value="cancel">닫기</option></select>` : ''}</div>`;
+        }).join('') : '<span class="staff-schedule-group-label">없음</span>'}</div></div>`;
+      }).join('');
       return `<div class="staff-schedule-day${isToday ? ' today' : ''}" role="group" aria-label="${month}월 ${day}일 ${weekdays[date.getDay()]}요일">
         <div class="staff-schedule-date${date.getDay() === 0 || holidayName ? ' sunday' : date.getDay() === 6 ? ' saturday' : ''}">
           <span>${day}</span>${isToday ? '<span class="staff-schedule-today">오늘</span>' : ''}
         </div>
         ${closed ? `<div class="staff-schedule-closed">${holidayName ? `<span>${escapeHtml(holidayName)}</span>` : ''}<strong>휴진</strong></div>` : holidayName ? `<div class="staff-schedule-holiday-open">${escapeHtml(holidayName)} · 진료</div>` : ''}
-        <div class="staff-schedule-workers">${workers.map(({ type, data }) => `<span class="staff-schedule-worker ${type}">${escapeHtml(data.name || '')}${getStaffScheduleStatus(type, data, date, todayKey).label !== '근무' ? ` · ${getStaffScheduleStatus(type, data, date, todayKey).label}` : ''}</span>`).join('')}</div>
+        ${!closed && view === 'pm' && date.getDay() === 6 ? '<div class="staff-schedule-holiday-open">오후 진료 없음</div>' : groups}
       </div>`;
     }).join('');
-    container.innerHTML = `<div class="staff-schedule-calendar" role="group" aria-label="${year}년 ${month}월 전체 근무 현황">
+    container.innerHTML = `<div class="staff-schedule-view-controls" role="group" aria-label="근무 달력 설정"><span>이름을 눌러 근무 변경</span><label class="staff-schedule-legend-note"><input type="checkbox" ${holidayReplacementEnabled ? 'checked' : ''} onchange="saveHolidayReplacementEnabled(this.checked)"> 공휴일 대체근무</label></div><div class="staff-schedule-legend" aria-label="근무 달력 색상 범례">${[['desk','데스크'],['desk2','데스크2'],['treatment','치료실']].map(([role,label]) => `<span class="staff-schedule-worker role-${role}">${label}</span>`).join('')}<span class="staff-schedule-worker nurses shift-am">오전</span><span class="staff-schedule-worker nurses shift-pm">오후</span><span class="staff-schedule-worker doctors">원장</span><span class="staff-schedule-legend-note">오전: 왼쪽 반 · 오후: 오른쪽 반 · 종일: 전체 · 비번: 회색 영역 · 데스크2: 데스크 근무 시 녹색, 비번 시 보라색</span></div><div class="staff-schedule-calendar" role="group" aria-label="${year}년 ${month}월 전체 근무 현황">
       ${weekdays.map((day, index) => `<div class="staff-schedule-weekday${index === 0 ? ' sunday' : index === 6 ? ' saturday' : ''}">${day}</div>`).join('')}
       ${cells}
     </div>`;
   }
 
+  window.saveHolidayReplacementEnabled = async function(enabled) {
+    const previous = holidayReplacementEnabled;
+    holidayReplacementEnabled = Boolean(enabled);
+    renderStaffControls();
+    try {
+      await setLocalNode('settings/holidayReplacementEnabled', holidayReplacementEnabled);
+      showToast(`공휴일 대체근무 ${holidayReplacementEnabled ? 'ON' : 'OFF'}`);
+    } catch (error) {
+      holidayReplacementEnabled = previous;
+      renderStaffControls();
+      showToast('저장 실패. 다시 변경해주세요');
+    }
+  };
+
+  window.changeStaffScheduleView = function(scope, view) {
+    if (!['settings', 'quick'].includes(scope) || !['all', 'am', 'pm'].includes(view)) return;
+    staffScheduleViews[scope] = view;
+    staffScheduleEditing = null;
+    renderStaffSchedule(scope);
+  };
+  window.openStaffScheduleChoice = function(type, key, dateKey, scope) {
+    const same = staffScheduleEditing?.type === type && staffScheduleEditing?.key === key && staffScheduleEditing?.dateKey === dateKey && staffScheduleEditing?.scope === scope;
+    staffScheduleEditing = same ? null : { type, key, dateKey, scope };
+    renderStaffSchedule(scope);
+    if (!same) document.querySelector('.staff-schedule-choice')?.focus();
+  };
+  window.setStaffScheduleDate = async function(type, key, dateKey, kind) {
+    if (kind === 'cancel') { staffScheduleEditing = null; renderStaffSchedule(); return; }
+    if (!['work','full','am','pm','monthly'].includes(kind) || (type === 'doctors' && kind === 'monthly')) return;
+    if (!['doctors', 'nurses'].includes(type) || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+    const staff = staffByType[type].get(key);
+    const date = new Date(`${dateKey}T12:00:00`);
+    const lock = `${type}/${key}`;
+    if (!staff || isClinicClosedDate(date) || staffScheduleSaving.has(lock)) return;
+    if (date.getDay() === 6 && (kind === 'am' || kind === 'pm')) return;
+    const patch = { scheduleByDate: { ...(staff.scheduleByDate || {}), [dateKey]: kind } };
+    if (dateKey === getTodayKey()) patch.vacation = false;
+    staffScheduleSaving.add(lock);
+    try {
+      await updateLocalNodeChild(`staff/${type}`, key, patch);
+      staffByType[type].set(key, { ...staffByType[type].get(key), ...patch });
+      if (type === 'nurses' && !isNurseAssignable(staff) && isNurseAssignable(staffByType[type].get(key))) await alignReturningNurseAssignmentCount(key);
+      staffScheduleEditing = null;
+      renderStaffControls();
+      renderStaffSchedule();
+      const labels = { work: '근무', full: '종일 비번', pm: '오전만 근무', am: '오후만 근무', monthly: '월차' };
+      showToast(`${staff.name || ''} ${dateKey} ${labels[kind]} 저장 완료`);
+    } catch (error) {
+      console.error('근무 변경 저장 실패', error);
+      showToast('저장 실패. 다시 시도해주세요');
+    } finally { staffScheduleSaving.delete(lock); }
+  };
+
   window.renderStaffSchedule = renderStaffSchedule;
   window.changeStaffScheduleMonth = function(offset, scope = 'settings') {
     const input = document.getElementById(scope === 'quick' ? 'nurseQuickScheduleMonth' : 'staffScheduleMonth');
     if (!input) return;
+    staffScheduleEditing = null;
     renderStaffSchedule(scope);
     const [year, month] = input.value.split('-').map(Number);
     const date = offset === 0 ? new Date() : new Date(year, month - 1 + offset, 1, 12);
     input.value = formatNurseLeaveDate(date).slice(0, 7);
     renderStaffSchedule(scope);
+  };
+
+  window.toggleNurseRoleChoice = function(key, quick = false) {
+    const same = nurseRoleEditing?.key === key && nurseRoleEditing?.quick === quick;
+    nurseRoleEditing = same ? null : { key, quick };
+    renderStaffControls();
+    if (!same) document.querySelector('.nurse-role-dropdown')?.focus();
+  };
+
+  function getNurseRole(nurse) {
+    if (['desk','desk2','treatment','morning','afternoon'].includes(nurse.role)) return nurse.role;
+    if (isNurseDesk(nurse)) return 'desk';
+    const leave = getNurseDateLeave(nurse, getTodayKey());
+    return leave === 'p_am' ? 'morning' : leave === 'p_pm' ? 'afternoon' : 'treatment';
+  }
+
+  window.saveNurseRole = async function(key, role) {
+    if (role === 'cancel') { nurseRoleEditing = null; renderStaffControls(); return; }
+    if (!['desk','desk2','treatment','morning','afternoon'].includes(role)) return;
+    const nurse = staffByType.nurses.get(key);
+    const lock = `nurses/${key}`;
+    if (!nurse || staffScheduleSaving.has(lock)) return;
+    const leaveByDate = { ...(nurse.leaveByDate || {}) };
+    const scheduleByDate = { ...(nurse.scheduleByDate || {}) };
+    const month = getTodayKey().slice(0, 7);
+    for (const [dateKey, value] of Object.entries(leaveByDate)) {
+      if (dateKey < `${month}-01`) continue;
+      if (value === 'desk' && role !== 'desk') leaveByDate[dateKey] = 'work';
+      if ((value === 'p_am' || value === 'p_pm') && (role === 'morning' || role === 'afternoon')) delete leaveByDate[dateKey];
+    }
+    const patch = { role, deskMonths: [], leaveByDate, scheduleByDate };
+    staffScheduleSaving.add(lock);
+    try {
+      await updateLocalNodeChild('staff/nurses', key, patch);
+      staffByType.nurses.set(key, { ...staffByType.nurses.get(key), ...patch });
+      if (!isNurseAssignable(nurse) && isNurseAssignable(staffByType.nurses.get(key))) await alignReturningNurseAssignmentCount(key);
+      renderStaffControls();
+      nurseRoleEditing = null;
+      renderStaffControls();
+      showToast('간호사 역할 저장 완료');
+    } catch (error) {
+      console.error('간호사 역할 저장 실패', error);
+      renderStaffControls();
+      showToast('저장 실패. 다시 선택해주세요');
+    } finally { staffScheduleSaving.delete(lock); }
   };
 
   function renderStaffControls() {
@@ -9892,7 +10076,7 @@
         ? staff.map(([key, data]) => {
           return `
           <div class="staff-item${type === 'nurses' ? ' nurse-staff-item' : ''}${(type === 'nurses' ? !isNurseAssignable(data) : isDoctorUnavailable(data)) ? ' vacation' : ''}">
-            <div class="staff-name">${escapeHtml(data.name || '')}</div>
+            <div class="staff-name">${escapeHtml(data.name || '')}${type === 'nurses' ? `<span class="nurse-role-control"><button type="button" class="nurse-role-chip" aria-label="${escapeHtml(data.name || '')} 역할 변경" aria-expanded="${nurseRoleEditing?.key === key && nurseRoleEditing?.quick === isQuickList}" onclick="toggleNurseRoleChoice('${key}', ${isQuickList})">${{desk:'데스크',desk2:'데스크2',treatment:'치료실',morning:'오전',afternoon:'오후'}[getNurseRole(data)]}</button>${nurseRoleEditing?.key === key && nurseRoleEditing?.quick === isQuickList ? `<select class="nurse-role-dropdown staff-schedule-choice" aria-label="${escapeHtml(data.name || '')} 역할 선택" onchange="saveNurseRole('${key}', this.value)"><option value="" selected disabled>역할 선택</option>${[['desk','데스크'],['desk2','데스크2'],['treatment','치료실'],['morning','오전'],['afternoon','오후']].map(([value,label]) => `<option value="${value}">${label}${getNurseRole(data) === value ? ' · 현재' : ''}</option>`).join('')}<option value="cancel">닫기</option></select>` : ''}</span>` : ''}</div>
             ${(type === 'nurses' || type === 'doctors') ? `
               <label class="staff-vacation-toggle">
                 <input type="checkbox" ${data.vacation ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacation' : 'toggleNurseVacation'}('${key}', this.checked)">
@@ -9906,7 +10090,7 @@
                     <input type="checkbox" aria-label="${label}요일 ${period === 'am' ? '오전' : '오후'} 자리비움" ${period === 'pm' && day === 6 ? 'disabled' : ''} ${getStaffVacationPeriods(data)[period].includes(day) && !(period === 'pm' && day === 6) ? 'checked' : ''} onchange="${type === 'doctors' ? 'toggleDoctorVacationWeekday' : 'toggleNurseVacationWeekday'}('${key}', ${day}, this.checked, '${period}')">
                   </label>`).join('')}`).join('')}
                 <div class="doctor-period-note">체크: 자리비움 · 오후 배정 13시부터 / 토요일 오전 14시까지</div>
-              </div>` : `<button class="staff-delete-btn" type="button" onclick="openNurseMonthlySchedule('${key}')">월간 휴무</button>`}
+              </div>` : ''}
             ${isQuickList ? '' : `<button class="staff-delete-btn" onclick="deleteStaff('${type}', '${key}')">삭제</button>`}
           </div>`;
         }).join('')
@@ -10575,6 +10759,11 @@
     autoBedAssignEnabled = Boolean(value);
     syncAutoBedAssignInputs();
     if (autoBedAssignEnabled) assignWaitingPatientsToBeds();
+  });
+
+  migrateNode('settings/holidayReplacementEnabled', (value) => {
+    holidayReplacementEnabled = value !== false;
+    renderStaffControls();
   });
 
   migrateNode('settings/nurseAutoAssignEnabled', (value) => {
