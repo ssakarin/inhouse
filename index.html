@@ -9398,10 +9398,11 @@
 
   function isStaffPeriodVacation(doctor, date, period) {
     if (date.getDay() === 6 && period === 'pm') return true;
+    if (doctor.scheduleByDate?.[formatNurseLeaveDate(date)] === 'monthly') return true;
     const periods = getStaffVacationPeriods(doctor);
     const plannedOff = day => {
       const override = doctor.scheduleByDate?.[formatNurseLeaveDate(day)];
-      if (['work', 'full', 'am', 'pm'].includes(override)) return override === 'full' || override === period;
+      if (['work', 'full', 'am', 'pm', 'monthly'].includes(override)) return override === 'full' || override === 'monthly' || override === period;
       return periods[period].includes(day.getDay());
     };
     if (!plannedOff(date)) return false;
@@ -9410,10 +9411,10 @@
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
     const week = Array.from({ length: period === 'pm' ? 5 : 6 }, (_, offset) => {
       const day = new Date(monday); day.setDate(monday.getDate() + offset);
-      return { key: formatNurseLeaveDate(day), closed: isClinicClosedDate(day), off: plannedOff(day) };
+      return { key: formatNurseLeaveDate(day), closed: isClinicClosedDate(day), off: plannedOff(day), monthly: doctor.scheduleByDate?.[formatNurseLeaveDate(day)] === 'monthly' };
     });
     const replacementCount = week.filter(day => day.closed && !day.off).length;
-    const replacements = week.filter(day => !day.closed && day.off).slice(0, replacementCount);
+    const replacements = week.filter(day => !day.closed && day.off && !day.monthly).slice(0, replacementCount);
     return !replacements.some(day => day.key === formatNurseLeaveDate(date));
   }
 
@@ -9648,6 +9649,7 @@
     }
     if (type === 'doctors') {
       if (dateKey === todayKey && staff.vacation) return { label: '자리비움', kind: 'manual' };
+      if (staff.scheduleByDate?.[dateKey] === 'monthly') return { label: '월차', kind: 'leave' };
       const amOff = isStaffPeriodVacation(staff, date, 'am');
       const pmOff = isStaffPeriodVacation(staff, date, 'pm');
       if (amOff && pmOff) return { label: '요일 비번', kind: 'weekday' };
@@ -9920,7 +9922,7 @@
           const colorRole = type === 'nurses' && isNurseDesk(data, date) ? 'desk' : role === 'desk2' ? (deskWorking ? 'treatment' : 'desk') : type === 'nurses' ? 'treatment' : '';
           const shift = fullStatus.kind === 'work' && (fullStatus.label === '오전' || (type === 'nurses' && date.getDay() === 6 && (role === 'morning' || getNurseDateLeave(data, dateKey) === 'p_am'))) ? 'am' : fullStatus.kind === 'work' && fullStatus.label === '오후' ? 'pm' : '';
           const editing = staffScheduleEditing?.scope === scope && staffScheduleEditing?.type === type && staffScheduleEditing?.key === key && staffScheduleEditing?.dateKey === dateKey;
-          const choices = [['work', date.getDay() === 6 ? '오전 근무' : '종일 근무'], ...(date.getDay() === 6 ? [] : [['pm', '오전만 근무'], ['am', '오후만 근무']]), ['full', '종일 비번'], ...(type === 'nurses' ? [['monthly', '월차']] : [])];
+          const choices = [['work', date.getDay() === 6 ? '오전 근무' : '종일 근무'], ...(date.getDay() === 6 ? [] : [['pm', '오전만 근무'], ['am', '오후만 근무']]), ['full', '종일 비번'], ['monthly', '월차']];
           return `<div class="staff-schedule-person"><button type="button" class="staff-schedule-worker ${type}${colorRole ? ` role-${colorRole}` : ''}${shift ? ` shift-${shift}` : ''}" title="${type === 'doctors' ? '원장' : '간호사'} · ${role === 'desk2' ? '데스크2 · ' : ''}${{desk:'데스크',desk2:'데스크2',treatment:'치료실',morning:'오전',afternoon:'오후'}[colorRole] || '종일'} · ${escapeHtml(status.label)} · 근무 선택" aria-expanded="${editing}" onclick="openStaffScheduleChoice('${type}', '${escapeHtml(key)}', '${dateKey}', '${scope}')">${escapeHtml(data.name || '')}${!['근무','오전','오후','비번','요일 비번'].includes(status.label) ? ` · ${escapeHtml(status.label)}` : ''}</button>${editing ? `<select class="staff-schedule-choice" aria-label="${escapeHtml(data.name || '')} ${dateKey} 근무 선택" onchange="setStaffScheduleDate('${type}', '${escapeHtml(key)}', '${dateKey}', this.value)"><option value="" selected disabled>근무 선택</option>${choices.map(([kind,label]) => `<option value="${kind}">${label}</option>`).join('')}<option value="cancel">닫기</option></select>` : ''}</div>`;
         }).join('') : '<span class="staff-schedule-group-label">없음</span>'}</div></div>`;
       }).join('');
@@ -9966,7 +9968,7 @@
   };
   window.setStaffScheduleDate = async function(type, key, dateKey, kind) {
     if (kind === 'cancel') { staffScheduleEditing = null; renderStaffSchedule(); return; }
-    if (!['work','full','am','pm','monthly'].includes(kind) || (type === 'doctors' && kind === 'monthly')) return;
+    if (!['work','full','am','pm','monthly'].includes(kind)) return;
     if (!['doctors', 'nurses'].includes(type) || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
     const staff = staffByType[type].get(key);
     const date = new Date(`${dateKey}T12:00:00`);
