@@ -5,3 +5,4 @@ slack_backups/
 .claude/
 .tmp-xlsx-inspect/
 tmp/
+output/
