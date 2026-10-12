@@ -508,7 +508,9 @@
     </div>
     <div id="followupAnalysisWrap" aria-live="polite"></div>
     </details>
-    <div class="summary-breakdowns" id="summaryBreakdowns"></div>
+    <details class="summary-collapse followup-collapse"><summary>진료비 구성 · 총 환자 수 구성 · 치료 이용률</summary>
+      <div class="summary-breakdowns" id="summaryBreakdowns"></div>
+    </details>
   <details class="card summary-collapse" id="dailyMetricsCard">
     <summary>수기차트 일별 자료</summary>
     <details class="summary-collapse" style="margin-top:12px"><summary>엑셀 파일 등록</summary>
@@ -1512,15 +1514,15 @@
       return { ...item, value, percent };
     });
     const displayed = value => Math.round(Number(value || 0) / Math.max(1, Number(displayDivisor || 1))).toLocaleString();
-    return `<details class="summary-breakdown summary-collapse">
-      <summary><div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlight ? `${escapeHtml(highlight.label)} ${displayed(highlight.value)}${escapeHtml(unit)} · ${safeTotal ? ((Number(highlight.value || 0) / safeTotal) * 100).toFixed(1) : "0.0"}%` : `총 ${displayed(safeTotal)}${escapeHtml(unit)}`}</div></div></summary>
+    return `<div class="summary-breakdown">
+      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlight ? `${escapeHtml(highlight.label)} ${displayed(highlight.value)}${escapeHtml(unit)} · ${safeTotal ? ((Number(highlight.value || 0) / safeTotal) * 100).toFixed(1) : "0.0"}%` : `총 ${displayed(safeTotal)}${escapeHtml(unit)}`}</div></div>
       <div class="summary-stacked-bar" role="img" aria-label="${escapeHtml(title)} 구성">
         ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${displayed(item.value)}${escapeHtml(unit)} (${item.percent.toFixed(1)}%)"></span>`).join("")}
       </div>
       <div class="summary-breakdown-legend">
         ${segments.map(item => `<div class="summary-breakdown-item"><div class="summary-breakdown-label"><span class="summary-breakdown-dot" style="background:${item.color}"></span>${escapeHtml(item.label)}</div><div class="summary-breakdown-value">${displayed(item.value)}${escapeHtml(unit)} · ${item.percent.toFixed(1)}%</div></div>`).join("")}
       </div>
-    </details>`;
+    </div>`;
   }
 
   function renderTreatmentUtilizationPanel(title, total, items, highlight) {
@@ -1530,20 +1532,20 @@
       return { ...item, value, percent: safeTotal ? value / safeTotal * 100 : 0 };
     });
     const highlightValue = Number(highlight?.value || 0);
-    return `<details class="treatment-utilization-panel summary-collapse">
-      <summary><div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlightValue.toLocaleString()}명 · ${safeTotal ? (highlightValue / safeTotal * 100).toFixed(1) : "0.0"}%</div></div></summary>
+    return `<div class="treatment-utilization-panel">
+      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlightValue.toLocaleString()}명 · ${safeTotal ? (highlightValue / safeTotal * 100).toFixed(1) : "0.0"}%</div></div>
       <div class="summary-stacked-bar" role="img" aria-label="${escapeHtml(title)} 이용률">
         ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${item.value.toLocaleString()}명 (${item.percent.toFixed(1)}%)"></span>`).join("")}
       </div>
       <div class="summary-breakdown-legend">${segments.map(item => `<div class="summary-breakdown-item"><div class="summary-breakdown-label"><span class="summary-breakdown-dot" style="background:${item.color}"></span>${escapeHtml(item.label)}</div><div class="summary-breakdown-value">${item.value.toLocaleString()}명 · ${item.percent.toFixed(1)}%</div></div>`).join("")}</div>
-    </details>`;
+    </div>`;
   }
 
   function renderTreatmentUtilization(clinicPatients, chunaItems, chunaPatients, pharmaItems, pharmaPatients) {
-    return `<details class="summary-breakdown wide-card summary-collapse"><summary><div class="summary-breakdown-head"><div class="summary-breakdown-title">치료 이용률</div><div class="summary-breakdown-total">진료 환자 ${Number(clinicPatients || 0).toLocaleString()}명 기준</div></div></summary><div class="treatment-utilization-grid">
+    return `<div class="summary-breakdown wide-card"><div class="summary-breakdown-head"><div class="summary-breakdown-title">치료 이용률</div><div class="summary-breakdown-total">진료 환자 ${Number(clinicPatients || 0).toLocaleString()}명 기준</div></div><div class="treatment-utilization-grid">
       ${renderTreatmentUtilizationPanel("추나", clinicPatients, chunaItems, { value: chunaPatients })}
       ${renderTreatmentUtilizationPanel("약침", clinicPatients, pharmaItems, { value: pharmaPatients })}
-    </div><div class="cohort-funnel-note">추나와 약침은 같은 환자가 모두 이용할 수 있으므로 각각 독립된 비율입니다.</div></details>`;
+    </div><div class="cohort-funnel-note">추나와 약침은 같은 환자가 모두 이용할 수 있으므로 각각 독립된 비율입니다.</div></div>`;
   }
 
   function renderSummaryBreakdowns(s) {
