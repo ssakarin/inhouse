@@ -511,9 +511,11 @@
     <div class="summary-breakdowns" id="summaryBreakdowns"></div>
   <details class="card summary-collapse" id="dailyMetricsCard">
     <summary>수기차트 일별 자료</summary>
+    <details class="summary-collapse" style="margin-top:12px"><summary>엑셀 파일 등록</summary>
     <div class="controls"><input id="dailyMetricsFile" type="file" accept=".xlsx,.xls" onchange="previewDailyMetrics(this)"><button id="dailyMetricsSave" disabled onclick="saveDailyMetricsImport()">서버에 저장</button></div>
     <div id="dailyMetricsImportStatus" class="chart-subtitle">당일·신규·재진·재초진 환자수와 유입경로·예약·본인부담금·공단청구금·비급여·자보를 저장합니다. 같은 날짜는 갱신합니다.</div>
-    <details style="margin-top:16px"><summary>구글시트 자료 가져오기</summary>
+    </details>
+    <details open style="margin-top:16px"><summary>구글시트 자료 가져오기</summary>
       <div class="controls" style="margin-top:12px"><label>시작일 <input type="date" id="googleDailyStart" value="2026-01-01" onchange="clearGoogleDailyPreview()"></label><label>종료일 <input type="date" id="googleDailyEnd" onchange="clearGoogleDailyPreview()"></label><button id="googleDailyPreviewBtn" onclick="previewGoogleDailyImport()">미리보기</button><button id="googleDailySaveBtn" disabled onclick="saveGoogleDailyImport()">선택 날짜 저장</button></div>
       <div class="chart-subtitle">연결된 일간 지표 구글시트의 합계행을 가져옵니다. 공란은 기존 값을 유지하고 0은 반영합니다. 원본 구글시트는 수정하지 않습니다. 변경 전 값은 서버에 보관합니다.</div>
       <div id="googleDailyStatus" class="chart-subtitle" role="status"></div><div id="googleDailyPreview"></div>
@@ -551,6 +553,7 @@
   </div>
   <details class="card summary-collapse" id="statsFilterCard">
     <summary>기간별 요약</summary>
+    <label class="field-label" style="margin:10px 0"><input type="checkbox" id="aiSummaryUseDaily" checked>수기 자료 반영 (엑셀·구글)</label>
     <div class="controls">
       <button class="ai-summary-btn" data-ai-period="week">주간 요약</button>
       <button class="ai-summary-btn" data-ai-period="month">30일 요약</button>
@@ -629,7 +632,7 @@
       ...CHART_METRICS.filter(metric => metric.key !== "returnRate" && metric.key !== "thirdVisitRate")
     ];
     const comparisonMetrics = chipMetrics.filter(metric => metric.key !== "avgChunaPerDay" && metric.key !== "avgPharmaPatientsPerDay");
-    renderMetricToggles("chartMetricToggles", "chart-metric-chip", ["avgVisitsPerDay", "avgNewPatientsPerDay", "returnRate", "thirdVisitRate"], chipMetrics);
+    renderMetricToggles("chartMetricToggles", "chart-metric-chip", ["thirdVisitRate", "avgNewPatientsPerDay", "avgCombinedFeePerDay"], chipMetrics);
     renderMetricToggles("periodComparisonMetricToggles", "comparison-chart-metric-chip", ["avgVisitsPerDay", "avgNewPatientsPerDay", "returnRate", "thirdVisitRate", "avgCombinedFeePerDay", "avgCombinedFeePerVisit", "avgNonCoveredFeePerDay"], comparisonMetrics);
   }
 
@@ -2721,7 +2724,7 @@
     }
     $("aiSummaryBody").innerHTML = `<div class="ai-summary-loading">${label} 데이터를 모으는 중입니다...</div>`;
     try {
-      const res = await fetch(`/api/ai/period-summary-prompt?${new URLSearchParams({ period })}`, { cache: "no-store" });
+      const res = await fetch(`/api/ai/period-summary-prompt?${new URLSearchParams({ period, useDaily: $("aiSummaryUseDaily").checked ? "1" : "0" })}`, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || `데이터 생성 실패 (${res.status})`);
       lastAiExportText = data.prompt || "";

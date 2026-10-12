@@ -1841,7 +1841,7 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
         avgPharmaPatientsPerDay: bucket.pharmaTotal / clinicDays,
         avgPharmaPackagePurchasePatientsPerDay: bucket.pharmaPackagePurchasePatientIds.size / clinicDays,
         avgCombinedFeePerDay: financeBucket.coveredVisits ? (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / clinicDays : null,
-        avgCombinedFeePerVisit: Number(financeBucket.coveredVisits || 0) ? (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / Number(financeBucket.coveredVisits || 0) : 0,
+        avgCombinedFeePerVisit: Number(financeBucket.coveredVisits || 0) ? (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / Number(financeBucket.coveredVisits || 0) : null,
         avgTotalFeePerDay: Number(financeBucket.totalFee || 0) / clinicDays,
         avgNonCoveredFeePerDay: financeBucket.noncoveredVisits ? Number(financeBucket.nonCoveredAmount || 0) / clinicDays : null,
         returnRate: bucket.newPatients ? bucket.returningPatients / bucket.newPatients : 0,
@@ -2145,7 +2145,7 @@ const AI_TREND_METRICS = [
 
 function aiPeriodRange(period) {
   const normalizedPeriod = AI_PERIOD_PRESETS[period] ? period : "week";
-  const today = ymd(new Date());
+  const today = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
   if (normalizedPeriod === "week") {
     const todayDate = new Date(`${today}T00:00:00`);
     const daysSinceMonday = (todayDate.getDay() + 6) % 7;
@@ -2191,7 +2191,7 @@ function periodAverageValueServer(stats = {}, key) {
   return Number(stats[key] || 0);
 }
 
-function buildPeriodDataExport(period) {
+function buildPeriodDataExport(period, useDaily = true) {
   const { period: normalizedPeriod, start, end, days } = aiPeriodRange(period);
   const previousEnd = normalizedPeriod === "year" ? shiftYear(end, -1) : addDays(start, -1);
   const previousStart = normalizedPeriod === "year" ? shiftYear(start, -1) : addDays(previousEnd, -(days - 1));
@@ -2223,13 +2223,13 @@ function buildPeriodDataExport(period) {
   for (const scopeName of ["전체"]) {
     const docFilter = "";
     scopes[scopeName] = {
-      current: computeClinicStats({ start, end, chartUnit, docFilter }),
-      previous: computeClinicStats({ start: previousStart, end: previousEnd, chartUnit, docFilter }),
-      yearAgo: computeClinicStats({ start: yearAgoStart, end: yearAgoEnd, chartUnit, docFilter }),
+      current: computeClinicStats({ useDaily, start, end, chartUnit, docFilter }),
+      previous: computeClinicStats({ useDaily, start: previousStart, end: previousEnd, chartUnit, docFilter }),
+      yearAgo: computeClinicStats({ useDaily, start: yearAgoStart, end: yearAgoEnd, chartUnit, docFilter }),
       baseline: null,
-      baselinePeriods: baselinePeriodRanges.map(range => computeClinicStats({ start: range.start, end: range.end, chartUnit, docFilter })),
-      annualBaseline: annualBaselineRanges.map(range => computeClinicStats({ start: range.start, end: range.end, chartUnit, docFilter })),
-      trend: computeClinicStats({ start: trendStart, end, chartUnit, docFilter })
+      baselinePeriods: baselinePeriodRanges.map(range => computeClinicStats({ useDaily, start: range.start, end: range.end, chartUnit, docFilter })),
+      annualBaseline: annualBaselineRanges.map(range => computeClinicStats({ useDaily, start: range.start, end: range.end, chartUnit, docFilter })),
+      trend: computeClinicStats({ useDaily, start: trendStart, end, chartUnit, docFilter })
     };
   }
 
@@ -2247,11 +2247,12 @@ function buildPeriodDataExport(period) {
       : normalizedPeriod === "quarter"
         ? [{ label: "올해 누계", start: `${end.slice(0, 4)}-01-01`, end }]
         : [];
-  const contextStats = contextRanges.map(range => ({ ...range, stats: computeClinicStats({ start: range.start, end: range.end, chartUnit: "month", docFilter: "" }) }));
+  const contextStats = contextRanges.map(range => ({ ...range, stats: computeClinicStats({ useDaily, start: range.start, end: range.end, chartUnit: "month", docFilter: "" }) }));
   const detailUnit = normalizedPeriod === "month" ? "week" : normalizedPeriod === "quarter" ? "month" : "";
-  const detailStats = detailUnit ? computeClinicStats({ start, end, chartUnit: detailUnit, docFilter: "" }) : null;
+  const detailStats = detailUnit ? computeClinicStats({ useDaily, start, end, chartUnit: detailUnit, docFilter: "" }) : null;
 
   return {
+    useDaily,
     period: normalizedPeriod,
     range: { start, end },
     previousRange: { start: previousStart, end: previousEnd },
@@ -2442,16 +2443,25 @@ function formatWeeklyCoreKpis(bundle, scope) {
   return `## 핵심 운영 지표 - 전체\n${header}\n${lines.join("\n")}`;
 }
 
+function formatExportManualPatients(bundle, scope) {
+ if(!bundle.useDaily)return "";
+ const labels=periodComparisonLabels(bundle.period),items=[[labels.current,scope.current],[labels.previous,scope.previous]];if(bundle.period!=="year")items.push([labels.yearAgo,scope.yearAgo]);
+ return `## 수기 환자수 (개별 환자 전환 지표와 별도)
+구분 | 내원 연인원 (수기 우선·서버 보충) | 수기 당일환자 등록합계 | 수기 신규 등록합계 | 당일환자 유효 등록일 | 신규 유효 등록일
+${items.map(([label,stats])=>{const p=stats.dailyMetrics?.patients||{},value=k=>p[k]?.days?p[k].value.toLocaleString()+"명":"자료 없음";return [label,Number(stats.dailyMetrics?.perVisitCount??stats.visits??0).toLocaleString()+"명",value("patientCount"),value("newPatientCount"),p.patientCount?.days||0,p.newPatientCount?.days||0].join(" | ");}).join("\n")}
+- 수기 신규 공란은 합계에 포함하지 않습니다. 등록일수와 진료일수를 함께 확인하십시오. 수기 신규는 서버 초진(재초진 포함 가능)과 정의가 다릅니다.`;
+}
+
 function formatWeeklyDataQuality(current) {
   const visits = Number(current.visits || 0);
   const financialCovered = Number(current.financialCoverage?.totalFee || 0);
   const diagnosisCovered = Object.values(current.diagnosisCounts || {}).reduce((sum, row) => sum + Number(row.count || 0), 0);
   const coverage = count => visits ? `${(count / visits * 100).toFixed(1)}%` : "0.0%";
-  return `## 데이터 품질
+  return `## 데이터 품질 (서버 개별 진료기록)
 - 진료비 데이터: ${financialCovered} / ${visits}건 (${coverage(financialCovered)})
 - 상병코드 데이터: ${diagnosisCovered} / ${visits}건 (${coverage(diagnosisCovered)})
 - 진료시간 미확인: ${Number(current.unknownTimeVisits || 0)}건
-- 금액 평균은 진료비 데이터가 있는 진료만 기준입니다.
+- 금액 평균: 수기 반영 시 수기 금액과 당일환자수 우선·공란은 서버 보충, 미반영 시 진료비 기록이 있는 진료 기준입니다.
 - 재진·삼진·4회 이상 전환은 21일 관찰이 완료된 초진 코호트를 우선 해석하십시오.`;
 }
 
@@ -2475,34 +2485,29 @@ function formatWeeklyCohort(current) {
 ${treatmentLines.length ? treatmentLines.join("\n") : "(데이터 없음)"}`;
 }
 
+function exportMoney(value) { return value === null || value === undefined ? "자료 없음" : Math.round(value).toLocaleString()+"원"; }
+function exportRate(value) { return value === null || value === undefined ? "자료 없음" : pct(value); }
 function weeklyFinancialValues(stats = {}, totalDivisor = 1) {
-  const totals = stats.financialTotals || {};
-  const coverage = stats.financialCoverage || {};
-  const totalFee = Number(totals.totalFee || 0);
-  const nonCovered = Number(totals.nonCoveredAmount || 0);
-  const combined = totalFee + nonCovered;
-  const coveredVisits = Number(coverage.totalFee || 0);
-  const clinicDays = Math.max(1, Number(stats.clinicDays || 0));
-  return { combined: combined / totalDivisor, totalFee: totalFee / totalDivisor, nonCovered: nonCovered / totalDivisor, claim: Number(totals.claimAmount || 0) / totalDivisor, copay: Number(totals.insuredCopay || 0) / totalDivisor, perDay: combined / clinicDays, perVisit: coveredVisits ? combined / coveredVisits : 0, perPatient: Number(stats.totalPatients || 0) ? combined / Number(stats.totalPatients) : 0, nonCoveredRate: combined ? nonCovered / combined : 0 };
+  const totals = stats.financialTotals || {}, coverage = stats.financialCoverage || {};
+  const available = stats.financialAggregate ? (stats.financialTrend || []).some(row=>row.hasCombinedFinance) : Object.values(coverage).some(v=>Number(v)>0);
+  const nonAvailable = stats.financialAggregate ? (stats.financialTrend || []).some(row=>row.hasNoncoveredFinance) : Number(coverage.nonCoveredAmount||0)>0;
+  const totalFee = available ? Number(totals.totalFee||0) : null;
+  const nonCovered = nonAvailable ? Number(totals.nonCoveredAmount||0) : null;
+  const combined = available ? Number(totals.totalFee||0)+Number(totals.nonCoveredAmount||0) : null;
+  const visits = Number(stats.financialAggregate ? stats.dailyMetrics?.perVisitCount : coverage.totalFee||0),days=Number(stats.dailyMetrics?.financeDays||stats.clinicDays||0),patients=Number(stats.totalPatients||0);
+  return {combined:combined===null?null:combined/totalDivisor,totalFee,nonCovered,claim:available?Number(totals.claimAmount||0):null,copay:available?Number(totals.insuredCopay||0):null,auto:stats.financialAggregate&&available?Number(totals.autoAmount||0):null,perDay:combined!==null&&days?combined/days:null,perVisit:combined!==null&&visits?combined/visits:null,perPatient:combined!==null&&patients?combined/patients:null,nonCoveredRate:combined&&nonCovered!==null?nonCovered/combined:null};
 }
-
 function averageFinancialValues(statsList = []) {
-  const values = statsList.map(stats => weeklyFinancialValues(stats));
-  const keys = ["combined", "perDay", "perVisit", "perPatient", "nonCoveredRate"];
-  return Object.fromEntries(keys.map(key => [key, values.length ? values.reduce((sum, row) => sum + row[key], 0) / values.length : 0]));
+ const values=statsList.map(stats=>weeklyFinancialValues(stats));return Object.fromEntries(["combined","perDay","perVisit","perPatient","nonCoveredRate","claim","copay","nonCovered","auto"].map(key=>{const valid=values.map(r=>r[key]).filter(v=>v!==null&&v!==undefined);return [key,valid.length?valid.reduce((s,v)=>s+v,0)/valid.length:null];}));
 }
-
 function formatWeeklyFinancial(bundle, scope) {
-  const labels = periodComparisonLabels(bundle.period);
-  const rows = [[labels.current, weeklyFinancialValues(scope.current)], [labels.previous, weeklyFinancialValues(scope.previous)], [labels.baseline, averageFinancialValues(baselineStatsFor(bundle, scope))]];
-  if (bundle.period !== "year") rows.push([labels.yearAgo, weeklyFinancialValues(scope.yearAgo)]);
-  const rowText = rows.map(([label, f]) => `${label} | ${Math.round(f.combined).toLocaleString()}원 | ${Math.round(f.perDay).toLocaleString()}원 | ${Math.round(f.perVisit).toLocaleString()}원 | ${Math.round(f.perPatient).toLocaleString()}원 | ${pct(f.nonCoveredRate)}`);
-  const now = weeklyFinancialValues(scope.current);
-  return `## 진료비
-- ${labels.current} 급여 진료비: ${Math.round(now.totalFee).toLocaleString()}원 (보험 청구 ${Math.round(now.claim).toLocaleString()}원, 본인부담 ${Math.round(now.copay).toLocaleString()}원)
-- ${labels.current} 비급여 진료비: ${Math.round(now.nonCovered).toLocaleString()}원
-구분 | 총진료비 | 진료일당 | 진료 1건당 | 환자 1명당 | 비급여 비율
-${rowText.join("\n")}`;
+ const labels=periodComparisonLabels(bundle.period),rows=[[labels.current,weeklyFinancialValues(scope.current)],[labels.previous,weeklyFinancialValues(scope.previous)],[labels.baseline,averageFinancialValues(baselineStatsFor(bundle,scope))]];if(bundle.period!=="year")rows.push([labels.yearAgo,weeklyFinancialValues(scope.yearAgo)]);
+ return `## 진료비
+구분 | 총진료비 | 본인부담 | 공단청구 | 비급여 | 자보 | 진료일당 | 내원 1건당 | 고유 환자 1명당 | 비급여 비율
+${rows.map(([label,f])=>[label,...["combined","copay","claim","nonCovered","auto","perDay","perVisit","perPatient"].map(k=>exportMoney(f[k])),exportRate(f.nonCoveredRate)].join(" | ")).join("\n")}
+- 자보는 수기 반영 시 별도 집계합니다. 수기 미반영 시 서버의 총진료비에 포함될 수 있으며 별도 자보값은 자료 없음으로 표시합니다.
+- 자료 없음은 0원과 구분합니다. 기준 평균은 값이 있는 비교 기간만 사용합니다.
+- 내원 1건당: 수기 반영 시 일별 당일환자수 우선·공란은 서버 방문 건수, 미반영 시 금액 보유 진료 건수 기준입니다.`;
 }
 
 function aiDiagnosisRegion(row = {}) {
@@ -2581,7 +2586,7 @@ function formatWeeklyLongTrend(bundle, trend) {
   const unit = bundle.period === "week" ? "주" : bundle.period === "month" || bundle.period === "year" ? "월" : "분기";
   const title = bundle.period === "week" ? "최근 12주 추이" : bundle.period === "month" ? "최근 12개월 추이" : bundle.period === "quarter" ? "최근 8분기 추이" : "최근 36개월 추이";
   const header = `${unit} | 진료환자 일평균 | 초진 일평균 | 재진율 | 삼진율 | 총진료비 일평균 | 건당 평균 진료비 | 비급여 일평균 | 추나비율 | 약침비율`;
-  const lines = rows.map(row => `${row.key} | ${Number(row.avgVisitsPerDay || 0).toFixed(1)} | ${Number(row.avgNewPatientsPerDay || 0).toFixed(1)} | ${pct(row.returnRate)} | ${pct(row.thirdVisitRate)} | ${Math.round(Number(row.avgCombinedFeePerDay || 0)).toLocaleString()}원 | ${Math.round(Number(row.avgCombinedFeePerVisit || 0)).toLocaleString()}원 | ${Math.round(Number(row.avgNonCoveredFeePerDay || 0)).toLocaleString()}원 | ${pct(row.chunaPatientRate)} | ${pct(row.pharmaPatientRate)}`);
+  const lines = rows.map(row => `${row.key} | ${Number(row.avgVisitsPerDay || 0).toFixed(1)} | ${Number(row.avgNewPatientsPerDay || 0).toFixed(1)} | ${pct(row.returnRate)} | ${pct(row.thirdVisitRate)} | ${exportMoney(row.avgCombinedFeePerDay)} | ${exportMoney(row.avgCombinedFeePerVisit)} | ${exportMoney(row.avgNonCoveredFeePerDay)} | ${pct(row.chunaPatientRate)} | ${pct(row.pharmaPatientRate)}`);
   return `## ${title}
 ${header}
 ${lines.length ? lines.join("\n") : "(데이터 없음)"}`;
@@ -2596,9 +2601,9 @@ function formatHigherPeriodContext(bundle, current) {
     ["초진 일평균", stats => periodAverageValueServer(stats, "avgNewPatientsPerDay").toFixed(1)],
     ["재진율", stats => pct(stats.returnRate)],
     ["삼진율", stats => pct(stats.thirdVisitRate)],
-    ["총진료비 일평균", stats => `${Math.round(weeklyFinancialValues(stats).perDay).toLocaleString()}원`],
-    ["건당 평균 진료비", stats => `${Math.round(weeklyFinancialValues(stats).perVisit).toLocaleString()}원`],
-    ["비급여 비율", stats => pct(weeklyFinancialValues(stats).nonCoveredRate)],
+    ["총진료비 일평균", stats => exportMoney(weeklyFinancialValues(stats).perDay)],
+    ["건당 평균 진료비", stats => exportMoney(weeklyFinancialValues(stats).perVisit)],
+    ["비급여 비율", stats => exportRate(weeklyFinancialValues(stats).nonCoveredRate)],
     ["추나 이용률", stats => pct(stats.chunaPatientRate)],
     ["약침 이용률", stats => pct(stats.pharmaPatientRate)]
   ];
@@ -2616,7 +2621,7 @@ function formatInnerPeriodFlow(bundle) {
   if (!rows.length) return "";
   const unitLabel = bundle.detailUnit === "week" ? "주차" : "월";
   const title = bundle.detailUnit === "week" ? "30일 내 주차별 흐름" : "90일 내 월별 흐름";
-  const lines = rows.map(row => `${row.key} | ${Number(row.avgVisitsPerDay || 0).toFixed(1)} | ${Number(row.avgNewPatientsPerDay || 0).toFixed(1)} | ${pct(row.returnRate)} | ${pct(row.thirdVisitRate)} | ${Math.round(Number(row.avgCombinedFeePerDay || 0)).toLocaleString()}원 | ${Math.round(Number(row.avgCombinedFeePerVisit || 0)).toLocaleString()}원 | ${pct(row.chunaPatientRate)} | ${pct(row.pharmaPatientRate)}`);
+  const lines = rows.map(row => `${row.key} | ${Number(row.avgVisitsPerDay || 0).toFixed(1)} | ${Number(row.avgNewPatientsPerDay || 0).toFixed(1)} | ${pct(row.returnRate)} | ${pct(row.thirdVisitRate)} | ${exportMoney(row.avgCombinedFeePerDay)} | ${exportMoney(row.avgCombinedFeePerVisit)} | ${pct(row.chunaPatientRate)} | ${pct(row.pharmaPatientRate)}`);
   return `## ${title}
 ${unitLabel} | 진료환자 일평균 | 초진 일평균 | 재진율 | 삼진율 | 총진료비 일평균 | 건당 평균 진료비 | 추나비율 | 약침비율
 ${lines.join("\n")}`;
@@ -2857,10 +2862,13 @@ function formatWeeklyDataExportText(bundle) {
 ${baselineLine}
 - 장기 추이: ${bundle.trendRange.start} ~ ${bundle.trendRange.end}
 - 진료일: ${labels.current} ${scope.current.clinicDays}일 / ${labels.previous} ${scope.previous.clinicDays}일
+- 수기 반영: ${bundle.useDaily ? "사용 (엑셀·구글 등록값 우선, 공란은 서버 보충)" : "미사용 (진료보드 원자료)"}
+- 수기 환자수·신규는 개별 환자의 초진·재진 코호트와 별도 집계합니다. 원장별·환자별 전환 분석은 서버 진료기록 기준입니다.
 - 원장: ${doctors.join(", ") || "(등록된 원장 없음)"}
 - 환자 이름·연락처 등 개인정보는 포함되어 있지 않습니다.`,
   formatWeeklyDataQuality(scope.current),
   formatWeeklyCoreKpis(bundle, scope),
+  formatExportManualPatients(bundle, scope),
   formatLongTermDbInsights(bundle),
   formatHigherPeriodContext(bundle, scope.current),
   formatInnerPeriodFlow(bundle),
@@ -4933,11 +4941,12 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/ai/period-summary-prompt" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const period = AI_PERIOD_PRESETS[requestUrl.searchParams.get("period")] ? requestUrl.searchParams.get("period") : "week";
-    const bundle = buildPeriodDataExport(period);
+    const bundle = buildPeriodDataExport(period, requestUrl.searchParams.get("useDaily") !== "0");
     const prompt = formatPeriodDataExportText(bundle);
     jsonResponse(res, 200, {
       ok: true,
       period,
+      useDaily: bundle.useDaily,
       range: bundle.range,
       previousRange: bundle.previousRange,
       yearAgoRange: bundle.yearAgoRange,
