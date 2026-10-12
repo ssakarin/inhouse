@@ -558,12 +558,6 @@
     "avgNonCoveredFeePerDay"
   ]);
   const CHART_METRICS = [
-    ...[
-      ["patientCount", "수기 당일 환자", "#60a5fa"],
-      ["newPatientCount", "수기 신규 환자", "#fbbf24"],
-      ["returnPatientCount", "수기 재진 환자", "#c084fc"],
-      ["reinitialPatientCount", "수기 재초진 환자", "#f472b6"]
-    ].map(([patientField, label, color]) => ({key: `daily_${patientField}`, patientField, label, color, axis: "count", title: value => `${label} ${value.toFixed(1)}명`})),
     { key: "avgVisitsPerDay", label: "진료 환자", axis: "count", color: "#39a9f5", title: value => `진료 환자 ${value.toFixed(1)}명` },
     { key: "avgNewPatientsPerDay", label: "초진", axis: "count", color: "#ffca6a", title: value => `초진 ${value.toFixed(1)}명` },
     { key: "avgChunaPerDay", label: "추나", axis: "count", color: "#f97316", title: value => `추나 ${value.toFixed(1)}명` },
@@ -576,7 +570,6 @@
     { key: "avgCombinedFeePerVisit", label: "1건 평균 진료비", axis: "money", color: "#a78bfa", unitLabel: "원/건", title: value => `1건 평균 진료비 ${Math.round(value).toLocaleString()}원` },
     { key: "avgNonCoveredFeePerDay", label: "비급여진료비", axis: "money", color: "#ffca6a", title: value => `비급여진료비 일평균 ${Math.round(value).toLocaleString()}원` }
   ];
-  CHART_METRICS.filter(metric => metric.patientField).forEach(metric => TOTALIZABLE_CHART_METRIC_KEYS.add(metric.key));
 
   function getVisibleChartMetricKeys(wrapId = "chartMetricToggles", chipSelector = ".chart-metric-chip") {
     const wrap = $(wrapId);
@@ -1874,6 +1867,30 @@
     }).filter(Boolean).join(" ");
   }
 
+  function chartGapConnections(rows, metric, yFn, xFn) {
+    let previous = null;
+    const connections = [];
+    rows.forEach((row, idx) => {
+      const value = chartMetricValue(row, metric);
+      if (value === null || !Number.isFinite(value)) return;
+      if (previous && idx > previous.idx + 1) {
+        const x1 = xFn(previous.idx), y1 = yFn(previous.value);
+        const dx = xFn(idx) - x1, dy = yFn(value) - y1;
+        const length = Math.hypot(dx, dy);
+        const steps = Math.max(2, Math.ceil(length / 10));
+        let path = `M ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+        for (let step = 1; step <= steps; step++) {
+          const t = step / steps;
+          const offset = step === steps ? 0 : (step % 2 ? 2 : -2);
+          path += ` L ${(x1 + dx * t - dy / length * offset).toFixed(1)} ${(y1 + dy * t + dx / length * offset).toFixed(1)}`;
+        }
+        connections.push(`<path fill="none" stroke="${metric.color}" stroke-width="1.5" opacity="0.7" d="${path}"><title>${rows[previous.idx].key} ~ ${row.key}: 빈 구간 연결 (실제 값 없음)</title></path>`);
+      }
+      previous = { idx, value };
+    });
+    return connections.join("");
+  }
+
   function renderWeeklyChart(rows, chartUnit = "week") {
     const wrap = $("weeklyChartWrap");
     if (!rows.length) {
@@ -1940,10 +1957,11 @@
           ${moneyMetrics.length ? `<text class="chart-text" x="${width - pad.right + (rateMetrics.length ? 52 : 0)}" y="14" text-anchor="end">진료비</text>` : ""}
           ${visibleMetrics.map(metric => {
             const yFn = metric.axis === "rate" ? yRate : metric.axis === "money" ? yMoney : yCount;
-            if (!isFollowupRateMetric(metric)) return `<path class="chart-line" d="${chartLinePath(rows, metric, yFn, x)}" stroke="${metric.color}"></path>`;
+            const gapConnections = chartGapConnections(rows, metric, yFn, x);
+            if (!isFollowupRateMetric(metric)) return `${gapConnections}<path class="chart-line" d="${chartLinePath(rows, metric, yFn, x)}" stroke="${metric.color}"></path>`;
             const solidPath = chartLinePath(followupSegmentRows(rows, metric, false), metric, yFn, x);
             const recentPath = chartLinePath(followupSegmentRows(rows, metric, true), metric, yFn, x);
-            return `<path class="chart-line" d="${solidPath}" stroke="${metric.color}"></path><path class="chart-line chart-line-recent" d="${recentPath}" stroke="${metric.color}"></path>`;
+            return `${gapConnections}<path class="chart-line" d="${solidPath}" stroke="${metric.color}"></path><path class="chart-line chart-line-recent" d="${recentPath}" stroke="${metric.color}"></path>`;
           }).join("")}
           ${rows.map((r, idx) => `
             <g>
@@ -1961,6 +1979,7 @@
       </div>
       <div class="chart-legend">
         ${visibleMetrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}</span>`).join("")}
+        <span class="legend-item"><svg width="28" height="12" aria-hidden="true"><path d="M 0 6 L 4 3 L 8 9 L 12 3 L 16 9 L 20 3 L 24 9 L 28 6" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.7"/></svg>빈 구간 연결 (실제 값 없음)</span>
         ${visibleMetrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>최근 21일 점선</span>` : ""}
       </div>
     `;
@@ -2038,7 +2057,7 @@
       const axisLabel = chartUnit === "week" ? isoWeekRangeLabel(row.key).replace(/[()]/g, "") : slotLabelForKey(row.key, chartUnit);
       return `<text class="chart-text" x="${x(idx)}" y="324" text-anchor="middle">${axisLabel}</text>`;
     }).join("");
-    const legend = `<div class="chart-legend">${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? ` (${metric.unitLabel || (chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "원/합계" : "원/일")})` : ` (${chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "명/합계" : "명/일"})`}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
+    const legend = `<div class="chart-legend"><span class="legend-item"><svg width="28" height="12" aria-hidden="true"><path d="M 0 6 L 4 3 L 8 9 L 12 3 L 16 9 L 20 3 L 24 9 L 28 6" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.7"/></svg>빈 구간 연결 (실제 값 없음)</span>${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? ` (${metric.unitLabel || (chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "원/합계" : "원/일")})` : ` (${chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "명/합계" : "명/일"})`}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
 
     if (operationalTrendMode === "index") {
       const normalizedByMetric = new Map();
@@ -2058,7 +2077,7 @@
       const maxIndex = Math.max(minIndex + 20, Math.ceil((rawMax * 1.1) / 10) * 10);
       const panelTop = 24, panelH = 260;
       const y = value => panelTop + panelH - ((Number(value) - minIndex) / (maxIndex - minIndex)) * panelH;
-      const svg = `<svg class="weekly-chart" viewBox="0 0 ${width} 340" role="img" aria-label="운영 지표 변화 비교">${[minIndex, (minIndex + maxIndex) / 2, maxIndex].map(value => `<line class="chart-grid" x1="${pad.left}" y1="${y(value)}" x2="${width - pad.right}" y2="${y(value)}"></line><text class="chart-text" x="${pad.left - 9}" y="${y(value) + 4}" text-anchor="end">${Math.round(value)}</text>`).join("")}<line x1="${pad.left}" y1="${y(100)}" x2="${width - pad.right}" y2="${y(100)}" stroke="rgba(255,202,106,0.65)" stroke-dasharray="4 5"></line><text class="chart-text" x="${pad.left}" y="15">변화 지수</text>${metrics.map(metric => { const item = normalizedByMetric.get(metric.key); const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, false) : item.rows; const recentRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, true) : []; return `<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${item.rows.map((row, idx) => { const indexValue = chartMetricValue(row, metric); const actualValue = chartMetricValue(rows[idx], metric); if (indexValue === null || actualValue === null) return ""; const recent = isFollowupRateMetric(metric) && row.followupRecent; return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(indexValue)}" r="3" fill="${metric.color}"><title>${row.key} ${operationalMetricTitle(metric, actualValue)} · 지수 ${indexValue.toFixed(1)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle>`; }).join("")}`; }).join("")}${xLabels}</svg>`;
+      const svg = `<svg class="weekly-chart" viewBox="0 0 ${width} 340" role="img" aria-label="운영 지표 변화 비교">${[minIndex, (minIndex + maxIndex) / 2, maxIndex].map(value => `<line class="chart-grid" x1="${pad.left}" y1="${y(value)}" x2="${width - pad.right}" y2="${y(value)}"></line><text class="chart-text" x="${pad.left - 9}" y="${y(value) + 4}" text-anchor="end">${Math.round(value)}</text>`).join("")}<line x1="${pad.left}" y1="${y(100)}" x2="${width - pad.right}" y2="${y(100)}" stroke="rgba(255,202,106,0.65)" stroke-dasharray="4 5"></line><text class="chart-text" x="${pad.left}" y="15">변화 지수</text>${metrics.map(metric => { const item = normalizedByMetric.get(metric.key); const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, false) : item.rows; const recentRows = isFollowupRateMetric(metric) ? followupSegmentRows(item.rows, metric, true) : []; return `${chartGapConnections(operationalTrendMode === "index" ? item.rows : rows, metric, y, x)}<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${item.rows.map((row, idx) => { const indexValue = chartMetricValue(row, metric); const actualValue = chartMetricValue(rows[idx], metric); if (indexValue === null || actualValue === null) return ""; const recent = isFollowupRateMetric(metric) && row.followupRecent; return `<circle class="chart-dot" cx="${x(idx)}" cy="${y(indexValue)}" r="3" fill="${metric.color}"><title>${row.key} ${operationalMetricTitle(metric, actualValue)} · 지수 ${indexValue.toFixed(1)}${recent ? " (최근 21일 · 추적 진행 중)" : ""}</title></circle>`; }).join("")}`; }).join("")}${xLabels}</svg>`;
       wrap.innerHTML = `<div class="chart-wrap">${svg}</div>${legend}`;
       return;
     }
@@ -2085,7 +2104,7 @@
       const y = metric.axis === "rate" ? yRate : metric.axis === "money" ? yMoney : yCount;
       const solidRows = isFollowupRateMetric(metric) ? followupSegmentRows(rows, metric, false) : rows;
       const recentRows = isFollowupRateMetric(metric) ? followupSegmentRows(rows, metric, true) : [];
-      return `<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${rows.map((row, idx) => {
+      return `${chartGapConnections(operationalTrendMode === "index" ? item.rows : rows, metric, y, x)}<path class="chart-line" d="${chartLinePath(solidRows, metric, y, x)}" stroke="${metric.color}"></path>${isFollowupRateMetric(metric) ? `<path class="chart-line chart-line-recent" d="${chartLinePath(recentRows, metric, y, x)}" stroke="${metric.color}"></path>` : ""}${rows.map((row, idx) => {
         const value = chartMetricValue(row, metric);
         if (value === null) return "";
         const recent = isFollowupRateMetric(metric) && row.followupRecent;
