@@ -14,7 +14,7 @@ test('date-specific overrides replace, never add; missing fields and dates fall 
  const s=dm.overlay(base,rows,board,()=> '202501');
  assert.deepEqual(s.financialTotals,{totalFee:155,insuredCopay:35,claimAmount:110,nonCoveredAmount:20,autoAmount:10});
  assert.equal(s.visits,3);assert.equal(s.trendStats[0].newPatients,1);assert.equal(s.trendStats[0].avgCombinedFeePerDay,87.5);
- assert.equal(s.trendStats[0].avgCombinedFeePerVisit,null);assert.equal(s.dailyMetrics.operational.appointmentCount.value,2);assert.equal(s.dailyMetrics.operational.noShowCount.days,0);
+ assert.equal(s.trendStats[0].avgCombinedFeePerVisit,175/3);assert.equal(s.dailyMetrics.operational.appointmentCount.value,2);assert.equal(s.dailyMetrics.operational.noShowCount.days,0);
  assert.equal(dm.overlay(base,[],board,()=> '202501'),base);
 });
 test('operational-only import does not change board financial totals',()=>{
@@ -52,4 +52,12 @@ test('workbook import maps all four counts and reports an invalid count without 
  assert.equal(Object.hasOwn(p.rows[0],'returnPatientCount'),false);assert.equal(Object.hasOwn(p.rows[0],'reinitialPatientCount'),false);
  assert.equal(p.rows[1].returnPatientCount,40);assert.equal(p.rows[1].newPatientCount,0);assert.equal(p.rows[1].reinitialPatientCount,2);
  assert.deepEqual(p.warnings,['2025-08-01 재진환자수: -1 (등록 제외)']);
+});
+
+test('imported per-visit fee uses manual counts with server fallback and null for no visits',()=>{
+ const base={trendStats:[]};const imports=[{date:'2026-08-01',insuredCopay:100,patientCount:10},{date:'2026-08-02',insuredCopay:200},{date:'2026-09-01',insuredCopay:100,patientCount:0}];const board=[{date:'2026-08-01',visits:5},{date:'2026-08-02',visits:20}];const s=dm.overlay(base,imports,board,d=>d.slice(0,7));assert.equal(s.dailyMetrics.perVisitCount,30);assert.equal(s.trendStats.find(r=>r.key==='2026-08').avgCombinedFeePerVisit,10);assert.equal(s.trendStats.find(r=>r.key==='2026-09').avgCombinedFeePerVisit,null);
+});
+
+test('empty imported calendar slots remain gaps; explicit zero on visit dates stays zero',()=>{
+ const base={trendStats:[]};const rows=[{date:'2026-10-01',insuredCopay:0,nonCoveredAmount:0},{date:'2026-10-02',patientCount:0},{date:'2026-10-03',insuredCopay:0,nonCoveredAmount:0},{date:'2026-10-04',patientCount:1}];const board=[{date:'2026-10-01',visits:1,totalFee:0,nonCoveredAmount:0},{date:'2026-10-04',visits:1,totalFee:0,nonCoveredAmount:0,hasCombinedFinance:0,hasNoncoveredFinance:0}];const s=dm.overlay(base,rows,board,d=>d);const get=d=>s.trendStats.find(r=>r.key===d);assert.equal(get('2026-10-01').avgCombinedFeePerDay,0);for(const d of ['2026-10-02','2026-10-03','2026-10-04']){assert.equal(get(d).avgCombinedFeePerDay,null);assert.equal(get(d).avgNonCoveredFeePerDay,null);}
 });

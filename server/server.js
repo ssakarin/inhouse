@@ -1,5 +1,6 @@
 const http = require("node:http");
 const dailyMetrics = require("../daily-metrics");
+const recentRevenue = require("../recent-revenue");
 const googleDailyImport = require("../google-daily-import");
 const dailyImportPreviews = new Map();
 const signageState = require("./signage-state");
@@ -1517,6 +1518,8 @@ function computeClinicStats(options) {
   const rows=readDailyMetrics(options.start,options.end);
   if(!rows.length)return base;
   const board=db.prepare(`SELECT pv.visit_date date,COUNT(*) visits,SUM(COALESCE(pv.total_fee,0)) totalFee,
+    MAX(CASE WHEN pv.total_fee IS NOT NULL OR pv.insured_copay IS NOT NULL OR pv.claim_amount IS NOT NULL OR pv.noncovered_amount IS NOT NULL THEN 1 ELSE 0 END) hasCombinedFinance,
+    MAX(CASE WHEN pv.noncovered_amount IS NOT NULL THEN 1 ELSE 0 END) hasNoncoveredFinance,
     SUM(COALESCE(pv.insured_copay,0)) insuredCopay,SUM(COALESCE(pv.noncovered_amount,0)) nonCoveredAmount,
     SUM(CASE WHEN COALESCE(p.insurance_type,'') LIKE '%자동차%' OR COALESCE(p.insurance_type,'') LIKE '%자보%' THEN 0 ELSE COALESCE(pv.claim_amount,0) END) claimAmount,
     SUM(CASE WHEN COALESCE(p.insurance_type,'') LIKE '%자동차%' OR COALESCE(p.insurance_type,'') LIKE '%자보%' THEN COALESCE(pv.total_fee,0) ELSE 0 END) autoAmount
@@ -1639,6 +1642,7 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
         financialTotals[field] += amount;
         financialCoverage[field] += 1;
         financeBucket[field] += amount;
+        if (field === "nonCoveredAmount") financeBucket.noncoveredVisits += 1;
         hasFinancialValue = true;
       }
       if (hasFinancialValue) financeBucket.coveredVisits += 1;
@@ -1836,10 +1840,10 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
         pharmaPatientRate: uniquePatients ? bucket.pharmaPatientIds.size / uniquePatients : 0,
         avgPharmaPatientsPerDay: bucket.pharmaTotal / clinicDays,
         avgPharmaPackagePurchasePatientsPerDay: bucket.pharmaPackagePurchasePatientIds.size / clinicDays,
-        avgCombinedFeePerDay: (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / clinicDays,
+        avgCombinedFeePerDay: financeBucket.coveredVisits ? (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / clinicDays : null,
         avgCombinedFeePerVisit: Number(financeBucket.coveredVisits || 0) ? (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / Number(financeBucket.coveredVisits || 0) : 0,
         avgTotalFeePerDay: Number(financeBucket.totalFee || 0) / clinicDays,
-        avgNonCoveredFeePerDay: Number(financeBucket.nonCoveredAmount || 0) / clinicDays,
+        avgNonCoveredFeePerDay: financeBucket.noncoveredVisits ? Number(financeBucket.nonCoveredAmount || 0) / clinicDays : null,
         returnRate: bucket.newPatients ? bucket.returningPatients / bucket.newPatients : 0,
         thirdVisitRate: bucket.newPatients ? bucket.thirdVisitPatients / bucket.newPatients : 0
       };
@@ -4887,6 +4891,26 @@ async function handleApi(req, res, pathname) {
   if (pathname === "/api/daily-metrics" && req.method === "GET") {
     const url=new URL(req.url,`http://${req.headers.host||"localhost"}`);
     jsonResponse(res,200,{rows:readDailyMetrics(url.searchParams.get("start")||"0000-01-01",url.searchParams.get("end")||"9999-12-31")});return true;
+  }
+  if (pathname === "/api/stats/recent-revenue" && req.method === "GET") {
+    const today = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+    const months = recentRevenue.months(today);
+    const start = `${Number(months[0].slice(0,4))-2}${months[0].slice(4)}-01`;
+    const imports = new Map(readDailyMetrics(start,today).map(row=>[row.date,row]));
+    const board = db.prepare(`SELECT pv.visit_date date, COUNT(*) boardVisits,
+      SUM(COALESCE(pv.insured_copay,0)) insuredCopay, SUM(COALESCE(pv.noncovered_amount,0)) nonCoveredAmount,
+      SUM(CASE WHEN COALESCE(p.insurance_type,'') LIKE '%자동차%' OR COALESCE(p.insurance_type,'') LIKE '%자보%' THEN 0 ELSE COALESCE(pv.claim_amount,0) END) claimAmount,
+      SUM(CASE WHEN COALESCE(p.insurance_type,'') LIKE '%자동차%' OR COALESCE(p.insurance_type,'') LIKE '%자보%' THEN COALESCE(pv.total_fee,0) ELSE 0 END) autoAmount
+      FROM patient_visits pv LEFT JOIN patients p ON p.patient_id=pv.patient_id WHERE pv.visit_date BETWEEN ? AND ? GROUP BY pv.visit_date`).all(start,today);
+    const wanted = new Set(months.flatMap(m=>[0,1,2].map(back=>`${Number(m.slice(0,4))-back}${m.slice(4)}`)));
+    const rows = board.filter(r=>wanted.has(r.date.slice(0,7))).map(base=>{
+      const raw=imports.get(base.date)||{};
+      const row={date:base.date,boardVisits:base.boardVisits,patients:raw.patientCount??base.boardVisits,newPatients:raw.newPatientCount??null};
+      for(const key of recentRevenue.money)row[key]=raw[key]??base[key]??0;
+      row.revenue=recentRevenue.money.reduce((sum,key)=>sum+row[key],0);
+      return row;
+    });
+    jsonResponse(res,200,{today,rows});return true;
   }
   if (pathname === "/api/stats" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);

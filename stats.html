@@ -71,6 +71,17 @@
   .summary-clinic-days { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border: 1px solid rgba(255,202,106,.28); border-radius: 999px; background: rgba(255,202,106,.08); color: var(--gold); font-size: 11px; font-weight: 900; }
   .trend-title-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  #presetRow { flex-wrap: nowrap; gap: 5px; overflow-x: auto; padding-bottom: 3px; }
+  #presetRow button, #presetRow input, #presetRow select, #presetRow .field-label { font-size: 11px; }
+  #presetRow #applyBtn { margin-left: auto; }
+  #presetRow button { padding: 7px 8px; white-space: nowrap; flex-shrink: 0; }
+  #presetRow input { width: 112px; min-width: 0; padding: 5px; }
+  #presetRow select { min-width: 70px; max-width: 100px; padding: 5px; }
+  #presetRow .field-label, #presetRow .date-input { flex-shrink: 0; gap: 4px; }
+  #presetRow .field-label { color: var(--gold); font-size: 12px; font-weight: 900; }
+  .period-range-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .period-range-row .range-label { margin-top: 0; }
+  .period-today-note { color: var(--muted); font-size: 11px; font-weight: 700; }
   .preset-btn.active { border-color: rgba(255,202,106,0.75); background: rgba(255,202,106,0.15); color: var(--gold); }
   .date-input { display: flex; align-items: center; gap: 6px; }
   input[type="date"], input[type="month"], select {
@@ -111,8 +122,17 @@
   .metric-compare.decrease { color: var(--accent); }
   .metric-compare.neutral { color: var(--green); }
   .metric-compare-previous { color: var(--muted); font-weight: 700; }
+  #recentRevenueHighlights { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .revenue-change { font-weight: 900; }
+  .revenue-change.positive { color: var(--green); }
+  .revenue-change.negative { color: #f87171; }
+  .revenue-change.neutral { color: var(--muted); }
   .summary-breakdowns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
   .summary-breakdown { min-width: 0; padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; background: rgba(255,255,255,0.035); }
+  .summary-collapse > summary { cursor: pointer; color: var(--text); font-size: 13px; font-weight: 900; padding: 3px 0; }
+  .summary-collapse[open] > summary { margin-bottom: 12px; }
+  .summary-collapse > summary .summary-breakdown-head { display: inline-flex; width: calc(100% - 22px); margin-bottom: 0; }
+  .followup-collapse { margin-top: 16px; padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; }
   .summary-breakdown-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; }
   .summary-breakdown-title { color: var(--text); font-size: 13px; font-weight: 900; }
   .summary-breakdown-total { color: var(--muted); font-size: 11px; font-weight: 800; white-space: nowrap; }
@@ -396,18 +416,20 @@
     <a class="btn-link" href="index.html" target="_blank" rel="noopener">진료보드</a>
   </div>
 
-  <div class="card" id="statsFilterCard">
-    <div class="controls">
-      <button class="ai-summary-btn" data-ai-period="week">주간 요약</button>
-      <button class="ai-summary-btn" data-ai-period="month">30일 요약</button>
-      <button class="ai-summary-btn" data-ai-period="quarter">90일 요약</button>
-      <button class="ai-summary-btn" data-ai-period="year">연간 누계</button>
-    </div>
+  <div class="card" id="recentRevenueCard">
+    <div class="card-title-row"><div class="card-title">최근 3개월 매출 비교</div><button type="button" id="recentRevenueRefresh">다시 조회</button></div>
+    <div class="chart-subtitle" id="recentRevenueStatus"></div>
+    <div class="metrics" id="recentRevenueHighlights"></div>
+    <details class="summary-collapse" style="margin-top:16px"><summary>월별 상세 비교</summary><div id="recentRevenueTables"></div></details>
+    <details class="summary-collapse" style="margin-top:16px"><summary>이번 달 예상 설정</summary>
+      <div class="controls"><label>휴진일 <input id="recentClosed" type="text" placeholder="3, 9"></label><label>추가 진료일 <input id="recentOpened" type="text" placeholder="일요일·공휴일 진료"></label><label>예측 제외일 <input id="recentExcluded" type="text" placeholder="미등록 일자"></label></div>
+      <div class="chart-subtitle">일자 또는 YYYY-MM-DD를 쉼표로 입력합니다. 기본은 월~토 진료·일요일과 고정 공휴일 휴진입니다. 명절·대체공휴일·임시 휴진은 휴진일에 추가하고, 공휴일 진료는 추가 진료일에 입력하세요. 설정은 이 브라우저에 월별 저장됩니다.</div>
+    </details>
   </div>
 
   <div class="card" id="periodSelectionCard">
-    <div class="card-title">기간 선택</div>
     <div class="controls" id="presetRow">
+      <div class="card-title" style="margin-bottom:0;white-space:nowrap;flex-shrink:0;font-size:12px">기간 선택</div>
       <button class="preset-btn" data-preset="7">최근 7일</button>
       <button class="preset-btn" data-preset="30">최근 30일</button>
       <button class="preset-btn" data-preset="60">최근 60일</button>
@@ -415,58 +437,23 @@
       <button class="preset-btn" data-preset="120">최근 120일</button>
       <button class="preset-btn" data-preset="180">최근 180일</button>
       <button class="preset-btn" data-preset="year">올해</button>
+      <button class="preset-btn" data-preset="oneYear">1년</button>
       <button class="preset-btn" data-preset="all">전체</button>
       <span class="date-input">
         <input type="date" id="startDate">
         <span style="color:var(--muted)">~</span>
         <input type="date" id="endDate">
       </span>
+      <label class="field-label">원장 <select id="doctorFilter"><option value="">전체</option></select></label>
       <button id="applyBtn" style="border-color:rgba(74,222,128,0.55);color:var(--green)">조회</button>
-      <button id="periodReportPrintBtn" type="button" disabled>인쇄 / PDF</button>
     </div>
-    <div class="controls" style="margin-top:10px">
-      <span style="color:var(--muted);font-size:11px;font-weight:700">오늘은 집계에서 제외됩니다 (전일까지)</span>
-    </div>
-    <div class="range-label" id="rangeLabel"></div>
+    <div class="period-range-row"><div class="range-label" id="rangeLabel"></div><span class="period-today-note">오늘은 집계에서 제외됩니다 (전일까지)</span></div>
     <div class="status" id="status"></div>
-    <div class="controls" style="margin-top:10px">
-      <label class="field-label">원장
-        <select id="doctorFilter"><option value="">전체</option></select>
-      </label>
-    </div>
+
   </div>
 
-  <div class="card">
-    <div class="card-title">수기차트 일별 자료</div>
-    <div class="controls"><input id="dailyMetricsFile" type="file" accept=".xlsx,.xls" onchange="previewDailyMetrics(this)"><button id="dailyMetricsSave" disabled onclick="saveDailyMetricsImport()">서버에 저장</button></div>
-    <div id="dailyMetricsImportStatus" class="chart-subtitle">당일·신규·재진·재초진 환자수와 유입경로·예약·본인부담금·공단청구금·비급여·자보를 저장합니다. 같은 날짜는 갱신합니다.</div>
-    <details style="margin-top:16px"><summary>구글시트 자료 가져오기</summary>
-      <div class="controls" style="margin-top:12px"><label>시작일 <input type="date" id="googleDailyStart" value="2026-01-01" onchange="clearGoogleDailyPreview()"></label><label>종료일 <input type="date" id="googleDailyEnd" onchange="clearGoogleDailyPreview()"></label><button id="googleDailyPreviewBtn" onclick="previewGoogleDailyImport()">미리보기</button><button id="googleDailySaveBtn" disabled onclick="saveGoogleDailyImport()">선택 날짜 저장</button></div>
-      <div class="chart-subtitle">연결된 일간 지표 구글시트의 합계행을 가져옵니다. 공란은 기존 값을 유지하고 0은 반영합니다. 원본 구글시트는 수정하지 않습니다. 변경 전 값은 서버에 보관합니다.</div>
-      <div id="googleDailyStatus" class="chart-subtitle" role="status"></div><div id="googleDailyPreview"></div>
-    </details>
-    <div id="dailyMetricsSummary"></div><div id="dailyMetricsTable"></div>
-  </div>
 
-  <div class="card">
-    <div class="card-title-row">
-      <div class="summary-title-group"><div class="card-title">기간 요약</div><div class="summary-clinic-days" id="summaryClinicDays"></div></div>
-      <div class="summary-value-guide">수량: 기간 합계 / 진료일당 평균 · 증감: 평균 기준 · 비율: 퍼센트포인트 기준</div>
-    </div>
-    <div class="chart-subtitle" id="financialCoverageText"></div>
-    <div class="metrics" id="summaryMetrics"></div>
-    <div class="chart-section-title">초진 전환 퍼널</div>
-    <div id="cohortFunnelWrap"></div>
-    <div class="chart-section-title">초진 치료별 전환율</div>
-    <div id="treatmentRetentionWrap"></div>
-    <div class="chart-section-title">재방문 소요일 · 환자 특성별 분석</div>
-    <div class="controls">
-      <label class="field-label">비교 기준 <select id="followupDimension"><option value="insurance">보험별</option><option value="age">연령별</option><option value="gender">성별</option><option value="weekday">초진 요일별</option></select></label>
-      <label class="field-label">대상 <select id="followupGroup"><option value="">전체</option></select></label>
-    </div>
-    <div id="followupAnalysisWrap" aria-live="polite"></div>
-    <div class="summary-breakdowns" id="summaryBreakdowns"></div>
-  </div>
+
 
   <div class="card">
     <div class="card-title-row">
@@ -482,20 +469,57 @@
         </label>
         <label class="field-label">표시 기준
           <select id="chartValueMode">
-            <option value="average" selected>일평균</option>
-            <option value="total">합계</option>
-            <option value="monthlyTotal">월합계</option>
+            <option value="total" selected>합계</option>
+            <option value="average">일평균</option>
           </select>
         </label>
       </div>
     </div>
     <div class="chart-toggle-row" id="chartMetricToggles"></div>
-    <div id="monthlyTotalNote" class="chart-subtitle" hidden>월별 합계입니다. 선택 기간에 포함된 날짜만 합산하므로 첫 달·마지막 달은 부분 월일 수 있습니다. 비율 지표는 비율을 유지합니다.</div>
     <div id="weeklyChartWrap"></div>
     <div class="chart-divider"></div>
-    <div class="chart-section-title">기간 비교</div>
+    <details class="summary-collapse">
+      <summary>기간 비교</summary>
     <div class="chart-toggle-row" id="periodComparisonMetricToggles"></div>
     <div id="periodComparisonChartWrap"></div>
+    </details>
+  </div>
+
+
+
+  <div class="card">
+    <div class="card-title-row">
+      <div class="summary-title-group"><div class="card-title">기간 요약</div><div class="summary-clinic-days" id="summaryClinicDays"></div></div>
+      <div class="summary-value-guide">수량: 기간 합계 / 진료일당 평균 · 증감: 평균 기준 · 비율: 퍼센트포인트 기준</div>
+    </div>
+    <div class="chart-subtitle" id="financialCoverageText"></div>
+    <div class="metrics" id="summaryMetrics"></div>
+    <details class="summary-collapse followup-collapse">
+      <summary>초진 전환 퍼널 · 치료별 전환율</summary>
+      <div class="chart-section-title">초진 전환 퍼널</div>
+      <div id="cohortFunnelWrap"></div>
+      <div class="chart-section-title">초진 치료별 전환율</div>
+      <div id="treatmentRetentionWrap"></div>
+    </details>
+    <details class="summary-collapse followup-collapse"><summary>재방문 소요일 · 환자 특성별 분석</summary>
+    <div class="controls">
+      <label class="field-label">비교 기준 <select id="followupDimension"><option value="insurance">보험별</option><option value="age">연령별</option><option value="gender">성별</option><option value="weekday">초진 요일별</option></select></label>
+      <label class="field-label">대상 <select id="followupGroup"><option value="">전체</option></select></label>
+    </div>
+    <div id="followupAnalysisWrap" aria-live="polite"></div>
+    </details>
+    <div class="summary-breakdowns" id="summaryBreakdowns"></div>
+  <details class="card summary-collapse" id="dailyMetricsCard">
+    <summary>수기차트 일별 자료</summary>
+    <div class="controls"><input id="dailyMetricsFile" type="file" accept=".xlsx,.xls" onchange="previewDailyMetrics(this)"><button id="dailyMetricsSave" disabled onclick="saveDailyMetricsImport()">서버에 저장</button></div>
+    <div id="dailyMetricsImportStatus" class="chart-subtitle">당일·신규·재진·재초진 환자수와 유입경로·예약·본인부담금·공단청구금·비급여·자보를 저장합니다. 같은 날짜는 갱신합니다.</div>
+    <details style="margin-top:16px"><summary>구글시트 자료 가져오기</summary>
+      <div class="controls" style="margin-top:12px"><label>시작일 <input type="date" id="googleDailyStart" value="2026-01-01" onchange="clearGoogleDailyPreview()"></label><label>종료일 <input type="date" id="googleDailyEnd" onchange="clearGoogleDailyPreview()"></label><button id="googleDailyPreviewBtn" onclick="previewGoogleDailyImport()">미리보기</button><button id="googleDailySaveBtn" disabled onclick="saveGoogleDailyImport()">선택 날짜 저장</button></div>
+      <div class="chart-subtitle">연결된 일간 지표 구글시트의 합계행을 가져옵니다. 공란은 기존 값을 유지하고 0은 반영합니다. 원본 구글시트는 수정하지 않습니다. 변경 전 값은 서버에 보관합니다.</div>
+      <div id="googleDailyStatus" class="chart-subtitle" role="status"></div><div id="googleDailyPreview"></div>
+    </details>
+    <div id="dailyMetricsSummary"></div><div id="dailyMetricsTable"></div>
+  </details>
   </div>
 
   <div class="card">
@@ -525,6 +549,16 @@
       <div id="comboTableWrap"></div>
     </div>
   </div>
+  <details class="card summary-collapse" id="statsFilterCard">
+    <summary>기간별 요약</summary>
+    <div class="controls">
+      <button class="ai-summary-btn" data-ai-period="week">주간 요약</button>
+      <button class="ai-summary-btn" data-ai-period="month">30일 요약</button>
+      <button class="ai-summary-btn" data-ai-period="quarter">90일 요약</button>
+      <button class="ai-summary-btn" data-ai-period="year">연간 누계</button>
+    </div>
+  </details>
+
 </div>
 
 <div class="ai-summary-modal-backdrop" id="aiSummaryBackdrop">
@@ -547,8 +581,7 @@
 
   let allRecords = [];
   let diagnosisViewMode = "region";
-  let chartValueMode = "average";
-  let chartUnitBeforeMonthlyTotal = null;
+  let chartValueMode = "total";
   const TOTALIZABLE_CHART_METRIC_KEYS = new Set([
     "avgVisitsPerDay",
     "avgNewPatientsPerDay",
@@ -567,8 +600,8 @@
     { key: "chunaPatientRate", label: "추나비율", axis: "rate", color: "#38bdf8", title: value => `추나비율 ${(value * 100).toFixed(1)}%` },
     { key: "pharmaPatientRate", label: "약침비율", axis: "rate", color: "#10b981", title: value => `약침비율 ${(value * 100).toFixed(1)}%` },
     { key: "avgCombinedFeePerDay", label: "총진료비", axis: "money", color: "#4ade80", title: value => `총진료비 일평균 ${Math.round(value).toLocaleString()}원` },
-    { key: "avgCombinedFeePerVisit", label: "1건 평균 진료비", axis: "money", color: "#a78bfa", unitLabel: "원/건", title: value => `1건 평균 진료비 ${Math.round(value).toLocaleString()}원` },
-    { key: "avgNonCoveredFeePerDay", label: "비급여진료비", axis: "money", color: "#ffca6a", title: value => `비급여진료비 일평균 ${Math.round(value).toLocaleString()}원` }
+    { key: "avgNonCoveredFeePerDay", label: "비급여진료비", axis: "money", color: "#ffca6a", title: value => `비급여진료비 일평균 ${Math.round(value).toLocaleString()}원` },
+    { key: "avgCombinedFeePerVisit", label: "1건 평균 진료비", axis: "money", color: "#a78bfa", unitLabel: "원/건", title: value => `1건 평균 진료비 ${Math.round(value).toLocaleString()}원` }
   ];
 
   function getVisibleChartMetricKeys(wrapId = "chartMetricToggles", chipSelector = ".chart-metric-chip") {
@@ -1476,15 +1509,15 @@
       return { ...item, value, percent };
     });
     const displayed = value => Math.round(Number(value || 0) / Math.max(1, Number(displayDivisor || 1))).toLocaleString();
-    return `<div class="summary-breakdown">
-      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlight ? `${escapeHtml(highlight.label)} ${displayed(highlight.value)}${escapeHtml(unit)} · ${safeTotal ? ((Number(highlight.value || 0) / safeTotal) * 100).toFixed(1) : "0.0"}%` : `총 ${displayed(safeTotal)}${escapeHtml(unit)}`}</div></div>
+    return `<details class="summary-breakdown summary-collapse">
+      <summary><div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlight ? `${escapeHtml(highlight.label)} ${displayed(highlight.value)}${escapeHtml(unit)} · ${safeTotal ? ((Number(highlight.value || 0) / safeTotal) * 100).toFixed(1) : "0.0"}%` : `총 ${displayed(safeTotal)}${escapeHtml(unit)}`}</div></div></summary>
       <div class="summary-stacked-bar" role="img" aria-label="${escapeHtml(title)} 구성">
         ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${displayed(item.value)}${escapeHtml(unit)} (${item.percent.toFixed(1)}%)"></span>`).join("")}
       </div>
       <div class="summary-breakdown-legend">
         ${segments.map(item => `<div class="summary-breakdown-item"><div class="summary-breakdown-label"><span class="summary-breakdown-dot" style="background:${item.color}"></span>${escapeHtml(item.label)}</div><div class="summary-breakdown-value">${displayed(item.value)}${escapeHtml(unit)} · ${item.percent.toFixed(1)}%</div></div>`).join("")}
       </div>
-    </div>`;
+    </details>`;
   }
 
   function renderTreatmentUtilizationPanel(title, total, items, highlight) {
@@ -1494,20 +1527,20 @@
       return { ...item, value, percent: safeTotal ? value / safeTotal * 100 : 0 };
     });
     const highlightValue = Number(highlight?.value || 0);
-    return `<div class="treatment-utilization-panel">
-      <div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlightValue.toLocaleString()}명 · ${safeTotal ? (highlightValue / safeTotal * 100).toFixed(1) : "0.0"}%</div></div>
+    return `<details class="treatment-utilization-panel summary-collapse">
+      <summary><div class="summary-breakdown-head"><div class="summary-breakdown-title">${escapeHtml(title)}</div><div class="summary-breakdown-total">${highlightValue.toLocaleString()}명 · ${safeTotal ? (highlightValue / safeTotal * 100).toFixed(1) : "0.0"}%</div></div></summary>
       <div class="summary-stacked-bar" role="img" aria-label="${escapeHtml(title)} 이용률">
         ${segments.map(item => `<span class="summary-stacked-segment" style="width:${item.percent}%;background:${item.color}" title="${escapeHtml(item.label)} ${item.value.toLocaleString()}명 (${item.percent.toFixed(1)}%)"></span>`).join("")}
       </div>
       <div class="summary-breakdown-legend">${segments.map(item => `<div class="summary-breakdown-item"><div class="summary-breakdown-label"><span class="summary-breakdown-dot" style="background:${item.color}"></span>${escapeHtml(item.label)}</div><div class="summary-breakdown-value">${item.value.toLocaleString()}명 · ${item.percent.toFixed(1)}%</div></div>`).join("")}</div>
-    </div>`;
+    </details>`;
   }
 
   function renderTreatmentUtilization(clinicPatients, chunaItems, chunaPatients, pharmaItems, pharmaPatients) {
-    return `<div class="summary-breakdown wide-card"><div class="summary-breakdown-head"><div class="summary-breakdown-title">치료 이용률</div><div class="summary-breakdown-total">진료 환자 ${Number(clinicPatients || 0).toLocaleString()}명 기준</div></div><div class="treatment-utilization-grid">
+    return `<details class="summary-breakdown wide-card summary-collapse"><summary><div class="summary-breakdown-head"><div class="summary-breakdown-title">치료 이용률</div><div class="summary-breakdown-total">진료 환자 ${Number(clinicPatients || 0).toLocaleString()}명 기준</div></div></summary><div class="treatment-utilization-grid">
       ${renderTreatmentUtilizationPanel("추나", clinicPatients, chunaItems, { value: chunaPatients })}
       ${renderTreatmentUtilizationPanel("약침", clinicPatients, pharmaItems, { value: pharmaPatients })}
-    </div><div class="cohort-funnel-note">추나와 약침은 같은 환자가 모두 이용할 수 있으므로 각각 독립된 비율입니다.</div></div>`;
+    </div><div class="cohort-funnel-note">추나와 약침은 같은 환자가 모두 이용할 수 있으므로 각각 독립된 비율입니다.</div></details>`;
   }
 
   function renderSummaryBreakdowns(s) {
@@ -1644,7 +1677,7 @@
     const visits = Number(s.visits || 0);
     const coverageRate = visits ? covered / visits : 0;
     $("financialCoverageText").textContent = `금액 데이터 보유 ${covered.toLocaleString()} / ${visits.toLocaleString()}건 (${(coverageRate * 100).toFixed(1)}%) · 평균은 금액이 있는 진료만 기준`;
-    if(s.financialAggregate)$("financialCoverageText").textContent=`매출: 수기차트 엑셀 우선 (${s.dailyMetrics.importedDays}일) · 공란 항목은 진료보드 보충 · 원장별 금액과 환자별 분석은 진료보드 기준`;
+    if(s.financialAggregate)$("financialCoverageText").textContent="";
     const totalFee = Number(totals.totalFee || 0);
     const noncovered = Number(totals.nonCoveredAmount || 0);
     const previousTotalFee = Number(previousTotals.totalFee || 0);
@@ -1668,7 +1701,7 @@
     const previousPerPatient = Number(previous.totalPatients || 0) ? previousCombinedTotalFee / Number(previous.totalPatients || 0) : 0;
     $("summaryMetrics").insertAdjacentHTML("beforeend", [
       totalCard("진료비 총액", combinedTotalFee, previousCombinedTotalFee),
-      totalCard(s.financialAggregate ? "급여·자보 진료비 총액" : "급여 진료비 총액", totalFee, previousTotalFee, "accent"),
+      ...(!s.financialAggregate ? [totalCard("급여 진료비 총액", totalFee, previousTotalFee, "accent")] : []),
       ...(s.financialAggregate ? [totalCard("본인부담금",Number(totals.insuredCopay||0),Number(previousTotals.insuredCopay||0)),totalCard("공단청구금",Number(totals.claimAmount||0),Number(previousTotals.claimAmount||0)),totalCard("자보 매출",Number(totals.autoAmount||0),Number(previousTotals.autoAmount||0))] : []),
       totalCard("비급여 진료비 총액", noncovered, Number(previousTotals.nonCoveredAmount || 0), "gold"),
       ...((s.financialAggregate || previous.financialAggregate) ? [] : [`<div class="metric"><div class="metric-label">1건 평균 진료비</div><div class="metric-value">${money(currentCombinedPerVisit)}</div><div class="metric-fee-breakdown"><span class="metric-fee-covered">급여 ${money(currentPerVisit)}</span><span class="metric-fee-noncovered">· 비급여 ${money(currentNoncoveredPerVisit)}</span></div>${summaryComparison(currentCombinedPerVisit, previousCombinedPerVisit, { suffix: "원" })}</div>`,
@@ -1806,7 +1839,7 @@
 
   function operationalMetricTitle(metric, value) {
     if (TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key)) {
-      const basis = $("chartValueMode").value === "monthlyTotal" ? "월합계" : chartValueMode === "total" ? "합계" : "일평균";
+      const basis = chartValueMode === "total" ? "합계" : "일평균";
       if (metric.axis === "money") return `${metric.label} ${basis} ${Math.round(value).toLocaleString()}원`;
       return `${metric.label} ${basis} ${chartValueMode === "total" ? Math.round(value).toLocaleString() : value.toFixed(1)}명`;
     }
@@ -1904,7 +1937,7 @@
     const chartW = width - pad.left - pad.right;
     const chartH = height - pad.top - pad.bottom;
     const visibleMetricKeys = new Set(getVisibleChartMetricKeys());
-    const visibleMetrics = CHART_METRICS.filter(metric => visibleMetricKeys.has(metric.key) && !(rows.some(row=>row.financialAggregate) && metric.key === "avgCombinedFeePerVisit"));
+    const visibleMetrics = CHART_METRICS.filter(metric => visibleMetricKeys.has(metric.key));
     if (!visibleMetrics.length) {
       wrap.innerHTML = `<div class="empty">표시할 그래프 항목을 선택하세요</div>`;
       return;
@@ -2038,10 +2071,31 @@
     </svg></div><div class="chart-legend"><span class="legend-item"><span class="legend-swatch" style="background:${reference.color}"></span>${reference.label}</span><span class="legend-item"><span class="legend-swatch" style="background:${returnMetric.color}"></span>재진율 (초진 코호트)</span><span class="legend-item"><span class="legend-swatch" style="background:${thirdMetric.color}"></span>삼진율 (초진 코호트)</span></div>`;
   }
 
+  let trendDrawRevision = 0;
+  function showTrendDrawing() {
+    const revision = ++trendDrawRevision;
+    $("weeklyChartWrap").setAttribute("aria-busy", "true");
+    $("weeklyChartWrap").innerHTML = '<div class="empty" role="status">그리는 중...</div>';
+    return revision;
+  }
   function renderOperationalTrendChart(rows, chartUnit = "week") {
+    const revision = showTrendDrawing();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (revision !== trendDrawRevision) return;
+      try {
+        drawOperationalTrendChart(rows, chartUnit);
+      } catch (error) {
+        $("weeklyChartWrap").innerHTML = '<div class="empty" role="status">그래프를 그리지 못했습니다.</div>';
+        console.error(error);
+      } finally {
+        $("weeklyChartWrap").setAttribute("aria-busy", "false");
+      }
+    }));
+  }
+  function drawOperationalTrendChart(rows, chartUnit = "week") {
     const wrap = $("weeklyChartWrap");
     const visibleKeys = new Set(getVisibleChartMetricKeys());
-    const metrics = CHART_METRICS.filter(metric => visibleKeys.has(metric.key) && !(rows.some(row=>row.financialAggregate) && metric.key === "avgCombinedFeePerVisit"));
+    const metrics = CHART_METRICS.filter(metric => visibleKeys.has(metric.key));
     if (!metrics.length || !rows.length) {
       wrap.innerHTML = `<div class="empty">표시할 운영 지표를 선택하세요.</div>`;
       return;
@@ -2117,6 +2171,14 @@
   }
 
   function periodAverageValue(stats = {}, metric) {
+    if (["avgCombinedFeePerDay", "avgNonCoveredFeePerDay"].includes(metric.key)) {
+      const noncovered = metric.key === "avgNonCoveredFeePerDay";
+      const available = stats.financialAggregate
+        ? (stats.financialTrend || []).some(row => noncovered ? row.hasNoncoveredFinance : row.hasCombinedFinance)
+        : noncovered ? Number(stats.financialCoverage?.nonCoveredAmount || 0) > 0
+          : Object.values(stats.financialCoverage || {}).some(value => Number(value) > 0);
+      if (!available) return null;
+    }
     if (metric.patientField) return stats.dailyMetrics?.patients?.[metric.patientField]?.average ?? null;
     const clinicDays = Number(stats.clinicDays || 0);
     if (metric.key === "avgVisitsPerDay") return clinicDays ? Number(stats.coreVisits || 0) / clinicDays : 0;
@@ -2127,8 +2189,8 @@
     if (metric.key === "avgPharmaPackagePurchasePatientsPerDay") return clinicDays ? Number(stats.pharmaPackagePurchasePatients || 0) / clinicDays : 0;
     if (metric.key === "avgCombinedFeePerDay") return (stats.dailyMetrics?.financeDays || clinicDays) ? (Number(stats.financialTotals?.totalFee || 0) + Number(stats.financialTotals?.nonCoveredAmount || 0)) / (stats.dailyMetrics?.financeDays || clinicDays) : 0;
     if (metric.key === "avgCombinedFeePerVisit") {
-      const coveredVisits = Number(stats.financialCoverage?.totalFee || 0);
-      return coveredVisits ? (Number(stats.financialTotals?.totalFee || 0) + Number(stats.financialTotals?.nonCoveredAmount || 0)) / coveredVisits : 0;
+      const coveredVisits = Number(stats.financialAggregate ? stats.dailyMetrics?.perVisitCount : stats.financialCoverage?.totalFee || 0);
+      return coveredVisits ? (Number(stats.financialTotals?.totalFee || 0) + Number(stats.financialTotals?.nonCoveredAmount || 0)) / coveredVisits : null;
     }
     if (metric.key === "avgTotalFeePerDay") return (stats.dailyMetrics?.financeDays || clinicDays) ? Number(stats.financialTotals?.totalFee || 0) / (stats.dailyMetrics?.financeDays || clinicDays) : 0;
     if (metric.key === "avgNonCoveredFeePerDay") return (stats.dailyMetrics?.financeDays || clinicDays) ? Number(stats.financialTotals?.nonCoveredAmount || 0) / (stats.dailyMetrics?.financeDays || clinicDays) : 0;
@@ -2166,7 +2228,7 @@
 
     const visibleMetricKeys = getVisibleChartMetricKeys("periodComparisonMetricToggles", ".comparison-chart-metric-chip");
     const metricByKey = new Map(CHART_METRICS.map(metric => [metric.key, metric]));
-    const visibleMetrics = visibleMetricKeys.map(key => metricByKey.get(key)).filter(metric => metric && !(metric.key === "avgCombinedFeePerVisit" && [comparison.currentStats,comparison.previousStats,comparison.yearAgoStats].some(s=>s?.financialAggregate)));
+    const visibleMetrics = visibleMetricKeys.map(key => metricByKey.get(key)).filter(Boolean);
     if (!visibleMetrics.length) {
       wrap.innerHTML = `<div class="empty">표시할 그래프 항목을 선택하세요.</div>`;
       return;
@@ -2252,7 +2314,7 @@
   function presetChartUnit(preset) {
     if (preset === "7") return "day";
     if (preset === "30" || preset === "60" || preset === "90") return "week";
-    if (preset === "120" || preset === "180" || preset === "year") return "month";
+    if (preset === "120" || preset === "180" || preset === "year" || preset === "oneYear") return "month";
     if (preset === "all") return "year";
     return "week";
   }
@@ -2261,7 +2323,7 @@
     if (preset === "7") return "week";
     if (preset === "30" || preset === "60" || preset === "90") return "month";
     if (preset === "120" || preset === "180") return "quarter";
-    if (preset === "year" || preset === "all") return "year";
+    if (preset === "year" || preset === "oneYear" || preset === "all") return "year";
     return "week";
   }
 
@@ -2290,6 +2352,7 @@
     else if (preset === "90") { start = addDays(y, -89); end = y; }
     else if (preset === "120") { start = addDays(y, -119); end = y; }
     else if (preset === "180") { start = addDays(y, -179); end = y; }
+    else if (preset === "oneYear") { start = addDays(addMonths(y, -12), 1); end = y; }
     else if (preset === "year") { start = `${y.slice(0, 4)}-01-01`; end = y; }
     else if (preset === "all") {
       $("status").textContent = "전체 기간 계산 중...";
@@ -2377,7 +2440,6 @@
     }
     if (start > end) [start, end] = [end, start];
     const requestId = ++periodReportRequestId;
-    $("periodReportPrintBtn").disabled = true;
     $("periodReportStatus").classList.remove("error");
     $("periodReportStatus").textContent = "";
     try {
@@ -2386,7 +2448,6 @@
       if (!res.ok) throw new Error(data.error || `리포트 생성 실패 (${res.status})`);
       if (requestId !== periodReportRequestId) return;
       renderPeriodReport(data);
-      $("periodReportPrintBtn").disabled = false;
       $("periodReportStatus").textContent = "";
     } catch (error) {
       if (requestId !== periodReportRequestId) return;
@@ -2483,6 +2544,8 @@
     const docFilter = $("doctorFilter").value;
     const docLabel = docFilter || "전체";
     const runId = ++statsRunId;
+    $("rangeLabel").textContent = "조회중 ...";
+    showTrendDrawing();
     $('followupAnalysisWrap').textContent = '재방문 분석을 불러오는 중...';
     loadFollowupAnalysis(start, end, docFilter).then(result => {
       if (runId !== statsRunId) return;
@@ -2491,13 +2554,12 @@
     }).catch(error => {
       if (runId === statsRunId) $('followupAnalysisWrap').textContent = '재방문 분석 조회 실패: ' + error.message;
     });
-    if ($("chartValueMode").value === "monthlyTotal") $("chartUnit").value = "month";
-    else if (!chartUnitTouched) $("chartUnit").value = defaultChartUnit(start, end);
+
+    if (!chartUnitTouched) $("chartUnit").value = defaultChartUnit(start, end);
     const chartUnit = $("chartUnit").value || "week";
     const unitLabel = { day: "일", week: "주", month: "월", quarter: "분기", year: "년" }[chartUnit] || "주";
     $("status").classList.remove("error");
     $("status").textContent = "";
-    $("periodReportPrintBtn").disabled = true;
     try {
       const previousEnd = addDays(start, -1);
       const previousStart = addDays(previousEnd, -(rangeDays(start, end) - 1));
@@ -2536,9 +2598,11 @@
       renderCountTable("treatmentTableWrap", s.treatmentCounts, { gold: true, limit: 10, expandable: true });
       renderCountTable("comboTableWrap", s.treatmentComboCounts, { gold: true, limit: 10 });
       lastResult = { start, end, docLabel, chartUnit, comparisonUnit: "range", stats: s, trendRows, comparison };
-      $("periodReportPrintBtn").disabled = false;
     } catch (e) {
       if (runId !== statsRunId) return;
+      $("rangeLabel").textContent = `조회 기간: ${start} ~ ${end} · 조회 실패`;
+      $("weeklyChartWrap").setAttribute("aria-busy", "false");
+      $("weeklyChartWrap").innerHTML = '<div class="empty" role="status">그래프 자료 조회 실패</div>';
       $("status").textContent = "오류: " + (e?.message || e);
       $("status").classList.add("error");
     }
@@ -2567,28 +2631,13 @@
   $("applyBtn").addEventListener("click", () => { chartUnitTouched = false; setPresetActive(""); run(); });
   $("doctorFilter").addEventListener("change", run);
   $("chartUnit").addEventListener("change", () => { chartUnitTouched = true; run(); });
-  $("chartValueMode").addEventListener("change", () => {
-    const monthly = $("chartValueMode").value === "monthlyTotal";
+  $("chartValueMode").addEventListener("change", async () => {
     chartValueMode = $("chartValueMode").value === "average" ? "average" : "total";
-    $("monthlyTotalNote").hidden = !monthly;
-    $("chartUnit").disabled = monthly;
-    if (monthly) {
-      chartUnitBeforeMonthlyTotal = $("chartUnit").value;
-      $("chartUnit").value = "month";
-      chartUnitTouched = true;
-      run();
-      return;
-    }
-    if (chartUnitBeforeMonthlyTotal !== null) {
-      $("chartUnit").value = chartUnitBeforeMonthlyTotal;
-      chartUnitBeforeMonthlyTotal = null;
-      chartUnitTouched = true;
-      run();
-      return;
-    }
-    if (lastResult) renderOperationalTrendChart(lastResult.trendRows || lastResult.stats.trendStats, lastResult.chartUnit);
+    if (!lastResult) await run();
+    if (!lastResult) return;
+    renderOperationalTrendChart(lastResult.trendRows || lastResult.stats.trendStats, lastResult.chartUnit);
+    if (lastResult.comparison) renderPeriodComparisonChart(lastResult.comparison, lastResult.comparisonUnit);
   });
-  $("periodReportPrintBtn").addEventListener("click", printPeriodReport);
   renderChartMetricToggles();
   disableAutocomplete();
   $("chartMetricToggles").addEventListener("click", event => {
@@ -2709,5 +2758,7 @@
     await applyPreset("30");
   })();
 </script>
+<script src="recent-revenue.js"></script>
+<script src="recent-revenue-ui.js"></script>
 </body>
 </html>
