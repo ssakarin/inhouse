@@ -1,5 +1,7 @@
 const http = require("node:http");
 const dailyMetrics = require("../daily-metrics");
+const googleDailyImport = require("../google-daily-import");
+const dailyImportPreviews = new Map();
 const signageState = require("./signage-state");
 const signageTts = require("./signage-tts");
 const getSignageSpeech = signageTts.createSpeechCache();
@@ -29,6 +31,7 @@ const BACKUP_DIR = process.env.CLINIC_BACKUP_DIR || "C:\\backup\\server";
 const SLACK_BACKUP_DIR = process.env.SLACK_BACKUP_DIR || "C:\\backup\\slack";
 const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "clinic.db");
 const DEFAULT_GOOGLE_SERVICE_ACCOUNT_FILES = [
+  "C:\\3rd_visit_check\\service_account.json",
   path.join(ROOT_DIR, "..", "3rd_visit_check", "service_account.json"),
   process.env.OneDrive ? path.join(process.env.OneDrive, "문서", "3rd_visit_check", "service_account.json") : "",
   process.env.USERPROFILE ? path.join(process.env.USERPROFILE, "OneDrive", "문서", "3rd_visit_check", "service_account.json") : ""
@@ -107,14 +110,14 @@ CREATE TABLE IF NOT EXISTS daily_clinic_metrics_imports (id INTEGER PRIMARY KEY 
 function readDailyMetrics(start, end) {
   return db.prepare("SELECT date,data_json,source_file,imported_at FROM daily_clinic_metrics WHERE date BETWEEN ? AND ? ORDER BY date").all(start,end).map(row=>({...JSON.parse(decrypt(row.data_json)),sourceFile:row.source_file,importedAt:row.imported_at}));
 }
-function saveDailyMetrics(rows, sourceFile) {
+function saveDailyMetrics(rows, sourceFile, mergeExisting = false) {
   const clean=dailyMetrics.validate(rows);const stamp=new Date().toISOString();const file=String(sourceFile||"엑셀").slice(0,255);
   const previous=clean.map(row=>db.prepare("SELECT * FROM daily_clinic_metrics WHERE date=?").get(row.date)).filter(Boolean);
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare("INSERT INTO daily_clinic_metrics_imports(source_file,imported_at,previous_json) VALUES(?,?,?)").run(file,stamp,encrypt(JSON.stringify(previous)));
     const upsert=db.prepare("INSERT INTO daily_clinic_metrics VALUES(?,?,?,?) ON CONFLICT(date) DO UPDATE SET data_json=excluded.data_json,source_file=excluded.source_file,imported_at=excluded.imported_at");
-    for(const row of clean)upsert.run(row.date,encrypt(JSON.stringify(row)),file,stamp);
+    for(const row of clean){const old=previous.find(r=>r.date===row.date);const data=mergeExisting&&old?googleDailyImport.merge(JSON.parse(decrypt(old.data_json)),row):row;upsert.run(row.date,encrypt(JSON.stringify(data)),file,stamp);}
     db.exec("COMMIT");return {ok:true,days:clean.length,start:clean[0].date,end:clean.at(-1).date};
   } catch(e) {db.exec("ROLLBACK");throw e;}
 }
@@ -3379,7 +3382,9 @@ function base64UrlJson(value) {
 
 function readGoogleServiceAccount() {
   if (!fs.existsSync(GOOGLE_SERVICE_ACCOUNT_FILE)) {
-    throw new Error(`Google service account file not found: ${GOOGLE_SERVICE_ACCOUNT_FILE}`);
+    const error = new Error(`구글 인증 파일을 찾지 못했습니다: ${GOOGLE_SERVICE_ACCOUNT_FILE}. 기존 util 구글 연동과 같은 서비스 계정 JSON 파일의 실제 경로를 GOOGLE_SERVICE_ACCOUNT_FILE에 설정한 뒤 서버를 재시작하세요.`);
+    error.statusCode = 503;
+    throw error;
   }
   return JSON.parse(fs.readFileSync(GOOGLE_SERVICE_ACCOUNT_FILE, "utf8"));
 }
@@ -5123,6 +5128,33 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (pathname === "/api/google/daily-metrics-import-preview" && req.method === "POST") {
+    const body=await readJson(req)||{};
+    try{googleDailyImport.range(body.start,body.end);}catch(e){e.statusCode=400;throw e;}
+    const meta=await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(DAILY_METRICS_SPREADSHEET_ID)}?fields=spreadsheetUrl,properties.title,sheets.properties`);
+    const sheet=meta.sheets?.find(s=>Number(s.properties?.sheetId)===DAILY_METRICS_WORKSHEET_ID)?.properties;
+    if(!sheet?.title)throw Error('일간 지표 워크시트를 찾지 못했습니다.');
+    const values=await googleApi(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(DAILY_METRICS_SPREADSHEET_ID)}/values/${encodeURIComponent(quoteSheetName(sheet.title)+'!A:DT')}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`);
+    const XLSX=await import('../vendor/xlsx/0.18.5/xlsx.mjs');
+    const parsed=googleDailyImport.parse(values.values||[],sheet.title,XLSX,body.start,body.end);
+    const existing=readDailyMetrics(body.start,body.end),comparison=googleDailyImport.preview(parsed.rows,existing);
+    for(const [key,value] of dailyImportPreviews)if(value.expires<Date.now())dailyImportPreviews.delete(key);
+    if(dailyImportPreviews.size>=20)dailyImportPreviews.delete(dailyImportPreviews.keys().next().value);
+    const previewId=crypto.randomUUID(),sourceFile=`구글시트: ${meta.properties?.title||'일간 지표'} / ${sheet.title}`;
+    dailyImportPreviews.set(previewId,{rows:parsed.rows,existing,sourceFile,expires:Date.now()+10*60*1000});
+    jsonResponse(res,200,{previewId,sourceFile,sourceUrl:meta.spreadsheetUrl,warnings:parsed.warnings,comparison,expiresInMinutes:10});return true;
+  }
+  if (pathname === "/api/google/daily-metrics-import" && req.method === "POST") {
+    const body=await readJson(req)||{},preview=dailyImportPreviews.get(body.previewId);
+    if(!preview||preview.expires<Date.now()){jsonResponse(res,409,{error:'미리보기가 만료됐습니다. 다시 조회하세요.'});return true;}
+    if(!Array.isArray(body.dates)||!body.dates.length){jsonResponse(res,400,{error:'저장할 날짜를 선택하세요.'});return true;}
+    const selected=new Set(body.dates),rows=preview.rows.filter(r=>selected.has(r.date));
+    if(rows.length!==selected.size){jsonResponse(res,400,{error:'미리보기에 없는 날짜입니다.'});return true;}
+    const original=new Map(preview.existing.map(r=>[r.date,r]));
+    for(const row of rows){const current=readDailyMetrics(row.date,row.date)[0];if(JSON.stringify(current)!==JSON.stringify(original.get(row.date))){jsonResponse(res,409,{error:`${row.date} 등록값이 변경됐습니다. 미리보기를 다시 조회하세요.`});return true;}}
+    const result=saveDailyMetrics(rows,preview.sourceFile,true);dailyImportPreviews.delete(body.previewId);
+    jsonResponse(res,200,result);return true;
+  }
   if (pathname === "/api/google/daily-metrics-sync" && req.method === "POST") {
     const body = await readJson(req) || {};
     jsonResponse(res, 200, await runDailyMetricsGoogleSheetSync(body.date));

@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 # Load recently saved user settings even when launched from an older desktop process.
-foreach ($speechSetting in @('AZURE_SPEECH_KEY', 'AZURE_SPEECH_REGION')) {
+foreach ($speechSetting in @('AZURE_SPEECH_KEY', 'AZURE_SPEECH_REGION', 'GOOGLE_SERVICE_ACCOUNT_FILE')) {
   $speechSettingValue = [Environment]::GetEnvironmentVariable($speechSetting, 'User')
   if ($speechSettingValue) { [Environment]::SetEnvironmentVariable($speechSetting, $speechSettingValue, 'Process') }
 }

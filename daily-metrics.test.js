@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const dm=require('./daily-metrics');
 test('only selected fields survive validation; blank differs from explicit zero',()=>{
-  assert.deepEqual(dm.validate([{date:'2025-01-02',nonCoveredAmount:0,claimAmount:null,patientCount:47,referrals:{소개:2}}]),[{date:'2025-01-02',nonCoveredAmount:0,referrals:{소개:2}}]);
+  assert.deepEqual(dm.validate([{date:'2025-01-02',nonCoveredAmount:0,claimAmount:null,patientCount:47,age65PatientCount:20,referrals:{소개:2}}]),[{date:'2025-01-02',nonCoveredAmount:0,patientCount:47,referrals:{소개:2}}]);
   assert.throws(()=>dm.validate([{date:'2025-02-30'}]));
   assert.throws(()=>dm.validate([{date:'2025-01-02'},{date:'2025-01-02'}]));
   assert.throws(()=>dm.validate([{date:'2025-01-02',noShowCount:-1}]));
@@ -20,4 +20,36 @@ test('date-specific overrides replace, never add; missing fields and dates fall 
 test('operational-only import does not change board financial totals',()=>{
  const base={financialTotals:{totalFee:100}};const s=dm.overlay(base,[{date:'2025-01-02',appointmentCount:0}],[],()=> '202501');
  assert.deepEqual(s.financialTotals,base.financialTotals);assert.equal(s.dailyMetrics.operational.appointmentCount.days,1);
+});
+
+test('patient counts stay separate from cohorts; blanks and non-clinic days do not lower averages',()=>{
+ const base={newPatients:4,coreVisits:9,returnRate:.5,trendStats:[{key:'202501',newPatients:4,returnRate:.5,clinicDays:2}]};
+ const rows=[{date:'2025-01-02',patientCount:40,newPatientCount:0,returnPatientCount:40,reinitialPatientCount:2},{date:'2025-01-03',patientCount:60,returnPatientCount:57},{date:'2025-01-04',patientCount:0,newPatientCount:0,returnPatientCount:0}];
+ const s=dm.overlay(base,rows,[],()=> '202501');
+ assert.deepEqual(s.dailyMetrics.patients.patientCount,{value:100,days:2,average:50});
+ assert.deepEqual(s.dailyMetrics.patients.newPatientCount,{value:0,days:1,average:0});
+ assert.deepEqual(s.dailyMetrics.patients.reinitialPatientCount,{value:2,days:1,average:2});
+ assert.equal(s.newPatients,4);assert.equal(s.coreVisits,9);assert.equal(s.returnRate,.5);
+ assert.equal(s.trendStats[0].returnRate,.5);assert.equal(s.trendStats[0].dailyPatientCounts.returnPatientCount.value,97);
+ assert.equal(base.trendStats[0].dailyPatientCounts,undefined);
+ assert.throws(()=>dm.validate([{date:'2025-01-02',returnPatientCount:1.5}]));
+ assert.throws(()=>dm.validate([{date:'2025-01-02',reinitialPatientCount:-1}]));
+});
+
+test('patient trends survive financial overlay and group by the requested period',()=>{
+ const s=dm.overlay({trendStats:[]},[{date:'2025-01-02',patientCount:40,insuredCopay:10},{date:'2025-02-03',patientCount:20,newPatientCount:3}],[],date=>date.slice(0,7));
+ assert.equal(s.trendStats.length,2);assert.equal(s.trendStats[0].dailyPatientCounts.patientCount.average,40);
+ assert.equal(s.trendStats[1].dailyPatientCounts.newPatientCount.value,3);
+ assert.equal(s.financialTotals.insuredCopay,10);
+ assert.equal(s.dailyMetrics.patients.patientCount.value,60);
+});
+
+test('workbook import maps all four counts and reports an invalid count without inventing a replacement',()=>{
+ const rows=[['일자','본인부담금','当日','당일 환자수','신규 환자수','재진 환자수','재초진 환자수','취합'],['2025-08-01',100,null,50,1,-1,null,'Y'],['2025-08-02',100,null,40,0,40,2,'Y'],['2025-08-02',null,null,'detail',null,null,null,'N']];
+ const X={utils:{sheet_to_json:()=>rows}};
+ const p=dm.parseWorkbook({SheetNames:['일간 데이터'],Sheets:{'일간 데이터':{}}},X);
+ assert.equal(p.rows.length,2);assert.equal(p.rows[0].patientCount,50);assert.equal(p.rows[0].newPatientCount,1);
+ assert.equal(Object.hasOwn(p.rows[0],'returnPatientCount'),false);assert.equal(Object.hasOwn(p.rows[0],'reinitialPatientCount'),false);
+ assert.equal(p.rows[1].returnPatientCount,40);assert.equal(p.rows[1].newPatientCount,0);assert.equal(p.rows[1].reinitialPatientCount,2);
+ assert.deepEqual(p.warnings,['2025-08-01 재진환자수: -1 (등록 제외)']);
 });

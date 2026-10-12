@@ -1,5 +1,6 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.ClinicDailyMetrics=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
-  const fields=['insuredCopay','claimAmount','nonCoveredAmount','autoAmount','appointmentCount','attendedCount','noShowCount','cancelledCount'];
+  const patientFields=['patientCount','newPatientCount','returnPatientCount','reinitialPatientCount'];
+  const fields=['insuredCopay','claimAmount','nonCoveredAmount','autoAmount','appointmentCount','attendedCount','noShowCount','cancelledCount',...patientFields];
   const norm=s=>String(s||'').replace(/\s/g,'');
   function validate(rows){
     if(!Array.isArray(rows)||!rows.length||rows.length>5000)throw Error('일별 자료는 1~5000일이어야 합니다.');
@@ -13,21 +14,21 @@
     });
   }
   function parseWorkbook(wb,XLSX){
-    const name=wb.SheetNames.includes('일간데이터')?'일간데이터':wb.SheetNames.includes('Raw Data')?'Raw Data':null;if(!name)throw Error('일간데이터 또는 Raw Data 시트가 필요합니다.');
+    const name=wb.SheetNames.find(n=>norm(n)==='일간데이터')|| (wb.SheetNames.includes('Raw Data')?'Raw Data':null);if(!name)throw Error('일간데이터 또는 Raw Data 시트가 필요합니다.');
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:null});
     const h=rows.findIndex(r=>r.some(v=>norm(v)==='본인부담금')&&r.some(v=>norm(v)==='일자'));if(h<0)throw Error('일별 항목 제목을 찾지 못했습니다.');
-    const header=rows[h].map(norm);const col=label=>header.indexOf(norm(label));const map={insuredCopay:'본인부담금',claimAmount:'공단청구금',nonCoveredAmount:'비급여매출',autoAmount:'자보매출',appointmentCount:'오늘예약된환자수',attendedCount:'예약정상이행',noShowCount:'예약노쇼',cancelledCount:'예약취소'};
+    const header=rows[h].map(norm);const col=label=>header.indexOf(norm(label));const map={insuredCopay:'본인부담금',claimAmount:'공단청구금',nonCoveredAmount:'비급여매출',autoAmount:'자보매출',appointmentCount:'오늘예약된환자수',attendedCount:'예약정상이행',noShowCount:'예약노쇼',cancelledCount:'예약취소',patientCount:'당일환자수',newPatientCount:'신규환자수',returnPatientCount:'재진환자수',reinitialPatientCount:'재초진환자수'};
     const dateCol=col('일자'),aggregate=col('취합');const start=col('간판');const end=col('금액_최초결제')>=0?col('금액_최초결제'):header.findIndex((v,i)=>i>start&&v==='녹용한약');
     const number=v=>v===null||v===undefined||String(v).trim()===''||String(v).trim()==='-'?undefined:typeof v==='number'?v:Number(String(v).replace(/,/g,''));
-    const result=[];
+    const result=[],warnings=[];
     for(const r of rows.slice(h+1)){
       if(aggregate>=0&&String(r[aggregate]||'').toUpperCase()!=='Y')continue;
       const raw=r[dateCol];let date='';if(typeof raw==='number'){const d=XLSX.SSF.parse_date_code(raw);if(d)date=`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;}else if(raw instanceof Date)date=raw.toISOString().slice(0,10);else date=String(raw||'').trim().replace(/[./]/g,'-').slice(0,10);
-      if(!date)continue;const out={date};for(const[k,label]of Object.entries(map)){const i=col(label);if(i>=0){const value=number(r[i]);if(value!==undefined)out[k]=value;}}
+      if(!date)continue;const out={date};for(const[k,label]of Object.entries(map)){const i=col(label);if(i>=0){const value=number(r[i]);if(value!==undefined){if(patientFields.includes(k)&&(!Number.isFinite(value)||value<0||!Number.isInteger(value))){warnings.push(`${date} ${label}: ${String(r[i])} (등록 제외)`);continue;}out[k]=value;}}}
       if(start>=0){out.referrals={};for(let i=start;i<(end>start?end:start+9);i++){const value=number(r[i]);if(value!==undefined&&header[i])out.referrals[String(rows[h][i]).trim()]=value;}}
       if(Object.keys(out).length>1)result.push(out);
     }
-    return {sheet:name,rows:validate(result)};
+    return {sheet:name,rows:validate(result),warnings};
   }
   function overlay(base,imports,board,periodKey){
     if(!imports.length)return base;
@@ -38,9 +39,18 @@
     const operational={};for(const k of fields.slice(4)){const matching=imports.filter(r=>Object.hasOwn(r,k));operational[k]={value:matching.reduce((s,r)=>s+r[k],0),days:matching.length};}
     const referrals={};for(const row of imports)for(const[k,v]of Object.entries(row.referrals||{}))referrals[k]=(referrals[k]||0)+v;
     const source={importedDays:importedDays.size,financeDays:financeDays.size,rows:imports,operational,referrals};
+    // Each patient measure uses only populated values on recorded clinic days.
+    // Keep these aggregates separate from patient-level follow-up cohorts.
+    const active=row=>Object.hasOwn(row,'patientCount')?row.patientCount>0:patientFields.some(k=>Number(row[k]||0)>0)||fields.slice(0,4).some(k=>Number(row[k]||0)>0);
+    function patientSummary(rows){const summary={};for(const k of patientFields){const matching=rows.filter(r=>active(r)&&Object.hasOwn(r,k));const value=matching.reduce((s,r)=>s+r[k],0);summary[k]={value,days:matching.length,average:matching.length?value/matching.length:null};}return summary;}
+    source.patients=patientSummary(imports);
+    const patientBuckets=new Map();for(const row of imports){const key=periodKey(row.date);if(!patientBuckets.has(key))patientBuckets.set(key,[]);patientBuckets.get(key).push(row);}
+    const patientTrends=new Map((base.trendStats||[]).map(r=>[r.key,{...r}]));
+    for(const [key,rows] of patientBuckets){const trend=patientTrends.get(key)||{key,clinicDays:rows.filter(active).length};trend.dailyPatientCounts=patientSummary(rows);patientTrends.set(key,trend);}
+    base={...base,trendStats:[...patientTrends.values()].sort((a,b)=>a.key.localeCompare(b.key))};
     if(!importedDays.size)return {...base,dailyMetrics:source};
     const trends=new Map((base.trendStats||[]).map(r=>[r.key,{...r}]));for(const[key,b]of buckets){const trend=trends.get(key)||{key,clinicDays:b.dates.size};Object.assign(trend,{avgCombinedFeePerDay:(b.totalFee+b.nonCoveredAmount)/Math.max(1,b.dates.size),avgTotalFeePerDay:b.totalFee/Math.max(1,b.dates.size),avgNonCoveredFeePerDay:b.nonCoveredAmount/Math.max(1,b.dates.size),avgCombinedFeePerVisit:null,financialAggregate:true});trends.set(key,trend);}
     return {...base,financialTotals:totals,financialTrend:[...buckets.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(({dates,...b})=>({...b,clinicDays:dates.size})),trendStats:[...trends.values()].sort((a,b)=>a.key.localeCompare(b.key)),dailyMetrics:source,financialAggregate:true};
   }
-  return {fields,validate,parseWorkbook,overlay};
+  return {fields,patientFields,validate,parseWorkbook,overlay};
 });
