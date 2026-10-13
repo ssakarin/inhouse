@@ -15730,6 +15730,16 @@
     return PATIENT_POSITIONS.some(position => position.id === value) ? value : '';
   }
 
+  function normalizePatientPositions(value) {
+    return [...new Set((Array.isArray(value) ? value : [value])
+      .map(normalizePatientPosition).filter(Boolean))];
+  }
+
+  function serializePatientPositions(value) {
+    const positions = normalizePatientPositions(value);
+    return positions.length > 1 ? positions : (positions[0] || '');
+  }
+
   function normalizeBodyParts(bodyParts) {
     const bp = bodyParts || {};
     const normalizeSide = (side, values = []) => {
@@ -15747,7 +15757,7 @@
         .filter(Boolean))];
     };
     return {
-      position: normalizePatientPosition(bp.position),
+      position: serializePatientPositions(bp.position),
       // 후면에 저장된 고관절 선택도 복원된 전면 고관절로 보존한다.
       front: normalizeSide('front', [
         ...(Array.isArray(bp.front) ? bp.front : []),
@@ -16033,11 +16043,11 @@
   }
 
   function renderPatientPositionChip(position, scope = '') {
-    const value = normalizePatientPosition(position);
-    const options = [['supine', '전면'], ['left_lateral', '왼쪽'], ['lateral', '옆'], ['right_lateral', '오른쪽'], ['prone', '후면'], ['sitting', '앉아서']];
+    const value = normalizePatientPositions(position);
+    const options = [['left_lateral', '왼쪽'], ['supine', '앞면'], ['lateral', '옆'], ['prone', '후면'], ['sitting', '앉아서'], ['right_lateral', '오른쪽']];
     return `<div class="body-position-options" role="group" aria-label="환자 자세 선택">${options.map(([id, text]) => {
       const label = PATIENT_POSITIONS.find(item => item.id === id).label;
-      return `<button type="button" class="body-position-toggle" data-position="${id}" aria-pressed="${value === id}" aria-label="${label}" title="${label} · 다시 누르면 해제" onclick="togglePatientPosition('${id}', '${scope}', this)">${text}</button>`;
+      return `<button type="button" class="body-position-toggle" data-position="${id}" aria-pressed="${value.includes(id)}" aria-label="${label}" title="${label} · 다시 누르면 해제" onclick="togglePatientPosition('${id}', '${scope}', this)">${text}</button>`;
     }).join('<span class="body-position-divider" aria-hidden="true">|</span>')}</div>`;
   }
 
@@ -16802,7 +16812,12 @@
     if (!normalizePatientPosition(target)) return;
     if (scope && !Object.prototype.hasOwnProperty.call(formBodyPartsByScope, scope)) return;
     const parts = normalizeBodyParts(scope ? formBodyPartsByScope[scope] : getBedData(selectedBedNo)?.bodyParts);
-    const next = parts.position === target ? '' : target;
+    const current = normalizePatientPositions(parts.position);
+    const sidePositions = ['left_lateral', 'right_lateral'];
+    const isSide = sidePositions.includes(target);
+    const next = current.includes(target)
+      ? current.filter(id => id !== target)
+      : [...current.filter(id => sidePositions.includes(id) !== isSide), target];
     if (scope) return window.setFormPatientPosition(scope, next);
     return window.setBedPatientPosition(next, button);
   };
@@ -16810,9 +16825,10 @@
   window.setBedPatientPosition = async (value, button) => {
     const bedNo = selectedBedNo;
     const bed = getBedData(bedNo);
-    if (!bed || (value && !normalizePatientPosition(value))) return;
+    if (!bed) return;
+    value = serializePatientPositions(value);
     const bodyParts = normalizeBodyParts(bed.bodyParts);
-    if (bodyParts.position === value) return;
+    if (JSON.stringify(bodyParts.position) === JSON.stringify(value)) return;
     const nextBodyParts = { ...bodyParts, position: value };
     const buttons = Array.from(button?.closest('.body-position-options')?.querySelectorAll('button') || []);
     buttons.forEach(control => { control.disabled = true; });
@@ -16821,7 +16837,7 @@
         updateBedRecord(bedNo, { bodyParts: nextBodyParts }),
         ...(bed.patientKey ? [updatePatient(bed.patientKey, { bodyParts: nextBodyParts })] : [])
       ]);
-      buttons.forEach(control => control.setAttribute('aria-pressed', String(control.dataset.position === value)));
+      buttons.forEach(control => control.setAttribute('aria-pressed', String(normalizePatientPositions(value).includes(control.dataset.position))));
     } catch (error) {
       console.error('patient position save failed', error);
       showToast('자세 저장에 실패했습니다. 다시 선택해 주세요.');
@@ -16832,7 +16848,7 @@
 
   window.setFormPatientPosition = (scope, value) => {
     if (!Object.prototype.hasOwnProperty.call(formBodyPartsByScope, scope)) return;
-    if (value && !normalizePatientPosition(value)) return;
+    value = serializePatientPositions(value);
     formBodyPartsByScope[scope] = {
       ...normalizeBodyParts(formBodyPartsByScope[scope]),
       position: value
