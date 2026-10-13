@@ -15,12 +15,14 @@ function parse(values,title,XLSX,start,end){
   if(date<start||date>end)continue;
   if(seen.has(date))throw Error(`${date} 합계행이 중복되어 있습니다. 원본을 확인하세요.`);seen.add(date);
   const copy=[...r];copy[dc]=date;
-  try{const parsed=metrics.parseWorkbook({SheetNames:['일간데이터'],Sheets:{일간데이터:{}}},{...XLSX,utils:{...XLSX.utils,sheet_to_json:()=>[header,copy]}});warnings.push(...parsed.warnings);for(const row of parsed.rows){if(row.referrals&&!Object.keys(row.referrals).length)delete row.referrals;if(Object.keys(row).length>1)rows.push(row);}}
+  try{const parsed=metrics.parseWorkbook({SheetNames:['일간데이터'],Sheets:{일간데이터:{}}},{...XLSX,utils:{...XLSX.utils,sheet_to_json:()=>[header,copy]}},{skipDetails:true});warnings.push(...parsed.warnings);for(const row of parsed.rows){if(row.referrals&&!Object.keys(row.referrals).length)delete row.referrals;if(Object.keys(row).length>1)rows.push(row);}}
   catch(e){warnings.push(`${date} (${i+1}행): ${e.message} (해당 날짜 제외)`);}
  }
  if(!rows.length)throw Error('선택 기간에 가져올 수 있는 합계행 자료가 없습니다.');
+ const details=metrics.parseNonCoveredDetails(values,XLSX,new Set(rows.map(row=>row.date)));
+ for(const row of rows)if(details[row.date])row.nonCoveredBreakdown=details[row.date];
  return {rows:metrics.validate(rows),warnings,worksheetTitle:title};
 }
-function merge(previous,row){return {...previous,...row,...(row.referrals?{referrals:{...(previous?.referrals||{}),...row.referrals}}:{})};}
-function preview(rows,existing){const index=new Map(existing.map(r=>[r.date,r]));return rows.map(row=>{const old=index.get(row.date)||{},changes=[];for(const key of metrics.fields)if(Object.hasOwn(row,key)&&old[key]!==row[key])changes.push({key,before:old[key]??null,after:row[key]});for(const [key,value] of Object.entries(row.referrals||{}))if(old.referrals?.[key]!==value)changes.push({key:'유입경로: '+key,before:old.referrals?.[key]??null,after:value});return {date:row.date,isNew:!index.has(row.date),changes};});}
+function merge(previous,row){return {...previous,...row,...(row.nonCoveredBreakdown?{nonCoveredBreakdown:{...(previous?.nonCoveredBreakdown||{}),...row.nonCoveredBreakdown}}:{}),...(row.referrals?{referrals:{...(previous?.referrals||{}),...row.referrals}}:{})};}
+function preview(rows,existing){const index=new Map(existing.map(r=>[r.date,r]));return rows.map(row=>{const old=index.get(row.date)||{},changes=[];for(const key of metrics.fields)if(Object.hasOwn(row,key)&&old[key]!==row[key])changes.push({key,before:old[key]??null,after:row[key]});for(const [key,value] of Object.entries(row.referrals||{}))if(old.referrals?.[key]!==value)changes.push({key:'유입경로: '+key,before:old.referrals?.[key]??null,after:value});for(const [key,value] of Object.entries(row.nonCoveredBreakdown||{}))if(old.nonCoveredBreakdown?.[key]!==value)changes.push({key:'비급여: '+key,before:old.nonCoveredBreakdown?.[key]??null,after:value});return {date:row.date,isNew:!index.has(row.date),changes,nonCoveredBreakdown:row.nonCoveredBreakdown||null,storedNonCoveredBreakdown:old.nonCoveredBreakdown||null};});}
 module.exports={range,parse,merge,preview};

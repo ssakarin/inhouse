@@ -511,19 +511,10 @@
     <details class="summary-collapse followup-collapse"><summary>진료비 구성 · 총 환자 수 구성 · 치료 이용률</summary>
       <div class="summary-breakdowns" id="summaryBreakdowns"></div>
     </details>
-  <details class="card summary-collapse" id="dailyMetricsCard">
-    <summary>수기차트 일별 자료</summary>
-    <details class="summary-collapse" style="margin-top:12px"><summary>엑셀 파일 등록</summary>
-    <div class="controls"><input id="dailyMetricsFile" type="file" accept=".xlsx,.xls" onchange="previewDailyMetrics(this)"><button id="dailyMetricsSave" disabled onclick="saveDailyMetricsImport()">서버에 저장</button></div>
-    <div id="dailyMetricsImportStatus" class="chart-subtitle">당일·신규·재진·재초진 환자수와 유입경로·예약·본인부담금·공단청구금·비급여·자보를 저장합니다. 같은 날짜는 갱신합니다.</div>
+    <details class="summary-collapse followup-collapse">
+      <summary>신환 유입경로 분석 · 수기자료</summary>
+      <div id="manualReferralAnalysis" aria-live="polite"></div>
     </details>
-    <details open style="margin-top:16px"><summary>구글시트 자료 가져오기</summary>
-      <div class="controls" style="margin-top:12px"><label>시작일 <input type="date" id="googleDailyStart" value="2026-01-01" onchange="clearGoogleDailyPreview()"></label><label>종료일 <input type="date" id="googleDailyEnd" onchange="clearGoogleDailyPreview()"></label><button id="googleDailyPreviewBtn" onclick="previewGoogleDailyImport()">미리보기</button><button id="googleDailySaveBtn" disabled onclick="saveGoogleDailyImport()">선택 날짜 저장</button></div>
-      <div class="chart-subtitle">연결된 일간 지표 구글시트의 합계행을 가져옵니다. 공란은 기존 값을 유지하고 0은 반영합니다. 원본 구글시트는 수정하지 않습니다. 변경 전 값은 서버에 보관합니다.</div>
-      <div id="googleDailyStatus" class="chart-subtitle" role="status"></div><div id="googleDailyPreview"></div>
-    </details>
-    <div id="dailyMetricsSummary"></div><div id="dailyMetricsTable"></div>
-  </details>
   </div>
 
   <div class="card">
@@ -667,65 +658,18 @@
     } finally { db.close(); }
   }
 
-  let pendingDailyMetrics=null;
-  let pendingGoogleDaily=null;
-  $("googleDailyEnd").value=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(new Date());
-  function clearGoogleDailyPreview(){pendingGoogleDaily=null;$("googleDailySaveBtn").disabled=true;$("googleDailyPreview").innerHTML="";$("googleDailyStatus").textContent="";}
-  async function previewGoogleDailyImport(){
-    clearGoogleDailyPreview();const start=$("googleDailyStart").value,end=$("googleDailyEnd").value;
-    if(!start||!end||start>end){$("googleDailyStatus").textContent="시작일과 종료일을 확인하세요.";return;}
-    $("googleDailyPreviewBtn").disabled=true;$("googleDailyStatus").textContent="구글시트 조회 중...";
-    try{
-      const res=await fetch('/api/google/daily-metrics-import-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start,end})});
-      const data=await res.json();if(!res.ok)throw Error(data.error||'구글시트 조회 실패');
-      if(start!==$("googleDailyStart").value||end!==$("googleDailyEnd").value)return;
-      pendingGoogleDaily=data;
-      const names={patientCount:'당일 환자',newPatientCount:'신규 환자',returnPatientCount:'재진 환자',reinitialPatientCount:'재초진 환자',insuredCopay:'본인부담금',claimAmount:'공단청구금',nonCoveredAmount:'비급여',autoAmount:'자보',appointmentCount:'예약',attendedCount:'정상 이행',noShowCount:'노쇼',cancelledCount:'취소'};
-      const value=v=>v===null?'공란':Number(v).toLocaleString();
-      $("googleDailyStatus").textContent=`${data.sourceFile} · ${data.comparison.length}일 · 변경 ${data.comparison.filter(r=>r.changes.length).length}일 · 미리보기 유효기간 10분${data.warnings.length?' · 확인 필요: '+data.warnings.join(' / '):''}`;
-      $("googleDailyPreview").innerHTML=`<div class="controls"><button type="button" onclick="document.querySelectorAll('.google-daily-check').forEach(c=>c.checked=true)">변경 날짜 전체 선택</button><button type="button" onclick="document.querySelectorAll('.google-daily-check').forEach(c=>c.checked=false)">선택 해제</button></div><div class="table-scroll" style="max-height:420px;overflow:auto"><table><thead><tr><th>저장</th><th>날짜</th><th>구분</th><th>변경 항목 (현재 등록값 → 구글시트)</th></tr></thead><tbody>${data.comparison.map(r=>`<tr><td>${r.changes.length?`<input class="google-daily-check" type="checkbox" checked value="${escapeHtml(r.date)}" aria-label="${escapeHtml(r.date)} 저장">`:''}</td><td>${escapeHtml(r.date)}</td><td>${r.changes.length?(r.isNew?'신규':'변경'):'동일'}</td><td>${r.changes.map(c=>`${escapeHtml(names[c.key]||c.key)}: ${value(c.before)} → ${value(c.after)}`).join('<br>')||'변경 없음'}</td></tr>`).join('')}</tbody></table></div>`;
-      $("googleDailySaveBtn").disabled=!data.comparison.some(r=>r.changes.length);
-    }catch(e){$("googleDailyStatus").textContent=e.message;}finally{$("googleDailyPreviewBtn").disabled=false;}
-  }
-  async function saveGoogleDailyImport(){
-    if(!pendingGoogleDaily)return;const dates=[...document.querySelectorAll('.google-daily-check:checked')].map(c=>c.value);
-    if(!dates.length){$("googleDailyStatus").textContent="저장할 날짜를 선택하세요.";return;}
-    $("googleDailySaveBtn").disabled=true;$("googleDailyPreviewBtn").disabled=true;
-    try{const res=await fetch('/api/google/daily-metrics-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({previewId:pendingGoogleDaily.previewId,dates})});const data=await res.json();if(!res.ok)throw Error(data.error||'저장 실패');pendingGoogleDaily=null;$("googleDailyPreview").innerHTML='';$("googleDailyStatus").textContent=`${data.days}일 저장 완료 · ${data.start} ~ ${data.end}`;await run();}
-    catch(e){$("googleDailyStatus").textContent=e.message;$("googleDailySaveBtn").disabled=!pendingGoogleDaily;}
-    finally{$("googleDailyPreviewBtn").disabled=false;}
-  }
-  async function previewDailyMetrics(input) {
-    pendingDailyMetrics=null;$("dailyMetricsSave").disabled=true;
-    const file=input.files?.[0];if(!file)return;
-    try {
-      const XLSX=await import("./vendor/xlsx/0.18.5/xlsx.mjs");
-      const parsed=ClinicDailyMetrics.parseWorkbook(XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false}),XLSX);
-      pendingDailyMetrics={rows:parsed.rows,sourceFile:file.name};
-      const dates=parsed.rows.map(r=>r.date).sort();
-      $("dailyMetricsImportStatus").textContent=`${file.name} · ${parsed.sheet} · ${dates[0]} ~ ${dates.at(-1)} · ${dates.length}일. 저장하면 동일 날짜 자료를 갱신합니다.${parsed.warnings?.length?" 확인 필요: "+parsed.warnings.join(" · "):""}`;
-      $("dailyMetricsSave").disabled=false;
-    }catch(e){$("dailyMetricsImportStatus").textContent=e.message;}
-  }
-  async function saveDailyMetricsImport() {
-    if(!pendingDailyMetrics)return;$("dailyMetricsSave").disabled=true;
-    try {
-      const res=await fetch("/api/daily-metrics",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(pendingDailyMetrics)});
-      const result=await res.json();if(!res.ok)throw Error(result.error||"저장 실패");
-      $("dailyMetricsImportStatus").textContent=`${result.days}일 서버 저장 완료`;pendingDailyMetrics=null;await run();
-    }catch(e){$("dailyMetricsImportStatus").textContent=e.message;$("dailyMetricsSave").disabled=false;}
-  }
-  function renderDailyMetrics(s) {
-    const d=s.dailyMetrics;
-    if(!d){$("dailyMetricsSummary").textContent=$("doctorFilter").value?"날짜별 수기차트 자료는 전체 원장 조회에서 표시합니다.":"선택 기간에 저장된 일별 자료가 없습니다.";$("dailyMetricsTable").innerHTML="";return;}
-    const labels={appointmentCount:"예약 환자",attendedCount:"정상 이행",noShowCount:"노쇼",cancelledCount:"취소"};
-    const cards=Object.entries(labels).map(([k,label])=>`<span>${label}: ${d.operational[k].days?Number(d.operational[k].value).toLocaleString()+"명 ("+d.operational[k].days+"일 자료)":"자료 없음"}</span>`);
-    const referrals=Object.entries(d.referrals).map(([k,v])=>`${escapeHtml(k)} ${Number(v).toLocaleString()}명`).join(" · ");
-    const patientLabels={patientCount:"당일 환자",newPatientCount:"신규 환자",returnPatientCount:"재진 환자",reinitialPatientCount:"재초진 환자"};
-    const patientCards=Object.entries(patientLabels).map(([key,label])=>{const p=d.patients?.[key];return `<span>${label}: ${p?.days?`${p.value.toLocaleString()}명 · 일평균 ${p.average.toFixed(1)}명 (${p.days}일 자료)`:"자료 없음"}</span>`;});
-    $("dailyMetricsSummary").innerHTML=`<div class="controls">${patientCards.join(" · ")}</div><div class="chart-subtitle">환자수 합계는 일별 연인원입니다. 일평균은 해당 항목이 입력된 진료일 기준이며, 공란은 제외합니다. 추이 그래프에서 ‘수기’ 지표를 선택할 수 있습니다.</div><div class="controls">${cards.join(" · ")}</div><div class="chart-subtitle">유입경로: ${referrals||"자료 없음"}</div>`;
-    const columns=[...Object.entries(patientLabels),["insuredCopay","본인부담금"],["claimAmount","공단청구금"],["nonCoveredAmount","비급여"],["autoAmount","자보"],...Object.entries(labels)];
-    $("dailyMetricsTable").innerHTML=`<details><summary>날짜별 자료 ${d.rows.length}일 보기</summary><div class="table-scroll"><table><thead><tr><th>날짜</th>${columns.map(([,label])=>`<th>${label}</th>`).join("")}<th>유입경로</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td>${escapeHtml(r.date)}</td>${columns.map(([k])=>`<td class="num">${Object.hasOwn(r,k)?Number(r[k]).toLocaleString():"—"}</td>`).join("")}<td>${Object.entries(r.referrals||{}).map(([k,v])=>escapeHtml(k)+" "+v).join(" · ")}</td></tr>`).join("")}</tbody></table></div></details>`;
+  function renderManualReferralAnalysis(stats,previous){
+    const wrap=$("manualReferralAnalysis");
+    if($("doctorFilter").value){wrap.innerHTML='<div class="empty">수기 유입경로는 전체 원장 조회에서 표시합니다.</div>';return;}
+    const data=ClinicDailyMetrics.referralAnalysis(stats.dailyMetrics?.rows||[]);
+    if(!data.days){wrap.innerHTML='<div class="empty">선택 기간에 저장된 유입경로 자료가 없습니다.</div>';return;}
+    const before=ClinicDailyMetrics.referralAnalysis(previous?.dailyMetrics?.rows||[]),byLabel=new Map(before.channels.map(row=>[row.label,row]));
+    const colors=['#39a9f5','#ffca6a','#4ade80','#a78bfa','#fb7185','#22d3ee','#f97316'];
+    const newPatientText=data.matchedNewPatientDays?`${data.newPatients.toLocaleString()}명 (${data.matchedNewPatientDays}일 입력)`:'자료 없음';
+    wrap.innerHTML=`<div class="chart-subtitle">유입경로 입력 ${data.days}일 · 경로 합계 ${data.total.toLocaleString()}명 · 같은 날짜의 수기 신규 환자수 ${newPatientText}<br>비율은 입력된 유입경로 인원 합계 기준입니다. 공란인 날짜는 제외하며, 이전 기간도 해당 기간의 입력 자료를 기준으로 비교합니다.</div>
+      ${renderSummaryBreakdown('유입경로 구성',data.total,'명',data.channels.map((row,i)=>({label:row.label,value:row.count,color:colors[i%colors.length]})))}
+      <div class="table-scroll"><table><thead><tr><th>유입경로</th><th>인원</th><th>비율</th><th>이전 기간 인원</th><th>비율 증감</th></tr></thead><tbody>${data.channels.map(row=>{const old=byLabel.get(row.label),delta=(row.share-(old?.share||0))*100;return `<tr><td>${escapeHtml(row.label)}</td><td class="num">${row.count.toLocaleString()}명</td><td class="num">${(row.share*100).toFixed(1)}%</td><td class="num">${before.days?(old?.count||0).toLocaleString()+'명':'—'}</td><td class="num">${before.total?(delta>0?'+':'')+delta.toFixed(1)+'%p':'—'}</td></tr>`;}).join('')}</tbody></table></div>
+      ${data.discrepancies.length?`<details style="margin-top:12px"><summary>신규 환자수와 유입경로 합계가 다른 날짜 ${data.discrepancies.length}일</summary><div class="chart-subtitle">미입력 또는 중복 여부를 원본 자료에서 확인하세요.</div><div class="table-scroll"><table><thead><tr><th>날짜</th><th>신규 환자수</th><th>유입경로 합계</th><th>차이</th></tr></thead><tbody>${data.discrepancies.map(row=>`<tr><td>${escapeHtml(row.date)}</td><td>${row.newPatientCount}명</td><td>${row.referralCount}명</td><td>${row.referralCount-row.newPatientCount}명</td></tr>`).join('')}</tbody></table></div></details>`:''}`;
   }
   async function loadServerDoctors() {
     const res = await fetch("/api/stats/doctors", { cache: "no-store" });
@@ -2595,8 +2539,8 @@
       renderDiagnosisStats(s);
       renderRetentionStats(s);
       renderSummary(s, previousStats);
+      renderManualReferralAnalysis(s, previousStats);
       renderFinancialStats(s, previousStats);
-      renderDailyMetrics(s);
       renderOperationalTrendChart(trendRows, chartUnit);
       renderPeriodComparisonChart(comparison, "range");
       renderHourlyPatientHeatmap(s.weekdayHourlyStats || {}, s.unknownTimeVisits, s.weekdayCounts || {});

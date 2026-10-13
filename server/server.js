@@ -114,11 +114,12 @@ function readDailyMetrics(start, end) {
 function saveDailyMetrics(rows, sourceFile, mergeExisting = false) {
   const clean=dailyMetrics.validate(rows);const stamp=new Date().toISOString();const file=String(sourceFile||"엑셀").slice(0,255);
   const previous=clean.map(row=>db.prepare("SELECT * FROM daily_clinic_metrics WHERE date=?").get(row.date)).filter(Boolean);
+  const finalRows=dailyMetrics.validate(clean.map(row=>{const old=previous.find(r=>r.date===row.date);return mergeExisting&&old?googleDailyImport.merge(JSON.parse(decrypt(old.data_json)),row):row;}));
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare("INSERT INTO daily_clinic_metrics_imports(source_file,imported_at,previous_json) VALUES(?,?,?)").run(file,stamp,encrypt(JSON.stringify(previous)));
     const upsert=db.prepare("INSERT INTO daily_clinic_metrics VALUES(?,?,?,?) ON CONFLICT(date) DO UPDATE SET data_json=excluded.data_json,source_file=excluded.source_file,imported_at=excluded.imported_at");
-    for(const row of clean){const old=previous.find(r=>r.date===row.date);const data=mergeExisting&&old?googleDailyImport.merge(JSON.parse(decrypt(old.data_json)),row):row;upsert.run(row.date,encrypt(JSON.stringify(data)),file,stamp);}
+    for(const row of finalRows){upsert.run(row.date,encrypt(JSON.stringify(row)),file,stamp);}
     db.exec("COMMIT");return {ok:true,days:clean.length,start:clean[0].date,end:clean.at(-1).date};
   } catch(e) {db.exec("ROLLBACK");throw e;}
 }

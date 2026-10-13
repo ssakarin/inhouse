@@ -61,3 +61,8 @@ test('imported per-visit fee uses manual counts with server fallback and null fo
 test('empty imported calendar slots remain gaps; explicit zero on visit dates stays zero',()=>{
  const base={trendStats:[]};const rows=[{date:'2026-10-01',insuredCopay:0,nonCoveredAmount:0},{date:'2026-10-02',patientCount:0},{date:'2026-10-03',insuredCopay:0,nonCoveredAmount:0},{date:'2026-10-04',patientCount:1}];const board=[{date:'2026-10-01',visits:1,totalFee:0,nonCoveredAmount:0},{date:'2026-10-04',visits:1,totalFee:0,nonCoveredAmount:0,hasCombinedFinance:0,hasNoncoveredFinance:0}];const s=dm.overlay(base,rows,board,d=>d);const get=d=>s.trendStats.find(r=>r.key===d);assert.equal(get('2026-10-01').avgCombinedFeePerDay,0);for(const d of ['2026-10-02','2026-10-03','2026-10-04']){assert.equal(get(d).avgCombinedFeePerDay,null);assert.equal(get(d).avgNonCoveredFeePerDay,null);}
 });
+
+test('referral analysis uses recorded channels, preserves zero and reports same-day new-patient discrepancies',()=>{
+ const result=dm.referralAnalysis([{date:'2026-01-01',newPatientCount:10,referrals:{'지인 소개':3,간판:2}},{date:'2026-01-02',newPatientCount:50},{date:'2026-01-03',newPatientCount:4,referrals:{지인소개:4,간판:0}},{date:'2026-01-04',referrals:{간판:1}}]);
+ assert.equal(result.days,3);assert.equal(result.total,10);assert.equal(result.newPatients,14);assert.equal(result.matchedNewPatientDays,2);assert.deepEqual(result.channels,[{label:'지인소개',count:7,share:.7},{label:'간판',count:3,share:.3}]);assert.deepEqual(result.discrepancies,[{date:'2026-01-01',newPatientCount:10,referralCount:5}]);assert.equal(dm.referralAnalysis([]).total,0);
+});
