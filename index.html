@@ -13559,6 +13559,21 @@
       const todayAssignments = sameDate && baseState.todayAssignments && typeof baseState.todayAssignments === 'object'
         ? { ...baseState.todayAssignments }
         : {};
+      // When a scheduled shift starts, apply the same baseline as a manual return.
+      // Persist the active roster so each newly eligible nurse is adjusted only once.
+      const activeNurseIds = nurses.map(([id]) => String(id));
+      if (sameDate) {
+        const previousActiveIds = new Set(Array.isArray(baseState.activeNurseIds)
+          ? baseState.activeNurseIds.map(String)
+          : Object.keys(todayAssignments));
+        const continuingIds = activeNurseIds.filter(id => previousActiveIds.has(id));
+        if (continuingIds.length) {
+          const averageCount = Math.floor(continuingIds.reduce((sum, id) => sum + Number(todayAssignments[id] || 0), 0) / continuingIds.length);
+          activeNurseIds.filter(id => !previousActiveIds.has(id)).forEach(id => {
+            todayAssignments[id] = Math.max(Number(todayAssignments[id] || 0), averageCount);
+          });
+        }
+      }
       const currentBedCounts = getCurrentNurseBedCounts();
       const ordered = nurses.map(([id, nurse], index) => {
         const rrRank = (index - startOffset + nurses.length) % nurses.length;
@@ -13589,6 +13604,7 @@
         startOffset,
         count,
         todayAssignments,
+        activeNurseIds,
         updatedAt: Date.now()
       };
       await localStatePut('settings/nurseRoundRobinState', state);
