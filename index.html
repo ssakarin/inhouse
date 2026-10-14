@@ -17468,6 +17468,24 @@
 
   window.clearBed = async (bedNo, visitDate = '') => {
     const bed = getBedData(bedNo);
+    if (bed?.chartNo) {
+      const storedPatientId = String(bed.patientId || patientsByKey.get(bed.patientKey)?.patientId || '').trim();
+      const storedPatient = storedPatientId ? await lookupChartPatientById(storedPatientId) : null;
+      const storedPatients = storedPatient ? [storedPatient] : await lookupChartPatientsFlexible(bed.chartNo);
+      const name = String(bed.name || '').trim();
+      if (storedPatients.length && !storedPatients.some(record =>
+        normalizePatientIdentity(record.name) === normalizePatientIdentity(name)
+      )) {
+        const storedNames = [...new Set(storedPatients.map(record => String(record.name || '').trim()))].join(', ');
+        const confirmed = window.confirm(
+          `차트번호 ${bed.chartNo}의 기존 이름과 다릅니다.\n\n기존 이름: ${storedNames}\n저장할 이름: ${name}\n\n이 이름으로 저장하고 베드를 비우시겠습니까?\n오타라면 취소 후 이름을 수정해주세요.`
+        );
+        if (!confirmed) {
+          showToast('저장을 취소했습니다. 환자 이름을 확인해주세요');
+          return false;
+        }
+      }
+    }
     clearLocalTimerAlertsForBed(bedNo);
     let patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
     if (bed?.patientKey) {
@@ -17707,7 +17725,7 @@
     }
     clearingBedNumbers.add(bedNo);
     try {
-      await clearBed(bedNo, toLocalDateInputValue());
+      if (await clearBed(bedNo, toLocalDateInputValue()) === false) return false;
       showToast(`${getBedLabel(bedNo)} 비우기 완료`);
       return true;
     } catch (error) {
@@ -19880,7 +19898,7 @@
         const visitDate = getAutoClearVisitDate(bed, todayKey);
         if (!await claimBedForMidnightClear(bedNo, visitDate)) continue;
         try {
-          await clearBed(bedNo, visitDate);
+          if (await clearBed(bedNo, visitDate) === false) continue;
           console.info(`[midnight] ${getBedLabel(bedNo)} auto-cleared for ${visitDate}`);
         } catch (error) {
           console.error(`[midnight] ${getBedLabel(bedNo)} auto-clear failed`, error);
