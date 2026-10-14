@@ -205,6 +205,7 @@
       <button class="good" id="dailyMetricsSyncBtn" type="button">선택 날짜 반영</button>
     </div>
     <div class="note">구글시트 ‘경희홍익한의원_지표관리양식_v26.0’의 선택 날짜 합계행과 비급여 상세행을 반영합니다. 예약 환자수(Q), 정상 이행(S), 노쇼(T)는 예약 기록과 실제 내원 기록으로 계산합니다. 비급여는 서버의 실제 결제금액을 AG 항목별로 분류해 AK 최초결제에 넣고, 재결제는 0으로 반영합니다. 재진 환자수와 65세 이상 비율은 시트 수식으로 자동 계산됩니다.</div>
+    <div class="note">선택 날짜 반영 시 구글시트 반영 후 같은 날짜의 자료를 다시 가져와 수기차트 일별 자료로 서버에 저장합니다. 아래 미리보기와 선택 날짜 저장을 별도로 누르지 않아도 됩니다.</div>
     <div class="status" id="dailyMetricsSyncStatus">대기 중</div>
     <div class="sync-result" id="dailyMetricsSyncResult"></div>
     <details style="margin-top:16px"><summary>수기차트 일별 자료 등록</summary>
@@ -731,11 +732,12 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       setDailyMetricsSyncStatus("반영할 날짜를 선택해 주세요.", "error");
       return;
     }
-    if (!confirm(`${date} 서버 집계값을 원본 구글시트에 반영할까요?\n\n수정 셀: D, E, G, M, Q, S, T, AA~AD, AK 비급여 상세, AP 재결제(0)\nQ/S/T는 예약 기록과 실제 내원 기록으로 계산하며, U/V는 수정하지 않습니다.\n비급여는 모두 최초결제로 분류합니다.\nF 재진 환자수와 N 65세 이상 비율은 시트에서 자동 계산됩니다.`)) return;
+    if (!confirm(`${date} 서버 집계값을 원본 구글시트에 반영하고, 같은 날짜의 시트 자료를 가져와 서버에 저장할까요?\n\n수정 셀: D, E, G, M, Q, S, T, AA~AD, AK 비급여 상세, AP 재결제(0)\nQ/S/T는 예약 기록과 실제 내원 기록으로 계산하며, U/V는 수정하지 않습니다.\n비급여는 모두 최초결제로 분류합니다.\nF 재진 환자수와 N 65세 이상 비율은 시트에서 자동 계산됩니다.`)) return;
     dailyMetricsSyncBtn.disabled = true;
     dailyMetricsDateInput.disabled = true;
     dailyMetricsSyncResult.innerHTML = "";
     setDailyMetricsSyncStatus(`${date} 서버 집계 및 구글시트 반영 중...`);
+    let sheetSynced = false;
     try {
       const res = await fetch("/api/google/daily-metrics-sync", {
         method: "POST",
@@ -745,10 +747,35 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || `원본 반영 실패 (${res.status})`);
+      sheetSynced = true;
       renderDailyMetricsSyncResult(data);
-      setDailyMetricsSyncStatus(`${date} 원본 구글시트 반영 완료`, "good");
+      setDailyMetricsSyncStatus(`${date} 구글시트 반영 완료 · 같은 날짜 자료 조회 및 서버 저장 중...`);
+      const previewRes = await fetch('/api/google/daily-metrics-import-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start: date, end: date }),
+        cache: 'no-store'
+      });
+      const preview = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) throw new Error(preview.error || '구글시트 자료 조회 실패');
+      const selected = preview.comparison?.find(row => row.date === date);
+      if (!selected || !preview.previewId) throw new Error('선택 날짜의 구글시트 자료를 찾지 못했습니다.');
+      if (selected.changes.length) {
+        const saveRes = await fetch('/api/google/daily-metrics-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ previewId: preview.previewId, dates: [date] }),
+          cache: 'no-store'
+        });
+        const saved = await saveRes.json().catch(() => ({}));
+        if (!saveRes.ok) throw new Error(saved.error || '서버 저장 실패');
+      }
+      clearGoogleDailyPreview();
+      const warnings = preview.warnings?.length ? ` · 확인 필요: ${preview.warnings.join(' / ')}` : '';
+      setDailyMetricsSyncStatus(`${date} 구글시트 반영 및 서버 자료 ${selected.changes.length ? '저장 완료' : '확인 완료 (변경 없음)'}${warnings}`, 'good');
     } catch (error) {
-      setDailyMetricsSyncStatus(error?.message || String(error), "error");
+      const message = error?.message || String(error);
+      setDailyMetricsSyncStatus(sheetSynced ? `${date} 구글시트 반영 완료 · 서버 자료 가져오기/저장 실패: ${message}` : message, "error");
     } finally {
       dailyMetricsSyncBtn.disabled = false;
       dailyMetricsDateInput.disabled = false;
