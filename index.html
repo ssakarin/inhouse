@@ -12525,7 +12525,7 @@
     }
     const isNew = Number(data.timestamp || 0) > pageLoadedAt;
     patientsByKey.set(key, data);
-    if (autoBedAssignEnabled) assignPatientToBed(key, data, true);
+    if (autoBedAssignEnabled && !isFixedBedScreen()) queueMicrotask(() => assignWaitingPatientsToBeds());
 
     renderNotif(key, data, isNew);
 
@@ -12546,6 +12546,7 @@
     loadedKeys.add(key);
     patientsByKey.set(key, data);
     refreshOpenVisitPlanControls();
+    if (autoBedAssignEnabled && !isFixedBedScreen()) queueMicrotask(() => assignWaitingPatientsToBeds());
     requestFullBoardRender();
   }
 
@@ -13479,13 +13480,42 @@
     return normalizePreCompletedTreatmentIndexes(next, treatments);
   }
 
-  function getPreferredBedOrder(gender) {
-    const primary = gender === '여' ? FEMALE_PRIMARY_BED_NUMBERS : MALE_PRIMARY_BED_NUMBERS;
-    const fallback = gender === '여' ? MALE_PRIMARY_BED_NUMBERS : FEMALE_PRIMARY_BED_NUMBERS;
-    return [...primary, ...fallback]
-      .filter((bedNo, index, rows) =>
-        REGULAR_BED_NUMBERS.includes(bedNo) && !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(bedNo) && rows.indexOf(bedNo) === index
-      );
+  function normalizeBedPreferences(value = {}) {
+    return {
+      avoidAircon: value?.avoidAircon === true,
+      lowBed: value?.lowBed === true,
+      preferredBed: REGULAR_BED_NUMBERS.includes(Number(value?.preferredBed)) ? Number(value.preferredBed) : null
+    };
+  }
+
+  function getPreferredBedOrder(patient, beds = {}, dateKey = getTodayKey()) {
+    const preferences = normalizeBedPreferences(patient.bodyParts?.bedPreferences);
+    const positions = normalizePatientPositions(patient.bodyParts?.position);
+    const left = positions.includes('left_lateral');
+    const right = positions.includes('right_lateral');
+    const leftBeds = new Set([1, 3, 5, 8, 10, 12, 13]);
+    const airconBeds = new Set([3, 4, 9, 10]);
+    const month = Number(String(dateKey).slice(5, 7));
+    const summer = month >= 6 && month <= 9;
+    const rooms = [[1, 2], [3, 4], [5, 6], [8], [9, 10], [11, 12], [13, 14]];
+    const primary = patient.gender === '여' ? [1, 2, 3, 4, 5, 6] : [8, 9, 10, 11, 12];
+    return REGULAR_BED_NUMBERS.filter(no => {
+      if (beds[String(no)]) return false;
+      if (left !== right && leftBeds.has(no) !== left) return false;
+      if (summer && preferences.avoidAircon && airconBeds.has(no)) return false;
+      return true;
+    }).map(no => {
+      const roommates = rooms.find(room => room.includes(no))
+        .filter(other => other !== no).map(other => beds[String(other)])
+        .filter(bed => bed && !isCleaningBed(bed) && bed.patientKey);
+      const same = roommates.some(bed => patient.gender && bed.gender === patient.gender);
+      const mixed = roommates.some(bed => !patient.gender || !bed.gender || bed.gender !== patient.gender);
+      const low = no === 13 || no === 14;
+      const tier = mixed ? 5 : (low && preferences.lowBed ? -1
+        : primary.includes(no) ? 0 : same ? 1 : low ? 2 : 3);
+      return { no, tier, preferred: no === preferences.preferredBed ? 0 : 1, roomRank: same ? 0 : 1 };
+    }).sort((a, b) => a.tier - b.tier || a.preferred - b.preferred || a.roomRank - b.roomRank || a.no - b.no)
+      .map(item => item.no);
   }
 
   function getActiveRoundRobinNurses() {
@@ -13953,7 +13983,7 @@
     }
   }
 
-  async function assignPatientToBed(patientKey, data, silent = false, force = false) {
+  async function assignPatientToBed(patientKey, data, silent = false, force = false, lowOnly = false) {
     if (!force && !autoBedAssignEnabled) return false;
     if (data.bedStatus === 'discharged') return false;
 
@@ -13997,10 +14027,11 @@
       const existingBedNo = Object.keys(beds).find(bedNo => beds[bedNo]?.patientKey === patientKey);
       if (existingBedNo) return undefined;
 
-      const emptyBedNo = getPreferredBedOrder(data.gender)
+      const emptyBedNo = getPreferredBedOrder(data, beds)
         .map(String)
         .find(bedNo => !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(Number(bedNo)) && !beds[bedNo]);
       if (!emptyBedNo) return undefined;
+      if (lowOnly && ![13, 14].includes(Number(emptyBedNo))) return undefined;
 
       beds[emptyBedNo] = createBedAssignment(patientKey, data, Number(emptyBedNo));
       placed = true;
@@ -14059,7 +14090,20 @@
     let allPrecedingAreJaejin = true;
 
     try {
+      // Give waiting low-bed patients first access to 13/14, without taking
+      // ordinary beds ahead of earlier arrivals or changing the initial-visit queue.
+      const lowBedAssigned = new Set();
       for (const [key, data] of waitingPatients) {
+        if (data.visitType === '초진' || !normalizeBedPreferences(data.bodyParts?.bedPreferences).lowBed) continue;
+        const no = await assignPatientToBed(key, data, true, force, true);
+        if (no) {
+          lowBedAssigned.add(key);
+          occupiedBeds.add(Number(no));
+          assignedCount += 1;
+        }
+      }
+      for (const [key, data] of waitingPatients) {
+        if (lowBedAssigned.has(key)) continue;
         const isChojin = data.visitType === '초진';
         // 원장 미선택 초진은 자동배정하지 않고 대기 목록에만 둔다.
         if (isChojin && !data.doctorId) continue;
@@ -15769,6 +15813,7 @@
     };
     return {
       position: serializePatientPositions(bp.position),
+      bedPreferences: normalizeBedPreferences(bp.bedPreferences),
       // 후면에 저장된 고관절 선택도 복원된 전면 고관절로 보존한다.
       front: normalizeSide('front', [
         ...(Array.isArray(bp.front) ? bp.front : []),
@@ -16059,26 +16104,60 @@
     return `<div class="body-position-options" role="group" aria-label="환자 자세 선택">${options.map(([id, text]) => {
       const label = PATIENT_POSITIONS.find(item => item.id === id).label;
       return `<button type="button" class="body-position-toggle" data-position="${id}" aria-pressed="${value.includes(id)}" aria-label="${label}" title="${label} · 다시 누르면 해제" onclick="togglePatientPosition('${id}', '${scope}', this)">${text}</button>`;
-    }).join('<span class="body-position-divider" aria-hidden="true">|</span>')}</div>${renderBedPreferenceControls()}`;
+    }).join('<span class="body-position-divider" aria-hidden="true">|</span>')}</div>${renderBedPreferenceControls(scope)}`;
   }
 
-  // UI preview only: preferences are not persisted or used by automatic assignment yet.
-  let bedPreferencePickerId = 0;
-  function renderBedPreferenceControls() {
-    const pickerId = `bed-preference-picker-${++bedPreferencePickerId}`;
-    return `<div class="bed-preference-options" role="group" aria-label="베드 선호 설정">
-      <button type="button" class="bed-preference-chip" aria-pressed="false" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed') !== 'true')">에어컨X</button>
-      <button type="button" class="bed-preference-chip" aria-pressed="false" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed') !== 'true')">낮은베드</button>
-      <button type="button" class="bed-preference-chip" data-preferred-bed="" aria-label="선호베드: 선호없음" aria-haspopup="dialog" aria-controls="${pickerId}" onclick="openBedPreferencePicker(this)">선호없음</button>
+  function renderBedPreferenceControls(scope = '') {
+    const preferences = normalizeBedPreferences((scope ? formBodyPartsByScope[scope] : getBedData(selectedBedNo)?.bodyParts)?.bedPreferences);
+    const pickerId = `bed-preference-picker-${scope || `selected-${selectedBedNo}`}`;
+    const label = preferences.preferredBed ? `${preferences.preferredBed}번` : '선호없음';
+    return `<div class="bed-preference-options" data-preference-scope="${scope}" data-preference-bed="${scope ? '' : selectedBedNo}" role="group" aria-label="베드 선호 설정">
+      <button type="button" class="bed-preference-chip" aria-pressed="${preferences.avoidAircon}" onclick="toggleBedPreference(this, 'avoidAircon')">에어컨X</button>
+      <button type="button" class="bed-preference-chip" aria-pressed="${preferences.lowBed}" onclick="toggleBedPreference(this, 'lowBed')">낮은베드</button>
+      <button type="button" class="bed-preference-chip" data-preferred-bed="${preferences.preferredBed || ''}" aria-label="선호베드: ${label}" aria-haspopup="dialog" aria-controls="${pickerId}" onclick="openBedPreferencePicker(this)">${label}</button>
       <div id="${pickerId}" class="bed-preference-picker" popover="auto" role="dialog" aria-label="선호베드 선택">
         <div class="bed-preference-picker-title">선호베드 선택</div>
         <div class="bed-preference-number-grid">
-          <button type="button" class="bed-preference-none" data-bed-value="" aria-pressed="true" onclick="selectBedPreference(this)">선호없음</button>
-          ${REGULAR_BED_NUMBERS.map(no => `<button type="button" data-bed-value="${no}" aria-pressed="false" onclick="selectBedPreference(this)">${no}번</button>`).join('')}
+          <button type="button" class="bed-preference-none" data-bed-value="" aria-pressed="${!preferences.preferredBed}" onclick="selectBedPreference(this)">선호없음</button>
+          ${REGULAR_BED_NUMBERS.map(no => `<button type="button" data-bed-value="${no}" aria-pressed="${no === preferences.preferredBed}" onclick="selectBedPreference(this)">${no}번</button>`).join('')}
         </div>
       </div>
     </div>`;
   }
+
+  async function saveBedPreference(control, field, value) {
+    const group = control.closest('.bed-preference-options');
+    const scope = group.dataset.preferenceScope;
+    if (scope) {
+      const parts = normalizeBodyParts(formBodyPartsByScope[scope]);
+      parts.bedPreferences = normalizeBedPreferences({ ...parts.bedPreferences, [field]: value });
+      formBodyPartsByScope[scope] = parts;
+      renderFormBodyPartSelector(scope);
+      scheduleSelectFieldSave(scope);
+      return;
+    }
+    const bedNo = Number(group.dataset.preferenceBed);
+    const bed = getBedData(bedNo);
+    if (!bed?.patientKey) return;
+    const bodyParts = normalizeBodyParts(bed.bodyParts);
+    bodyParts.bedPreferences = normalizeBedPreferences({ ...bodyParts.bedPreferences, [field]: value });
+    const controls = [...group.querySelectorAll('button')];
+    controls.forEach(button => { button.disabled = true; });
+    try {
+      await Promise.all([
+        updateBedRecord(bedNo, { bodyParts }),
+        updatePatient(bed.patientKey, { bodyParts })
+      ]);
+      renderBodyPartSelector();
+    } catch (error) {
+      console.error('Bed preference save failed', error);
+      showToast('베드 선호 설정 저장에 실패했습니다. 다시 선택해 주세요.');
+    } finally {
+      controls.forEach(button => { button.disabled = false; });
+    }
+  }
+
+  window.toggleBedPreference = (button, field) => saveBedPreference(button, field, button.getAttribute('aria-pressed') !== 'true');
 
   window.openBedPreferencePicker = (button) => {
     const picker = document.getElementById(button.getAttribute('aria-controls'));
@@ -16102,6 +16181,7 @@
     picker.querySelectorAll('[data-bed-value]').forEach(item => item.setAttribute('aria-pressed', item === option));
     picker.hidePopover();
     button.focus();
+    return saveBedPreference(button, 'preferredBed', value ? Number(value) : null);
   };
 
   function renderBodyPartChips(bed) {
