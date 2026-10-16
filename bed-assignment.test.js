@@ -30,19 +30,21 @@ test('same-sex rooms are filled and mixed rooms are last even in the default zon
   beds[9] = occupant('여');
   assert.equal(order(patient(), beds)[0], 10);
 });
-test('direction is mandatory; both or neither impose no restriction', () => {
+test('direction is preferred with opposite-side fallback; both or neither impose no restriction', () => {
   const left = [1,3,5,8,10,12,13];
-  assert.ok(order(patient('여', {}, 'left_lateral')).every(no => left.includes(no)));
-  assert.ok(order(patient('여', {}, 'right_lateral')).every(no => !left.includes(no)));
+  assert.ok(order(patient('여', {}, 'left_lateral')).slice(0,7).every(no => left.includes(no)));
+  assert.ok(order(patient('여', {}, 'right_lateral')).slice(0,6).every(no => !left.includes(no)));
   assert.equal(order(patient('여', {}, ['left_lateral','right_lateral'])).length, 13);
-  assert.deepEqual(order(patient('여', {}, 'left_lateral'), onlyEmpty([2,4,6])), []);
+  assert.equal(order(patient('여', {}, 'left_lateral'), onlyEmpty([2,4,6]))[0], 2);
+  assert.equal(order(patient('여', {}, 'right_lateral'), onlyEmpty([1]))[0], 1);
 });
-test('aircon exclusion applies June through September only', () => {
+test('aircon avoidance is preferred June through September, with aircon-only fallback', () => {
   for (const month of ['06','07','08','09']) {
-    assert.ok(order(patient('남', {avoidAircon:true}), {}, `2026-${month}-01`).every(no => ![3,4,9,10].includes(no)));
+    assert.ok(order(patient('남', {avoidAircon:true}), {}, `2026-${month}-01`).slice(0,9).every(no => ![3,4,9,10].includes(no)));
+    assert.equal(order(patient('여', {avoidAircon:true}), onlyEmpty([3]), `2026-${month}-01`)[0], 3);
   }
   for (const month of ['05','10']) {
-    assert.ok(order(patient('남', {avoidAircon:true}), {}, `2026-${month}-01`).includes(9));
+    assert.deepEqual(order(patient('남', {avoidAircon:true}), {}, `2026-${month}-01`), order(patient('남'), {}, `2026-${month}-01`));
   }
 });
 test('low-bed preference precedes zone but falls back and does not force mixed rooms', () => {
@@ -54,9 +56,18 @@ test('low-bed preference precedes zone but falls back and does not force mixed r
 test('preferred bed wins within tier and respects direction, aircon and mixed rooms', () => {
   assert.equal(order(patient('여', {preferredBed:5}))[0], 5);
   assert.equal(order(patient('여', {preferredBed:9}))[0], 1);
-  assert.ok(!order(patient('여', {preferredBed:2}, 'left_lateral')).includes(2));
-  assert.ok(!order(patient('여', {preferredBed:3,avoidAircon:true})).includes(3));
+  assert.equal(order(patient('여', {preferredBed:2}, 'left_lateral'))[0], 1);
+  assert.equal(order(patient('여', {preferredBed:3,avoidAircon:true}))[0], 1);
   assert.equal(order(patient('여', {preferredBed:2}), {1:occupant('남')})[0], 3);
+});
+test('combined preferences favor matching beds, retain fallback and avoid unnecessary mixed rooms', () => {
+  const p = patient('여', {avoidAircon:true}, 'left_lateral');
+  assert.equal(order(p, onlyEmpty([2,3,5]))[0], 5);
+  assert.equal(order(p, onlyEmpty([3]))[0], 3);
+  assert.equal(order(p, onlyEmpty([4]))[0], 4);
+  const beds = onlyEmpty([1,2]); beds[1] = occupant('남'); delete beds[3];
+  assert.equal(order(patient('여', {}, 'right_lateral'), beds)[0], 3);
+  assert.deepEqual(order(p, onlyEmpty([])), []);
 });
 test('cleaning and occupied beds are unavailable; age and memo do not change ranking', () => {
   assert.ok(!order(patient(), {1:{cleaning:true}}).includes(1));

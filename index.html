@@ -13501,8 +13501,6 @@
     const primary = patient.gender === '여' ? [1, 2, 3, 4, 5, 6] : [8, 9, 10, 11, 12];
     return REGULAR_BED_NUMBERS.filter(no => {
       if (beds[String(no)]) return false;
-      if (left !== right && leftBeds.has(no) !== left) return false;
-      if (summer && preferences.avoidAircon && airconBeds.has(no)) return false;
       return true;
     }).map(no => {
       const roommates = rooms.find(room => room.includes(no))
@@ -13513,8 +13511,13 @@
       const low = no === 13 || no === 14;
       const tier = mixed ? 5 : (low && preferences.lowBed ? -1
         : primary.includes(no) ? 0 : same ? 1 : low ? 2 : 3);
-      return { no, tier, preferred: no === preferences.preferredBed ? 0 : 1, roomRank: same ? 0 : 1 };
-    }).sort((a, b) => a.tier - b.tier || a.preferred - b.preferred || a.roomRank - b.roomRank || a.no - b.no)
+      // Side and summer aircon preferences rank beds without excluding them.
+      // Avoid mixed rooms first, then satisfy as many preferences as possible.
+      const preferenceMisses = Number(left !== right && leftBeds.has(no) !== left)
+        + Number(summer && preferences.avoidAircon && airconBeds.has(no));
+      return { no, tier, mixed: Number(mixed), preferenceMisses, preferred: no === preferences.preferredBed ? 0 : 1, roomRank: same ? 0 : 1 };
+    }).sort((a, b) => a.mixed - b.mixed || a.preferenceMisses - b.preferenceMisses
+      || a.tier - b.tier || a.preferred - b.preferred || a.roomRank - b.roomRank || a.no - b.no)
       .map(item => item.no);
   }
 
