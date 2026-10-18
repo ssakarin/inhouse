@@ -5862,6 +5862,13 @@
         <span class="rr-slider"></span>
       </span>
     </label>
+    <label class="rr-setting" style="margin-top:0;margin-bottom:10px">
+      <span class="rr-setting-text">베드 자동배정</span>
+      <span class="rr-switch">
+        <input id="nurseQuickBedAutoAssignEnabled" type="checkbox" onchange="saveAutoBedAssignEnabled(this.checked)">
+        <span class="rr-slider"></span>
+      </span>
+    </label>
     <div class="nurse-assignment-legend"><span class="assignable">● 녹색: 배정 가능</span><span class="excluded">● 핑크색: 배정 제외 (비번·월차·자리비움·데스크)</span></div>
     <div class="staff-list" id="nurseQuickList"></div>
       </div>
@@ -9346,7 +9353,7 @@
   }
 
   function syncAutoBedAssignInputs() {
-    ['autoBedAssignEnabled', 'autoBedAssignEnabledDesk'].forEach(id => {
+    ['autoBedAssignEnabled', 'autoBedAssignEnabledDesk', 'nurseQuickBedAutoAssignEnabled'].forEach(id => {
       const input = document.getElementById(id);
       if (input) input.checked = autoBedAssignEnabled;
     });
