@@ -587,6 +587,8 @@
     "avgNonCoveredFeePerDay"
   ]);
   const CHART_METRICS = [
+    { key: "actualClinicDays", label: "진료일", unitLabel: "일", axis: "count", color: "#94a3b8", title: value => `진료일 ${value.toLocaleString()}일 (실제 진료한 날짜 수)` },
+    { key: "avgDailyPatients", label: "일평균환자", patientField: "patientCount", alwaysAverage: true, axis: "count", color: "#06b6d4", title: value => `일평균환자 ${value.toFixed(1)}명 (당일환자수 기록 진료일 기준)` },
     { key: "avgVisitsPerDay", label: "진료 환자", axis: "count", color: "#39a9f5", title: value => `진료 환자 ${value.toFixed(1)}명` },
     { key: "avgNewPatientsPerDay", label: "초진", axis: "count", color: "#ffca6a", title: value => `초진 ${value.toFixed(1)}명` },
     { key: "avgChunaPerDay", label: "추나", axis: "count", color: "#f97316", title: value => `추나 ${value.toFixed(1)}명` },
@@ -597,6 +599,7 @@
     { key: "pharmaPatientRate", label: "약침비율", axis: "rate", color: "#10b981", title: value => `약침비율 ${(value * 100).toFixed(1)}%` },
     { key: "avgCombinedFeePerDay", label: "총진료비", axis: "money", color: "#4ade80", title: value => `총진료비 일평균 ${Math.round(value).toLocaleString()}원` },
     { key: "avgNonCoveredFeePerDay", label: "비급여진료비", axis: "money", color: "#ffca6a", title: value => `비급여진료비 일평균 ${Math.round(value).toLocaleString()}원` },
+    { key: "avgAutoFeePerDay", label: "자보진료비", financeField: "autoAmount", axis: "money", color: "#f472b6", title: value => `자보진료비 ${Math.round(value).toLocaleString()}원` },
     { key: "avgCombinedFeePerVisit", label: "1건 평균 진료비", axis: "money", color: "#a78bfa", unitLabel: "원/건", title: value => `1건 평균 진료비 ${Math.round(value).toLocaleString()}원` }
   ];
 
@@ -1264,6 +1267,7 @@
         return {
           key: w.key,
           clinicDays,
+          actualClinicDays: w.dates.size,
           visits: w.visits,
           newPatients: w.newPatients,
           followupEligibleNewPatients: w.followupEligibleNewPatients,
@@ -1332,6 +1336,7 @@
       avgPharmaPatientsPerDay: pharmaTotal / clinicDays,
       pharmaPackagePurchasePatients: pharmaPackagePurchasePatientSet.size,
       clinicDays,
+      actualClinicDays: new Set(Object.values(trendBuckets).flatMap(bucket => [...bucket.dates])).size,
       treatmentCounts,
       doctorCounts,
       weekdayCounts,
@@ -1774,9 +1779,9 @@
 
   function chartMetricValue(row, metric) {
     if (row?._chartNormalized) return row[metric.key] ?? null;
-    if (metric.patientField) {
-      const summary=row?.dailyPatientCounts?.[metric.patientField];
-      return summary?.days ? (chartValueMode === "total" ? summary.value : summary.average) : null;
+    if (metric.patientField || metric.financeField) {
+      const summary = metric.financeField ? row?.dailyFinanceCounts?.[metric.financeField] : row?.dailyPatientCounts?.[metric.patientField];
+      return summary?.days ? (chartValueMode === "total" && !metric.alwaysAverage ? summary.value : summary.average) : null;
     }
     if (!row || row[metric.key] === null || row[metric.key] === undefined) return null;
     const value = Number(row[metric.key] || 0);
@@ -1787,6 +1792,7 @@
   }
 
   function operationalMetricTitle(metric, value) {
+    if (metric.financeField) return `${metric.label} ${chartValueMode === "total" ? "합계" : "일평균"} ${Math.round(value).toLocaleString()}원`;
     if (TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key)) {
       const basis = chartValueMode === "total" ? "합계" : "일평균";
       if (metric.axis === "money") return `${metric.label} ${basis} ${Math.round(value).toLocaleString()}원`;
@@ -2060,7 +2066,7 @@
       const axisLabel = chartUnit === "week" ? isoWeekRangeLabel(row.key).replace(/[()]/g, "") : slotLabelForKey(row.key, chartUnit);
       return `<text class="chart-text" x="${x(idx)}" y="324" text-anchor="middle">${axisLabel}</text>`;
     }).join("");
-    const legend = `<div class="chart-legend"><span class="legend-item"><svg width="28" height="12" aria-hidden="true"><path d="M 0 6 L 4 3 L 8 9 L 12 3 L 16 9 L 20 3 L 24 9 L 28 6" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.7"/></svg>빈 구간 연결 (실제 값 없음)</span>${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? ` (${metric.unitLabel || (chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "원/합계" : "원/일")})` : ` (${chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "명/합계" : "명/일"})`}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
+    const legend = `<div class="chart-legend"><span class="legend-item"><svg width="28" height="12" aria-hidden="true"><path d="M 0 6 L 4 3 L 8 9 L 12 3 L 16 9 L 20 3 L 24 9 L 28 6" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.7"/></svg>빈 구간 연결 (실제 값 없음)</span>${metrics.map(metric => `<span class="legend-item"><span class="legend-swatch" style="background:${metric.color}"></span>${metric.label}${metric.axis === "rate" ? " (%)" : metric.axis === "money" ? ` (${metric.unitLabel || (chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "원/합계" : "원/일")})` : metric.unitLabel ? ` (${metric.unitLabel})` : ` (${chartValueMode === "total" && TOTALIZABLE_CHART_METRIC_KEYS.has(metric.key) ? "명/합계" : "명/일"})`}</span>`).join("")}${metrics.some(isFollowupRateMetric) ? `<span class="legend-item"><span class="legend-swatch" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 9px)"></span>재진율·삼진율 최근 21일 점선</span>` : ""}</div>`;
 
     if (operationalTrendMode === "index") {
       const normalizedByMetric = new Map();
@@ -2128,6 +2134,7 @@
           : Object.values(stats.financialCoverage || {}).some(value => Number(value) > 0);
       if (!available) return null;
     }
+    if (metric.financeField) return stats.dailyMetrics?.finance?.[metric.financeField]?.average ?? null;
     if (metric.patientField) return stats.dailyMetrics?.patients?.[metric.patientField]?.average ?? null;
     const clinicDays = Number(stats.clinicDays || 0);
     if (metric.key === "avgVisitsPerDay") return clinicDays ? Number(stats.coreVisits || 0) / clinicDays : 0;
@@ -2152,6 +2159,7 @@
 
   function formatPeriodAverage(value, metric) {
     if (value === null) return "자료 없음";
+    if (metric.key === "actualClinicDays") return `${value.toLocaleString()}일`;
     if (metric.axis === "rate") return `${(value * 100).toFixed(1)}%`;
     if (metric.key === "avgCombinedFeePerVisit") return `${Math.round(value).toLocaleString()}원`;
     if (metric.axis === "money") return `${Math.round(value / 10000).toLocaleString()}만원`;

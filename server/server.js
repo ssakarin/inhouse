@@ -1827,6 +1827,7 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
       return {
         key: bucket.key,
         clinicDays,
+        actualClinicDays: bucket.dates.size,
         visits: bucket.visits,
         newPatients: bucket.newPatients,
         followupEligibleNewPatients: bucket.followupEligibleNewPatients,
@@ -1930,6 +1931,7 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
     avgPharmaPatientsPerDay: pharmaTotal / clinicDays,
     pharmaPackagePurchasePatients: pharmaPackagePurchasePatientSet.size,
     clinicDays,
+    actualClinicDays: new Set(Object.values(trendBuckets).flatMap(bucket => [...bucket.dates])).size,
     treatmentCounts,
     doctorCounts,
     weekdayCounts,

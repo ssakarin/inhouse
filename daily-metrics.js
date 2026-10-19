@@ -94,10 +94,18 @@
     // Keep these aggregates separate from patient-level follow-up cohorts.
     const active=row=>Object.hasOwn(row,'patientCount')?row.patientCount>0:patientFields.some(k=>Number(row[k]||0)>0)||fields.slice(0,4).some(k=>Number(row[k]||0)>0);
     function patientSummary(rows){const summary={};for(const k of patientFields){const matching=rows.filter(r=>active(r)&&Object.hasOwn(r,k));const value=matching.reduce((s,r)=>s+r[k],0);summary[k]={value,days:matching.length,average:matching.length?value/matching.length:null};}return summary;}
+    // Count distinct dates with visits, including imported patient records.
+    const clinicDates=new Set(board.filter(row=>Number(row.visits||0)>0).map(row=>row.date));
+    for(const row of imports)if(active(row))clinicDates.add(row.date);
+    const clinicDatesByPeriod=new Map();
+    for(const date of clinicDates){const key=periodKey(date);clinicDatesByPeriod.set(key,(clinicDatesByPeriod.get(key)||0)+1);}
+    base={...base,actualClinicDays:clinicDates.size,trendStats:(base.trendStats||[]).map(row=>({...row,actualClinicDays:clinicDatesByPeriod.get(row.key)||0}))};
     source.patients=patientSummary(imports);
+    function financeSummary(rows){const matching=rows.filter(r=>active(r)&&Object.hasOwn(r,'autoAmount'));const value=matching.reduce((sum,r)=>sum+r.autoAmount,0);return {autoAmount:{value,days:matching.length,average:matching.length?value/matching.length:null}};}
+    source.finance=financeSummary(imports);
     const patientBuckets=new Map();for(const row of imports){const key=periodKey(row.date);if(!patientBuckets.has(key))patientBuckets.set(key,[]);patientBuckets.get(key).push(row);}
     const patientTrends=new Map((base.trendStats||[]).map(r=>[r.key,{...r}]));
-    for(const [key,rows] of patientBuckets){const trend=patientTrends.get(key)||{key,clinicDays:rows.filter(active).length};trend.dailyPatientCounts=patientSummary(rows);patientTrends.set(key,trend);}
+    for(const [key,rows] of patientBuckets){const trend=patientTrends.get(key)||{key,clinicDays:rows.filter(active).length};trend.actualClinicDays=clinicDatesByPeriod.get(key)||0;trend.dailyPatientCounts=patientSummary(rows);trend.dailyFinanceCounts=financeSummary(rows);patientTrends.set(key,trend);}
     base={...base,trendStats:[...patientTrends.values()].sort((a,b)=>a.key.localeCompare(b.key))};
     if(!importedDays.size)return {...base,dailyMetrics:source};
     const trends=new Map((base.trendStats||[]).map(r=>[r.key,{...r}]));for(const[key,b]of buckets){const trend=trends.get(key)||{key,clinicDays:b.dates.size};Object.assign(trend,{avgCombinedFeePerDay:b.hasCombinedFinance?(b.totalFee+b.nonCoveredAmount)/Math.max(1,b.dates.size):null,avgTotalFeePerDay:b.totalFee/Math.max(1,b.dates.size),avgNonCoveredFeePerDay:b.hasNoncoveredFinance?b.nonCoveredAmount/Math.max(1,b.dates.size):null,avgCombinedFeePerVisit:b.hasCombinedFinance&&b.perVisitCount?(b.totalFee+b.nonCoveredAmount)/b.perVisitCount:null,financialAggregate:true});trends.set(key,trend);}
