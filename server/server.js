@@ -4,6 +4,7 @@ const recentRevenue = require("../recent-revenue");
 const googleDailyImport = require("../google-daily-import");
 const dailyImportPreviews = new Map();
 const signageState = require("./signage-state");
+const { reconcileAssignmentAlerts } = require("./bed-assignment-alerts");
 const signageTts = require("./signage-tts");
 const getSignageSpeech = signageTts.createSpeechCache();
 const fs = require("node:fs");
@@ -4150,6 +4151,31 @@ function setStateValue(key, value) {
   return saved;
 }
 
+function resetNurseVacationsForNewDay(now = new Date()) {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(now);
+  const markerKey = "settings/nurseVacationResetDate";
+  const previousDate = getStateValue(markerKey);
+  if (previousDate === today) return;
+  // On first installation, keep today's existing manual checks.
+  if (previousDate && previousDate < today) {
+    const nurses = getStateValue("staff/nurses") || {};
+    const next = { ...nurses };
+    let changed = false;
+    for (const [id, nurse] of Object.entries(nurses)) {
+      if (!nurse?.vacation) continue;
+      next[id] = { ...nurse, vacation: false };
+      changed = true;
+    }
+    if (changed) {
+      setStateValue("staff/nurses", next);
+      sseBroadcastState("staff/nurses", next);
+    }
+  }
+  setStateValue(markerKey, today);
+}
+
 function patchObject(base, patch) {
   if (!base || typeof base !== "object" || Array.isArray(base)) base = {};
   return { ...base, ...(patch && typeof patch === "object" && !Array.isArray(patch) ? patch : {}) };
@@ -4553,6 +4579,10 @@ function commitBeds(beds, previousBeds = null) {
   const previous = previousBeds ? cloneJson(previousBeds) : cloneJson(getBedsState());
   const next = stampBedStageTimes(previous || {}, beds || {});
   setStateValue("beds", next);
+  const previousAlerts = getStateValue("bedAssignmentAlerts") || {};
+  const nextAlerts = reconcileAssignmentAlerts(previousAlerts, next);
+  const alertsChanged = !stateEquals(previousAlerts, nextAlerts);
+  if (alertsChanged) setStateValue("bedAssignmentAlerts", nextAlerts);
   const existingCalls = getStateValue("signageCalls");
   const nextCalls = signageState.onAssignment(Array.isArray(existingCalls) ? existingCalls : [], previous || {}, next, Date.now(), () => crypto.randomUUID());
   if (!stateEquals(existingCalls || [], nextCalls)) setStateValue("signageCalls", nextCalls);
@@ -4560,6 +4590,7 @@ function commitBeds(beds, previousBeds = null) {
   setStateValue("__bedsVersion", version);
   const { updates, removes } = diffBeds(previous || {}, next);
   sseBroadcastBedsDelta(version, updates, removes, previous);
+  if (alertsChanged) sseBroadcastState("bedAssignmentAlerts", nextAlerts);
   return version;
 }
 
@@ -5339,8 +5370,14 @@ function logMemorySuffix() {
   return `rss=${Math.round(memory.rss / 1024 / 1024)}MB heap=${Math.round(memory.heapUsed / 1024 / 1024)}MB`;
 }
 
+resetNurseVacationsForNewDay();
 let lastLagCheck = Date.now();
 setInterval(() => {
+  try {
+    resetNurseVacationsForNewDay();
+  } catch (error) {
+    console.error("[nurses] daily vacation reset failed", error);
+  }
   const now = Date.now();
   const lag = now - lastLagCheck - 1000;
   lastLagCheck = now;
@@ -5404,6 +5441,7 @@ const server = http.createServer(async (req, res) => {
     }
   });
   try {
+    resetNurseVacationsForNewDay();
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const pathname = url.pathname;
     if ((pathname === "/signage" || pathname === "/signage/") && (req.method === "GET" || req.method === "HEAD")) {

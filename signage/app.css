@@ -127,7 +127,6 @@ html.fit .stage { transform-origin: 0 0; }
 /* 이벤트 포스터 */
 .slide--event { display: flex; align-items: center; justify-content: center; }
 .slide--event img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.slide--event-chuseok { background: #140c08; }
 .slide--event-memory { background: #f4f4f4; }
 .slide--event-memory img { object-fit: cover; }
 .slide--event-lindiet { background: #fff; }
@@ -238,7 +237,6 @@ html.fit .stage { transform-origin: 0 0; }
 .slide.is-active .brand-line { animation: line-grow .9s .45s var(--ease) both; }
 
 .slide.is-active.slide--event img { animation:none; transform:none; }
-.slide.is-active.slide--event-chuseok img { animation: none; transform: none; }
 
 .slide.is-active .holiday-rule,
 .slide.is-active .holiday-date,

@@ -13927,8 +13927,11 @@
   }
 
   // 베드가 비워지거나 다른 환자로 바뀌면 배정 알림을 정리한다.
-  // 단, 치료 시작 전 다른 일반 베드로 이동한 경우에는 알림도 환자를 따라 이동한다.
+  // 미확인 알림은 치료 진행 여부와 관계없이 환자를 따라 이동한다.
   function pruneStaleBedAssignmentAlerts() {
+    // The server reconciles alerts atomically against the complete bed tree.
+    // Individual SSE deltas may temporarily show only half of a move or swap.
+    if (SERVER_MODE) return;
     // Fixed screens receive filtered bed snapshots and cannot safely delete shared alerts.
     if (isFixedBedScreen() || !hasLoadedBedsOnce) return;
     [...bedAssignmentAlertItems.entries()].forEach(([key, data]) => {
@@ -13940,7 +13943,7 @@
 
       const movedEntry = getAllBedEntries()
         .find(entry => String(entry.bed?.patientKey || '') === patientKey);
-      if (movedEntry?.bed && Number(movedEntry.bedNo) < 101 && !hasBedTreatmentStarted(movedEntry.bed)) {
+      if (movedEntry?.bed) {
         const patch = {
           bedNo: Number(movedEntry.bedNo),
           bedLabel: getBedLabel(movedEntry.bedNo),
@@ -13973,6 +13976,7 @@
 
   async function createBedAssignmentAlert(patientKey, data, bedNo) {
     if (!patientKey || !bedNo) return;
+    if (getBedAssignmentAlertForPatient(patientKey)) return;
     const name = data.name || '환자';
     try {
       await pushBedAssignmentAlert({
@@ -18046,8 +18050,8 @@
   }
 
   async function remapBedAssignmentAlertForMovedPatient(patientKey, bed, toBedNo) {
-    if (!patientKey || !bed || !toBedNo || Number(toBedNo) >= 101) return;
-    if (hasBedTreatmentStarted(bed)) return;
+    if (SERVER_MODE) return;
+    if (!patientKey || !bed || !toBedNo) return;
     const alert = getBedAssignmentAlertForPatient(patientKey);
     if (!alert?.key) return;
     const patch = {
@@ -21027,7 +21031,7 @@
   }
 
   async function removeBedAssignmentAlertForBedPatient(bedNo, patientKey) {
-    const alert = getBedAssignmentAlertForBedPatient(bedNo, patientKey) || getBedAssignmentAlertForBed(bedNo);
+    const alert = patientKey ? getBedAssignmentAlertForBedPatient(bedNo, patientKey) : getBedAssignmentAlertForBed(bedNo);
     if (!alert?.key) return;
     bedAssignmentAlertItems.delete(alert.key);
     delete fixedBedArrivalShownByBed[bedNo];
@@ -21038,6 +21042,11 @@
       await removeBedAssignmentAlert(alert.key, true);
     } catch (e) {
       console.error(e);
+      bedAssignmentAlertItems.set(alert.key, alert);
+      delete fixedBedArrivalAcknowledgedByBed[bedNo];
+      renderUpcomingAlerts();
+      renderBedMonitors();
+      syncFixedBedArrivalOverlay();
       showToast('베드 배정 알림 확인 실패');
     }
   }

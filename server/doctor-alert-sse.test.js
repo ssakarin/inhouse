@@ -120,6 +120,7 @@ test('fixed doctor screens never prune shared alerts from filtered or initial be
   for (const fixed of [true, false]) {
     const context = vm.createContext({
       isFixedBedScreen: () => fixed,
+      SERVER_MODE: true,
       hasLoadedBedsOnce: fixed,
       bedAssignmentAlertItems: new Map([['room2', {bedNo:102,patientKey:'p2'}]]),
       getBedData: () => { throw Error('must not inspect incomplete snapshots'); },

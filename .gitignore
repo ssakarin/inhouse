@@ -6,3 +6,5 @@ slack_backups/
 .tmp-xlsx-inspect/
 tmp/
 output/
+/outputs/
+/*.lnk

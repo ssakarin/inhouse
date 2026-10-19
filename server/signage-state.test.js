@@ -27,7 +27,7 @@ test('one thousand treatment updates do not rewrite or broadcast unchanged signa
  const state={beds:{8:{...bed}},signageCalls:signage.enqueue([],8,bed,Date.now(),'existing'),__bedsVersion:0};
  let callWrites=0,broadcasts=0,id=0;
  const ctx=vm.createContext({
-  signageState:signage,crypto:{randomUUID:()=>String(++id)},
+  signageState:signage,reconcileAssignmentAlerts:require('./bed-assignment-alerts').reconcileAssignmentAlerts,crypto:{randomUUID:()=>String(++id)},
   cloneJson:value=>JSON.parse(JSON.stringify(value)),getBedsState:()=>state.beds,
   stampBedStageTimes:(previous,next)=>next,getStateValue:key=>state[key],
   setStateValue:(key,value)=>{state[key]=value;if(key==='signageCalls')callWrites++;},
@@ -141,8 +141,10 @@ test('bed assignment stays silent until confirmed, confirms once and ignores sta
  assert.deepEqual(signage.onConfirmation(called,beds,{bedNo:8,patientKey:'p1'},now+6000,id),called);
  assert.deepEqual(signage.onConfirmation(pending,{8:{patientKey:'new',name:'다른환자'}},{bedNo:8,patientKey:'p1'},now+5000,id),pending);
  const moved=signage.onAssignment(pending,beds,{9:bed},now+1000,id);
- assert.equal(moved.length,0);
- assert.equal(signage.onConfirmation(moved,{9:bed},{bedNo:9,patientKey:'p1'},now+5000,id).length,0);
+ assert.equal(moved.length,1);assert.equal(moved[0].bedNo,9);assert.equal(moved[0].pending,true);
+ const movedCalled=signage.onConfirmation(moved,{9:bed},{bedNo:9,patientKey:'p1'},now+5000,id);
+ assert.equal(movedCalled.length,1);assert.equal(movedCalled[0].pending,undefined);
+ assert.equal(signage.publicStatus({}, {9:bed},{},movedCalled,now+5000).active.bedNo,9);
 });
 
 test('waiting room classification depends only on first treatment and ignores assignment alerts',()=>{
