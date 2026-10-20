@@ -23,12 +23,32 @@ test('initial zones and overflow use low beds before empty opposite-zone rooms',
   const beds = Object.fromEntries([1,2,3,4,5,6].map(no => [no, occupant('여')]));
   assert.equal(order(patient(), beds)[0], 13);
 });
-test('same-sex rooms are filled and mixed rooms are last even in the default zone', () => {
-  assert.equal(order(patient(), {3:occupant('여')})[0], 4);
+test('empty rooms are preferred within the default zone and mixed rooms remain last', () => {
+  assert.equal(order(patient(), {3:occupant('여')})[0], 1);
   assert.equal(order(patient(), {1:occupant('남')})[0], 3);
   const beds = Object.fromEntries([1,2,3,4,5,6].map(no => [no, occupant('여')]));
   beds[9] = occupant('여');
   assert.equal(order(patient(), beds)[0], 10);
+});
+
+test('a second female patient needing the opposite side uses another room first', () => {
+  const beds = {1:occupant('여')};
+  assert.equal(order(patient('여', {}, 'right_lateral'), beds)[0], 4);
+  beds[4] = occupant('여');
+  assert.equal(order(patient('여', {}, 'right_lateral'), beds)[0], 6);
+  beds[6] = occupant('여');
+  assert.equal(order(patient('여', {}, 'right_lateral'), beds)[0], 2);
+});
+
+test('ordinary assignments spread across rooms for each gender before sharing rooms', () => {
+  for (const [gender, expected] of [['여', [1,3,5,2]], ['남', [8,9,11,10]]]) {
+    const beds = {};
+    for (const bedNo of expected) {
+      assert.equal(order(patient(gender), beds)[0], bedNo);
+      beds[bedNo] = occupant(gender);
+    }
+  }
+  assert.equal(order(patient('남', {}, 'left_lateral'), {8:occupant('남'),9:occupant('남')})[0], 12);
 });
 test('direction is preferred with opposite-side fallback; both or neither impose no restriction', () => {
   const left = [1,3,5,8,10,12,13];
@@ -59,6 +79,7 @@ test('preferred bed wins within tier and respects direction, aircon and mixed ro
   assert.equal(order(patient('여', {preferredBed:2}, 'left_lateral'))[0], 1);
   assert.equal(order(patient('여', {preferredBed:3,avoidAircon:true}))[0], 1);
   assert.equal(order(patient('여', {preferredBed:2}), {1:occupant('남')})[0], 3);
+  assert.equal(order(patient('여', {preferredBed:2}, 'right_lateral'), {1:occupant('여')})[0], 2);
 });
 test('combined preferences favor matching beds, retain fallback and avoid unnecessary mixed rooms', () => {
   const p = patient('여', {avoidAircon:true}, 'left_lateral');

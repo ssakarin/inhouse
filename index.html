@@ -13492,7 +13492,8 @@
       // Avoid mixed rooms first, then satisfy as many preferences as possible.
       const preferenceMisses = Number(left !== right && leftBeds.has(no) !== left)
         + Number(summer && preferences.avoidAircon && airconBeds.has(no));
-      return { no, tier, mixed: Number(mixed), preferenceMisses, preferred: no === preferences.preferredBed ? 0 : 1, roomRank: same ? 0 : 1 };
+      // Spread patients across empty rooms when the other preferences tie.
+      return { no, tier, mixed: Number(mixed), preferenceMisses, preferred: no === preferences.preferredBed ? 0 : 1, roomRank: roommates.length };
     }).sort((a, b) => a.mixed - b.mixed || a.preferenceMisses - b.preferenceMisses
       || a.tier - b.tier || a.preferred - b.preferred || a.roomRank - b.roomRank || a.no - b.no)
       .map(item => item.no);
