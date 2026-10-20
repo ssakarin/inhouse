@@ -3996,8 +3996,13 @@
   .bed-preference-number-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
   .bed-preference-number-grid button { appearance:none; min-height:44px; padding:6px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font:inherit; font-weight:700; cursor:pointer; }
   .bed-preference-number-grid button[aria-pressed="true"] { background:rgba(56,189,248,0.18); border-color:var(--accent); color:var(--accent); }
-  .bed-preference-number-grid .bed-preference-none { grid-column:1 / -1; }
-  .bed-preference-chip:focus-visible, .bed-preference-number-grid button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .bed-preference-chip[data-bed-preference-field="nonPreferredBeds"][aria-pressed="true"], .bed-preference-picker[data-preference-field="nonPreferredBeds"] .bed-preference-number-grid button[aria-pressed="true"] { background:rgba(251,113,133,0.16); border-color:#fb7185; color:#fb7185; }
+  .bed-preference-number-grid button:disabled { opacity:0.35; cursor:not-allowed; background:var(--surface); border-color:var(--border); color:var(--text); }
+  .bed-preference-picker-hint { font-size:12px; color:var(--text3); margin-bottom:10px; }
+  .bed-preference-actions { display:flex; gap:6px; margin-top:10px; }
+  .bed-preference-actions button { flex:1; min-height:40px; padding:6px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  .bed-preference-actions .bed-preference-apply { border-color:var(--accent); color:var(--accent); }
+  .bed-preference-chip:focus-visible, .bed-preference-number-grid button:focus-visible, .bed-preference-actions button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .body-position-toggle { appearance:none; background:transparent; border:1px solid transparent; border-radius:7px; color:var(--text2); font-family:inherit; font-size:clamp(12px, 2.8vw, 18px); font-weight:900; padding:10px 2px; min-height:44px; min-width:0; flex:1 1 auto; white-space:nowrap; cursor:pointer; }
   .body-position-toggle:hover { border-color:currentColor; }
   .body-position-toggle:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
@@ -13458,11 +13463,29 @@
   }
 
   function normalizeBedPreferences(value = {}) {
+    const normalizeNumbers = values => {
+      const selected = new Set((Array.isArray(values) ? values : []).map(Number));
+      return REGULAR_BED_NUMBERS.filter(no => selected.has(no));
+    };
+    const legacyBeds = [value?.preferredBed, ...(value?.lowBed === true ? [13, 14] : [])];
+    const preferredBeds = normalizeNumbers(Array.isArray(value?.preferredBeds) ? value.preferredBeds : legacyBeds);
+    const nonPreferredBeds = normalizeNumbers(value?.nonPreferredBeds);
     return {
       avoidAircon: value?.avoidAircon === true,
-      lowBed: value?.lowBed === true,
-      preferredBed: REGULAR_BED_NUMBERS.includes(Number(value?.preferredBed)) ? Number(value.preferredBed) : null
+      preferredBeds: preferredBeds.filter(no => !nonPreferredBeds.includes(no)),
+      nonPreferredBeds
     };
+  }
+
+  function updateBedPreferences(current, field, value) {
+    const next = normalizeBedPreferences(current);
+    if (field === 'preferredBeds' || field === 'nonPreferredBeds') {
+      const blocked = next[field === 'preferredBeds' ? 'nonPreferredBeds' : 'preferredBeds'];
+      next[field] = (Array.isArray(value) ? value : []).map(Number).filter(no => !blocked.includes(no));
+    } else {
+      next[field] = value;
+    }
+    return normalizeBedPreferences(next);
   }
 
   function getPreferredBedOrder(patient, beds = {}, dateKey = getTodayKey()) {
@@ -13485,17 +13508,16 @@
         .filter(bed => bed && !isCleaningBed(bed) && bed.patientKey);
       const same = roommates.some(bed => patient.gender && bed.gender === patient.gender);
       const mixed = roommates.some(bed => !patient.gender || !bed.gender || bed.gender !== patient.gender);
-      const low = no === 13 || no === 14;
-      const tier = mixed ? 5 : (low && preferences.lowBed ? -1
-        : primary.includes(no) ? 0 : same ? 1 : low ? 2 : 3);
+      const tier = mixed ? 5 : primary.includes(no) ? 0 : same ? 1 : [13, 14].includes(no) ? 2 : 3;
       // Side and summer aircon preferences rank beds without excluding them.
-      // Avoid mixed rooms first, then satisfy as many preferences as possible.
+      // Avoid mixed rooms and disliked beds first, then satisfy side/aircon preferences.
       const preferenceMisses = Number(left !== right && leftBeds.has(no) !== left)
         + Number(summer && preferences.avoidAircon && airconBeds.has(no));
       // Spread patients across empty rooms when the other preferences tie.
-      return { no, tier, mixed: Number(mixed), preferenceMisses, preferred: no === preferences.preferredBed ? 0 : 1, roomRank: roommates.length };
-    }).sort((a, b) => a.mixed - b.mixed || a.preferenceMisses - b.preferenceMisses
-      || a.tier - b.tier || a.preferred - b.preferred || a.roomRank - b.roomRank || a.no - b.no)
+      return { no, tier, mixed: Number(mixed), nonPreferred: Number(preferences.nonPreferredBeds.includes(no)), preferenceMisses,
+        preferred: preferences.preferredBeds.length && !preferences.preferredBeds.includes(no) ? 1 : 0, roomRank: roommates.length };
+    }).sort((a, b) => a.mixed - b.mixed || a.nonPreferred - b.nonPreferred || a.preferenceMisses - b.preferenceMisses
+      || a.preferred - b.preferred || a.tier - b.tier || a.roomRank - b.roomRank || a.no - b.no)
       .map(item => item.no);
   }
 
@@ -13968,7 +13990,7 @@
     }
   }
 
-  async function assignPatientToBed(patientKey, data, silent = false, force = false, lowOnly = false) {
+  async function assignPatientToBed(patientKey, data, silent = false, force = false) {
     if (!force && !autoBedAssignEnabled) return false;
     if (data.bedStatus === 'discharged') return false;
 
@@ -14016,7 +14038,6 @@
         .map(String)
         .find(bedNo => !AUTO_ASSIGN_EXCLUDED_BED_NUMBERS.has(Number(bedNo)) && !beds[bedNo]);
       if (!emptyBedNo) return undefined;
-      if (lowOnly && ![13, 14].includes(Number(emptyBedNo))) return undefined;
 
       beds[emptyBedNo] = createBedAssignment(patientKey, data, Number(emptyBedNo));
       placed = true;
@@ -14075,20 +14096,7 @@
     let allPrecedingAreJaejin = true;
 
     try {
-      // Give waiting low-bed patients first access to 13/14, without taking
-      // ordinary beds ahead of earlier arrivals or changing the initial-visit queue.
-      const lowBedAssigned = new Set();
       for (const [key, data] of waitingPatients) {
-        if (data.visitType === '초진' || !normalizeBedPreferences(data.bodyParts?.bedPreferences).lowBed) continue;
-        const no = await assignPatientToBed(key, data, true, force, true);
-        if (no) {
-          lowBedAssigned.add(key);
-          occupiedBeds.add(Number(no));
-          assignedCount += 1;
-        }
-      }
-      for (const [key, data] of waitingPatients) {
-        if (lowBedAssigned.has(key)) continue;
         const isChojin = data.visitType === '초진';
         // 원장 미선택 초진은 자동배정하지 않고 대기 목록에만 둔다.
         if (isChojin && !data.doctorId) continue;
@@ -16085,7 +16093,7 @@
 
   function renderPatientPositionChip(position, scope = '') {
     const value = normalizePatientPositions(position);
-    const options = [['left_lateral', '왼쪽'], ['supine', '앞면'], ['lateral', '옆'], ['prone', '후면'], ['sitting', '앉아서'], ['right_lateral', '오른쪽']];
+    const options = [['left_lateral', '왼쪽'], ['supine', '전면'], ['lateral', '옆'], ['sitting', '앉아서'], ['prone', '후면'], ['right_lateral', '오른쪽']];
     return `<div class="body-position-options" role="group" aria-label="환자 자세 선택">${options.map(([id, text]) => {
       const label = PATIENT_POSITIONS.find(item => item.id === id).label;
       return `<button type="button" class="body-position-toggle" data-position="${id}" aria-pressed="${value.includes(id)}" aria-label="${label}" title="${label} · 다시 누르면 해제" onclick="togglePatientPosition('${id}', '${scope}', this)">${text}</button>`;
@@ -16094,19 +16102,32 @@
 
   function renderBedPreferenceControls(scope = '') {
     const preferences = normalizeBedPreferences((scope ? formBodyPartsByScope[scope] : getBedData(selectedBedNo)?.bodyParts)?.bedPreferences);
-    const pickerId = `bed-preference-picker-${scope || `selected-${selectedBedNo}`}`;
-    const label = preferences.preferredBed ? `${preferences.preferredBed}번` : '선호없음';
+    const pickers = [['preferredBeds', '선호베드'], ['nonPreferredBeds', '비선호베드']].map(([field, title]) => {
+      const selected = preferences[field];
+      const oppositeField = field === 'preferredBeds' ? 'nonPreferredBeds' : 'preferredBeds';
+      const oppositeTitle = field === 'preferredBeds' ? '비선호베드' : '선호베드';
+      const blocked = preferences[oppositeField];
+      const pickerId = `bed-preference-picker-${scope || `selected-${selectedBedNo}`}-${field}`;
+      const triggerId = `${pickerId}-toggle`;
+      const summary = selected.length ? `${selected.slice(0, 3).join('·')}번${selected.length > 3 ? ` 외 ${selected.length - 3}개` : ''}` : '없음';
+      const fullLabel = selected.length ? selected.map(no => `${no}번`).join(', ') : '없음';
+      return `<button id="${triggerId}" type="button" class="bed-preference-chip" data-bed-preference-field="${field}" data-bed-values="${selected.join(',')}" aria-pressed="${selected.length > 0}" aria-label="${title}: ${fullLabel}" aria-haspopup="dialog" aria-controls="${pickerId}" onclick="openBedPreferencePicker(this)">${title} ${summary}</button>
+      <div id="${pickerId}" class="bed-preference-picker" data-preference-field="${field}" data-trigger-id="${triggerId}" popover="auto" role="dialog" aria-label="${title} 복수 선택">
+        <div class="bed-preference-picker-title">${title} 선택</div>
+        <div class="bed-preference-picker-hint">여러 개를 선택한 뒤 적용해 주세요. ${oppositeTitle}에 선택된 번호는 선택할 수 없습니다.${field === 'nonPreferredBeds' ? ' 다른 자리가 없으면 배정될 수 있습니다.' : ''}</div>
+        <div class="bed-preference-number-grid">
+          ${REGULAR_BED_NUMBERS.map(no => `<button type="button" data-bed-value="${no}" aria-pressed="${selected.includes(no)}"${blocked.includes(no) ? ` disabled title="${oppositeTitle}에 선택됨 · 해당 선택을 해제하고 적용하면 선택할 수 있습니다"` : ''} onclick="toggleBedPreferenceSelection(this)">${no}번</button>`).join('')}
+        </div>
+        <div class="bed-preference-actions">
+          <button type="button" onclick="clearBedPreferenceSelection(this)">선택 해제</button>
+          <button type="button" data-bed-preference-cancel onclick="cancelBedPreferenceSelection(this)">취소</button>
+          <button type="button" class="bed-preference-apply" onclick="applyBedPreferenceSelection(this)">적용</button>
+        </div>
+      </div>`;
+    }).join('');
     return `<div class="bed-preference-options" data-preference-scope="${scope}" data-preference-bed="${scope ? '' : selectedBedNo}" role="group" aria-label="베드 선호 설정">
       <button type="button" class="bed-preference-chip" aria-pressed="${preferences.avoidAircon}" onclick="toggleBedPreference(this, 'avoidAircon')">에어컨X</button>
-      <button type="button" class="bed-preference-chip" aria-pressed="${preferences.lowBed}" onclick="toggleBedPreference(this, 'lowBed')">낮은베드</button>
-      <button type="button" class="bed-preference-chip" data-preferred-bed="${preferences.preferredBed || ''}" aria-label="선호베드: ${label}" aria-haspopup="dialog" aria-controls="${pickerId}" onclick="openBedPreferencePicker(this)">${label}</button>
-      <div id="${pickerId}" class="bed-preference-picker" popover="auto" role="dialog" aria-label="선호베드 선택">
-        <div class="bed-preference-picker-title">선호베드 선택</div>
-        <div class="bed-preference-number-grid">
-          <button type="button" class="bed-preference-none" data-bed-value="" aria-pressed="${!preferences.preferredBed}" onclick="selectBedPreference(this)">선호없음</button>
-          ${REGULAR_BED_NUMBERS.map(no => `<button type="button" data-bed-value="${no}" aria-pressed="${no === preferences.preferredBed}" onclick="selectBedPreference(this)">${no}번</button>`).join('')}
-        </div>
-      </div>
+      ${pickers}
     </div>`;
   }
 
@@ -16115,7 +16136,7 @@
     const scope = group.dataset.preferenceScope;
     if (scope) {
       const parts = normalizeBodyParts(formBodyPartsByScope[scope]);
-      parts.bedPreferences = normalizeBedPreferences({ ...parts.bedPreferences, [field]: value });
+      parts.bedPreferences = updateBedPreferences(parts.bedPreferences, field, value);
       formBodyPartsByScope[scope] = parts;
       renderFormBodyPartSelector(scope);
       scheduleSelectFieldSave(scope);
@@ -16125,8 +16146,9 @@
     const bed = getBedData(bedNo);
     if (!bed?.patientKey) return;
     const bodyParts = normalizeBodyParts(bed.bodyParts);
-    bodyParts.bedPreferences = normalizeBedPreferences({ ...bodyParts.bedPreferences, [field]: value });
+    bodyParts.bedPreferences = updateBedPreferences(bodyParts.bedPreferences, field, value);
     const controls = [...group.querySelectorAll('button')];
+    const disabledStates = controls.map(button => button.disabled);
     controls.forEach(button => { button.disabled = true; });
     try {
       await Promise.all([
@@ -16138,7 +16160,7 @@
       console.error('Bed preference save failed', error);
       showToast('베드 선호 설정 저장에 실패했습니다. 다시 선택해 주세요.');
     } finally {
-      controls.forEach(button => { button.disabled = false; });
+      controls.forEach((button, index) => { button.disabled = disabledStates[index]; });
     }
   }
 
@@ -16147,26 +16169,39 @@
   window.openBedPreferencePicker = (button) => {
     const picker = document.getElementById(button.getAttribute('aria-controls'));
     if (picker.matches(':popover-open')) { picker.hidePopover(); return; }
+    const saved = new Set((button.dataset.bedValues || '').split(',').filter(Boolean).map(Number));
+    picker.querySelectorAll('[data-bed-value]').forEach(option => option.setAttribute('aria-pressed', !option.disabled && saved.has(Number(option.dataset.bedValue))));
     picker.showPopover();
     const rect = button.getBoundingClientRect();
     const width = picker.getBoundingClientRect().width;
     const height = picker.getBoundingClientRect().height;
     picker.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px`;
     picker.style.top = `${Math.max(12, Math.min(rect.bottom + 6, window.innerHeight - height - 12))}px`;
-    picker.querySelector('[aria-pressed="true"]').focus();
+    (picker.querySelector('[data-bed-value][aria-pressed="true"]:not(:disabled)') || picker.querySelector('[data-bed-value]:not(:disabled)') || picker.querySelector('[data-bed-preference-cancel]'))?.focus();
   };
 
-  window.selectBedPreference = (option) => {
-    const picker = option.closest('.bed-preference-picker');
-    const button = picker.parentElement.querySelector('[data-preferred-bed]');
-    const value = option.dataset.bedValue;
-    button.dataset.preferredBed = value;
-    button.textContent = value ? `${value}번` : '선호없음';
-    button.setAttribute('aria-label', `선호베드: ${button.textContent}`);
-    picker.querySelectorAll('[data-bed-value]').forEach(item => item.setAttribute('aria-pressed', item === option));
+  window.toggleBedPreferenceSelection = (option) => {
+    if (option.disabled) return;
+    option.setAttribute('aria-pressed', option.getAttribute('aria-pressed') !== 'true');
+  };
+
+  window.clearBedPreferenceSelection = (control) => {
+    control.closest('.bed-preference-picker').querySelectorAll('[data-bed-value]').forEach(option => option.setAttribute('aria-pressed', false));
+  };
+
+  window.cancelBedPreferenceSelection = (control) => {
+    const picker = control.closest('.bed-preference-picker');
     picker.hidePopover();
-    button.focus();
-    return saveBedPreference(button, 'preferredBed', value ? Number(value) : null);
+    document.getElementById(picker.dataset.triggerId)?.focus();
+  };
+
+  window.applyBedPreferenceSelection = async (control) => {
+    const picker = control.closest('.bed-preference-picker');
+    const button = document.getElementById(picker.dataset.triggerId);
+    const selected = [...picker.querySelectorAll('[data-bed-value][aria-pressed="true"]')].filter(option => !option.disabled).map(option => Number(option.dataset.bedValue));
+    picker.hidePopover();
+    await saveBedPreference(button, picker.dataset.preferenceField, selected);
+    document.getElementById(picker.dataset.triggerId)?.focus();
   };
 
   function renderBodyPartChips(bed) {
