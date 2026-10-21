@@ -3170,6 +3170,10 @@
     margin: 8px 0 18px;
     text-align: left;
   }
+  .discharged-summary { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); text-align: left; }
+  .discharged-summary-total { font-size: 15px; font-weight: 800; }
+  .discharged-summary-detail { margin-top: 5px; color: var(--text2); font-size: 13px; }
+  .discharged-summary-doctors { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 13px; }
   .discharged-item {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -6298,6 +6302,7 @@
 <div class="notif-overlay" id="dischargedPatientsOverlay" onclick="closeDischargedPatientsPopup()">
   <div class="notif-popup discharged-popup" onclick="event.stopPropagation()">
     <div class="popup-name">오늘 퇴실환자</div>
+    <div id="dischargedPatientsSummary" class="discharged-summary"></div>
     <div class="discharged-list" id="dischargedPatientsList"></div>
     <div class="credit-popup-actions">
       <button class="popup-close" type="button" onclick="closeDischargedPatientsPopup()">닫기</button>
@@ -14302,12 +14307,39 @@
     showToast(`${patient.name || '대기환자'} 정보 불러옴`);
   };
 
+  function summarizeDischargedPatients(patients) {
+    let newCount = 0;
+    let reinitialCount = 0;
+    const doctors = new Map(getSortedStaff('doctors').map(([id, doctor]) => [id, { name: doctor.name, count: 0 }]));
+    for (const patient of patients) {
+      const visitType = String(patient.visitType || '').trim();
+      if (visitType.includes('초')) {
+        const previousDate = getPatientLatestVisitDate(patient) || String(patient.lastVisitDate || '').trim();
+        if (visitType === '재초진' || (/^\d{4}-\d{2}-\d{2}$/.test(previousDate) && previousDate < toLocalDateInputValue())) reinitialCount++;
+        else newCount++;
+      }
+      const storedName = String(patient.doctorName || '').trim();
+      const matchingDoctor = [...doctors.entries()].find(([, doctor]) => storedName && doctor.name === storedName);
+      const doctorKey = patient.doctorId || matchingDoctor?.[0] || storedName || '__unassigned';
+      if (!doctors.has(doctorKey)) doctors.set(doctorKey, { name: storedName || '미지정', count: 0 });
+      doctors.get(doctorKey).count++;
+    }
+    return { total: patients.length, newCount, reinitialCount, doctors: [...doctors.values()] };
+  }
+
   function renderDischargedPatientsList() {
     const list = document.getElementById('dischargedPatientsList');
     if (!list) return;
     const rows = [...dischargedPatientsByKey.entries()]
       .filter(([, data]) => data?.name)
       .sort((a, b) => Number(b[1]?.dischargedAt || b[1]?.timestamp || 0) - Number(a[1]?.dischargedAt || a[1]?.timestamp || 0));
+    const summary = document.getElementById('dischargedPatientsSummary');
+    if (summary) {
+      const counts = summarizeDischargedPatients(rows.map(([, data]) => data));
+      summary.innerHTML = `<div class="discharged-summary-total">전체 ${counts.total}명 · 초진 ${counts.newCount + counts.reinitialCount}명</div>
+        <div class="discharged-summary-detail">생초진 ${counts.newCount}명 · 재초진 ${counts.reinitialCount}명</div>
+        <div class="discharged-summary-doctors">${counts.doctors.map(doctor => `<span>${escapeHtml(doctor.name)}${doctor.name === '미지정' ? '' : ' 원장'} <strong>${doctor.count}명</strong></span>`).join('') || '<span>원장별 인원 0명</span>'}</div>`;
+    }
     list.innerHTML = rows.length
       ? rows.map(([key, data]) => {
         const time = data.dischargedTime || (data.dischargedAt
@@ -14323,7 +14355,7 @@
         return `
           <button type="button" class="discharged-item" onclick="loadDischargedPatientToDesk('${escapeHtml(key)}')">
             <div>
-              <div class="discharged-main"><span>${escapeHtml(data.name || '')}</span></div>
+              <div class="discharged-main"><span>${escapeHtml(data.name || '')}${renderInitialVisitBadge(data)}</span></div>
               ${metadata ? `<div class="discharged-sub">${metadata}</div>` : ''}
               ${treatmentChips ? `<div class="discharged-treatments">${treatmentChips}</div>` : ''}
             </div>
