@@ -7,17 +7,15 @@ const html = fs.readFileSync(require('node:path').join(__dirname, 'util.html'), 
 const start = html.indexOf('  async function runDailyMetricsGoogleSheetSync() {');
 const source = html.slice(start, html.indexOf('\nconst EXERCISE', start));
 
-async function run({ changes = [{}], failAt = -1, confirmed = true } = {}) {
+async function run({ failAt = -1, confirmed = true } = {}) {
   const requests = [], statuses = [];
   let cleared = false;
   const date = '2026-10-13';
   const button = { disabled: false }, input = { value: date, disabled: false };
-  const responses = [
-    { ok: true },
-    { previewId: 'preview-1', comparison: [{ date, changes }], warnings: [] },
-    { days: 1 }
-  ];
+  const dates = { googleDailyStart: { value: '2026-01-01' }, googleDailyEnd: { value: '2026-10-22' } };
+  const responses = [{ ok: true }];
   const context = {
+    $: id => dates[id],
     dailyMetricsDateInput: input, dailyMetricsSyncBtn: button,
     dailyMetricsSyncResult: { innerHTML: '' },
     confirm: () => confirmed,
@@ -34,36 +32,31 @@ async function run({ changes = [{}], failAt = -1, confirmed = true } = {}) {
   await context.runDailyMetricsGoogleSheetSync();
   assert.equal(button.disabled, false);
   assert.equal(input.disabled, false);
-  return { requests, statuses, cleared, date };
+  return { requests, statuses, cleared, date, dates };
 }
 
-test('sync then preview and save only the selected date', async () => {
-  const result = await run();
-  assert.deepEqual(result.requests.map(r => r.url), [
-    '/api/google/daily-metrics-sync', '/api/google/daily-metrics-import-preview', '/api/google/daily-metrics-import'
-  ]);
-  assert.deepEqual(result.requests[1].body, { start: result.date, end: result.date });
-  assert.deepEqual(result.requests[2].body, { previewId: 'preview-1', dates: [result.date] });
-  assert.equal(result.cleared, true);
-  assert.equal(result.statuses.at(-1).kind, 'good');
+test('sync sets both import dates without preview or import requests', async () => {
+  const r = await run();
+  assert.deepEqual(r.requests, [{ url: '/api/google/daily-metrics-sync', body: { date: r.date } }]);
+  assert.equal(r.dates.googleDailyStart.value, r.date);
+  assert.equal(r.dates.googleDailyEnd.value, r.date);
+  assert.equal(r.cleared, true);
+  assert.equal(r.statuses.at(-1).kind, 'good');
 });
 
-test('unchanged data skips save and reports completion', async () => {
-  const result = await run({ changes: [] });
-  assert.equal(result.requests.length, 2);
-  assert.match(result.statuses.at(-1).message, /변경 없음/);
+test('failure preserves import dates and clears no preview', async () => {
+  const r = await run({ failAt: 0 });
+  assert.equal(r.requests.length, 1);
+  assert.equal(r.dates.googleDailyStart.value, '2026-01-01');
+  assert.equal(r.dates.googleDailyEnd.value, '2026-10-22');
+  assert.equal(r.cleared, false);
+  assert.equal(r.statuses.at(-1).kind, 'error');
 });
 
-test('each failure stops subsequent requests and reports partial completion accurately', async () => {
-  for (const failAt of [0, 1, 2]) {
-    const result = await run({ failAt });
-    assert.equal(result.requests.length, failAt + 1);
-    assert.equal(result.cleared, false);
-    assert.equal(result.statuses.at(-1).kind, 'error');
-    assert.equal(result.statuses.at(-1).message.includes('구글시트 반영 완료'), failAt > 0);
-  }
-});
-
-test('cancel performs no requests', async () => {
-  assert.equal((await run({ confirmed: false })).requests.length, 0);
+test('cancel performs no requests or date changes', async () => {
+  const r = await run({ confirmed: false });
+  assert.equal(r.requests.length, 0);
+  assert.equal(r.dates.googleDailyStart.value, '2026-01-01');
+  assert.equal(r.dates.googleDailyEnd.value, '2026-10-22');
+  assert.equal(r.cleared, false);
 });
