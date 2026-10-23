@@ -13789,7 +13789,7 @@
   // - 직후 치료가 단추+벤치 / 복추+벤치 조합, 또는 스파인 단독 → 스파인실(15번)로 이동
   async function maybeAutoMoveBedForNextTreatment(bedNo, nextBed) {
     bedNo = Number(bedNo);
-    if (!nextBed || nextBed.complete || bedNo === 15) return;
+    if (!nextBed || nextBed.complete) return;
     const routingBeds = await getBedsSnapshotForRouting();
     const treatments = nextBed.treatments || [];
     const idx = Number(nextBed.currentIndex || 0);
@@ -13804,6 +13804,7 @@
     const hasPharmacopuncture4 = has('약침4');
 
     if (hasSpine || (hasChunaTreatment && hasBench)) {
+      if (bedNo === 15) return;
       if (!getBedDataForRouting(15, routingBeds)) {
         const moved = await window.moveOrSwapBed(bedNo, 15, { requireEmptyTarget: true });
         if (!moved) await moveToHoldBed(bedNo, 15);
@@ -17287,7 +17288,7 @@
     const acupunctureFinished = needleSafety && (
       bed.complete || Number(currentIndex) !== Number(needleSafety.treatmentIndex || 0)
     );
-    await updateBedRecord(bedNo, {
+    const nextBedPatch = {
       currentIndex: nextIndex,
       running: false,
       startedAt: null,
@@ -17298,8 +17299,12 @@
       lastAlertMessage: null,
       doctorProcedureAlert: null,
       ...(direction < 0 && acupunctureFinished ? { needleSafety: null } : {})
-    });
+    };
+    await updateBedRecord(bedNo, nextBedPatch);
     clearLocalTimerAlertsForBed(bedNo);
+    if (direction > 0) {
+      await maybeAutoMoveBedForNextTreatment(bedNo, { ...bed, ...nextBedPatch });
+    }
   };
 
   window.completeNoTimerTreatment = async (bedNo) => {
