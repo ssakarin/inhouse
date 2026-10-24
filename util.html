@@ -647,6 +647,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
     const renderDetailSection = (title, items, columns, cells) => `
       <section class="sync-detail-section">
         <h3>${escapeHtml(title)} (${items.length.toLocaleString()}명)</h3>
+        <div class="tool-row"><button class="daily-patient-copy-btn" type="button" ${items.length ? "" : "disabled"}>환자 목록 복사</button><span class="daily-patient-copy-status" role="status"></span></div>
         ${items.length ? `<table>
           <thead><tr><th>환자명</th><th>차트번호</th>${columns}</tr></thead>
           <tbody>${items.map(item => `<tr>
@@ -713,6 +714,26 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
         <div class="sync-detail-guide">위 카드를 누르면 해당 명단이 표시됩니다.</div>
         ${detailPanels}
       </div>`;
+    const resultDate = dailyMetricsDateInput.value;
+    dailyMetricsSyncResult.querySelectorAll(".daily-patient-copy-btn").forEach(button => {
+      button.addEventListener("click", async () => {
+        const section = button.closest(".sync-detail-section");
+        const status = section.querySelector(".daily-patient-copy-status");
+        const rows = [...section.querySelectorAll("table tr")].map(row =>
+          [...row.querySelectorAll("th, td")].map(cell => cell.textContent.replace(/\s+/g, " ").trim()).join("\t")
+        );
+        const text = [resultDate, section.querySelector("h3").textContent, ...rows].join("\n");
+        button.disabled = true;
+        try {
+          await copyText(text);
+          status.textContent = "복사되었습니다.";
+        } catch (error) {
+          status.textContent = error?.message || "복사에 실패했습니다.";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
     const panel = document.getElementById("dailyNoncoveredDetailPanel");
     dailyMetricsSyncResult.querySelector(".sync-detail-counts")?.addEventListener("click", event => {
       const card = event.target.closest(".sync-detail-count");
