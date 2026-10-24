@@ -12736,6 +12736,8 @@
   function renderDailyDetailGroup(title, items, valueOf) {
     return `<div class="daily-detail-group">
       <div class="daily-detail-group-title">${escapeHtml(title)} (${items.length}명)</div>
+      <button class="export-btn" type="button" onclick="copyDailyDetailGroup(this)" ${items.length ? '' : 'disabled'}>환자 목록 복사</button>
+      <span class="daily-detail-copy-status" role="status"></span>
       ${items.length ? items.map(item => `<div class="daily-detail-row">
         <span>${escapeHtml(item.name || '환자')}</span>
         <span>${escapeHtml(item.chartNo || '-')}</span>
@@ -12743,6 +12745,48 @@
       </div>`).join('') : '<div class="daily-detail-empty">해당 환자가 없습니다.</div>'}
     </div>`;
   }
+
+  async function copyDailyDetailGroup(button) {
+    const group = button.closest('.daily-detail-group');
+    const status = group.querySelector('.daily-detail-copy-status');
+    const rows = [...group.querySelectorAll('.daily-detail-row')].map(row =>
+      [...row.querySelectorAll('span')].map(cell => cell.textContent.replace(/\s+/g, ' ').trim()).join('\t')
+    );
+    const text = [
+      document.getElementById('dailyDetailTitle').textContent,
+      group.querySelector('.daily-detail-group-title').textContent,
+      '환자명\t차트번호\t상세 정보',
+      ...rows
+    ].join('\n');
+    button.disabled = true;
+    try {
+      let copied = false;
+      if (navigator.clipboard && window.isSecureContext) {
+        try { await navigator.clipboard.writeText(text); copied = true; } catch {}
+      }
+      if (!copied) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        try {
+          textarea.focus();
+          textarea.select();
+          if (!document.execCommand('copy')) throw new Error('클립보드 복사에 실패했습니다.');
+        } finally {
+          textarea.remove();
+          button.focus();
+        }
+      }
+      status.textContent = '복사되었습니다.';
+    } catch (error) {
+      status.textContent = error?.message || '복사에 실패했습니다.';
+    } finally {
+      button.disabled = false;
+    }
+  }
+  window.copyDailyDetailGroup = copyDailyDetailGroup;
 
   function showDailyDetailGroup(key) {
     const result = document.getElementById('dailyDetailResult');

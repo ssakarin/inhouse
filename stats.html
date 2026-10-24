@@ -81,8 +81,6 @@
   #presetRow .field-label { color: var(--gold); font-size: 12px; font-weight: 900; }
   .period-range-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
   .period-range-row .range-label { margin-top: 0; }
-  #presetRow .include-today input { width: auto; margin: 0; accent-color: var(--gold); }
-  #presetRow .include-today { white-space: nowrap; cursor: pointer; }
   .period-today-note { color: var(--muted); font-size: 11px; font-weight: 700; }
   .preset-btn.active { border-color: rgba(255,202,106,0.75); background: rgba(255,202,106,0.15); color: var(--gold); }
   .date-input { display: flex; align-items: center; gap: 6px; }
@@ -441,7 +439,6 @@
       <button class="preset-btn" data-preset="year">올해</button>
       <button class="preset-btn" data-preset="oneYear">1년</button>
       <button class="preset-btn" data-preset="all">전체</button>
-      <label class="field-label include-today"><input type="checkbox" id="includeToday">오늘 포함</label>
       <span class="date-input">
         <input type="date" id="startDate">
         <span style="color:var(--muted)">~</span>
@@ -450,7 +447,7 @@
       <label class="field-label">원장 <select id="doctorFilter"><option value="">전체</option></select></label>
       <button id="applyBtn" style="border-color:rgba(74,222,128,0.55);color:var(--green)">조회</button>
     </div>
-    <div class="period-range-row"><div class="range-label" id="rangeLabel"></div><span class="period-today-note" id="periodTodayNote">오늘은 집계에서 제외됩니다 (전일까지)</span></div>
+    <div class="period-range-row"><div class="range-label" id="rangeLabel"></div><span class="period-today-note">오늘은 집계에서 제외됩니다 (전일까지)</span></div>
     <div class="status" id="status"></div>
 
   </div>
@@ -2303,7 +2300,7 @@
   }
 
   async function applyPreset(preset) {
-    const y = $("includeToday").checked ? today() : addDays(today(), -1);
+    const y = addDays(today(), -1);  // 오늘 제외 → 어제까지
     const yDate = new Date(y + "T00:00:00");
     let start = y, end = y;
     if (preset === "7") { start = addDays(y, -6); end = y; }
@@ -2588,17 +2585,6 @@
   }
 
   document.querySelectorAll(".preset-btn").forEach(b => b.addEventListener("click", () => { applyPreset(b.dataset.preset); }));
-  $("includeToday").addEventListener("change", () => {
-    const includeToday = $("includeToday").checked;
-    $("periodTodayNote").textContent = includeToday
-      ? "오늘을 집계에 포함합니다 (오늘까지)"
-      : "오늘은 집계에서 제외됩니다 (전일까지)";
-    const preset = document.querySelector(".preset-btn.active")?.dataset.preset;
-    if (preset) { applyPreset(preset); return; }
-    if (includeToday && $("endDate").value === addDays(today(), -1)) $("endDate").value = today();
-    if (!includeToday && $("endDate").value >= today()) $("endDate").value = addDays(today(), -1);
-    run();
-  });
   $("applyBtn").addEventListener("click", () => { chartUnitTouched = false; setPresetActive(""); run(); });
   $("doctorFilter").addEventListener("change", run);
   $("chartUnit").addEventListener("change", () => { chartUnitTouched = true; run(); });
