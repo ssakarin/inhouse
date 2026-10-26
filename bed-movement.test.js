@@ -61,11 +61,11 @@ test('destination changed to cleaning during transaction blocks movement',async(
 test('destination changed to a different patient does not unexpectedly swap',async()=>{
  const s=setup(1,8,null,beds=>beds[8]=patient('other'));assert.equal(await s.move(),false);assert.equal(s.beds[1].patientKey,'a');
 });
-for(const from of [15,101])test(`unassigned nurse is assigned on ${from} -> regular bed`,async()=>{
+for(const from of [101])test(`unassigned nurse is assigned on ${from} -> regular bed`,async()=>{
  const s=setup(from,1);await s.move();assert.deepEqual(s.nurseCalls,[['a',1]]);
 });
-test('reverse swap from doctor room into regular bed also assigns a missing nurse',async()=>{
- const s=setup(1,101,patient('b'));await s.move();assert.deepEqual(s.nurseCalls,[['b',1]]);
+test('reverse swap retains existing nurse assignment behavior',async()=>{
+ const s=setup(1,101,patient('b'));await s.move();assert.deepEqual(s.nurseCalls,[]);
 });
 test('a patient with an existing nurse retains the nurse during movement',async()=>{
  const s=setup(101,1);s.beds[101].nurseId='existing';await s.move();assert.deepEqual(s.nurseCalls,[]);assert.equal(s.beds[1].nurseId,'existing');
@@ -91,3 +91,7 @@ for (const [from,to,treatment] of [[1,101,'단추'],[1,15,'스파인'],[101,15,'
     assert.equal(s.beds[to].patientKey,'a');assert.equal(s.beds[to].remaining,123);assert.equal(s.beds[to].running,true);
   });
 }
+
+test('spine to regular bed retains existing nurse assignment behavior',async()=>{
+ const s=setup(15,1);await s.move();assert.deepEqual(s.nurseCalls,[]);
+});

@@ -18297,16 +18297,11 @@
         updatePatientBedNoForBed(fromBedNo, movedBeds[String(fromBedNo)]),
         updatePatientBedNoForBed(toBedNo, movedBeds[String(toBedNo)])
       ]);
-      // 이동과 교환의 양쪽 모두: 전용실에서 일반 베드로 나온 환자의 미배정 간호사를 배정한다.
-      if (nurseAutoAssignEnabled) {
-        for (const [origin, destination] of [[fromBedNo, toBedNo], [toBedNo, fromBedNo]]) {
-          const movedBed = movedBeds[String(destination)];
-          if ((origin >= 101 || origin === 15) && destination < 101 && destination !== 15 && movedBed?.patientKey && !movedBed.nurseId) {
-            const assignedData = await applyRoundRobinNurse(movedBed.patientKey, movedBed, destination);
-            if (assignedData.nurseId) {
-              await updatePatient(movedBed.patientKey, { nurseId: assignedData.nurseId, nurseName: assignedData.nurseName });
-            }
-          }
+      const movedToTargetBed = movedBeds[String(toBedNo)];
+      if (nurseAutoAssignEnabled && Number(fromBedNo) >= 101 && Number(toBedNo) < 101 && movedToTargetBed?.patientKey && !movedToTargetBed.nurseId) {
+        const assignedData = await applyRoundRobinNurse(movedToTargetBed.patientKey, movedToTargetBed, Number(toBedNo));
+        if (assignedData.nurseId) {
+          await updatePatient(movedToTargetBed.patientKey, { nurseId: assignedData.nurseId, nurseName: assignedData.nurseName });
         }
       }
       const assignmentAlertPromises = [];
