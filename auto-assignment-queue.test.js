@@ -58,3 +58,67 @@ test('full regular beds do not block initial visits', async () => {
   const s = setup([['regular',{name:'regular',timestamp:1}],initial('initial','b',2)],[],{1:{patientKey:'busy'}});
   await s.context.assignWaitingPatientsToBeds(); assert.deepEqual(s.events, ['initial']);
 });
+
+
+test('manual waiting patients are skipped without blocking later automatic patients', async () => {
+  const s = setup([
+    initial('manual', 'a', 1, { assignmentMode: 'manual' }),
+    initial('automatic', 'a', 2)
+  ]);
+  await s.context.assignWaitingPatientsToBeds();
+  assert.deepEqual(s.events, ['automatic']);
+});
+
+test('bulk assignment also preserves manual waiting even when automatic assignment is off', async () => {
+  const s = setup([initial('manual', 'a', 1, { assignmentMode: 'manual' }), initial('auto', 'b', 2)]);
+  s.context.autoBedAssignEnabled = false;
+  await s.context.assignWaitingPatientsToBeds(true);
+  assert.deepEqual(s.events, ['auto']);
+});
+
+test('resuming automatic assignment makes a manual patient eligible again', async () => {
+  const patient = initial('manual', 'a', 1, { assignmentMode: 'manual' });
+  const s = setup([patient]);
+  await s.context.assignWaitingPatientsToBeds();
+  assert.deepEqual(s.events, []);
+  patient[1].assignmentMode = 'auto';
+  await s.context.assignWaitingPatientsToBeds();
+  assert.deepEqual(s.events, ['manual']);
+});
+
+function setupMoveToWaiting(failSave = false) {
+  const events = [];
+  const patient = { patientKey: 'p', name: '환자', treatments: ['치료'], running: true };
+  const context = {
+    window: {}, getBedData: () => patient, clearLocalTimerAlertsForBed: () => {},
+    patientsByKey: new Map([['p', { name: '환자' }]]), showToast: () => {}, console,
+    updatePatient: async (key, patch) => {
+      events.push(['save', patch]);
+      if (failSave) throw new Error('save failed');
+    },
+    removeBedRecord: async no => events.push(['remove', no])
+  };
+  vm.createContext(context);
+  const start = source.indexOf('  window.moveBedToWaiting = async');
+  vm.runInContext(source.slice(start, source.indexOf('\n  };', start) + 6), context);
+  return { context, events };
+}
+
+test('returning to waiting persists manual mode before freeing the bed', async () => {
+  const s = setupMoveToWaiting();
+  assert.equal(await s.context.window.moveBedToWaiting(1), true);
+  assert.deepEqual(s.events.map(([type]) => type), ['save', 'remove']);
+  const patch = s.events[0][1];
+  assert.equal(patch.assignmentMode, 'manual');
+  assert.equal(patch.bedStatus, 'waiting');
+  assert.equal(patch.bedNo, null);
+  assert.equal(patch.running, undefined);
+  assert.equal(s.context.patientsByKey.get('p').assignmentMode, 'manual');
+});
+
+test('failed manual waiting save does not free the bed', async () => {
+  const s = setupMoveToWaiting(true);
+  s.context.console = { error() {} };
+  assert.equal(await s.context.window.moveBedToWaiting(1), false);
+  assert.deepEqual(s.events.map(([type]) => type), ['save']);
+});

@@ -904,6 +904,14 @@
     flex-wrap: wrap;
     gap: 6px;
   }
+  .assignment-mode-field { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+  .assignment-mode-field[hidden] { display: none; }
+  .assignment-mode-field .segmented { flex: 1; }
+  .waiting-mode-select { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; color: var(--text); background: var(--surface); cursor: pointer; font-size: 11px; white-space: nowrap; }
+  .waiting-mode-select[hidden] { display: none; }
+  .waiting-mode-select.is-manual { color: #b45309; background: #fff7ed; border-color: #fdba74; }
+  .waiting-list--compact .waiting-mode-select { align-self: flex-end; margin-top: 3px; }
+  body.app-mode-notify .waiting-mode-select { pointer-events: none; }
   .waiting-item {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -5884,7 +5892,14 @@
               <input class="name-input wide" id="chiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
               <textarea class="name-input wide" id="memoInput" placeholder="메모2" maxlength="120" rows="3" autocomplete="off"></textarea>
               <div class="memo2-history-list" id="memo2HistoryList"></div>
-              <button class="submit-btn desk-submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
+              <div class="assignment-mode-field" id="deskAssignmentModeField">
+                  <span>베드 배정</span>
+                  <div class="segmented">
+                    <label class="segment-item"><input type="radio" name="deskAssignmentMode" value="auto" checked><span>자동배정</span></label>
+                    <label class="segment-item"><input type="radio" name="deskAssignmentMode" value="manual"><span>수동배정</span></label>
+                  </div>
+                </div>
+                <button class="submit-btn desk-submit-btn" id="submitBtn" onclick="submitPatient()">입력</button>
             </div>
           </div>
 
@@ -5972,6 +5987,13 @@
                 <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
                 <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모2" maxlength="120" rows="3" autocomplete="off"></textarea>
                 <div class="memo2-history-list" id="receiveMemo2HistoryList"></div>
+                <div class="assignment-mode-field" id="receiveAssignmentModeField">
+                  <span>베드 배정</span>
+                  <div class="segmented">
+                    <label class="segment-item"><input type="radio" name="receiveAssignmentMode" value="auto" checked><span>자동배정</span></label>
+                    <label class="segment-item"><input type="radio" name="receiveAssignmentMode" value="manual"><span>수동배정</span></label>
+                  </div>
+                </div>
                 <button class="submit-btn receive-submit-btn" id="receiveSubmitBtn" onclick="submitPatient('receive')">입력</button>
               </div>
             </div>
@@ -9344,6 +9366,9 @@
       const input = document.getElementById(id);
       if (input) input.checked = autoBedAssignEnabled;
     });
+    document.querySelectorAll('.waiting-mode-select').forEach(select => {
+      select.hidden = !autoBedAssignEnabled;
+    });
   }
 
   function getSortedStaff(type) {
@@ -11148,6 +11173,7 @@
         timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
         date: now.toLocaleDateString('ko-KR'),
         bedStatus: 'waiting',
+        assignmentMode: getFormAssignmentMode(scope),
         patientId,
         insuranceType,
         chartNo,
@@ -11194,6 +11220,7 @@
 
       await pushPatient(realtimePatient);
 
+      setFormAssignmentMode(scope, 'auto');
       // 초기화
       document.getElementById(ids.name).value = '';
       document.getElementById(ids.chartNo).value = '';
@@ -11287,6 +11314,9 @@
   function populatePatientForm(scope, bed = null) {
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     suppressSelectFieldAutosaveForPopulation();
+    setFormAssignmentMode(scope, bed?.assignmentMode);
+    const assignmentField = document.getElementById(`${scope}AssignmentModeField`);
+    if (assignmentField) assignmentField.hidden = Boolean(formEditBedNoByScope[scope] || formEditDischargedKeyByScope[scope]);
     setSelectedChartPatient(scope, bed && (bed.patientId || bed.chartNo) ? bed : null);
     document.getElementById(ids.name).value = bed?.name || '';
     document.getElementById(ids.chartNo).value = normalizeChartNo(bed?.chartNo);
@@ -12077,6 +12107,7 @@
 
     const memo2Date = getMemo2HistoryDate(patient);
     const payload = {
+      assignmentMode: getFormAssignmentMode(scope),
       name: form.name,
       chartNo: form.chartNo,
       visitType: form.visitType,
@@ -12100,6 +12131,7 @@
       await updatePatient(patientKey,payload);
       patientsByKey.set(patientKey, { ...patient, ...patientsByKey.get(patientKey), ...payload });
       renderWaitingLists();
+      await assignWaitingPatientsToBeds();
       showToast(`${form.name} 확인 완료`);
       return true;
     } catch (e) {
@@ -13948,8 +13980,9 @@
     const beds = result.snapshot.val() || {};
     if (!result.committed || beds[String(holdBedNo)]?.patientKey !== patientKey) return false;
 
-    patientsByKey.set(patientKey, { ...data, bedStatus: 'assigned', bedNo: holdBedNo });
+    patientsByKey.set(patientKey, { ...data, assignmentMode: 'auto', bedStatus: 'assigned', bedNo: holdBedNo });
     await updatePatient(patientKey, {
+      assignmentMode: 'auto',
       bedStatus: 'assigned',
       bedNo: holdBedNo
     });
@@ -14050,7 +14083,7 @@
 
   async function assignPatientToBed(patientKey, data, silent = false, force = false) {
     if (!force && !autoBedAssignEnabled) return false;
-    if (data.bedStatus === 'discharged') return false;
+    if (data.bedStatus === 'discharged' || data.assignmentMode === 'manual') return false;
 
     // 초진: 담당 원장 베드로만 배정
     if (data.visitType === '초진') {
@@ -14152,7 +14185,7 @@
 
     // 목적지별로 독립 처리하며, 같은 목적지는 초진/치료 이동 대기를 함께 비교한다.
     const candidates = [
-      ...waitingPatients.map(([key, data]) => ({ key, data, queuedAt: Number((data.visitType === '초진' && data.initialVisitQueuedAt) || data.timestamp || 0) })),
+      ...waitingPatients.filter(([, data]) => data.assignmentMode !== 'manual').map(([key, data]) => ({ key, data, queuedAt: Number((data.visitType === '초진' && data.initialVisitQueuedAt) || data.timestamp || 0) })),
       ...getHoldBedEntries().map(({ bedNo, bed }) => ({ holdBedNo: bedNo, data: bed, queuedAt: Number(bed.holdQueuedAt || bed.timestamp || 0) }))
     ].sort((a, b) => a.queuedAt - b.queuedAt || (a.holdBedNo && b.holdBedNo ? 0 : a.holdBedNo ? -1 : b.holdBedNo ? 1 : 0));
 
@@ -14233,8 +14266,9 @@
     const beds = result.snapshot.val() || {};
     if (result.committed && beds[String(bedNo)]?.patientKey === patientKey) {
       const assignedData = await applyRoundRobinNurse(patientKey, data, bedNo);
-      patientsByKey.set(patientKey, { ...assignedData, bedStatus: 'assigned', bedNo });
+      patientsByKey.set(patientKey, { ...assignedData, assignmentMode: 'auto', bedStatus: 'assigned', bedNo });
       await updatePatient(patientKey,{
+        assignmentMode: 'auto',
         bedStatus: 'assigned',
         bedNo,
         nurseId: assignedData.nurseId || '',
@@ -14273,6 +14307,49 @@
     if (target === 15) return { label: '스파인', className: 'waiting-hold-target--spine' };
     return { label: '대기', className: 'waiting-hold-target--next' };
   }
+
+  function getFormAssignmentMode(scope) {
+    return document.querySelector(`input[name="${scope}AssignmentMode"]:checked`)?.value === 'manual' ? 'manual' : 'auto';
+  }
+
+  function setFormAssignmentMode(scope, mode) {
+    const field = document.querySelector(`input[name="${scope}AssignmentMode"][value="${mode === 'manual' ? 'manual' : 'auto'}"]`);
+    if (field) field.checked = true;
+  }
+
+  window.changeWaitingAssignmentMode = async (event, patientKey) => {
+    event.stopPropagation();
+    const select = event.currentTarget;
+    const patient = patientsByKey.get(patientKey);
+    const previousMode = patient?.assignmentMode === 'manual' ? 'manual' : 'auto';
+    const assignmentMode = select.value === 'manual' ? 'manual' : 'auto';
+    if (window.currentMode === 'notify' || !patient || !getWaitingPatients().some(([key]) => key === patientKey)) {
+      select.value = previousMode;
+      return;
+    }
+    if (assignmentMode === previousMode) return;
+    select.disabled = true;
+    try {
+      await updatePatient(patientKey, { assignmentMode });
+      patientsByKey.set(patientKey, { ...patientsByKey.get(patientKey), assignmentMode });
+      ['desk', 'receive'].forEach(scope => {
+        if (formEditPatientKeyByScope[scope] === patientKey) setFormAssignmentMode(scope, assignmentMode);
+      });
+      renderWaitingLists();
+      showToast(assignmentMode === 'auto' ? '자동배정을 재개했습니다' : '수동배정 대기로 전환했습니다');
+    } catch (error) {
+      console.error(error);
+      select.value = previousMode;
+      showToast('배정 방식 변경 실패 · 다시 시도해 주세요');
+      return;
+    } finally {
+      select.disabled = false;
+    }
+    if (assignmentMode === 'auto') {
+      try { await assignWaitingPatientsToBeds(); }
+      catch (error) { console.error(error); showToast('자동배정 처리 실패 · 다시 시도해 주세요'); }
+    }
+  };
 
   function renderWaitingLists() {
     countDebugCounter('render-call', 'waitingLists');
@@ -14319,6 +14396,10 @@
             <div class="waiting-name${isInitialVisitPatient(data) ? ' initial-visit-name' : ''}">${escapeHtml(data.name)}${renderTodayAppointmentBadge(data, key)}${renderInitialVisitBadge(data)}</div>
             ${infoChips ? `<div class="waiting-info">${infoChips}</div>` : ''}
           </div>
+          <select ${autoBedAssignEnabled ? '' : 'hidden'} draggable="false" class="waiting-mode-select${data.assignmentMode === 'manual' ? ' is-manual' : ''}" aria-label="${escapeHtml(data.name)} 베드 배정 방식" onchange="changeWaitingAssignmentMode(event, '${key}')" onclick="event.stopPropagation()" onpointerdown="event.stopPropagation()" oncontextmenu="event.stopPropagation()" ondragstart="event.preventDefault(); event.stopPropagation()" ${window.currentMode === 'notify' ? 'disabled' : ''}>
+            <option value="auto" ${data.assignmentMode !== 'manual' ? 'selected' : ''}>자동</option>
+            <option value="manual" ${data.assignmentMode === 'manual' ? 'selected' : ''}>수동</option>
+          </select>
         </div>`;
     }).join('');
     const html = heldHtml + waitingHtml;
@@ -18169,6 +18250,8 @@
   }
 
   window.moveOrSwapBed = async (fromBedNo, toBedNo, options = {}) => {
+    fromBedNo = Number(fromBedNo);
+    toBedNo = Number(toBedNo);
     if (fromBedNo === toBedNo) return false;
 
     const fromBed = getBedData(fromBedNo);
@@ -18192,9 +18275,10 @@
       const fromKey = String(fromBedNo);
       const toKey = String(toBedNo);
       const movingBed = beds[fromKey];
-      if (!movingBed) return;
+      if (!movingBed || isCleaningBed(movingBed) || !movingFromPatientKey || movingBed.patientKey !== movingFromPatientKey) return undefined;
 
       const targetBed = beds[toKey] || null;
+      if (isCleaningBed(targetBed) || (targetBed?.patientKey || '') !== movingToPatientKey) return undefined;
       if (targetBed && options.requireEmptyTarget) return undefined;
       if (targetBed) {
         beds[fromKey] = targetBed;
@@ -18213,11 +18297,16 @@
         updatePatientBedNoForBed(fromBedNo, movedBeds[String(fromBedNo)]),
         updatePatientBedNoForBed(toBedNo, movedBeds[String(toBedNo)])
       ]);
-      const movedToTargetBed = movedBeds[String(toBedNo)];
-      if (nurseAutoAssignEnabled && Number(fromBedNo) >= 101 && Number(toBedNo) < 101 && movedToTargetBed?.patientKey && !movedToTargetBed.nurseId) {
-        const assignedData = await applyRoundRobinNurse(movedToTargetBed.patientKey, movedToTargetBed, Number(toBedNo));
-        if (assignedData.nurseId) {
-          await updatePatient(movedToTargetBed.patientKey, { nurseId: assignedData.nurseId, nurseName: assignedData.nurseName });
+      // 이동과 교환의 양쪽 모두: 전용실에서 일반 베드로 나온 환자의 미배정 간호사를 배정한다.
+      if (nurseAutoAssignEnabled) {
+        for (const [origin, destination] of [[fromBedNo, toBedNo], [toBedNo, fromBedNo]]) {
+          const movedBed = movedBeds[String(destination)];
+          if ((origin >= 101 || origin === 15) && destination < 101 && destination !== 15 && movedBed?.patientKey && !movedBed.nurseId) {
+            const assignedData = await applyRoundRobinNurse(movedBed.patientKey, movedBed, destination);
+            if (assignedData.nurseId) {
+              await updatePatient(movedBed.patientKey, { nurseId: assignedData.nurseId, nurseName: assignedData.nurseName });
+            }
+          }
         }
       }
       const assignmentAlertPromises = [];
@@ -18277,6 +18366,7 @@
     const patientPatch = {
       ...bed,
       bedStatus: 'waiting',
+      assignmentMode: 'manual',
       bedNo: null,
       timestamp: queueTimestamp,
       timeStr: new Date(queueTimestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
@@ -18294,15 +18384,15 @@
     delete patientPatch.patientKey;
 
     try {
-      await Promise.all([
-        updatePatient(bed.patientKey,patientPatch),
-        removeBedRecord(bedNo)
-      ]);
+      // 수동배정 상태가 다른 화면에도 저장된 뒤 베드를 비운다.
+      await updatePatient(bed.patientKey, patientPatch);
+      patientsByKey.set(bed.patientKey, { ...(patientsByKey.get(bed.patientKey) || {}), ...patientPatch });
+      await removeBedRecord(bedNo);
       patientsByKey.set(bed.patientKey, {
         ...(patientsByKey.get(bed.patientKey) || {}),
         ...patientPatch
       });
-      showToast(`${bed.name || '환자'} 대기로 이동`);
+      showToast(`${bed.name || '환자'} 대기로 이동 · 베드를 직접 배정해 주세요`);
       return true;
     } catch (e) {
       console.error(e);
