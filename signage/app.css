@@ -134,6 +134,34 @@ html.fit .stage { transform-origin: 0 0; }
 .slide--event-lindiet-group { background: #40377f; }
 .slide.is-active.slide--event-lindiet-group img { animation: none; transform: none; }
 
+/* 네이버 공식 브랜드 그린: https://www.navercorp.com/company/brandGuide */
+.slide--event-review {
+  --naver-green: #03c75a;
+  display: block;
+  background: #fff;
+  color: #222;
+}
+.review-heading { position: absolute; top: 326px; left: 150px; right: 150px; text-align: center; color: var(--naver-green); }
+.review-stars { margin: 0 0 64px; font-size: 76px; line-height: 1; letter-spacing: 12px; }
+.review-heading h1 { margin: 0; font-size: 220px; font-weight: 900; line-height: 1.2; letter-spacing: -.065em; }
+.review-event { margin: 48px 0 0; font-size: 76px; font-weight: 800; line-height: 1; letter-spacing: .32em; text-indent: .32em; }
+.review-guide { position: absolute; top: 1078px; left: 150px; right: 150px; height: 1422px; padding: 72px 84px; border: 3px solid #d8eee2; border-radius: 54px; }
+.review-guide h2 { margin: 0; font-size: 62px; font-weight: 800; line-height: 1.3; }
+.review-guide ol { margin: 28px 0 0; padding: 0; list-style: none; }
+.review-guide li { display: flex; align-items: center; gap: 40px; height: 295px; border-bottom: 2px solid #e2f2e9; font-size: 68px; font-weight: 750; letter-spacing: -.055em; white-space: nowrap; }
+.review-guide li:last-child { border-bottom: 0; }
+.review-step { display: flex; flex: none; align-items: center; justify-content: center; width: 98px; height: 98px; border-radius: 50%; background: #eaf9f0; color: var(--naver-green); font-size: 50px; font-weight: 850; letter-spacing: -.04em; }
+.review-gift { position: absolute; top: 2606px; left: 150px; right: 150px; height: 504px; border-radius: 48px; background: var(--naver-green); color: #fff; text-align: center; }
+.review-gift p { display: flex; align-items: center; justify-content: center; gap: 42px; margin: 108px 0 66px; line-height: 1.2; }
+.review-gift strong { font-size: 108px; font-weight: 850; letter-spacing: -.045em; }
+.review-gift p > span { font-size: 38px; }
+.review-gift-choice { display: inline-block; padding: 18px 44px; border: 2px solid rgba(255,255,255,.7); border-radius: 40px; font-size: 46px; font-weight: 600; line-height: 1.2; }
+.review-search { position: absolute; top: 3220px; left: 150px; right: 150px; display: flex; align-items: center; gap: 40px; height: 178px; padding: 0 48px; border: 5px solid var(--naver-green); border-radius: 26px; }
+.review-naver { color: var(--naver-green); font-size: 88px; font-weight: 900; line-height: 1; }
+.review-search strong { font-size: 74px; font-weight: 800; letter-spacing: -.065em; }
+.review-search-icon { position: relative; width: 50px; height: 50px; margin: 0 20px 0 auto; border: 7px solid var(--naver-green); border-radius: 50%; }
+.review-search-icon::after { position: absolute; right: -24px; bottom: -13px; width: 34px; height: 7px; border-radius: 4px; background: var(--naver-green); transform: rotate(48deg); content: ""; }
+
 /* 맞춤 한약 처방 안내 */
 .slide--herbal-list {
   display: grid;
