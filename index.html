@@ -2731,29 +2731,27 @@
     max-width: 100%;
     flex: 0 0 auto;
     height: 32px;
-    gap: 3px;
-    padding-inline: 4px;
-    font-size: 11px;
+    gap: 1px;
+    padding-inline: 2px;
+    font-size: 13px;
     cursor: default;
   }
-  .notify-weekly-widget .desk-weekly-label { font-size: 10px; }
-  .notify-weekly-widget .desk-weekly-metric { gap: 2px; }
-  .notify-weekly-widget .desk-weekly-direction { margin-left: 1px; font-size: 10px; }
-  body.app-mode-notify .receive-alert-card { container: notify-alerts / inline-size; }
+  .notify-weekly-widget .desk-weekly-metric { gap: 1px; }
+  .notify-weekly-widget .desk-weekly-direction { margin-left: 0; font-size: 11px; }
   .notify-alert-toolbar {
     display: none;
     align-items: center;
     flex-wrap: nowrap;
-    gap: 4px;
+    gap: 2px;
     min-width: 0;
+    overflow-x: auto;
   }
   .notify-alert-toolbar .today-treated-chip {
     flex: 0 0 auto;
-    padding: 6px;
-    font-size: 11px;
+    padding: 6px 3px;
   }
-  .notify-alert-toolbar .notify-list-toggle { margin-left: auto; }
-  .notify-alert-toolbar .notify-list-toggle-btn { padding: 6px 5px; font-size: 10px; }
+  .notify-alert-toolbar .notify-list-toggle { margin-left: auto; padding: 1px; }
+  .notify-alert-toolbar .notify-list-toggle-btn { padding: 6px 2px; }
   body.app-mode-notify .notify-alert-toolbar,
   body.app-mode-notify .notify-weekly-widget { display: flex; }
   .notify-list-toggle {
@@ -2779,23 +2777,6 @@
     background: var(--accent);
     color: var(--bg);
   }
-  @container notify-alerts (max-width: 340px) {
-    .notify-alert-toolbar { gap: 2px; }
-    .notify-weekly-widget { gap: 2px; padding-inline: 3px; font-size: 10px; }
-    .notify-weekly-widget .desk-weekly-label { font-size: 9px; }
-    .notify-weekly-widget .desk-weekly-direction { margin-left: 1px; font-size: 9px; }
-    .notify-alert-toolbar .today-treated-chip { padding-inline: 4px; font-size: 10px; }
-    .notify-alert-toolbar .notify-list-toggle { padding: 2px; }
-    .notify-alert-toolbar .notify-list-toggle-btn { padding-inline: 3px; }
-  }
-  @container notify-alerts (max-width: 300px) {
-    .notify-weekly-widget { gap: 1px; padding-inline: 2px; font-size: 9px; }
-    .notify-weekly-widget .desk-weekly-label,
-    .notify-weekly-widget .desk-weekly-direction { font-size: 8px; }
-    .notify-alert-toolbar .today-treated-chip { padding-inline: 2px; font-size: 9px; }
-    .notify-alert-toolbar .notify-list-toggle { padding: 1px; }
-    .notify-alert-toolbar .notify-list-toggle-btn { padding-inline: 2px; font-size: 9px; }
-  }
   @media (min-width: 860px) {
     body.app-mode-notify {
       min-height: 100vh;
@@ -2814,6 +2795,7 @@
       overflow: hidden;
     }
     body.app-mode-notify .receive-layout {
+      grid-template-columns: minmax(410px, 1fr) minmax(0, 2fr);
       height: 100%;
       min-height: 0;
       align-items: stretch;
