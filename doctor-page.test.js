@@ -52,18 +52,13 @@ test('doctor selection matches IDs first, legacy names second, and excludes unas
   assert.equal(c.matchesDoctorPageRecord({ doctorId: 'b' }), true);
 });
 
-test('only assigned beds are active; all restores empty and other-doctor beds', () => {
-  const { context: c } = pageContext();
-  assert.equal(c.canUseDoctorPageBed(1), true);
-  assert.equal(c.canUseDoctorPageBed(2), false);
-  assert.equal(c.canUseDoctorPageBed(3), false);
-  load(c, html, ['renderBedStatusCard']);
-  const disabled = c.renderBedStatusCard({ bedNo: 2, bedLabel: '2번', name: '다른환자' }, 'input');
-  assert.match(disabled, /aria-disabled="true"/);
-  assert.doesNotMatch(disabled, /onclick|ondrop|draggable|다른환자/);
-  c.doctorPageFilterId = '';
-  assert.equal(c.canUseDoctorPageBed(2), true);
-  assert.equal(c.canUseDoctorPageBed(3), true);
+test('bed information can be viewed across doctors without changing the selected filter', () => {
+  const { context: c, elements, beds } = pageContext();
+  for (const id of ['doctorPatientViewTitle', 'doctorPatientViewBody', 'doctorPatientViewOverlay']) elements.set(id, { classList: { add() {} } });
+  load(c, html, ['showDoctorPatientView']);
+  c.showDoctorPatientView(beds[2], '2번', true);
+  assert.match(elements.get('doctorPatientViewTitle').textContent, /다른환자/);
+  assert.equal(c.getDoctorPageFilter().id, 'a');
 });
 
 test('procedure alerts and today counts follow the same doctor selection', () => {
@@ -77,7 +72,7 @@ test('procedure alerts and today counts follow the same doctor selection', () =>
   elements.set('deskBedPatientCount', {});
   load(c, html, ['updateCount']);
   c.updateCount();
-  assert.equal(elements.get('deskTodayTreatedCount').textContent, '오늘 1명');
+  assert.equal(elements.get('deskTodayTreatedCount').textContent, '오늘 1명 · 전체 2명');
   assert.equal(elements.get('deskBedPatientCount').textContent, '1/3');
   assert.deepEqual(Array.from(c.getDoctorPageProcedureAlertItems(), item => item.doctorId), ['a']);
   c.doctorPageFilterId = 'b';
@@ -122,15 +117,17 @@ test('appointment and call alerts resolve patient ownership instead of mixing do
 
 test('appointment badge and calendar counts are computed from the selected doctor only', () => {
   const { context: c } = pageContext();
-  load(c, html, ['filterDoctorPageAppointmentGroups']);
+  load(c, html, ['filterDoctorPageAppointmentGroups', 'formatDoctorAppointmentCount']);
   const groups = [{ date: '2026-10-31', count: 3, visitedCount: 2, patients: [
     { doctorId: 'a', attended: true }, { doctorId: 'a', attended: false }, { doctorId: 'b', attended: true },
   ] }];
   const own = c.filterDoctorPageAppointmentGroups(groups);
   assert.equal(own[0].count, 2);
   assert.equal(own[0].visitedCount, 1);
+  assert.equal(c.formatDoctorAppointmentCount(own[0]), '예약 1/2명 · 전체 2/3명');
   c.doctorPageFilterId = '';
   assert.equal(c.filterDoctorPageAppointmentGroups(groups)[0].count, 3);
+  assert.equal(c.formatDoctorAppointmentCount(groups[0]), '예약 2/3명');
 });
 
 function weeklyContext() {
@@ -249,4 +246,27 @@ test('doctor viewers never complete timers, assign patients, release holds or cl
   await c.clearBedsLeftFromPreviousDate();
   await c.cleanupOldDischargedPatients('2026-10-31');
   assert.equal(await c.migrateDisabledBedsToWaiting({}), 0);
+});
+
+test('doctor drawer cannot open even when its toggle is invoked; desk drawer still opens', () => {
+  const classes = new Set();
+  const style = { display: '', removeProperty() {} };
+  const column = { style: { ...style } }, detail = { style: { ...style } };
+  const panel = { classList: { toggle(name, enabled) { enabled ? classes.add(name) : classes.delete(name); } },
+    querySelector: selector => selector === '.input-form-column' ? column : detail };
+  const button = { dataset: {}, setAttribute() {} };
+  let page = 'doctor';
+  const c = vm.createContext({ getAppView: () => page,
+    document: { getElementById: id => id === 'inputPanel' ? panel : id === 'inputFormToggle' ? button : null },
+    window: { renderBedMonitors() {} } });
+  load(c, html, ['setInputFormOpen']);
+  c.setInputFormOpen(true);
+  assert.equal(button.hidden, true);
+  assert.equal(column.hidden, true);
+  assert.equal(classes.has('input-form-open'), false);
+  page = 'desk';
+  c.setInputFormOpen(true);
+  assert.equal(button.hidden, false);
+  assert.equal(column.hidden, false);
+  assert.equal(classes.has('input-form-open'), true);
 });

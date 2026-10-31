@@ -141,12 +141,6 @@
   body.app-role-doctor .input-monitor-doctor-alert-card { display: none; }
   body.app-role-doctor #inputUpcomingAlerts { pointer-events: none; }
   body.app-role-doctor .waiting-mode-select { display: none; }
-  .bed-status.doctor-scope-disabled {
-    opacity: .32;
-    filter: grayscale(1);
-    cursor: default;
-    pointer-events: none;
-  }
   body.app-mode-input .header-left-desk-controls,
   body.app-role-desk .header-left-desk-controls {
     display: flex;
@@ -716,6 +710,7 @@
     box-shadow: 0 10px 24px rgba(0,0,0,0.32);
   }
   .input-panel.active > #inputFormToggle { display: block; }
+  body.app-role-doctor .input-panel.active > #inputFormToggle { display: none; }
   .receive-panel.active .receive-drawer-toggle { display: block; }
   body.app-mode-notify .receive-drawer-toggle { display: none !important; }
   body.app-mode-doctor .receive-drawer-toggle,
@@ -7671,8 +7666,8 @@
   window.getDoctorPageFilter = getDoctorPageFilter;
   function isDoctorReadOnlyPage() { return getAppView() === 'doctor'; }
 
-  function showDoctorPatientView(patient, title = '') {
-    if (!patient || !matchesDoctorPageRecord(patient)) return;
+  function showDoctorPatientView(patient, title = '', allDoctors = false) {
+    if (!patient || (!allDoctors && !matchesDoctorPageRecord(patient))) return;
     document.getElementById('doctorPatientViewTitle').textContent = `${title ? `${title} · ` : ''}${patient.name || '환자'}`;
     document.getElementById('doctorPatientViewBody').textContent = [
       patient.chartNo ? `차트번호: ${patient.chartNo}` : '',
@@ -7684,7 +7679,7 @@
     ].filter(Boolean).join('\n');
     document.getElementById('doctorPatientViewOverlay').classList.add('show');
   }
-  window.openDoctorPatientView = bedNo => showDoctorPatientView(getBedData(bedNo), getBedLabel(bedNo));
+  window.openDoctorPatientView = bedNo => showDoctorPatientView(getBedData(bedNo), getBedLabel(bedNo), true);
 
   function matchesDoctorIdentity(record, doctor) {
     if (!doctor) return true;
@@ -7711,8 +7706,16 @@
     if (!getDoctorPageFilter()) return groups;
     return groups.map(group => {
       const patients = (group.patients || []).filter(matchesDoctorPageRecord);
-      return { ...group, patients, count: patients.length, visitedCount: patients.filter(patient => patient.attended).length };
+      return { ...group, totalCount: group.count, totalVisitedCount: group.visitedCount,
+        patients, count: patients.length, visitedCount: patients.filter(patient => patient.attended).length };
     });
+  }
+
+  function formatDoctorAppointmentCount(group) {
+    const own = `예약 ${Number(group.visitedCount || 0)}/${Number(group.count || 0)}명`;
+    return getDoctorPageFilter()
+      ? `${own} · 전체 ${Number(group.totalVisitedCount || 0)}/${Number(group.totalCount || 0)}명`
+      : own;
   }
 
   function persistDoctorPageFilter() {
@@ -12949,7 +12952,7 @@
     const treatedCount = [...dischargedPatientsByKey.values()].filter(matchesDoctorPageRecord).length;
     ['deskTodayTreatedCount', 'notifyTodayTreatedCount', 'receiveTodayTreatedCount', 'bedTodayTreatedCount'].forEach(id => {
       const chip = document.getElementById(id);
-      if (chip) chip.textContent = `오늘 ${treatedCount}명`;
+      if (chip) chip.textContent = `오늘 ${treatedCount}명${getDoctorPageFilter() ? ` · 전체 ${dischargedPatientsByKey.size}명` : ''}`;
     });
     const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => {
       const bed = bedAssignments[bedNo - 1];
@@ -15567,7 +15570,7 @@
       const today = getTodayKey();
       const todayGroup = groups.find(group => group.date === today) || { date: today, count: 0, visitedCount: 0, patients: [] };
       upcomingAppointmentGroups = groups;
-      wrap.innerHTML = `<button class="alert-card-action" type="button" onclick="openAppointmentListPopup('${today}')">예약 ${Number(todayGroup.visitedCount || 0)}/${Number(todayGroup.count || 0)}명</button>`;
+      wrap.innerHTML = `<button class="alert-card-action" type="button" onclick="openAppointmentListPopup('${today}')">${formatDoctorAppointmentCount(todayGroup)}</button>`;
       renderWaitingLists();
       renderBedMonitors();
     } catch (error) {
@@ -19278,13 +19281,6 @@
   }
 
   function renderBedStatusCard(status, context) {
-    if (!canUseDoctorPageBed(status.bedNo)) {
-      const state = status.empty ? '비어 있음' : status.cleaning ? '정리 중' : '다른 원장 담당';
-      return `<div class="bed-status doctor-scope-disabled" aria-disabled="true" data-bed-no="${status.bedNo}">
-        <div class="bed-status-top"><span class="bed-status-no">${escapeHtml(status.bedLabel)}</span></div>
-        <div class="bed-status-treatment"><span class="bed-stage-badge empty">${state}</span></div>
-      </div>`;
-    }
     const isReceive = context === 'receive';
     const isInput = context === 'input';
     const canMoveBed = (isInput || isReceive) && !isDoctorReadOnlyPage();
@@ -21822,6 +21818,8 @@
   }
 
   function setInputFormOpen(open) {
+    const readOnly = getAppView() === 'doctor';
+    if (readOnly) open = false;
     const panel = document.getElementById('inputPanel');
     const button = document.getElementById('inputFormToggle');
     const column = panel?.querySelector('.input-form-column');
@@ -21845,6 +21843,7 @@
       }
     }
     if (button) {
+      button.hidden = readOnly;
       button.textContent = open ? '‹' : '›';
       button.dataset.open = open ? '1' : '0';
       button.setAttribute('aria-label', open ? '입력 닫기' : '입력 열기');
