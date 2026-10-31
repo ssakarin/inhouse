@@ -2729,15 +2729,31 @@
     display: none;
     width: max-content;
     max-width: 100%;
+    flex: 0 0 auto;
+    height: 32px;
+    gap: 3px;
+    padding-inline: 4px;
+    font-size: 11px;
     cursor: default;
   }
+  .notify-weekly-widget .desk-weekly-label { font-size: 10px; }
+  .notify-weekly-widget .desk-weekly-metric { gap: 2px; }
+  .notify-weekly-widget .desk-weekly-direction { margin-left: 1px; font-size: 10px; }
+  body.app-mode-notify .receive-alert-card { container: notify-alerts / inline-size; }
   .notify-alert-toolbar {
     display: none;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    flex-wrap: nowrap;
+    gap: 4px;
     min-width: 0;
   }
+  .notify-alert-toolbar .today-treated-chip {
+    flex: 0 0 auto;
+    padding: 6px;
+    font-size: 11px;
+  }
+  .notify-alert-toolbar .notify-list-toggle { margin-left: auto; }
+  .notify-alert-toolbar .notify-list-toggle-btn { padding: 6px 5px; font-size: 10px; }
   body.app-mode-notify .notify-alert-toolbar,
   body.app-mode-notify .notify-weekly-widget { display: flex; }
   .notify-list-toggle {
@@ -2762,6 +2778,23 @@
   .notify-list-toggle-btn.active {
     background: var(--accent);
     color: var(--bg);
+  }
+  @container notify-alerts (max-width: 340px) {
+    .notify-alert-toolbar { gap: 2px; }
+    .notify-weekly-widget { gap: 2px; padding-inline: 3px; font-size: 10px; }
+    .notify-weekly-widget .desk-weekly-label { font-size: 9px; }
+    .notify-weekly-widget .desk-weekly-direction { margin-left: 1px; font-size: 9px; }
+    .notify-alert-toolbar .today-treated-chip { padding-inline: 4px; font-size: 10px; }
+    .notify-alert-toolbar .notify-list-toggle { padding: 2px; }
+    .notify-alert-toolbar .notify-list-toggle-btn { padding-inline: 3px; }
+  }
+  @container notify-alerts (max-width: 300px) {
+    .notify-weekly-widget { gap: 1px; padding-inline: 2px; font-size: 9px; }
+    .notify-weekly-widget .desk-weekly-label,
+    .notify-weekly-widget .desk-weekly-direction { font-size: 8px; }
+    .notify-alert-toolbar .today-treated-chip { padding-inline: 2px; font-size: 9px; }
+    .notify-alert-toolbar .notify-list-toggle { padding: 1px; }
+    .notify-alert-toolbar .notify-list-toggle-btn { padding-inline: 2px; font-size: 9px; }
   }
   @media (min-width: 860px) {
     body.app-mode-notify {
@@ -6033,6 +6066,7 @@
               <span class="desk-weekly-divider" aria-hidden="true"></span>
               <span class="desk-weekly-rate third" title="최근 14일 삼진율"><span class="desk-weekly-label">삼진</span> <span id="notifyWeeklyThirdRate">-</span><span class="desk-weekly-direction" id="notifyWeeklyThirdDirection" aria-hidden="true"></span></span>
             </div>
+            <button class="header-wait-chip today-treated-chip" id="notifyTodayTreatedCount" type="button" onclick="openDischargedPatientsPopup()" aria-label="오늘 퇴실환자 보기">오늘 0명</button>
             <div class="notify-list-toggle" role="group" aria-label="알림 또는 대기 목록 선택">
               <button class="notify-list-toggle-btn active" type="button" data-notify-list-view="alerts" onclick="setNotifyListView('alerts')">알림</button>
               <button class="notify-list-toggle-btn" type="button" data-notify-list-view="waiting" onclick="setNotifyListView('waiting')">대기</button>
@@ -12744,7 +12778,7 @@
     const todayCount = document.getElementById('todayCount');
     if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
     const treatedCount = dischargedPatientsByKey.size;
-    ['deskTodayTreatedCount', 'receiveTodayTreatedCount', 'bedTodayTreatedCount'].forEach(id => {
+    ['deskTodayTreatedCount', 'notifyTodayTreatedCount', 'receiveTodayTreatedCount', 'bedTodayTreatedCount'].forEach(id => {
       const chip = document.getElementById(id);
       if (chip) chip.textContent = `오늘 ${treatedCount}명`;
     });
