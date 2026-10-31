@@ -726,6 +726,8 @@ function listUpcomingAppointments(startDate = "", endDate = "") {
         chartNo: patient.chartNo || "",
         name: patient.name || "환자",
         phone: getPatientPhone(patient),
+        doctorId: realtimeRegistration?.doctorId || patient.doctorId || "",
+        doctorName: realtimeRegistration?.doctorName || patient.doctorName || "",
         confirmedAt: patient.appointmentConfirmedAt || null,
         visited,
         visitedAt: visitTimestamp || null,
@@ -1197,8 +1199,11 @@ function hasFullFollowupWindow(firstDate, referenceDate, days = 21) {
 
 const DESK_WEEKLY_WIDGET_CACHE_MS = 5 * 60 * 1000;
 
-function computeDeskWeeklyWidget(rangeDays = 14) {
+function computeDeskWeeklyWidget(rangeDays = 14, doctor = "") {
   ensurePatientCache();
+  const doctorFilter = normalizeSearchText(doctor);
+  const matchesVisitDoctor = (record, date) => !doctorFilter
+    || normalizeSearchText(getVisitRecord(record, date).doctorName || record.doctorName) === doctorFilter;
   const safeRangeDays = Number(rangeDays) === 7 ? 7 : 14;
   const today = getLocalDateKey();
   const currentEnd = addDays(today, -1);
@@ -1221,7 +1226,8 @@ function computeDeskWeeklyWidget(rangeDays = 14) {
     const patientId = String(record.patientId || record.chartNo || record.name || "");
     if (!patientId) continue;
     const treatmentDates = nonPrescriptionVisitDatesOf(record);
-    const currentTreatmentDates = treatmentDates.filter(date => date >= currentStart && date <= currentEnd);
+    const scopedTreatmentDates = treatmentDates.filter(date => matchesVisitDoctor(record, date));
+    const currentTreatmentDates = scopedTreatmentDates.filter(date => date >= currentStart && date <= currentEnd);
     if (currentTreatmentDates.length) {
       currentPatientIds.add(patientId);
       currentVisits += currentTreatmentDates.length;
@@ -1235,7 +1241,7 @@ function computeDeskWeeklyWidget(rangeDays = 14) {
       }).length;
     }
     comparisonWeeks.forEach(week => {
-      const weekTreatmentDates = treatmentDates.filter(date => date >= week.start && date <= week.end);
+      const weekTreatmentDates = scopedTreatmentDates.filter(date => date >= week.start && date <= week.end);
       if (!weekTreatmentDates.length) return;
       week.patientIds.add(patientId);
       week.visits += weekTreatmentDates.length;
@@ -1251,6 +1257,7 @@ function computeDeskWeeklyWidget(rangeDays = 14) {
 
     for (const firstDate of newVisitDatesOf(record)) {
       if (isPrescriptionVisit(record, firstDate)) continue;
+      if (!matchesVisitDoctor(record, firstDate)) continue;
       if (firstDate >= currentStart && firstDate <= currentEnd) {
         currentNewPatients += 1;
         const currentFollowupCount = treatmentDates.filter(date => date >= firstDate && date <= currentEnd).length;
@@ -1292,6 +1299,7 @@ function computeDeskWeeklyWidget(rangeDays = 14) {
   return {
     generatedAt: new Date().toISOString(),
     rangeDays: safeRangeDays,
+    doctor: doctorFilter,
     current: {
       start: currentStart,
       end: currentEnd,
@@ -1316,17 +1324,19 @@ function computeDeskWeeklyWidget(rangeDays = 14) {
   };
 }
 
-function getDeskWeeklyWidget(rangeDays = 14) {
+function getDeskWeeklyWidget(rangeDays = 14, doctor = "") {
   const now = Date.now();
   const safeRangeDays = Number(rangeDays) === 7 ? 7 : 14;
+  const doctorFilter = normalizeSearchText(doctor);
   if (deskWeeklyWidgetCache
       && deskWeeklyWidgetCache.revision === patientDataRevision
       && deskWeeklyWidgetCache.rangeDays === safeRangeDays
+      && deskWeeklyWidgetCache.doctor === doctorFilter
       && now - deskWeeklyWidgetCache.createdAt < DESK_WEEKLY_WIDGET_CACHE_MS) {
     return deskWeeklyWidgetCache.value;
   }
-  const value = computeDeskWeeklyWidget(safeRangeDays);
-  deskWeeklyWidgetCache = { revision: patientDataRevision, rangeDays: safeRangeDays, createdAt: now, value };
+  const value = computeDeskWeeklyWidget(safeRangeDays, doctorFilter);
+  deskWeeklyWidgetCache = { revision: patientDataRevision, rangeDays: safeRangeDays, doctor: doctorFilter, createdAt: now, value };
   return value;
 }
 
@@ -4896,7 +4906,7 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/dashboard/weekly" && req.method === "GET") {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-    jsonResponse(res, 200, getDeskWeeklyWidget(requestUrl.searchParams.get("days")));
+    jsonResponse(res, 200, getDeskWeeklyWidget(requestUrl.searchParams.get("days"), requestUrl.searchParams.get("doctor")));
     return true;
   }
 
@@ -5390,6 +5400,7 @@ setInterval(() => {
 
 const SHORT_LINKS = new Map([
   ["/desk", "/?view=desk"],
+  ["/doctor", "/?view=doctor"],
   ["/settings", "/?view=settings"],
   ["/clinic", "/?view=clinic"],
   ["/notify", "/?view=notify"],

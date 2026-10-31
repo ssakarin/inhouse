@@ -13,6 +13,14 @@
     const manifestLink = document.getElementById('appManifestLink');
     const params = new URLSearchParams(window.location.search);
     const view = (params.get('view') || '').toLowerCase();
+    if (view === 'doctor') {
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (input, options = {}) => {
+        const method = String(options.method || input?.method || 'GET').toUpperCase();
+        if (!['GET', 'HEAD'].includes(method)) return Promise.reject(new Error('원장 페이지는 조회 전용입니다.'));
+        return originalFetch(input, options);
+      };
+    }
     const bedNo = Number(params.get('bed'));
     if (new Set(['desk', 'notify', 'clinic']).has(view)) {
       manifestLink.href = `manifest-${view}.webmanifest`;
@@ -113,6 +121,31 @@
     align-items: center;
     gap: 6px;
     margin-left: 8px;
+  }
+  .doctor-page-controls { display: none; align-items: center; gap: 8px; }
+  body.app-role-doctor .doctor-page-controls { display: flex; }
+  .doctor-page-controls label { color: var(--text3); font-size: 12px; white-space: nowrap; }
+  .doctor-page-controls select {
+    min-width: 110px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+  }
+  body.app-role-doctor #deskChartImportBtn,
+  body.app-role-doctor #inputFormToggle,
+  body.app-role-doctor #nurseQuickBtnDesk,
+  body.app-role-doctor .input-monitor-doctor-alert-card { display: none; }
+  body.app-role-doctor #inputUpcomingAlerts { pointer-events: none; }
+  body.app-role-doctor .waiting-mode-select { display: none; }
+  .bed-status.doctor-scope-disabled {
+    opacity: .32;
+    filter: grayscale(1);
+    cursor: default;
+    pointer-events: none;
   }
   body.app-mode-input .header-left-desk-controls,
   body.app-role-desk .header-left-desk-controls {
@@ -5784,6 +5817,10 @@
       </div>
       <div class="header-left-desk-controls">
       </div>
+      <div class="doctor-page-controls">
+        <label for="doctorPageSelect">담당 원장</label>
+        <select id="doctorPageSelect" onchange="setDoctorPageFilter(this.value)" aria-label="담당 원장 선택"><option value="">전체</option></select>
+      </div>
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
@@ -6392,6 +6429,13 @@
 
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
+<div class="notif-overlay" id="doctorPatientViewOverlay" onclick="this.classList.remove('show')">
+  <div class="notif-popup" onclick="event.stopPropagation()">
+    <div class="popup-name" id="doctorPatientViewTitle"></div>
+    <div id="doctorPatientViewBody" style="white-space:pre-wrap;line-height:1.8"></div>
+    <button type="button" class="popup-close" onclick="document.getElementById('doctorPatientViewOverlay').classList.remove('show')">닫기</button>
+  </div>
+</div>
 
 <script type="module">
   const PATIENTS_PATH  = 'patients';
@@ -7085,6 +7129,7 @@
     return '';
   }
   async function cleanupOldDischargedPatients(keepDate = getTodayKey()) {
+    if (globalThis.window?.getAppView?.() === 'doctor') return;
     if (!SERVER_MODE) return;
     try {
       await fetch('/api/discharged-patients/cleanup', {
@@ -7614,6 +7659,132 @@
   let receiveDoctorAlertEditDoctorId = '';
   let receiveAlertView = localStorage.getItem('receiveAlertView') === 'general' ? 'general' : 'doctor';
   let selectedDoctorAlertId = localStorage.getItem('selectedDoctorAlertId') || ''; // 데스크 원장 호출용 (방과 무관, 전역)
+  const DOCTOR_PAGE_FILTER_KEY = 'inhouse:doctorPageFilterId';
+  let doctorPageFilterId = new URLSearchParams(location.search).get('doctor')
+    ?? localStorage.getItem(DOCTOR_PAGE_FILTER_KEY) ?? '';
+  let doctorPageStaffLoaded = false;
+
+  function getDoctorPageFilter() {
+    if (getAppView() !== 'doctor' || !doctorPageFilterId) return null;
+    return { id: doctorPageFilterId, name: staffByType.doctors.get(doctorPageFilterId)?.name || '' };
+  }
+  window.getDoctorPageFilter = getDoctorPageFilter;
+  function isDoctorReadOnlyPage() { return getAppView() === 'doctor'; }
+
+  function showDoctorPatientView(patient, title = '') {
+    if (!patient || !matchesDoctorPageRecord(patient)) return;
+    document.getElementById('doctorPatientViewTitle').textContent = `${title ? `${title} · ` : ''}${patient.name || '환자'}`;
+    document.getElementById('doctorPatientViewBody').textContent = [
+      patient.chartNo ? `차트번호: ${patient.chartNo}` : '',
+      patient.doctorName ? `담당 원장: ${patient.doctorName}` : '',
+      patient.nurseName ? `담당 간호사: ${patient.nurseName}` : '',
+      `치료: ${(patient.treatments || []).join(', ') || '없음'}`,
+      `메모1: ${patient.memo1 || patient.chiefComplaint || ''}`,
+      `메모2: ${patient.memo2 || patient.memo || ''}`
+    ].filter(Boolean).join('\n');
+    document.getElementById('doctorPatientViewOverlay').classList.add('show');
+  }
+  window.openDoctorPatientView = bedNo => showDoctorPatientView(getBedData(bedNo), getBedLabel(bedNo));
+
+  function matchesDoctorIdentity(record, doctor) {
+    if (!doctor) return true;
+    if (!record) return false;
+    const id = String(record.doctorId || '').trim();
+    if (id) return id === doctor.id;
+    const name = String(record.doctorName || '').trim();
+    return Boolean(name && doctor.name && name === doctor.name.trim());
+  }
+
+  function matchesDoctorPageRecord(record) {
+    const doctor = getDoctorPageFilter();
+    if (!doctor) return true;
+    const owner = record?.doctorId || record?.doctorName ? record
+      : getBedData(Number(record?.bedNo)) || patientsByKey.get(record?.patientKey) || record;
+    return matchesDoctorIdentity(owner, doctor);
+  }
+
+  function canUseDoctorPageBed(bedNo) {
+    return !getDoctorPageFilter() || matchesDoctorPageRecord(getBedData(bedNo));
+  }
+
+  function filterDoctorPageAppointmentGroups(groups) {
+    if (!getDoctorPageFilter()) return groups;
+    return groups.map(group => {
+      const patients = (group.patients || []).filter(matchesDoctorPageRecord);
+      return { ...group, patients, count: patients.length, visitedCount: patients.filter(patient => patient.attended).length };
+    });
+  }
+
+  function persistDoctorPageFilter() {
+    try { localStorage.setItem(DOCTOR_PAGE_FILTER_KEY, doctorPageFilterId); } catch {}
+    const url = new URL(location.href);
+    // Keep an explicit empty value so a shared "전체" URL overrides saved preferences.
+    url.searchParams.set('doctor', doctorPageFilterId);
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+
+  function renderDoctorPageSelector(staffLoaded = false) {
+    if (getAppView() !== 'doctor') return;
+    doctorPageStaffLoaded ||= staffLoaded;
+    const doctors = getSortedStaff('doctors');
+    if (doctorPageStaffLoaded && doctorPageFilterId && !staffByType.doctors.has(doctorPageFilterId)) {
+      doctorPageFilterId = doctors.find(([, doctor]) => doctor.name === doctorPageFilterId)?.[0] || '';
+      persistDoctorPageFilter();
+    }
+    const select = document.getElementById('doctorPageSelect');
+    if (select) {
+      select.innerHTML = '<option value="">전체</option>' + doctors.map(([id, doctor]) =>
+        `<option value="${escapeHtml(id)}">${escapeHtml(doctor.name || '원장')}</option>`
+      ).join('');
+      select.value = doctorPageFilterId;
+      select.disabled = !doctorPageStaffLoaded;
+    }
+    const formDoctor = document.getElementById('doctorSelect');
+    if (formDoctor) {
+      formDoctor.disabled = Boolean(doctorPageFilterId);
+      if (doctorPageFilterId) formDoctor.value = doctorPageFilterId;
+    }
+  }
+
+  function refreshDoctorPageScope() {
+    if (getAppView() !== 'doctor') return;
+    renderDoctorPageSelector();
+    renderWaitingLists();
+    renderUpcomingAlerts();
+    renderDischargedPatientsList();
+    renderBedMonitors();
+    updateCount();
+    window.refreshDeskWeeklyWidget?.();
+    window.refreshDeskAppointmentButtons?.();
+  }
+
+  window.setDoctorPageFilter = (doctorId) => {
+    if (getAppView() !== 'doctor') return;
+    if (doctorId && !staffByType.doctors.has(doctorId)) return;
+    doctorPageFilterId = doctorId || '';
+    persistDoctorPageFilter();
+    closeMonitorEditForm('desk');
+    closeBedCardContextMenu();
+    window.closeDischargedPatientsPopup?.();
+    document.getElementById('doctorPatientViewOverlay')?.classList.remove('show');
+    window.closeAppointmentListPopup?.();
+    window.closeAppointmentProcessPopup?.();
+    window.closeAppointmentEditPopup?.();
+    window.closeDeskWeeklyPopover?.();
+    selectedMoveBedNo = null;
+    draggedBedNo = null;
+    draggedWaitingPatientKey = null;
+    draggedTreatment = null;
+    refreshDoctorPageScope();
+  };
+
+  function getDoctorPageProcedureAlertItems() {
+    if (getAppView() !== 'doctor') return [];
+    const selected = getDoctorPageFilter();
+    const doctors = selected ? [[selected.id]] : getSortedStaff('doctors');
+    return doctors.flatMap(([id]) => getDoctorProcedureAlertItems(id));
+  }
+
   const selectedDoctorAlertIdByBed = {}; // 원장실 알림 토글 선택값 — 베드(원장실)별로 독립적으로 보관
   let doctorAlertManualOrderById = {};
 
@@ -10154,6 +10325,7 @@
       });
     });
     renderDoctorAlertSelect();
+    renderDoctorPageSelector();
     renderStaffSchedule();
   }
 
@@ -10544,12 +10716,15 @@
   };
 
   function getSelectedStaff(type, scope = 'desk') {
+    if (type === 'doctors' && scope === 'desk' && getDoctorPageFilter()) return getDoctorPageFilter();
     const selectId = type === 'doctors'
       ? (scope === 'bed' ? 'bedDoctorSelect' : scope === 'receive' ? 'receiveDoctorSelect' : 'doctorSelect')
       : (scope === 'bed' ? 'bedNurseSelect' : scope === 'receive' ? 'receiveNurseSelect' : 'nurseSelect');
     const select = document.getElementById(selectId);
     const key = select?.value || '';
     const data = key ? staffByType[type].get(key) : null;
+    // A doctor's existing patients remain theirs even while the doctor is away.
+    if (type === 'doctors' && getAppView() === 'doctor' && data) return { id: key, name: data.name || '' };
     if (type === 'doctors' && isDoctorUnavailable(data)) return { id: '', name: '' };
     return data ? { id: key, name: data.name || '' } : { id: '', name: '' };
   }
@@ -10560,6 +10735,10 @@
       : (scope === 'bed' ? 'bedNurseSelect' : scope === 'receive' ? 'receiveNurseSelect' : 'nurseSelect');
     const select = document.getElementById(selectId);
     if (!select) return;
+    if (type === 'doctors' && scope === 'desk' && getDoctorPageFilter()) {
+      select.value = getDoctorPageFilter().id;
+      return;
+    }
 
     const id = stored[`${type === 'doctors' ? 'doctor' : 'nurse'}Id`] || '';
     const name = stored[`${type === 'doctors' ? 'doctor' : 'nurse'}Name`] || '';
@@ -10606,6 +10785,7 @@
 
   let lastAppointmentDeskAlertDate = getTodayKey();
   async function cleanupStaleAppointmentDeskAlerts(dateKey = getTodayKey()) {
+    if (globalThis.window?.getAppView?.() === 'doctor') return;
     const keptEntries = [...appointmentDeskAlertItems.entries()]
       .filter(([, data]) => isTimestampOnDate(data?.timestamp, dateKey));
     if (keptEntries.length === appointmentDeskAlertItems.size) return;
@@ -10762,8 +10942,10 @@
   ['doctors', 'nurses'].forEach(type => {
     migrateNode(`staff/${type}`, (value) => {
       staffByType[type] = new Map(Object.entries(value || {}));
+      if (type === 'doctors') renderDoctorPageSelector(true);
       renderStaffControls();
       if (type === 'doctors') renderBedMonitors();
+      if (type === 'doctors') refreshDoctorPageScope();
     });
   });
 
@@ -11099,6 +11281,7 @@
   }
 
   window.submitPatient = async (scope = 'desk') => {
+    if (isDoctorReadOnlyPage()) return;
     const ids = PATIENT_FORM_IDS[scope] || PATIENT_FORM_IDS.desk;
     if ((scope === 'desk' || scope === 'receive') && formEditBedNoByScope[scope]) {
       const saved = await saveMonitorBedPatientInfo(scope);
@@ -12073,6 +12256,7 @@
 
   async function saveTextFieldsOnly(scope) {
     const bedNo = formEditBedNoByScope[scope];
+    if (!canUseDoctorPageBed(bedNo)) return;
     const bed = getBedData(bedNo);
     if (!bed) { showToast('베드가 비어 있습니다'); return; }
 
@@ -12112,6 +12296,7 @@
   async function saveWaitingPatientInfo(scope) {
     const patientKey = formEditPatientKeyByScope[scope];
     const patient = patientKey ? patientsByKey.get(patientKey) : null;
+    if (!matchesDoctorPageRecord(patient)) return false;
     if (!patientKey || !patient) {
       showToast('대기환자 정보를 찾을 수 없습니다');
       return false;
@@ -12237,6 +12422,7 @@
 
   async function saveMonitorBedPatientInfo(scope) {
     const bedNo = formEditBedNoByScope[scope];
+    if (!canUseDoctorPageBed(bedNo)) return false;
     const bed = getBedData(bedNo);
     if (!bed) {
       showToast('현재 베드가 비어 있습니다');
@@ -12650,6 +12836,7 @@
   }
 
   async function migrateDisabledBedsToWaiting(beds) {
+    if (globalThis.window?.getAppView?.() === 'doctor') return 0;
     let movedCount = 0;
     Object.entries(beds).forEach(([bedNo, bed]) => {
       if (!bed) return;
@@ -12759,12 +12946,15 @@
     if (isRegularFixedBedScreen() || isFixedDoctorBedScreen()) return;
     const todayCount = document.getElementById('todayCount');
     if (todayCount) todayCount.textContent = `${loadedKeys.size}명`;
-    const treatedCount = dischargedPatientsByKey.size;
+    const treatedCount = [...dischargedPatientsByKey.values()].filter(matchesDoctorPageRecord).length;
     ['deskTodayTreatedCount', 'notifyTodayTreatedCount', 'receiveTodayTreatedCount', 'bedTodayTreatedCount'].forEach(id => {
       const chip = document.getElementById(id);
       if (chip) chip.textContent = `오늘 ${treatedCount}명`;
     });
-    const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => Boolean(bedAssignments[bedNo - 1])).length;
+    const regularOccupiedCount = REGULAR_BED_NUMBERS.filter(bedNo => {
+      const bed = bedAssignments[bedNo - 1];
+      return Boolean(bed) && matchesDoctorPageRecord(bed);
+    }).length;
     ['bedPatientCount', 'deskBedPatientCount', 'receiveBedPatientCount'].forEach(id => {
       const chip = document.getElementById(id);
       if (chip) chip.textContent = `${regularOccupiedCount}/${REGULAR_BED_COUNT}`;
@@ -14010,6 +14200,7 @@
   // 여럿이면 먼저 들어온(timestamp가 빠른) 환자부터 처리한다.
   let isProcessingHoldBedReleases = false;
   async function processHoldBedReleases() {
+    if (globalThis.window?.getAppView?.() === 'doctor') return;
     if (autoBedAssignEnabled) return assignWaitingPatientsToBeds();
     if (isProcessingHoldBedReleases) return;
     isProcessingHoldBedReleases = true;
@@ -14032,6 +14223,7 @@
     // The server reconciles alerts atomically against the complete bed tree.
     // Individual SSE deltas may temporarily show only half of a move or swap.
     if (SERVER_MODE) return;
+    if (globalThis.window?.getAppView?.() === 'doctor') return;
     // Fixed screens receive filtered bed snapshots and cannot safely delete shared alerts.
     if (isFixedBedScreen() || !hasLoadedBedsOnce) return;
     [...bedAssignmentAlertItems.entries()].forEach(([key, data]) => {
@@ -14175,6 +14367,7 @@
   }
 
   async function assignWaitingPatientsToBeds(force = false) {
+    if (globalThis.window?.getAppView?.() === 'doctor') return 0;
     if (!force && !autoBedAssignEnabled) return 0;
     if (isAssigningWaitingPatients) {
       shouldAssignWaitingAgain = true;
@@ -14369,9 +14562,9 @@
 
   function renderWaitingLists() {
     countDebugCounter('render-call', 'waitingLists');
-    const waitingPatients = getWaitingPatients();
+    const waitingPatients = getWaitingPatients().filter(([, patient]) => matchesDoctorPageRecord(patient));
     updateDeskWaitChip(waitingPatients);
-    const heldEntries = getHoldBedEntries();
+    const heldEntries = getHoldBedEntries().filter(({ bed }) => matchesDoctorPageRecord(bed));
     const holdTargetCounts = new Map();
     const heldHtml = heldEntries
       .map(({ bedNo, bed }) => {
@@ -14422,15 +14615,19 @@
 
     ['inputWaitingList', 'receiveWaitingList', 'notifyWaitingList'].forEach(id => {
       const list = document.getElementById(id);
-      if (list) list.innerHTML = html;
+      if (list) list.innerHTML = isDoctorReadOnlyPage()
+        ? html.replace(/ draggable="true"/g, '').replace(/ on(?:drag\w+|drop|contextmenu)="[^"]*"/g, '')
+        : html;
     });
   }
 
   window.handleWaitingPatientClick = (event, key) => {
+    if (isDoctorReadOnlyPage()) { showDoctorPatientView(patientsByKey.get(key), '대기'); return; }
     if (event?.button && event.button !== 0) return;
     if (!key || draggedWaitingPatientKey) return;
     if (window.currentMode === 'notify') return;
     const patient = patientsByKey.get(key);
+    if (!matchesDoctorPageRecord(patient)) return;
     if (!patient) {
       showToast('대기환자 정보를 찾을 수 없습니다');
       return;
@@ -14473,14 +14670,14 @@
     const list = document.getElementById('dischargedPatientsList');
     if (!list) return;
     const rows = [...dischargedPatientsByKey.entries()]
-      .filter(([, data]) => data?.name)
+      .filter(([, data]) => data?.name && matchesDoctorPageRecord(data))
       .sort((a, b) => Number(b[1]?.dischargedAt || b[1]?.timestamp || 0) - Number(a[1]?.dischargedAt || a[1]?.timestamp || 0));
     const summary = document.getElementById('dischargedPatientsSummary');
     if (summary) {
       const counts = summarizeDischargedPatients(rows.map(([, data]) => data));
       summary.innerHTML = `<div class="discharged-summary-total">전체 ${counts.total}명 · 초진 ${counts.newCount + counts.reinitialCount}명</div>
         <div class="discharged-summary-detail">생초진 ${counts.newCount}명 · 재초진 ${counts.reinitialCount}명</div>
-        <div class="discharged-summary-doctors">${counts.doctors.map(doctor => `<span>${escapeHtml(doctor.name)}${doctor.name === '미지정' ? '' : ' 원장'} <strong>${doctor.count}명</strong></span>`).join('') || '<span>원장별 인원 0명</span>'}</div>`;
+        <div class="discharged-summary-doctors">${counts.doctors.filter(doctor => !getDoctorPageFilter() || doctor.name === getDoctorPageFilter().name).map(doctor => `<span>${escapeHtml(doctor.name)}${doctor.name === '미지정' ? '' : ' 원장'} <strong>${doctor.count}명</strong></span>`).join('') || '<span>원장별 인원 0명</span>'}</div>`;
     }
     list.innerHTML = rows.length
       ? rows.map(([key, data]) => {
@@ -14517,7 +14714,9 @@
   };
 
   window.loadDischargedPatientToDesk = (key) => {
+    if (isDoctorReadOnlyPage()) { showDoctorPatientView(dischargedPatientsByKey.get(key), '오늘 퇴실환자'); return; }
     const patient = dischargedPatientsByKey.get(key);
+    if (!matchesDoctorPageRecord(patient)) return;
     if (!patient) {
       showToast('퇴실환자 정보를 찾을 수 없습니다');
       return;
@@ -14830,7 +15029,7 @@
   function updateDeskInitialVisitWaitChip() {
     const wrap = document.getElementById('deskInitialVisitWaitChips');
     if (!wrap) return;
-    const doctors = getActiveDoctors();
+    const doctors = getActiveDoctors().filter(([id]) => !getDoctorPageFilter() || id === getDoctorPageFilter().id);
     wrap.innerHTML = doctors.length
       ? doctors.map(([doctorId, doctor]) => {
           const estimate = getInitialVisitWaitEstimate(doctorId);
@@ -14924,6 +15123,7 @@
     if (mode !== 'input') return [];
     const queuedItems = [...appointmentDeskAlertItems.entries()]
       .map(([key, alert]) => ({ key, ...(alert || {}) }))
+      .filter(matchesDoctorPageRecord)
       .filter(item => item.name && ((Array.isArray(item.dates) && item.dates.length) || item.undecided))
       .map(item => ({
         key: item.key,
@@ -14936,6 +15136,7 @@
       }));
     const queuedPatientKeys = new Set(queuedItems.map(item => String(item.patientKey || item.key || '')));
     const legacyItems = [...patientsByKey.entries()]
+      .filter(([, patient]) => matchesDoctorPageRecord(patient))
       .filter(([patientKey]) => !queuedPatientKeys.has(String(patientKey)))
       .map(([patientKey, patient]) => {
         const dates = normalizeAppointmentDates(patient || {})
@@ -14963,6 +15164,7 @@
   function getVisibleCallAlertItems(mode = window.currentMode) {
     return [...callAlertItems.entries()]
       .map(([key, data]) => ({ key, ...(data || {}) }))
+      .filter(matchesDoctorPageRecord)
       .filter(item => {
         if (!item.message) return false;
         if (mode === 'input') return item.target === 'desk';
@@ -15082,15 +15284,16 @@
     const renderSimpleDoctorProcedureAlertHtml = (item, index = 0, total = 1, options = {}) => `
       <div class="upcoming-item assignment no-dismiss doctor-alert-simple-item">
         <div class="doctor-alert-simple-row">
-          ${renderDoctorRoomAlertChips(item, { includePatientName: shouldShowPatientNameInTreatmentRoomDoctorAlert(item) })}
+          ${renderDoctorRoomAlertChips(item, { includePatientName: getAppView() === 'doctor' || shouldShowPatientNameInTreatmentRoomDoctorAlert(item) })}
           ${options.showOrderControls ? renderDoctorAlertOrderControls(item, index, total) : ''}
         </div>
       </div>`;
     const renderDoctorAlertSplitHtml = (options = {}) => {
       const enableOrderControls = options.enableOrderControls ?? showDoctorAlertOrderControls;
       const enableEditorOpen = Boolean(options.enableEditorOpen);
-      const doctors = getActiveDoctors().slice(0, 2);
-      return Array.from({ length: 2 }, (_, index) => {
+      const doctors = getActiveDoctors().filter(([id]) => !getDoctorPageFilter() || id === getDoctorPageFilter().id);
+      const count = getAppView() === 'doctor' ? doctors.length : 2;
+      return Array.from({ length: count }, (_, index) => {
         const doctor = doctors[index];
         const doctorId = doctor?.[0] || '';
         const doctorName = doctor?.[1]?.name || '';
@@ -15264,7 +15467,12 @@
       : [];
 
     const receiveTimerItems = (receiveModeForAlerts === 'notify' || receiveModeForAlerts === 'receive') ? timerAlertItems : [];
-    const inputItems = [...inputCallItems, ...inputAssignmentItems, ...appointmentAlertItems];
+    const scopedDoctorItems = getDoctorPageProcedureAlertItems().map(item => ({
+      alertPriority: item.alertPriority,
+      timestamp: Number(item.timestamp || 0),
+      html: renderSimpleDoctorProcedureAlertHtml(item)
+    }));
+    const inputItems = [...scopedDoctorItems, ...inputCallItems, ...inputAssignmentItems, ...appointmentAlertItems];
     const receiveItems = [...transientAddedTreatmentItems, ...doctorProcedureItems, ...receiveTreatmentItems, ...doctorAssignmentItems, ...receiveCallItems, ...receiveAssignmentItems, ...receiveTimerItems];
     const baseHasAlerts = inputItems.length > 0;
     const receiveHasAlerts = receiveItems.length > 0;
@@ -15355,12 +15563,12 @@
     try {
       const response = await fetch('/api/appointments/upcoming', { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const groups = await response.json();
+      const groups = filterDoctorPageAppointmentGroups(await response.json());
       const today = getTodayKey();
       const todayGroup = groups.find(group => group.date === today) || { date: today, count: 0, visitedCount: 0, patients: [] };
       upcomingAppointmentGroups = groups;
       wrap.innerHTML = `<button class="alert-card-action" type="button" onclick="openAppointmentListPopup('${today}')">예약 ${Number(todayGroup.visitedCount || 0)}/${Number(todayGroup.count || 0)}명</button>`;
-      renderWaitingList();
+      renderWaitingLists();
       renderBedMonitors();
     } catch (error) {
       console.error('예약 현황을 불러오지 못했습니다.', error);
@@ -15369,6 +15577,7 @@
   window.refreshDeskAppointmentButtons = refreshDeskAppointmentButtons;
 
   window.openAppointmentProcessPopup = (patientKey) => {
+    if (isDoctorReadOnlyPage()) return;
     const patient = patientsByKey.get(patientKey) || {};
     const request = appointmentDeskAlertItems.get(patientKey) || (normalizeAppointmentDates(patient).length || patient.appointmentUndecided ? {
       patientKey,
@@ -15501,7 +15710,7 @@
     try {
       const response = await fetch(`/api/appointments/upcoming?start=${start}&end=${end}`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      appointmentCalendarGroups = await response.json();
+      appointmentCalendarGroups = filterDoctorPageAppointmentGroups(await response.json());
       renderAppointmentCalendar();
       renderAppointmentPatientList();
     } catch (error) {
@@ -15574,6 +15783,7 @@
   };
 
   window.openAppointmentEditPopup = (patientIndex = null) => {
+    if (isDoctorReadOnlyPage()) return;
     const group = appointmentCalendarGroups.find(item => item.date === appointmentSelectedDate) || { patients: [] };
     appointmentEditing = patientIndex === null ? null : (group.patients[Number(patientIndex)] || null);
     appointmentEditResolvedPatient = null;
@@ -17068,6 +17278,7 @@
   };
 
   async function finishBedStep(bedNo) {
+    if (globalThis.window?.getAppView?.() === 'doctor') return;
     if (finishingBeds.has(bedNo)) return;
     finishingBeds.add(bedNo);
 
@@ -17260,12 +17471,13 @@
 
   async function autoSaveSelectFields(scope) {
     const editBedNo = scope === 'bed' ? selectedBedNo : formEditBedNoByScope[scope];
+    if (editBedNo && !canUseDoctorPageBed(editBedNo)) return;
     const waitingPatientKey = !editBedNo && (scope === 'desk' || scope === 'receive')
       ? formEditPatientKeyByScope[scope]
       : null;
     if (waitingPatientKey) {
       const patient = patientsByKey.get(waitingPatientKey);
-      if (!patient) return;
+      if (!patient || !matchesDoctorPageRecord(patient)) return;
 
       const form = getFormValues(scope);
       const payload = {
@@ -18413,6 +18625,8 @@
   };
 
   window.handleInputBedClick = async (bedNo) => {
+    if (isDoctorReadOnlyPage()) { window.openDoctorPatientView(bedNo); return; }
+    if (!canUseDoctorPageBed(bedNo)) return;
     if (Date.now() < suppressBedClickUntil) return;
     if (window.currentMode === 'notify') return;
     const scope = (window.currentMode === 'receive' || window.currentMode === 'doctor') ? 'receive' : 'desk';
@@ -18460,6 +18674,8 @@
   };
 
   window.handleBedDragStart = (event, bedNo) => {
+    if (isDoctorReadOnlyPage()) { event.preventDefault(); return; }
+    if (!canUseDoctorPageBed(bedNo)) { event.preventDefault(); return; }
     // 치료 칩 드래그가 버블링됐다면 베드 드래그 무시
     if (event.dataTransfer.getData('text/plain')?.startsWith?.('treat:')) return;
     const target = event.target;
@@ -18480,6 +18696,8 @@
   };
 
   window.handleBedDragOver = (event, bedNo) => {
+    if (isDoctorReadOnlyPage()) return;
+    if (!canUseDoctorPageBed(bedNo)) return;
     if (draggedWaitingPatientKey) {
       const n = Number(bedNo);
       const isDocBed = n >= 101;
@@ -18497,12 +18715,15 @@
   window.handleBedDrop = async (event, bedNo) => {
     event.preventDefault();
     event.stopPropagation();
+    if (isDoctorReadOnlyPage()) return;
+    if (!canUseDoctorPageBed(bedNo)) return;
     const rawDropData = String(event.dataTransfer.getData('text/plain') || '');
     const waitingKey = draggedWaitingPatientKey || rawDropData.replace(/^waiting:/, '');
     const isWaitingDrop = Boolean(draggedWaitingPatientKey)
       || rawDropData.startsWith('waiting:')
       || patientsByKey.has(waitingKey);
     if (isWaitingDrop) {
+      if (!matchesDoctorPageRecord(patientsByKey.get(waitingKey))) return;
       draggedWaitingPatientKey = null;
       draggedBedNo = null;
       selectedMoveBedNo = null;
@@ -18517,7 +18738,7 @@
     draggedBedNo = null;
     selectedMoveBedNo = null;
     suppressBedClickUntil = Date.now() + 350;
-    if (fromBedNo && fromBedNo !== bedNo) {
+    if (fromBedNo && fromBedNo !== bedNo && canUseDoctorPageBed(fromBedNo)) {
       await moveOrSwapBed(fromBedNo, bedNo);
     }
     renderBedMonitors();
@@ -19057,9 +19278,16 @@
   }
 
   function renderBedStatusCard(status, context) {
+    if (!canUseDoctorPageBed(status.bedNo)) {
+      const state = status.empty ? '비어 있음' : status.cleaning ? '정리 중' : '다른 원장 담당';
+      return `<div class="bed-status doctor-scope-disabled" aria-disabled="true" data-bed-no="${status.bedNo}">
+        <div class="bed-status-top"><span class="bed-status-no">${escapeHtml(status.bedLabel)}</span></div>
+        <div class="bed-status-treatment"><span class="bed-stage-badge empty">${state}</span></div>
+      </div>`;
+    }
     const isReceive = context === 'receive';
     const isInput = context === 'input';
-    const canMoveBed = isInput || isReceive;
+    const canMoveBed = (isInput || isReceive) && !isDoctorReadOnlyPage();
     const monitorLabel = !SPECIAL_BED_LABELS[status.bedNo] && !HOLD_BED_NUMBERS.includes(Number(status.bedNo))
       ? getCompactBedMarker(status.bedNo)
       : getBedMonitorLabel(status.bedNo);
@@ -19105,7 +19333,7 @@
         </div>`;
     }
 
-    const clickAction = canMoveBed ? `handleInputBedClick(${status.bedNo})` : `selectReceiveBed(${status.bedNo})`;
+    const clickAction = isDoctorReadOnlyPage() ? `openDoctorPatientView(${status.bedNo})` : canMoveBed ? `handleInputBedClick(${status.bedNo})` : `selectReceiveBed(${status.bedNo})`;
     const dragHandlers = canMoveBed
       ? ` draggable="true" ondragstart="handleBedDragStart(event, ${status.bedNo})" ondragover="handleBedDragOver(event, ${status.bedNo})" ondrop="handleBedDrop(event, ${status.bedNo})" ondragend="handleBedDragEnd()"`
       : '';
@@ -19540,7 +19768,7 @@
     bedRenderTicker = setInterval(() => {
       const tickBed = (bed, bedNo) => {
         if (!bed || bed.complete) return;
-        if (bed.running && getRemaining(bed) <= 0) {
+        if (!isDoctorReadOnlyPage() && bed.running && getRemaining(bed) <= 0) {
           finishBedStep(bedNo);
         } else {
           updateTimerDom(bedNo);
@@ -20105,6 +20333,7 @@
   }
 
   window.saveChartPatient = async function(data) {
+    if (isDoctorReadOnlyPage()) return false;
     if (!data.chartNo) return;
     try {
       if (SERVER_MODE) {
@@ -20224,6 +20453,7 @@
   }
 
   async function clearBedsLeftFromPreviousDate() {
+    if (globalThis.window?.getAppView?.() === 'doctor') return;
     if (midnightBedClearRunning) return;
     const todayKey = getTodayKey();
     const clearThroughDate = new Date().getHours() >= 23 ? todayKey : getPreviousDateKey();
@@ -21184,6 +21414,66 @@
   };
 
   // ─── 베드 도착 팝업 (모듈 스코프: getBedData/bedAssignmentAlertItems/selectedBedNo 등 참조) ───
+  // Form initialization uses the same module scope as the patient form helpers.
+  document.addEventListener('DOMContentLoaded', () => {
+    window.registerPwaServiceWorker?.();
+    window.setupBedScreenWakeLock?.();
+    disableAutocomplete();
+    syncAppViewClass();
+    setMode(getInitialMode(), false);
+    setInputFormOpen(false);
+    setReceiveFormOpen(false);
+    syncAutoBedAssignInputs();
+    syncNurseAutoAssignInputs();
+    updateChartDbCount();
+    document.querySelectorAll('input[name="visitType"]').forEach(input => {
+      input.addEventListener('change', () => syncInitialVisitTreatment('desk'));
+    });
+
+    // 차트번호 Enter/변경 → 로컬 차트 조회
+    document.getElementById('chartNo')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); runDeskChartNoLookup(); }
+    });
+    document.getElementById('chartNo')?.addEventListener('change', () => runDeskChartNoLookup());
+    // 차트번호 입력 중에는 배지 초기화
+    ['chartNo', 'receiveChartNo', 'bedChartNo'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', filterChartNoInput);
+    });
+    document.getElementById('chartNo')?.addEventListener('input', () => window.clearChartLookupBadge?.());
+
+    document.getElementById('patientName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('submitBtn').click();
+    });
+    document.getElementById('receivePatientName')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('receiveSubmitBtn').click();
+    });
+    document.getElementById('bedPatientName')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('bedSubmitBtn').click();
+    });
+    document.getElementById('bedMemoInput')?.addEventListener('input', () => {
+      updateFormMemoEditedState('bed');
+      const open = document.getElementById('bedMemoWrap')?.classList.contains('open');
+      setBedMemoOpen(open);
+    });
+    Object.keys(PATIENT_FORM_IDS).forEach(scope => {
+      const ids = PATIENT_FORM_IDS[scope];
+      [ids.chiefComplaint, ids.memo].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', () => updateFormMemoEditedState(scope));
+      });
+    });
+    document.getElementById('doctorNameInput')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') addStaff('doctors');
+    });
+    document.getElementById('nurseNameInput')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') addStaff('nurses');
+    });
+    document.addEventListener('click', event => {
+      if (!document.getElementById('nurseQuickPopover')?.classList.contains('open')) return;
+      if (event.target.closest?.('#nurseQuickPopover, #nurseQuickBtn, #nurseQuickBtnDesk')) return;
+      closeNurseQuickPopover();
+    });
+  });
+
   function getFixedBedArrivalBedNo() {
     const bedParam = Number(new URLSearchParams(window.location.search).get('bed'));
     const isRegular = Number.isInteger(bedParam) && bedParam >= 1 && bedParam <= 15 && bedParam !== 7;
@@ -21314,6 +21604,7 @@
     renderUpcomingAlerts();
     renderBedMonitors();
   };
+
 </script>
 
 <script>
@@ -21434,7 +21725,7 @@
   // 모드 전환
   const VIEW_TO_MODE = {
     desk: 'input',
-    doctor: 'doctor',
+    doctor: 'input',
     notify: 'notify',
     clinic: 'receive',
     settings: 'settings',
@@ -21445,6 +21736,8 @@
     const view = (new URLSearchParams(window.location.search).get('view') || '').toLowerCase();
     return Object.prototype.hasOwnProperty.call(VIEW_TO_MODE, view) ? view : '';
   }
+
+  window.getAppView = getAppView;
 
   function getModeFromView() {
     const view = getAppView();
@@ -21734,8 +22027,9 @@
     if (!widget || !body) return;
 
     deskWeeklyRangeDays = rangeDays;
-    document.getElementById('deskWeeklyPopoverHeading').textContent = `최근 ${rangeDays}일간 현황`;
-    widget.title = `어제까지 최근 ${rangeDays}일 현황`;
+    const scopeName = window.getDoctorPageFilter?.()?.name || '';
+    document.getElementById('deskWeeklyPopoverHeading').textContent = `${scopeName ? `${scopeName} · ` : ''}최근 ${rangeDays}일간 현황`;
+    widget.title = `${scopeName ? `${scopeName} · ` : ''}어제까지 최근 ${rangeDays}일 현황`;
     widget.querySelector('.desk-weekly-metric')?.setAttribute('title', `최근 ${rangeDays}일 실제 진료일 기준 일평균`);
     widget.querySelector('.desk-weekly-rate.chuna')?.setAttribute('title', `최근 ${rangeDays}일 실제 진료일 기준 추나 평균 횟수`);
     widget.querySelector('.desk-weekly-rate.third')?.setAttribute('title', `최근 ${rangeDays}일 삼진율`);
@@ -21806,14 +22100,33 @@
       </section>`;
   }
 
+  let deskWeeklyRequestId = 0;
   async function refreshDeskWeeklyWidget() {
     const serverMode = location.protocol === 'http:' || location.protocol === 'https:';
     if (!serverMode || !document.getElementById('deskWeeklyWidget')) return;
+    const requestId = ++deskWeeklyRequestId;
+    const doctor = window.getDoctorPageFilter?.();
+    document.getElementById('deskWeeklyWidget').classList.add('loading');
+    if (getAppView() === 'doctor') {
+      ['deskWeeklyAveragePatients', 'deskWeeklyAverageChuna', 'deskWeeklyThirdRate'].forEach(id => {
+        document.getElementById(id).textContent = '-';
+      });
+      ['deskWeeklyPatientsDirection', 'deskWeeklyChunaDirection', 'deskWeeklyThirdDirection'].forEach(id => {
+        setDeskWeeklyDirection(id, 0, 5, false);
+      });
+      document.getElementById('deskWeeklyPopoverBody').innerHTML = '<div class="desk-weekly-note">통계를 불러오고 있습니다.</div>';
+    }
+    if (doctor && !doctor.name) return;
     try {
-      const response = await fetch(`/api/dashboard/weekly?days=${deskWeeklyRangeDays}`, { cache: 'no-store' });
+      const params = new URLSearchParams({ days: String(deskWeeklyRangeDays) });
+      if (doctor) params.set('doctor', doctor.name);
+      const response = await fetch(`/api/dashboard/weekly?${params}`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      renderDeskWeeklyWidget(await response.json());
+      const data = await response.json();
+      if (requestId !== deskWeeklyRequestId) return;
+      renderDeskWeeklyWidget(data);
     } catch (error) {
+      if (requestId !== deskWeeklyRequestId) return;
       console.error('주간 현황을 불러오지 못했습니다.', error);
       document.getElementById('deskWeeklyWidget')?.classList.remove('loading');
       document.getElementById('notifyWeeklyWidget')?.classList.remove('loading');
@@ -21821,6 +22134,7 @@
       if (body) body.innerHTML = '<div class="desk-weekly-error">주간 통계를 불러오지 못했습니다.<br>잠시 후 다시 시도합니다.</div>';
     }
   }
+  window.refreshDeskWeeklyWidget = refreshDeskWeeklyWidget;
 
   function selectDeskWeeklyRange(days) {
     const nextDays = Number(days) === 7 ? 7 : 14;
@@ -21838,6 +22152,7 @@
     document.getElementById('deskWeeklyPopover')?.classList.remove('open');
     document.getElementById('deskWeeklyWidget')?.setAttribute('aria-expanded', 'false');
   }
+  window.closeDeskWeeklyPopover = closeDeskWeeklyPopover;
 
   function toggleDeskWeeklyPopover(event) {
     event?.stopPropagation();
@@ -21875,64 +22190,6 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    window.registerPwaServiceWorker?.();
-    window.setupBedScreenWakeLock?.();
-    disableAutocomplete();
-    syncAppViewClass();
-    setMode(getInitialMode(), false);
-    setInputFormOpen(false);
-    setReceiveFormOpen(false);
-    syncAutoBedAssignInputs();
-    syncNurseAutoAssignInputs();
-    updateChartDbCount();
-    document.querySelectorAll('input[name="visitType"]').forEach(input => {
-      input.addEventListener('change', () => syncInitialVisitTreatment('desk'));
-    });
-
-    // 차트번호 Enter/변경 → 로컬 차트 조회
-    document.getElementById('chartNo')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); runDeskChartNoLookup(); }
-    });
-    document.getElementById('chartNo')?.addEventListener('change', () => runDeskChartNoLookup());
-    // 차트번호 입력 중에는 배지 초기화
-    ['chartNo', 'receiveChartNo', 'bedChartNo'].forEach(id => {
-      document.getElementById(id)?.addEventListener('input', filterChartNoInput);
-    });
-    document.getElementById('chartNo')?.addEventListener('input', () => window.clearChartLookupBadge?.());
-
-    document.getElementById('patientName').addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('submitBtn').click();
-    });
-    document.getElementById('receivePatientName')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('receiveSubmitBtn').click();
-    });
-    document.getElementById('bedPatientName')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('bedSubmitBtn').click();
-    });
-    document.getElementById('bedMemoInput')?.addEventListener('input', () => {
-      updateFormMemoEditedState('bed');
-      const open = document.getElementById('bedMemoWrap')?.classList.contains('open');
-      setBedMemoOpen(open);
-    });
-    Object.keys(PATIENT_FORM_IDS).forEach(scope => {
-      const ids = PATIENT_FORM_IDS[scope];
-      [ids.chiefComplaint, ids.memo].forEach(id => {
-        document.getElementById(id)?.addEventListener('input', () => updateFormMemoEditedState(scope));
-      });
-    });
-    document.getElementById('doctorNameInput')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') addStaff('doctors');
-    });
-    document.getElementById('nurseNameInput')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') addStaff('nurses');
-    });
-    document.addEventListener('click', event => {
-      if (!document.getElementById('nurseQuickPopover')?.classList.contains('open')) return;
-      if (event.target.closest?.('#nurseQuickPopover, #nurseQuickBtn, #nurseQuickBtnDesk')) return;
-      closeNurseQuickPopover();
-    });
-  });
 </script>
 </body>
 </html>

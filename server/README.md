@@ -24,6 +24,22 @@ Other PCs on the same Wi-Fi can open:
 http://SERVER_PC_IP:8787/
 ```
 
+`/doctor` opens the desk layout with an **전체 / 원장** selector populated from
+staff settings. The selected doctor scopes the waiting list, alerts, discharged
+patient count and details, and the 진료·추나·삼진 widget. Beds assigned to other
+doctors and unassigned beds are dimmed and disabled; **전체** restores all beds.
+The doctor page is read-only: patient cards open an information viewer, and
+bed movement, editing, automatic assignment, timer completion and nightly cleanup
+do not run from this page. HTTP mutation requests are blocked in the doctor UI.
+This is a UI restriction, not an authentication or server authorization boundary.
+Selection is saved on the device and can also be shared as
+`/doctor?doctor=STAFF_ID` (`doctor=` explicitly selects 전체).
+
+Weekly doctor metrics use each visit's recorded doctor. Return/third-visit
+cohorts belong to the doctor who saw the initial visit, matching the overall
+widget's follow-up definition. `/api/dashboard/weekly?days=14&doctor=원장이름`
+returns the scoped metrics; omitting `doctor` returns the overall metrics.
+
 Windows Firewall may ask for permission. Allow private network access.
 
 ## Data
