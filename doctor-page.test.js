@@ -52,13 +52,46 @@ test('doctor selection matches IDs first, legacy names second, and excludes unas
   assert.equal(c.matchesDoctorPageRecord({ doctorId: 'b' }), true);
 });
 
-test('bed information can be viewed across doctors without changing the selected filter', () => {
+test('bed information only opens for the selected doctor, or any doctor when all is selected', () => {
   const { context: c, elements, beds } = pageContext();
   for (const id of ['doctorPatientViewTitle', 'doctorPatientViewBody', 'doctorPatientViewOverlay']) elements.set(id, { classList: { add() {} } });
   load(c, html, ['showDoctorPatientView']);
-  c.showDoctorPatientView(beds[2], '2번', true);
+  c.showDoctorPatientView(beds[2], '2번');
+  assert.equal(elements.get('doctorPatientViewTitle').textContent, undefined);
+  c.showDoctorPatientView(beds[1], '1번');
+  assert.match(elements.get('doctorPatientViewTitle').textContent, /담당환자/);
+  c.doctorPageFilterId = '';
+  c.showDoctorPatientView(beds[2], '2번');
   assert.match(elements.get('doctorPatientViewTitle').textContent, /다른환자/);
-  assert.equal(c.getDoctorPageFilter().id, 'a');
+});
+
+test('other doctors beds retain their contents but disable interaction only on doctor pages', () => {
+  const { context: c, beds } = pageContext();
+  Object.assign(c, {
+    SPECIAL_BED_LABELS: {}, HOLD_BED_NUMBERS: [], formEditBedNoByScope: {},
+    selectedMoveBedNo: null, getCompactBedMarker: no => String(no),
+    getInsuranceChipLabel: () => '', getBedStatusInfoDensityClass: () => '',
+    bedStatusInfoChip: text => text, renderTodayAppointmentBadge: () => '',
+    renderInitialVisitBadge: () => '', renderBedPopover: () => '',
+  });
+  load(c, html, ['isDoctorReadOnlyPage', 'renderBedStatusCard']);
+  const status = { ...beds[2], bedNo: 2, remaining: '03:00', doctorName: '김상준' };
+  let card = c.renderBedStatusCard(status, 'input');
+  assert.match(card, /다른환자/);
+  assert.match(card, /03:00/);
+  assert.match(card, /doctor-scope-disabled/);
+  assert.match(card, /aria-disabled="true"/);
+  assert.doesNotMatch(card, /onclick=|draggable=/);
+  card = c.renderBedStatusCard({ ...beds[1], bedNo: 1 }, 'input');
+  assert.match(card, /onclick="openDoctorPatientView\(1\)"/);
+  assert.doesNotMatch(card, /doctor-scope-disabled/);
+  c.doctorPageFilterId = '';
+  assert.match(c.renderBedStatusCard(status, 'input'), /onclick="openDoctorPatientView\(2\)"/);
+  c.page = 'desk';
+  c.doctorPageFilterId = 'a';
+  card = c.renderBedStatusCard(status, 'input');
+  assert.match(card, /onclick="handleInputBedClick\(2\)"/);
+  assert.doesNotMatch(card, /doctor-scope-disabled/);
 });
 
 test('procedure alerts and today counts follow the same doctor selection', () => {

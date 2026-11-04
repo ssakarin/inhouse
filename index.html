@@ -2969,6 +2969,14 @@
     border-color: var(--danger);
     animation: bedAlertPulse 0.9s ease-in-out infinite;
   }
+  body.app-role-doctor .bed-status.doctor-scope-disabled {
+    filter: grayscale(1);
+    border-color: #808080;
+    background: linear-gradient(180deg, #383838, #292929);
+    pointer-events: none;
+    cursor: default;
+    animation: none;
+  }
   .bed-status.done { border-color: var(--green); }
   .bed-status.done.alerting { border-color: var(--danger); }
   .bed-status.assignment-alerting {
@@ -7666,8 +7674,8 @@
   window.getDoctorPageFilter = getDoctorPageFilter;
   function isDoctorReadOnlyPage() { return getAppView() === 'doctor'; }
 
-  function showDoctorPatientView(patient, title = '', allDoctors = false) {
-    if (!patient || (!allDoctors && !matchesDoctorPageRecord(patient))) return;
+  function showDoctorPatientView(patient, title = '') {
+    if (!patient || !matchesDoctorPageRecord(patient)) return;
     document.getElementById('doctorPatientViewTitle').textContent = `${title ? `${title} · ` : ''}${patient.name || '환자'}`;
     document.getElementById('doctorPatientViewBody').textContent = [
       patient.chartNo ? `차트번호: ${patient.chartNo}` : '',
@@ -7679,7 +7687,7 @@
     ].filter(Boolean).join('\n');
     document.getElementById('doctorPatientViewOverlay').classList.add('show');
   }
-  window.openDoctorPatientView = bedNo => showDoctorPatientView(getBedData(bedNo), getBedLabel(bedNo), true);
+  window.openDoctorPatientView = bedNo => showDoctorPatientView(getBedData(bedNo), getBedLabel(bedNo));
 
   function matchesDoctorIdentity(record, doctor) {
     if (!doctor) return true;
@@ -19281,6 +19289,9 @@
   }
 
   function renderBedStatusCard(status, context) {
+    const otherDoctor = isDoctorReadOnlyPage() && !status.empty && !canUseDoctorPageBed(status.bedNo);
+    const doctorScopeClass = otherDoctor ? ' doctor-scope-disabled' : '';
+    const doctorInteraction = otherDoctor ? ' tabindex="-1" aria-disabled="true"' : ' tabindex="0"';
     const isReceive = context === 'receive';
     const isInput = context === 'input';
     const canMoveBed = (isInput || isReceive) && !isDoctorReadOnlyPage();
@@ -19319,7 +19330,7 @@
       const clickAction = canMoveBed ? `handleInputBedClick(${status.bedNo})` : `selectReceiveBed(${status.bedNo})`;
       const contextHandler = canMoveBed ? ` oncontextmenu="purgeBedPatient(event, ${status.bedNo})"` : '';
       return `
-        <div class="bed-status cleaning${compact ? ' compact' : ''}${activeClass}" tabindex="0" onclick="${clickAction}"${contextHandler}>
+        <div class="bed-status cleaning${compact ? ' compact' : ''}${activeClass}${doctorScopeClass}"${doctorInteraction}${otherDoctor ? '' : ` onclick="${clickAction}"`}${contextHandler}>
           <div class="bed-status-top">
             <span class="bed-status-no">${compact ? escapeHtml(compactLabel) : `${escapeHtml(monitorLabel)} 베드 정리 중`}</span>
             ${compact ? '' : '<span class="bed-status-time">-</span>'}
@@ -19360,7 +19371,7 @@
       ? `${escapeHtml(getCompactBedMarker(status.bedNo))} ${patientNameHtml}`
       : `${escapeHtml(monitorLabel)} ${patientNameHtml}`;
     return `
-      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}" tabindex="0" onclick="${clickAction}"${dragHandlers}${contextHandler}>
+      <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}${doctorScopeClass}"${doctorInteraction}${otherDoctor ? '' : ` onclick="${clickAction}"`}${dragHandlers}${contextHandler}>
         <div class="bed-status-top">
           <span class="bed-status-no">${monitorNameHtml}${isNotifyMode ? '' : `${renderTodayAppointmentBadge(status, status.patientKey)}${renderInitialVisitBadge(status)}`}</span>
           ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}

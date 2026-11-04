@@ -27,7 +27,9 @@ http://SERVER_PC_IP:8787/
 `/doctor` opens the desk layout with an **전체 / 원장** selector populated from
 staff settings. The selected doctor scopes the waiting list, alerts, discharged
 patient count and details, and the 진료·추나·삼진 widget. All beds and their patient
-information remain visible regardless of the selected doctor. When a doctor is
+information remain visible regardless of the selected doctor. Other doctors' beds
+use grayscale styling and cannot be clicked; only the selected doctor's patient
+information viewer opens. Selecting 전체 enables viewers for all patients. When a doctor is
 selected, today's discharged count and appointment badge also show the overall totals.
 The doctor page is read-only: patient cards open an information viewer, and
 bed movement, editing, automatic assignment, timer completion and nightly cleanup
