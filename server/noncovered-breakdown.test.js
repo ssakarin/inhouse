@@ -34,6 +34,19 @@ test("treats paid packages as first-payment package revenue but ignores bonus en
   assert.notEqual(classifyNoncoveredVisit({ patient: bonus, visit: { noncovered_amount: 300000 }, date }), CATEGORY_KEYS.PHARMA_PACKAGE);
 });
 
+test("classifies 25000 and 50000 won as pharma packages before text-based categories", () => {
+  const date = "2026-08-21";
+  for (const amount of [25000, 50000]) {
+    for (const patient of [{}, patientWithVisit(date, { memo2: "다이어트 한약", treatments: ["약침1"] })]) {
+      assert.equal(
+        classifyNoncoveredVisit({ patient, visit: { noncovered_amount: amount }, date }),
+        CATEGORY_KEYS.PHARMA_PACKAGE
+      );
+    }
+  }
+  assert.equal(classifyNoncoveredVisit({ visit: { noncovered_amount: 25001 }, date }), CATEGORY_KEYS.OTHER);
+});
+
 test("maps configured sheet labels to canonical categories", () => {
   assert.equal(sheetCategoryKey("약침(1회성)"), CATEGORY_KEYS.PHARMA_SINGLE);
   assert.equal(sheetCategoryKey("약침패키지"), CATEGORY_KEYS.PHARMA_PACKAGE);

@@ -434,6 +434,7 @@ const statements = {
       pv.visit_date,
       pv.chief_complaint,
       pv.diagnosis_code,
+      pv.insured_copay,
       pv.noncovered_amount
     FROM patient_visits pv
     WHERE pv.visit_date = ?
@@ -3866,6 +3867,8 @@ async function runDailyMetricsGoogleSheetSync(date) {
       category,
       categoryLabel: sheetCategoryLabels.get(category) || "기타",
       amount: Number(visit.noncovered_amount || 0),
+      insuredCopay: Number(visit.insured_copay || 0),
+      patientPayment: Number(visit.insured_copay || 0) + Number(visit.noncovered_amount || 0),
       insuranceLabel: [isAutoInsurance ? "자동차보험" : "", insuranceClass].filter(Boolean).join(" · "),
       chunaLabel: chunaTypes.join(" · "),
       isAge65OrOlder,
@@ -3877,7 +3880,7 @@ async function runDailyMetricsGoogleSheetSync(date) {
       visitOrder: Number(visit.visit_order || 0),
       reference: notes.join(" · ")
     };
-  }).filter(item => item.amount > 0 || item.insuranceLabel || item.chunaLabel
+  }).filter(item => item.patientPayment > 0 || item.amount > 0 || item.insuranceLabel || item.chunaLabel
     || item.isAge65OrOlder || item.isNewPatient || item.isReinitialPatient
     || item.hasPharmaTreatment || item.hasPharmaPackageUsage)
     .sort((a, b) => {

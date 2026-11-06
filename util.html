@@ -627,6 +627,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       ? noncoveredRows.map(item => `<tr><th>AK ${escapeHtml(item.label || "기타")}</th><td>${Number(item.amount || 0).toLocaleString()}원 (${Number(item.visitCount || 0).toLocaleString()}건)</td></tr>`).join("")
       : "";
     const detailGroups = {
+      patientPayment: noncoveredDetails.filter(item => Number(item.patientPayment || 0) > 0),
       noncovered: noncoveredDetails.filter(item => Number(item.amount || 0) > 0),
       autoInsurance: noncoveredDetails.filter(item => String(item.insuranceLabel || "").includes("자동차보험")),
       chuna: noncoveredDetails.filter(item => Boolean(item.chunaLabel)),
@@ -665,6 +666,10 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       ["pharmaPackage", renderDetailSection("약침 패키지 차감", detailGroups.pharmaPackage, "<th>구분</th>", () => "<td>패키지에서 차감</td>")],
       ["chuna", renderDetailSection("추나(단추/복추)", detailGroups.chuna, "<th>시행 종류</th>", item => `
         <td>${escapeHtml(item.chunaLabel || "-")}</td>`)],
+      ["patientPayment", renderDetailSection("환자 부담금", detailGroups.patientPayment, "<th>본인부담금</th><th>비급여</th><th>환자 부담금 합계</th>", item => `
+        <td class="amount">${Number(item.insuredCopay || 0).toLocaleString()}원</td>
+        <td class="amount">${Number(item.amount || 0).toLocaleString()}원</td>
+        <td class="amount">${Number(item.patientPayment || 0).toLocaleString()}원</td>`)],
       ["noncovered", renderDetailSection("비급여 금액", detailGroups.noncovered, "<th>분류</th><th>금액</th><th>판정 참고정보</th>", item => `
         <td>${escapeHtml(item.categoryLabel || "기타")}</td>
         <td class="amount">${Number(item.amount || 0).toLocaleString()}원</td>
@@ -705,6 +710,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
         <button class="sync-detail-count" type="button" data-group="pharma"><span>약침 시행</span><strong>${indicatorCounts.pharma.toLocaleString()}명</strong></button>
         <button class="sync-detail-count" type="button" data-group="pharmaPackage"><span>패키지 차감</span><strong>${indicatorCounts.pharmaPackage.toLocaleString()}명</strong></button>
         <button class="sync-detail-count" type="button" data-group="chuna"><span>추나 시행</span><strong>${indicatorCounts.chuna.toLocaleString()}명</strong></button>
+        <button class="sync-detail-count" type="button" data-group="patientPayment"><span>환자 부담금</span><strong>${detailGroups.patientPayment.length.toLocaleString()}명</strong></button>
         <button class="sync-detail-count" type="button" data-group="noncovered"><span>비급여 금액</span><strong>${detailGroups.noncovered.length.toLocaleString()}명</strong></button>
         <button class="sync-detail-count" type="button" data-group="autoInsurance"><span>자동차보험</span><strong>${detailGroups.autoInsurance.length.toLocaleString()}명</strong></button>
         <button class="sync-detail-count" type="button" data-group="type1"><span>1종</span><strong>${detailGroups.type1.length.toLocaleString()}명</strong></button>

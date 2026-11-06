@@ -82,7 +82,9 @@ function classifyNoncoveredVisit({ patient = {}, visit = {}, date = "" } = {}) {
     ...(treatments || [])
   ].join(" "));
 
-  if (hasPaidPharmaPackagePurchase(patient, date)) return CATEGORY_KEYS.PHARMA_PACKAGE;
+  if (amount === 25000 || amount === 50000 || hasPaidPharmaPackagePurchase(patient, date)) {
+    return CATEGORY_KEYS.PHARMA_PACKAGE;
+  }
   if (/다이어트|린다이어트/.test(text)) return CATEGORY_KEYS.DIET_HERBAL;
   if (/경옥고|공진단/.test(text)) return CATEGORY_KEYS.PREMIUM_PILLS;
   if (/녹용|상대|분골|기름분골/.test(text)) return CATEGORY_KEYS.DEER_HERBAL;
