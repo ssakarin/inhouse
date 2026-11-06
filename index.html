@@ -5827,7 +5827,6 @@
     </div>
     <div class="header-actions">
       <div class="header-desk-controls">
-        <button type="button" class="desk-excel-add-btn" id="deskChartImportBtn" onclick="document.getElementById('deskChartImportInput').click()">엑셀추가</button>
         <input id="deskChartImportInput" type="file" accept=".xls,.xlsx,.csv" style="display:none"
           onchange="importChartFileFromDesk(this.files?.[0]); this.value='';">
         <div class="desk-weekly-widget-wrap" id="deskWeeklyWidgetWrap">
@@ -6383,6 +6382,7 @@
     <div id="dischargedPatientsSummary" class="discharged-summary"></div>
     <div class="discharged-list" id="dischargedPatientsList"></div>
     <div class="credit-popup-actions">
+      <button type="button" class="desk-excel-add-btn" id="deskChartImportBtn" onclick="document.getElementById('deskChartImportInput').click()">엑셀 불러오기</button>
       <button class="popup-close" type="button" onclick="closeDischargedPatientsPopup()">닫기</button>
     </div>
   </div>
