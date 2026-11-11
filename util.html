@@ -178,6 +178,7 @@
     <div class="tool-row">
       <input class="search-input" id="noFollowupDaysInput" type="number" min="7" max="365" step="1" value="7" autocomplete="off" aria-label="시작 일수">
       <button class="good" id="noFollowupSearchBtn" type="button">검색</button>
+      <button class="good" id="noFollowupDownloadBtn" type="button" disabled>알림톡 엑셀 다운로드</button>
     </div>
     <div class="note">숫자를 입력하고 검색하면 입력값~7일 전 초진 후 미재방문 환자를 표시합니다. 온라인관리 Slack에서 환자 이름 뒤 숫자 2개가 보이면 함께 표시합니다.</div>
     <div class="status" id="noFollowupStatus">검색 전</div>
@@ -364,6 +365,7 @@
   const randomTestStatus = document.getElementById("randomTestStatus");
   const noFollowupDaysInput = document.getElementById("noFollowupDaysInput");
   const noFollowupSearchBtn = document.getElementById("noFollowupSearchBtn");
+  const noFollowupDownloadBtn = document.getElementById("noFollowupDownloadBtn");
   const noFollowupStatus = document.getElementById("noFollowupStatus");
   const noFollowupResult = document.getElementById("noFollowupResult");
 
@@ -467,6 +469,7 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
 감사합니다.`;
 
   let noFollowupMessages = [];
+  let noFollowupAlerttalkRows = [];
 
   function buildNoFollowupMessage(info) {
     const imageCodes = String(info || "").replace(/\s+/g, "");
@@ -537,6 +540,8 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
     const days = Math.max(7, Math.min(365, Number.parseInt(noFollowupDaysInput.value, 10) || 7));
     noFollowupDaysInput.value = String(days);
     noFollowupSearchBtn.disabled = true;
+    noFollowupDownloadBtn.disabled = true;
+    noFollowupAlerttalkRows = [];
     noFollowupResult.innerHTML = "";
     setNoFollowupStatus(`${days}~7일 전 초진 후 미재방문 조회 중...`);
     try {
@@ -545,12 +550,39 @@ https://khhongik-kakao-care.pages.dev/?imgs={info}
       if (!res.ok || !data.ok) throw new Error(data.error || `조회 실패 (${res.status})`);
       const rows = Array.isArray(data.rows) ? data.rows : [];
       renderNoFollowupRows(rows);
+      noFollowupAlerttalkRows = rows.flatMap(row => {
+        const matches = Array.isArray(row.onlineManagementMatches) ? row.onlineManagementMatches : [];
+        const tokens = parseAlerttalkTokens(matches.join(",")).filter(({ isD, num }) => {
+          const labels = isD ? DISEASE : EXERCISE;
+          return num > 0 && Boolean(labels[num]);
+        });
+        const uniqueTokens = [...new Map(tokens.map(token => [`${token.isD ? "d" : "e"}${token.num}`, token])).values()];
+        return buildAlerttalkRows(normalizeAlerttalkPhone(row.phone), uniqueTokens);
+      });
+      noFollowupDownloadBtn.disabled = !noFollowupAlerttalkRows.length;
       const slackText = data.slackError ? ` / Slack: ${data.slackError}` : "";
-      setNoFollowupStatus(`${days}~7일 전 대상 ${rows.length.toLocaleString()}명${slackText}`, data.slackError ? "" : "good");
+      setNoFollowupStatus(`${days}~7일 전 대상 ${rows.length.toLocaleString()}명 · 엑셀 대상 ${noFollowupAlerttalkRows.length.toLocaleString()}명${slackText}`, data.slackError ? "" : "good");
     } catch (error) {
       setNoFollowupStatus(error?.message || String(error), "error");
     } finally {
       noFollowupSearchBtn.disabled = false;
+    }
+  }
+
+  async function downloadNoFollowupAlerttalk() {
+    if (!noFollowupAlerttalkRows.length) return;
+    noFollowupSearchBtn.disabled = true;
+    noFollowupDownloadBtn.disabled = true;
+    try {
+      const XLSX = await loadXlsxModule();
+      const filename = `초진_후_미재방문_알림톡_${alerttalkTimestamp()}.xlsx`;
+      XLSX.writeFile(makeAlerttalkWorkbook(XLSX, noFollowupAlerttalkRows), filename);
+      setNoFollowupStatus(`알림톡 엑셀 ${noFollowupAlerttalkRows.length.toLocaleString()}건 저장 완료`, "good");
+    } catch (error) {
+      setNoFollowupStatus(error?.message || String(error), "error");
+    } finally {
+      noFollowupSearchBtn.disabled = false;
+      noFollowupDownloadBtn.disabled = false;
     }
   }
 
@@ -1700,6 +1732,7 @@ const DISEASE = [
   backupBtn.addEventListener("click", runSlackBackup);
   doctor1SlackDownloadBtn.addEventListener("click", downloadDoctor1SlackMonthText);
   noFollowupSearchBtn.addEventListener("click", searchNoFollowupPatients);
+  noFollowupDownloadBtn.addEventListener("click", downloadNoFollowupAlerttalk);
   noFollowupResult.addEventListener("click", async event => {
     const button = event.target.closest(".message-copy-btn");
     if (!button) return;
