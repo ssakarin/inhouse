@@ -67,6 +67,19 @@ test('aircon avoidance is preferred June through September, with aircon-only fal
     assert.deepEqual(order(patient('남', {avoidAircon:true}), {}, `2026-${month}-01`), order(patient('남'), {}, `2026-${month}-01`));
   }
 });
+test('heat sensitivity ranks heated beds lower from November through February', () => {
+  const heatSensitive = patient('남', {heatSensitive:true});
+  for (const month of ['11','12','01','02']) {
+    const date = `2026-${month}-01`;
+    assert.deepEqual(order(heatSensitive, {}, date).slice(-4).sort((a,b) => a-b), [3,4,9,10]);
+    assert.equal(order(heatSensitive, onlyEmpty([3]), date)[0], 3);
+    assert.deepEqual(order(patient('남', {avoidAircon:true}), {}, date), order(patient('남'), {}, date));
+  }
+  for (const month of ['03','07','10']) {
+    const date = `2026-${month}-01`;
+    assert.deepEqual(order(heatSensitive, {}, date), order(patient('남'), {}, date));
+  }
+});
 test('13 and 14 can be selected as ordinary preferred beds, with fallback and mixed-room protection', () => {
   assert.equal(order(patient('여', {preferredBeds:[13,14]}))[0], 13);
   assert.equal(order(patient('여', {preferredBeds:[13,14]}, 'right_lateral'))[0], 14);
@@ -111,9 +124,11 @@ test('body-part normalization preserves preferences across chart and form saves'
   context.BODY_PARTS = {front:[], back:[]};
   context.serializePatientPositions = value => value || '';
   vm.runInContext(source.slice(source.indexOf('  function normalizeBodyParts('), source.indexOf('  function renderBodyPartSelector(')), context);
-  const result = context.normalizeBodyParts({bedPreferences:{avoidAircon:true, lowBed:true, preferredBed:14}});
+  const result = context.normalizeBodyParts({bedPreferences:{avoidAircon:true, heatSensitive:true, timeLimited:true, lowBed:true, preferredBed:14}});
   assert.deepEqual(Array.from(result.bedPreferences.preferredBeds), [13,14]);
   assert.equal(result.bedPreferences.avoidAircon, true);
+  assert.equal(context.normalizeBodyParts(result).bedPreferences.heatSensitive, true);
+  assert.equal(context.normalizeBodyParts(result).bedPreferences.timeLimited, true);
   assert.deepEqual(Array.from(context.normalizeBodyParts(result).bedPreferences.preferredBeds), [13,14]);
   assert.deepEqual(Array.from(context.normalizeBodyParts({}).bedPreferences.preferredBeds), []);
   assert.equal('lowBed' in result.bedPreferences, false);

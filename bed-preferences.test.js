@@ -19,6 +19,7 @@ test('position controls show the requested wording and order, and both bed picke
     ['left_lateral','왼쪽'],['supine','전면'],['lateral','옆'],['sitting','앉아서'],['prone','후면'],['right_lateral','오른쪽']
   ]);
   assert(!html.includes('낮은베드'));
+  assert.deepEqual([...html.matchAll(/onclick="toggleBedPreference\(this, '[^']+'\)">([^<]+)<\/button>/g)].map(m=>m[1]), ['시간','추위탐','더위탐']);
   assert(html.includes('선호베드 1·3번'));
   assert(html.includes('비선호베드 2·4번'));
   assert.equal((html.match(/data-bed-value="\d+" aria-pressed="true"/g)||[]).length,4);

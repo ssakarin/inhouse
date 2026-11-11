@@ -13777,6 +13777,8 @@
     const nonPreferredBeds = normalizeNumbers(value?.nonPreferredBeds);
     return {
       avoidAircon: value?.avoidAircon === true,
+      heatSensitive: value?.heatSensitive === true,
+      timeLimited: value?.timeLimited === true,
       preferredBeds: preferredBeds.filter(no => !nonPreferredBeds.includes(no)),
       nonPreferredBeds
     };
@@ -13802,6 +13804,8 @@
     const airconBeds = new Set([3, 4, 9, 10]);
     const month = Number(String(dateKey).slice(5, 7));
     const summer = month >= 6 && month <= 9;
+    const winter = month === 11 || month === 12 || month === 1 || month === 2;
+    const avoidAirflow = (summer && preferences.avoidAircon) || (winter && preferences.heatSensitive);
     const rooms = [[1, 2], [3, 4], [5, 6], [8], [9, 10], [11, 12], [13, 14]];
     const primary = patient.gender === '여' ? [1, 2, 3, 4, 5, 6] : [8, 9, 10, 11, 12];
     return REGULAR_BED_NUMBERS.filter(no => {
@@ -13814,10 +13818,9 @@
       const same = roommates.some(bed => patient.gender && bed.gender === patient.gender);
       const mixed = roommates.some(bed => !patient.gender || !bed.gender || bed.gender !== patient.gender);
       const tier = mixed ? 5 : primary.includes(no) ? 0 : same ? 1 : [13, 14].includes(no) ? 2 : 3;
-      // Side and summer aircon preferences rank beds without excluding them.
-      // Avoid mixed rooms and disliked beds first, then satisfy side/aircon preferences.
+      // Avoid mixed rooms and disliked beds first, then rank by side and seasonal airflow.
       const preferenceMisses = Number(left !== right && leftBeds.has(no) !== left)
-        + Number(summer && preferences.avoidAircon && airconBeds.has(no));
+        + Number(avoidAirflow && airconBeds.has(no));
       // Spread patients across empty rooms when the other preferences tie.
       return { no, tier, mixed: Number(mixed), nonPreferred: Number(preferences.nonPreferredBeds.includes(no)), preferenceMisses,
         preferred: preferences.preferredBeds.length && !preferences.preferredBeds.includes(no) ? 1 : 0, roomRank: roommates.length };
@@ -16508,9 +16511,9 @@
       const blocked = preferences[oppositeField];
       const pickerId = `bed-preference-picker-${scope || `selected-${selectedBedNo}`}-${field}`;
       const triggerId = `${pickerId}-toggle`;
-      const summary = selected.length ? `${selected.slice(0, 3).join('·')}번${selected.length > 3 ? ` 외 ${selected.length - 3}개` : ''}` : '없음';
+      const summary = selected.length ? ` ${selected.slice(0, 3).join('·')}번${selected.length > 3 ? ` 외 ${selected.length - 3}개` : ''}` : '';
       const fullLabel = selected.length ? selected.map(no => `${no}번`).join(', ') : '없음';
-      return `<button id="${triggerId}" type="button" class="bed-preference-chip" data-bed-preference-field="${field}" data-bed-values="${selected.join(',')}" aria-pressed="${selected.length > 0}" aria-label="${title}: ${fullLabel}" aria-haspopup="dialog" aria-controls="${pickerId}" onclick="openBedPreferencePicker(this)">${title} ${summary}</button>
+      return `<button id="${triggerId}" type="button" class="bed-preference-chip" data-bed-preference-field="${field}" data-bed-values="${selected.join(',')}" aria-pressed="${selected.length > 0}" aria-label="${title}: ${fullLabel}" aria-haspopup="dialog" aria-controls="${pickerId}" onclick="openBedPreferencePicker(this)">${title}${summary}</button>
       <div id="${pickerId}" class="bed-preference-picker" data-preference-field="${field}" data-trigger-id="${triggerId}" popover="auto" role="dialog" aria-label="${title} 복수 선택">
         <div class="bed-preference-picker-title">${title} 선택</div>
         <div class="bed-preference-picker-hint">여러 개를 선택한 뒤 적용해 주세요. ${oppositeTitle}에 선택된 번호는 선택할 수 없습니다.${field === 'nonPreferredBeds' ? ' 다른 자리가 없으면 배정될 수 있습니다.' : ''}</div>
@@ -16525,7 +16528,9 @@
       </div>`;
     }).join('');
     return `<div class="bed-preference-options" data-preference-scope="${scope}" data-preference-bed="${scope ? '' : selectedBedNo}" role="group" aria-label="베드 선호 설정">
-      <button type="button" class="bed-preference-chip" aria-pressed="${preferences.avoidAircon}" onclick="toggleBedPreference(this, 'avoidAircon')">에어컨X</button>
+      <button type="button" class="bed-preference-chip" aria-pressed="${preferences.timeLimited}" aria-label="시간 (빠른 진료 필요)" title="시간이 부족해 빠른 진료가 필요한 환자" onclick="toggleBedPreference(this, 'timeLimited')">시간</button>
+      <button type="button" class="bed-preference-chip" aria-pressed="${preferences.avoidAircon}" onclick="toggleBedPreference(this, 'avoidAircon')">추위탐</button>
+      <button type="button" class="bed-preference-chip" aria-pressed="${preferences.heatSensitive}" onclick="toggleBedPreference(this, 'heatSensitive')">더위탐</button>
       ${pickers}
     </div>`;
   }
