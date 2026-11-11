@@ -4962,6 +4962,7 @@ async function handleApi(req, res, pathname) {
       const raw=imports.get(base.date)||{};
       const row={date:base.date,boardVisits:base.boardVisits,patients:raw.patientCount??base.boardVisits,newPatients:raw.newPatientCount??null};
       for(const key of recentRevenue.money)row[key]=raw[key]??base[key]??0;
+      row.nonCoveredBreakdown=raw.nonCoveredBreakdown??null;
       row.revenue=recentRevenue.money.reduce((sum,key)=>sum+row[key],0);
       return row;
     });

@@ -1,5 +1,28 @@
 const test=require('node:test'),assert=require('node:assert/strict'),R=require('./recent-revenue');
 const row=(date,v=100,extra={})=>({date,boardVisits:1,insuredCopay:v,claimAmount:v,nonCoveredAmount:v,autoAmount:v,revenue:v*4,patients:10,newPatients:1,...extra});
+test('non-covered comparison groups detail and matches the current month by completed clinic days',()=>{
+ const today='2026-10-12';
+ const daily=[
+  row('2026-10-01',100,{nonCoveredBreakdown:{녹용한약:10,일반한약:15,다이어트한약:5,'경옥고·공진단':20,'약침(1회성)':10,약침패키지:15,기타:5}}),
+  row('2026-10-02'),
+  row('2026-10-03',500),
+  row(today,800),
+  row('2025-10-03',300),
+  row('2025-10-02',200),
+  row('2025-10-01',100),
+  row('2026-09-30',100,{nonCoveredBreakdown:{일반한약:200}})
+ ];
+ const [,september,october]=R.compareNonCovered(daily,R.months(today),today,['2026-10-03']);
+ const [,previous,current]=october;
+ assert.deepEqual(current.amounts,{'한약':30,'경옥고·공진단':20,'약침':25,'기타':5,'상세 미등록':120});
+ assert.equal(current.total,200);
+ assert.equal(current.days,2);
+ assert.equal(current.detailedDays,1);
+ assert.equal(previous.total,300);
+ assert.equal(previous.days,2);
+ assert.equal(september[2].amounts['상세 미등록'],100);
+ assert.equal(september[2].detailedDays,0);
+});
 test('rolling periods cross year and exact October schedule',()=>{assert.deepEqual(R.months('2027-01-02'),['2026-11','2026-12','2027-01']);assert.equal(R.schedule('2026-10',['2026-10-03','2026-10-09']).length,25);});
 test('forecast excludes today, explicit exclusions and missing zero finance, preserving historical zero',()=>{let ds=[row('2025-10-01',0),row('2026-10-01'),row('2026-10-02'),row('2026-10-05'),row('2026-10-10',0),row('2026-10-12',9000)];let rows=R.build(ds,'2026-10-12',['2026-10-03','2026-10-09'],[],['2026-10-05']);let r=rows.find(r=>r.month==='2026-10');assert.equal(r.completed,2);assert.equal(r.revenue,10000);assert.equal(r.patients,250);assert.equal(rows.find(r=>r.month==='2025-10').days,1);assert.deepEqual(r.excluded,['2026-10-05','2026-10-10']);});
 test('no completed finance yields unavailable forecast rather than zero',()=>{let r=R.build([row('2026-10-10',0)],'2026-10-12',[],[]).find(r=>r.forecast);assert.equal(r.revenue,null);assert.equal(r.patients,null);});
