@@ -4,7 +4,7 @@
  function months(today){let d=date(today);d.setUTCDate(1);return [-2,-1,0].map(n=>{let x=new Date(d);x.setUTCMonth(x.getUTCMonth()+n);return iso(x).slice(0,7);});}
  function schedule(month,closed=[],opened=[]){let ds=[];for(let d=date(month+'-01');iso(d).startsWith(month);d.setUTCDate(d.getUTCDate()+1)){let s=iso(d);if(opened.includes(s)||d.getUTCDay()!==0&&!closed.includes(s))ds.push(s);}return ds;}
  function total(rows){let r={days:rows.length,newMissing:rows.filter(r=>r.newPatients===null).length};for(let k of fields)r[k]=rows.reduce((s,r)=>s+(r[k]??0),0);r.revenue=money.reduce((s,k)=>s+r[k],0);return r;}
- const nonCoveredGroups = ['한약', '경옥고·공진단', '약침', '기타', '상세 미등록'];
+ const nonCoveredGroups = ['한약', '경옥고·공진단', '약침', '기타'];
  function nonCoveredDetail(rows) {
    const amounts = Object.fromEntries(nonCoveredGroups.map(group => [group, 0]));
    let total = 0;
@@ -15,7 +15,7 @@
      const detailedAmount = entries.reduce((sum, [, amount]) => sum + amount, 0);
      total += dailyTotal;
      if (detailedAmount > dailyTotal + 0.01) {
-       amounts['상세 미등록'] += dailyTotal;
+       amounts['기타'] += dailyTotal;
        continue;
      }
      if (entries.length) detailedDays++;
@@ -24,7 +24,7 @@
          : /약침/.test(label) ? '약침' : /한약/.test(label) ? '한약' : '기타';
        amounts[group] += amount;
      }
-     amounts['상세 미등록'] += dailyTotal - detailedAmount;
+     amounts['기타'] += dailyTotal - detailedAmount;
    }
    return { amounts, total, days: rows.length, detailedDays };
  }

@@ -14,13 +14,13 @@ test('non-covered comparison groups detail and matches the current month by comp
  ];
  const [,september,october]=R.compareNonCovered(daily,R.months(today),today,['2026-10-03']);
  const [,previous,current]=october;
- assert.deepEqual(current.amounts,{'한약':30,'경옥고·공진단':20,'약침':25,'기타':5,'상세 미등록':120});
+ assert.deepEqual(current.amounts,{'한약':30,'경옥고·공진단':20,'약침':25,'기타':125});
  assert.equal(current.total,200);
  assert.equal(current.days,2);
  assert.equal(current.detailedDays,1);
  assert.equal(previous.total,300);
  assert.equal(previous.days,2);
- assert.equal(september[2].amounts['상세 미등록'],100);
+ assert.equal(september[2].amounts['기타'],100);
  assert.equal(september[2].detailedDays,0);
 });
 test('rolling periods cross year and exact October schedule',()=>{assert.deepEqual(R.months('2027-01-02'),['2026-11','2026-12','2027-01']);assert.equal(R.schedule('2026-10',['2026-10-03','2026-10-09']).length,25);});
