@@ -21556,7 +21556,8 @@
     if (!isFixedDoctorBedScreen() || Number(getFixedDoctorBedNoFromUrl()) !== Number(bedNo)) return false;
     if (!alert?.key || fixedBedArrivalShownByBed[bedNo] === alert.key) return false;
     const patient = patientsByKey.get(String(alert.patientKey || ''));
-    return (alert.visitType || bed?.visitType || patient?.visitType) === '초진';
+    const visitType = alert.visitType || bed?.visitType || patient?.visitType;
+    return ['초진', '재초진', '재진'].includes(visitType);
   }
 
   function syncFixedBedArrivalOverlay() {
