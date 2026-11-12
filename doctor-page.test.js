@@ -55,14 +55,36 @@ test('doctor selection matches IDs first, legacy names second, and excludes unas
 test('bed information only opens for the selected doctor, or any doctor when all is selected', () => {
   const { context: c, elements, beds } = pageContext();
   for (const id of ['doctorPatientViewTitle', 'doctorPatientViewBody', 'doctorPatientViewOverlay']) elements.set(id, { classList: { add() {} } });
-  load(c, html, ['showDoctorPatientView']);
+  load(c, html, ['getRecordedTreatments', 'getHerbalFollowupLabel', 'showDoctorPatientView']);
   c.showDoctorPatientView(beds[2], '2번');
   assert.equal(elements.get('doctorPatientViewTitle').textContent, undefined);
   c.showDoctorPatientView(beds[1], '1번');
   assert.match(elements.get('doctorPatientViewTitle').textContent, /담당환자/);
+  c.showDoctorPatientView({ ...beds[1], treatments: ['침'], herbalPrescription: true }, '1번');
+  assert.match(elements.get('doctorPatientViewBody').textContent, /침, 한약/);
   c.doctorPageFilterId = '';
   c.showDoctorPatientView(beds[2], '2번');
   assert.match(elements.get('doctorPatientViewTitle').textContent, /다른환자/);
+});
+
+test('herbal follow-up finds the latest prescription and expires after day 40', () => {
+  const c = vm.createContext({ HERBAL_FOLLOWUP_DAYS: 40, CALENDAR_DAY_MS: 86400000 });
+  load(c, html, ['isLegacyHerbalPrescription', 'findRecentHerbalPrescriptionDate', 'getHerbalFollowupLabel']);
+  const today = '2026-11-12';
+  const visitHistory = {
+    '2026-10-03': { treatments: ['한약'] },
+    '2026-10-04': { chiefComplaint: '-처방-' },
+    '2026-11-10': { treatments: ['침'] },
+    '2026-11-11': { chiefComplaint: '한약 상담' },
+    '2026-11-13': { treatments: ['한약'] }
+  };
+  const recentHerbalPrescriptionDate = c.findRecentHerbalPrescriptionDate({ visitHistory }, today);
+  assert.equal(recentHerbalPrescriptionDate, '2026-10-04');
+  assert.equal(c.getHerbalFollowupLabel({ recentHerbalPrescriptionDate }, today), '한약 처방 40일째');
+  assert.equal(c.getHerbalFollowupLabel({ recentHerbalPrescriptionDate }, '2026-11-13'), '');
+  visitHistory[today] = { treatments: ['침', '한약'] };
+  assert.equal(c.findRecentHerbalPrescriptionDate({ visitHistory }, today), today);
+  assert.equal(c.getHerbalFollowupLabel({ recentHerbalPrescriptionDate: today }, today), '한약 처방 1일째');
 });
 
 test('other doctors beds retain their contents but disable interaction only on doctor pages', () => {

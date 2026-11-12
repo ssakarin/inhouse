@@ -2250,16 +2250,17 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .treatment-preset-select {
-    grid-column: span 2;
     width: 100%;
+    min-width: 0;
+    align-self: stretch;
     background: var(--surface2);
     border: 1.5px solid var(--accent);
     border-radius: 10px;
-    padding: 11px 10px;
+    padding: 11px 5px;
     color: var(--accent);
     font-family: 'Noto Sans KR', sans-serif;
-    font-size: 13px;
-    font-weight: 900;
+    font-size: 12px;
+    font-weight: 700;
     outline: none;
     cursor: pointer;
   }
@@ -2307,6 +2308,7 @@
   .treat-btn:hover { border-color: var(--accent2); background: var(--surface3); }
   .treat-btn.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
   .treat-btn:active { transform: scale(0.96); }
+  .treat-btn[data-id="herbal"] { grid-column: 1; }
   .treat-icon { font-size: 15px; }
   .treat-name { font-size: 12px; font-weight: 700; }
   .treat-btn.treatment-hotpack { background: rgba(250,204,21,0.30); border-color: rgba(250,204,21,0.92); color: #fde047; }
@@ -5491,6 +5493,8 @@
     min-width: 0;
     height: 52px;
   }
+  .herbal-followup-form { grid-column: 1 / -1; justify-self: start; }
+  .herbal-followup-form[hidden] { display: none; }
   .desk-chart-grid > .form-segment-row,
   .receive-chart-grid > .form-segment-row {
     display: contents;
@@ -5943,6 +5947,7 @@
                   <label class="segment-item"><input type="radio" name="gender" value="여"><span>여</span></label>
                 </div>
               </div>
+              <span class="bed-meta-chip herbal-followup-form" id="deskHerbalFollowup" hidden></span>
               <input class="name-input wide" id="chiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
               <textarea class="name-input wide" id="memoInput" placeholder="메모2" maxlength="120" rows="3" autocomplete="off"></textarea>
               <div class="memo2-history-list" id="memo2HistoryList"></div>
@@ -6038,6 +6043,7 @@
                     <label class="segment-item"><input type="radio" name="receiveGender" value="여"><span>여</span></label>
                   </div>
                 </div>
+                <span class="bed-meta-chip herbal-followup-form" id="receiveHerbalFollowup" hidden></span>
                 <input class="name-input wide" id="receiveChiefComplaint" type="text" placeholder="메모1" maxlength="60" autocomplete="off">
                 <textarea class="name-input wide" id="receiveMemoInput" placeholder="메모2" maxlength="120" rows="3" autocomplete="off"></textarea>
                 <div class="memo2-history-list" id="receiveMemo2HistoryList"></div>
@@ -7252,6 +7258,7 @@
     { id: 'chuna_simple',        name: '단추',   icon: '🤲' },
     { id: 'chuna_complex',       name: '복추',   icon: '🤲' },
     { id: 'bench',               name: '벤치',   icon: '벤' },
+    { id: 'herbal',              name: '한약',   icon: '🌿' },
     { id: 'spine',               name: '스파인', icon: '↕' },
   ];
 
@@ -7260,7 +7267,9 @@
     return TREATMENTS.find(t => t.name === normalized) || null;
   }
 
-  const DEFAULT_TREATMENT_MINUTES = { ...Object.fromEntries(TREATMENTS.map(t => [t.name, 5])), 스파인: 15 };
+  const DEFAULT_TREATMENT_MINUTES = Object.fromEntries(TREATMENTS
+    .filter(t => t.id !== 'herbal')
+    .map(t => [t.name, t.id === 'spine' ? 15 : 5]));
   let treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES };
   let procedureMinutes = 0;
   let treatmentPresets = [];
@@ -7681,7 +7690,8 @@
       patient.chartNo ? `차트번호: ${patient.chartNo}` : '',
       patient.doctorName ? `담당 원장: ${patient.doctorName}` : '',
       patient.nurseName ? `담당 간호사: ${patient.nurseName}` : '',
-      `치료: ${(patient.treatments || []).join(', ') || '없음'}`,
+      `치료: ${getRecordedTreatments(patient).join(', ') || '없음'}`,
+      getHerbalFollowupLabel(patient),
       `메모1: ${patient.memo1 || patient.chiefComplaint || ''}`,
       `메모2: ${patient.memo2 || patient.memo || ''}`
     ].filter(Boolean).join('\n');
@@ -8150,6 +8160,44 @@
 
   function getTreatmentNamesForGrid(gridId) {
     return (treatmentSelections[gridId] || []).map(s => s.name);
+  }
+
+  function splitTreatmentSelection(treatments) {
+    return {
+      treatments: treatments.filter(name => name !== '한약'),
+      herbalPrescription: treatments.includes('한약')
+    };
+  }
+
+  function getRecordedTreatments(record) {
+    const treatments = Array.isArray(record?.treatments) ? record.treatments : [];
+    return record?.herbalPrescription ? [...treatments, '한약'] : treatments;
+  }
+
+  const HERBAL_FOLLOWUP_DAYS = 40;
+  const CALENDAR_DAY_MS = 86400000;
+
+  function isLegacyHerbalPrescription(value) {
+    return /^(처방|-처방-)$/.test(String(value || '').replace(/\s+/g, ''));
+  }
+
+  function findRecentHerbalPrescriptionDate(patient, today) {
+    const history = patient?.visitHistory;
+    if (!history) return '';
+    const todayMs = Date.parse(today || getTodayKey());
+    for (let daysAgo = 0; daysAgo < HERBAL_FOLLOWUP_DAYS; daysAgo += 1) {
+      const date = new Date(todayMs - daysAgo * CALENDAR_DAY_MS).toISOString().slice(0, 10);
+      const visit = history[date];
+      if (isLegacyHerbalPrescription(visit?.chiefComplaint) || (Array.isArray(visit?.treatments) && visit.treatments.includes('한약'))) return date;
+    }
+    return '';
+  }
+
+  function getHerbalFollowupLabel(record, today) {
+    const prescriptionDate = record?.recentHerbalPrescriptionDate;
+    if (!prescriptionDate) return '';
+    const day = (Date.parse(today || getTodayKey()) - Date.parse(prescriptionDate)) / CALENDAR_DAY_MS + 1;
+    return Number.isInteger(day) && day >= 1 && day <= HERBAL_FOLLOWUP_DAYS ? `한약 처방 ${day}일째` : '';
   }
 
   function ensureTreatmentSelected(gridId, treatmentName) {
@@ -9507,14 +9555,14 @@
         </div>
       </label>`;
 
-    list.innerHTML = procRow + TREATMENTS.map(t => {
-      const value = Math.max(1, Math.min(120, Number(treatmentMinutes[t.name] || DEFAULT_TREATMENT_MINUTES[t.name] || 5)));
-      const badgeClass = getTreatmentBadgeClass(t.name);
+    list.innerHTML = procRow + Object.keys(DEFAULT_TREATMENT_MINUTES).map(name => {
+      const value = Math.max(1, Math.min(120, Number(treatmentMinutes[name] || DEFAULT_TREATMENT_MINUTES[name])));
+      const badgeClass = getTreatmentBadgeClass(name);
       return `
         <label class="treatment-time-row">
-          <span class="treatment-time-name"><span class="treatment-time-badge ${badgeClass}">${escapeHtml(t.name)}</span></span>
+          <span class="treatment-time-name"><span class="treatment-time-badge ${badgeClass}">${escapeHtml(name)}</span></span>
           <div class="treatment-time-row-inner">
-            <input class="treatment-time-input" data-treatment-name="${escapeHtml(t.name)}" type="number" min="1" max="120" step="1" value="${value}" aria-label="${escapeHtml(t.name)} 치료시간">
+            <input class="treatment-time-input" data-treatment-name="${escapeHtml(name)}" type="number" min="1" max="120" step="1" value="${value}" aria-label="${escapeHtml(name)} 치료시간">
             <span class="treatment-time-unit">분</span>
           </div>
         </label>`;
@@ -10816,6 +10864,12 @@
     if (today === lastAppointmentDeskAlertDate) return;
     lastAppointmentDeskAlertDate = today;
     cleanupStaleAppointmentDeskAlerts(today);
+    renderHerbalFollowupForm('desk', selectedChartPatientByScope.desk);
+    renderHerbalFollowupForm('receive', selectedChartPatientByScope.receive);
+    renderWaitingLists();
+    renderBedMonitors();
+    renderBedDetail();
+    renderReceiveBedDetail();
   }
 
   function getDailyStartOffset(count) {
@@ -11270,7 +11324,18 @@
   }
 
   function setSelectedChartPatient(scope, patient = null) {
-    selectedChartPatientByScope[scope] = patient && (patient.patientId || patient.chartNo) ? patient : null;
+    const selected = patient && (patient.patientId || patient.chartNo) ? patient : null;
+    const recentHerbalPrescriptionDate = selected?.recentHerbalPrescriptionDate || findRecentHerbalPrescriptionDate(selected);
+    selectedChartPatientByScope[scope] = recentHerbalPrescriptionDate ? { ...selected, recentHerbalPrescriptionDate } : selected;
+    renderHerbalFollowupForm(scope, selectedChartPatientByScope[scope]);
+  }
+
+  function renderHerbalFollowupForm(scope, patient) {
+    const badge = document.getElementById(`${scope}HerbalFollowup`);
+    if (badge) {
+      badge.textContent = getHerbalFollowupLabel(patient);
+      badge.hidden = !badge.textContent;
+    }
   }
 
   function hasPatientChartIdentityConflict(patient, nextChartNo) {
@@ -11348,6 +11413,7 @@
       return;
     }
     const lastVisitDate = isSameChartPatient ? getPatientLatestVisitDate(selectedChartPatient) : '';
+    const recentHerbalPrescriptionDate = isSameChartPatient ? selectedChartPatient.recentHerbalPrescriptionDate : '';
     const visitDates = isSameChartPatient && Array.isArray(selectedChartPatient.visitDates) ? selectedChartPatient.visitDates : [];
     const visitHistory = isSameChartPatient && selectedChartPatient.visitHistory && typeof selectedChartPatient.visitHistory === 'object'
       ? lightenVisitHistoryForBoard(selectedChartPatient.visitHistory)
@@ -11378,7 +11444,8 @@
       const now = new Date();
       const realtimePatient = {
         name,
-        treatments,
+        ...splitTreatmentSelection(treatments),
+        ...(recentHerbalPrescriptionDate ? { recentHerbalPrescriptionDate } : {}),
         timestamp: now.getTime(),
         timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
         date: now.toLocaleDateString('ko-KR'),
@@ -11421,6 +11488,10 @@
           memo2History: memo2Patch.memo2History,
           targetTreatmentCount,
           visitCountAdjustment
+        }, chartPatient => {
+          const prescriptionDate = findRecentHerbalPrescriptionDate(chartPatient);
+          if (prescriptionDate) realtimePatient.recentHerbalPrescriptionDate = prescriptionDate;
+          else delete realtimePatient.recentHerbalPrescriptionDate;
         });
         if (chartSaved === false) {
           showToast('차트 저장에 실패하여 환자를 등록하지 않았습니다');
@@ -11497,7 +11568,7 @@
       visitType: document.querySelector(`input[name="${ids.visitType}"]:checked`)?.value || '초진',
       gender: document.querySelector(`input[name="${ids.gender}"]:checked`)?.value || '남',
       bodyParts: normalizeBodyParts(formBodyPartsByScope[scope]),
-      treatments,
+      ...splitTreatmentSelection(treatments),
       packagePayload: getPackagePayload(ids.treatmentGrid),
       spineSettings: getSpineSettingsForGrid(ids.treatmentGrid),
       doctor,
@@ -11539,7 +11610,7 @@
     const nurseSelect = document.getElementById(scope === 'receive' ? 'receiveNurseSelect' : 'nurseSelect');
     if (doctorSelect) doctorSelect.value = bed?.doctorId || '';
     if (nurseSelect) nurseSelect.value = bed?.nurseId || '';
-    setTreatmentSelection(ids.treatmentGrid, bed?.treatments || []);
+    setTreatmentSelection(ids.treatmentGrid, getRecordedTreatments(bed));
     formBodyPartsByScope[scope] = normalizeBodyParts(bed?.bodyParts);
     renderFormBodyPartSelector(scope);
     const patient = bed?.patientKey ? patientsByKey.get(bed.patientKey) : null;
@@ -11644,7 +11715,7 @@
     document.querySelector(`input[name="${ids.gender}"][value="${bed.gender || '남'}"]`)?.click();
     document.getElementById('bedDoctorSelect').value = bed.doctorId || '';
     document.getElementById('bedNurseSelect').value = bed.nurseId || '';
-    setTreatmentSelection(ids.treatmentGrid, bed.treatments || []);
+    setTreatmentSelection(ids.treatmentGrid, getRecordedTreatments(bed));
     formBodyPartsByScope.bed = normalizeBodyParts(bed.bodyParts);
     renderFormBodyPartSelector('bed');
     const bedPatient = bed.patientKey ? patientsByKey.get(bed.patientKey) : null;
@@ -11786,7 +11857,7 @@
       date,
       ...(timestamp ? { timestamp } : {}),
       visitType: source.visitType || '',
-      treatments: Array.isArray(source.treatments) ? source.treatments : [],
+      treatments: getRecordedTreatments(source),
       bodyParts: normalizeBodyParts(source.bodyParts),
       doctorName: source.doctorName || '',
       nurseId: source.nurseId || '',
@@ -11807,6 +11878,7 @@
         date: String(entry.date),
         ...(timestamp ? { timestamp } : {}),
         treatments: Array.isArray(entry.treatments) ? entry.treatments : [],
+        ...(typeof entry.herbalPrescription === 'boolean' ? { herbalPrescription: entry.herbalPrescription } : {}),
         bodyParts: normalizeBodyParts(entry.bodyParts),
         doctorName: entry.doctorName || '',
         nurseId: entry.nurseId || '',
@@ -11839,8 +11911,11 @@
     const preferNonEmptyValue = (incoming, saved) =>
       isEmptyMergeValue(incoming) && !isEmptyMergeValue(saved) ? saved : incoming;
     const mergeVisitEntry = (saved = {}, incoming = {}) => {
+      let treatments = preferNonEmptyValue(incoming.treatments, saved.treatments);
+      if (incoming.herbalPrescription === false) treatments = treatments.filter(name => name !== '한약');
+      else if (saved.treatments?.includes('한약') && !treatments.includes('한약')) treatments = [...treatments, '한약'];
       const merged = {
-        treatments: preferNonEmptyValue(incoming.treatments, saved.treatments),
+        treatments,
         bodyParts: normalizeBodyParts(preferNonEmptyValue(incoming.bodyParts, saved.bodyParts)),
         doctorName: preferNonEmptyValue(incoming.doctorName, saved.doctorName) || '',
         nurseId: preferNonEmptyValue(incoming.nurseId, saved.nurseId) || '',
@@ -12224,6 +12299,7 @@
       const patientPatch = {
         name: form.name,
         treatments: form.treatments,
+        herbalPrescription: form.herbalPrescription,
         addedTreatmentIndexes,
         preCompletedTreatmentIndexes,
         chartNo: form.chartNo,
@@ -12330,6 +12406,7 @@
       gender: form.gender,
       bodyParts: form.bodyParts,
       treatments: form.treatments,
+      herbalPrescription: form.herbalPrescription,
       doctorId: form.doctor.id,
       doctorName: form.doctor.name,
       nurseId: form.nurse.id,
@@ -12382,6 +12459,7 @@
       gender: form.gender,
       bodyParts: form.bodyParts,
       treatments: form.treatments,
+      herbalPrescription: form.herbalPrescription,
       doctorId: form.doctor.id,
       doctorName: form.doctor.name,
       nurseId: form.nurse.id,
@@ -12407,10 +12485,13 @@
           memo2: payload.memo2 || '',
           memo2History: payload.memo2History || {},
           spineSettings: payload.spineSettings || {},
-          treatments: payload.treatments || [],
+          treatments: getRecordedTreatments(payload),
           bodyParts: normalizeBodyParts(payload.bodyParts),
           doctorName: payload.doctorName || '',
-          visitEntry: createChartVisitEntry({ ...payload, visitDate: payload.visitDate || payload.dischargeDate || getTodayKey() }),
+          visitEntry: {
+            ...createChartVisitEntry({ ...payload, visitDate: payload.visitDate || payload.dischargeDate || getTodayKey() }),
+            herbalPrescription: form.herbalPrescription
+          },
           packages: payload.packages || getPackageStateFromPatient(payload),
           ...getPCreditsFromPackages(payload.packages || getPackageStateFromPatient(payload))
         });
@@ -12497,6 +12578,7 @@
         gender: form.gender,
         bodyParts: form.bodyParts,
         treatments: form.treatments,
+        herbalPrescription: form.herbalPrescription,
         addedTreatmentIndexes,
         preCompletedTreatmentIndexes,
         doctorId: form.doctor.id,
@@ -12943,7 +13025,7 @@
         <span class="notif-name">${data.name}</span>
         <span>${isNew ? '<span class="notif-new-badge">NEW</span>' : ''}<span class="notif-time">${data.timeStr}</span></span>
       </div>
-      <div class="notif-treats">${data.treatments.map(t => `<span class="notif-tag">${t}</span>`).join('')}</div>
+      <div class="notif-treats">${getRecordedTreatments(data).map(t => `<span class="notif-tag">${t}</span>`).join('')}</div>
       <div class="notif-hint">탭하여 확인</div>`;
     card.onclick = () => {
       card.classList.remove('new');
@@ -14021,7 +14103,7 @@
   function createBedAssignment(patientKey, data, bedNo = null) {
     const treatments = (data.treatments && data.treatments.length)
       ? data.treatments
-      : (Number(bedNo) >= 101 ? ['진찰'] : (data.treatments || []));
+      : (Number(bedNo) >= 101 && !data.herbalPrescription ? ['진찰'] : []);
     const firstTreatment = treatments[0];
     const total = firstTreatment ? getConcurrentTreatmentSeconds(treatments, 0) : 0;
     const packages = getPackageStateFromPatient(data);
@@ -14029,6 +14111,8 @@
       patientKey,
       name: data.name,
       treatments,
+      herbalPrescription: Boolean(data.herbalPrescription),
+      ...(data.recentHerbalPrescriptionDate ? { recentHerbalPrescriptionDate: data.recentHerbalPrescriptionDate } : {}),
       addedTreatmentIndexes: [],
       preCompletedTreatmentIndexes: [],
       timeStr: data.timeStr || '',
@@ -14587,11 +14671,13 @@
         const heldNames = getConcurrentTreatmentNames(heldTreatments, heldIdx).map(name => String(name || '').trim());
         const nextTreatmentLabel = formatTreatmentNames(heldNames) || bed?.treatments?.[heldIdx] || getBedLabel(bed?.pendingTargetBedNo) || '대기';
         const targetBadge = getHoldTargetBadge(bed?.pendingTargetBedNo);
+        const herbalLabel = getHerbalFollowupLabel(bed) || (bed?.herbalPrescription ? '한약' : '');
         const targetKey = getHoldTargetKey(bed);
         const holdOrder = (holdTargetCounts.get(targetKey) || 0) + 1;
         holdTargetCounts.set(targetKey, holdOrder);
         const heldChips = [
           `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(nextTreatmentLabel)}</span>`,
+          herbalLabel ? bedStatusInfoChip(herbalLabel) : '',
           bed?.doctorName ? `<span class="bed-meta-chip">${escapeHtml(bed.doctorName)}</span>` : ''
         ].filter(Boolean).join('');
         return `
@@ -14607,8 +14693,10 @@
         </div>`;
       }).join('');
     const waitingHtml = waitingPatients.map(([key, data], index) => {
+      const herbalLabel = getHerbalFollowupLabel(data) || (data.herbalPrescription ? '한약' : '');
       const infoChips = [
         data.gender ? `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(data.gender)}</span>` : '',
+        herbalLabel ? bedStatusInfoChip(herbalLabel) : '',
         data.doctorName ? `<span class="bed-meta-chip">${escapeHtml(data.doctorName)}</span>` : '',
         data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : '',
       ].filter(Boolean).join('');
@@ -14702,7 +14790,7 @@
           data.chartNo ? `차트 ${escapeHtml(String(data.chartNo))}` : '',
           data.bedLabel || data.bedNo ? escapeHtml(data.bedLabel || getBedLabel(data.bedNo)) : ''
         ].filter(Boolean).join(' · ');
-        const treatmentChips = (Array.isArray(data.treatments) ? data.treatments : [])
+        const treatmentChips = getRecordedTreatments(data)
           .map(treatment => `<span class="bed-treatment-chip waiting ${getTreatmentBadgeClass(treatment)}">${escapeHtml(getBedTreatmentDisplayName(data, treatment))}</span>`)
           .join('');
         return `
@@ -14763,13 +14851,13 @@
         memo2: assignedBed?.memo2 || patient.memo2 || '',
         memo2History: normalizeMemo2History(assignedBed || patient),
         spineSettings: patient.spineSettings || {},
-        treatments: assignedBed?.treatments || patient.treatments || [],
+        treatments: getRecordedTreatments(assignedBed || patient),
         bodyParts: normalizeBodyParts(assignedBed?.bodyParts || patient.bodyParts),
         doctorName: assignedBed?.doctorName || patient.doctorName || '',
         visitEntry: createChartVisitEntry({
           timestamp: assignedBed?.timestamp || patient.timestamp,
           visitType: assignedBed?.visitType || patient.visitType || '',
-          treatments: assignedBed?.treatments || patient.treatments || [],
+          treatments: getRecordedTreatments(assignedBed || patient),
           bodyParts: assignedBed?.bodyParts || patient.bodyParts,
           doctorName: assignedBed?.doctorName || patient.doctorName || '',
           chiefComplaint: assignedBed?.chiefComplaint || patient.chiefComplaint || '',
@@ -16150,6 +16238,7 @@
     const pendingAlertProcedureSeconds = bed.lastAlertId ? getProcedureSeconds() : 0;
     if (bed.complete) return pendingAlertProcedureSeconds;
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
+    if (bed.herbalPrescription && !treatments.length) return pendingAlertProcedureSeconds;
     const currentIndex = Number(bed.currentIndex || 0);
     const currentGroupEndIndex = getConcurrentTreatmentEndIndex(treatments, currentIndex);
     const currentRemaining = getRemaining(bed);
@@ -16474,8 +16563,9 @@
 
   function renderBedDetailTreatmentChips(bed, bedNo) {
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
+    const herbalChip = bed.herbalPrescription ? '<span class="bed-treatment-chip">한약</span>' : '';
     if (!treatments.length) {
-      return '<span class="bed-treatment-chip waiting">치료 미선택</span>';
+      return herbalChip || '<span class="bed-treatment-chip waiting">치료 미선택</span>';
     }
 
     const currentIndex = Number(bed.currentIndex || 0);
@@ -16490,7 +16580,7 @@
       const addedClass = addedIndexes.has(index) ? ' added' : '';
       const content = escapeHtml(getBedTreatmentDisplayName(bed, treatment));
       return `<span class="bed-treatment-chip ${treatmentClass} ${chipClass}${runningClass}${addedClass}" ${bedTreatmentChipAttrs(bedNo, index)}>${content}</span>`;
-    }).join('');
+    }).join('') + herbalChip;
   }
 
   function renderPatientPositionChip(position, scope = '') {
@@ -16686,6 +16776,8 @@
     }
     const memo1Edited = bed.memo1 && bed.memo1 !== (bed.memo1Original || '');
     const memo2Edited = bed.memo2 && bed.memo2 !== (bed.memo2Original || '');
+    const herbalLabel = getHerbalFollowupLabel(bed);
+    if (herbalLabel) chips.push(chip(herbalLabel));
     if (bed.memo1) chips.push(chip(bed.memo1, memo1Edited ? ' bed-patient-summary-chip--memo-edited' : ''));
     if (bed.memo2) chips.push(chip('메모2있음', memo2Edited ? ' bed-patient-summary-chip--memo-edited' : ''));
     return chips.join('');
@@ -16973,6 +17065,7 @@
   function renderTimerCard(bedNo, bed, treatment, allowControls = true, context = 'bed') {
     const treatments = Array.isArray(bed.treatments) ? bed.treatments : [];
     const hasTreatment = treatments.length > 0 && Boolean(treatment);
+    if (!hasTreatment && bed.herbalPrescription) return '';
     const currentIndex = Number(bed.currentIndex || 0);
     const concurrentTreatments = getConcurrentTreatmentNames(treatments, currentIndex);
     const concurrentEndIndex = getConcurrentTreatmentEndIndex(treatments, currentIndex);
@@ -17498,6 +17591,7 @@
       const form = getFormValues(scope);
       const payload = {
         treatments: form.treatments,
+        herbalPrescription: form.herbalPrescription,
         doctorId: form.doctor.id,
         doctorName: form.doctor.name,
         nurseId: form.nurse.id,
@@ -17574,6 +17668,7 @@
 
     const payload = {
       treatments: form.treatments,
+      herbalPrescription: form.herbalPrescription,
       addedTreatmentIndexes,
       preCompletedTreatmentIndexes,
       ...(shouldPatchAddedTreatmentAlert ? { addedTreatmentAlert } : {}),
@@ -18102,7 +18197,7 @@
         targetTreatmentCount: getVisitGoal(bed),
         visitCountAdjustment: normalizeVisitCountAdjustment(bed.visitCountAdjustment),
         spineSettings,
-        treatments: bed.treatments || [],
+        treatments: getRecordedTreatments(bed),
         bodyParts: normalizeBodyParts(bed.bodyParts),
         doctorName: bed.doctorName || '',
         nurseId: bed.nurseId || '',
@@ -19182,11 +19277,13 @@
       stageState,
       stageLabel,
       statusDetail: !hasTreatment ? '치료 선택 대기' : (bed.running ? `${treatment} 진행중` : (isWaitingToStart ? statusLabel : treatment)),
-      noTimer: !bed.complete && concurrentTreatments.length > 0 && concurrentTreatments.every(isNoTimerTreatment),
+      noTimer: (bed.herbalPrescription && !hasTreatment)
+        || (!bed.complete && concurrentTreatments.length > 0 && concurrentTreatments.every(isNoTimerTreatment)),
       procedureBlinking,
       remaining: bed.complete ? '완료' : (hasTreatment ? formatTimer(remainingSeconds) : '대기'),
       currentIndex,
       treatments,
+      herbalLabel: getHerbalFollowupLabel(bed) || (bed.herbalPrescription ? '한약' : ''),
       addedTreatmentIndexes: normalizeAddedTreatmentIndexes(bed.addedTreatmentIndexes, treatments),
       preCompletedTreatmentIndexes: normalizePreCompletedTreatmentIndexes(bed.preCompletedTreatmentIndexes, treatments),
       timeStr: bed.timeStr || '',
@@ -19357,6 +19454,7 @@
       : (status.appointmentUndecided ? '미정' : '');
     const infoChipItems = [
       status.gender ? { text: status.gender, cls: ' bed-meta-chip--fixed' } : null,
+      status.herbalLabel ? { text: status.herbalLabel, cls: '' } : null,
       insuranceChipLabel ? { text: insuranceChipLabel, cls: ' bed-meta-chip--insurance' } : null,
       status.doctorName ? { text: status.doctorName, cls: '' } : null,
       status.nurseName ? { text: status.nurseName, cls: '' } : null,
@@ -19378,7 +19476,7 @@
     return `
       <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}${doctorScopeClass}"${doctorInteraction}${otherDoctor ? '' : ` onclick="${clickAction}"`}${dragHandlers}${contextHandler}>
         <div class="bed-status-top">
-          <span class="bed-status-no">${monitorNameHtml}${isNotifyMode ? '' : `${renderTodayAppointmentBadge(status, status.patientKey)}${renderInitialVisitBadge(status)}`}</span>
+          <span class="bed-status-no">${monitorNameHtml}${isNotifyMode ? '' : `${renderTodayAppointmentBadge(status, status.patientKey)}${renderInitialVisitBadge(status)}`}${compact && status.herbalLabel ? ` ${bedStatusInfoChip(status.herbalLabel)}` : ''}</span>
           ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
         </div>
         ${compact ? '' : (infoChips ? `<div class="bed-status-info${infoDensityClass}">${infoChips}</div>` : '')}
@@ -20099,7 +20197,7 @@
   window.showPopup = (data) => {
     document.getElementById('popupName').textContent = data.name;
     document.getElementById('popupLabel').textContent = data.bedLabel ? `${data.bedLabel} 배정` : '진료 준비';
-    document.getElementById('popupTreats').innerHTML = data.treatments.map(t => `<span class="popup-tag">${t}</span>`).join('');
+    document.getElementById('popupTreats').innerHTML = getRecordedTreatments(data).map(t => `<span class="popup-tag">${t}</span>`).join('');
     document.getElementById('notifOverlay').classList.add('show');
   };
 
@@ -20344,7 +20442,7 @@
     resetSpineSettings(ids.treatmentGrid);
   }
 
-  window.saveChartPatient = async function(data) {
+  window.saveChartPatient = async function(data, onChartSaved) {
     if (isDoctorReadOnlyPage()) return false;
     if (!data.chartNo) return;
     try {
@@ -20386,6 +20484,7 @@
           const errorPayload = await res.json().catch(() => ({}));
           throw new Error(errorPayload.error || 'server patient save failed');
         }
+        onChartSaved?.(next);
         return true;
       }
       const db = await openChartDb();
@@ -20411,6 +20510,7 @@
           if (latestChiefComplaint) next.chiefComplaint = latestChiefComplaint;
           if (data.appointmentDate === null) delete next.appointmentDate;
           store.put(next);
+          tx.addEventListener('complete', () => onChartSaved?.(next));
         };
         getReq.onerror = () => reject(getReq.error);
         tx.oncomplete = resolve;
@@ -20627,9 +20727,11 @@
     const visitCountAdjustment = normalizeVisitCountAdjustment(patient.visitCountAdjustment);
     const latestVisitDate = getPatientLatestVisitDate(patient);
     const visitType = getVisitTypeByLatestVisitDate(patient);
+    const recentHerbalPrescriptionDate = findRecentHerbalPrescriptionDate(patient);
     return {
       name: patient.name || '',
-      treatments,
+      ...splitTreatmentSelection(treatments),
+      ...(recentHerbalPrescriptionDate ? { recentHerbalPrescriptionDate } : {}),
       timestamp: now.getTime(),
       timeStr: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
       date: now.toLocaleDateString('ko-KR'),
@@ -20810,6 +20912,7 @@
     const gridId = ids.treatmentGrid;
     if (!gridId) return;
     treatmentSelections[gridId] = normalizeTreatmentsForFormLoad(scope, treatmentNames)
+      .filter(name => String(name || '').trim() !== '한약')
       .map(name => getTreatmentByName(name))
       .filter(Boolean)
       .map(createTreatmentSelectionItem);
@@ -21405,7 +21508,7 @@
     const badge = document.getElementById('chartLookupBadge');
     const matches = await lookupChartPatientsFlexible(rawChartNo);
     const selected = await chooseChartPatient(matches, chartNo);
-    if (selected === false) return;
+    if (selected === false || normalizeChartNo(chartNoEl?.value) !== chartNo) return;
     const patient = selected || null;
     setSelectedChartPatient(scope, patient);
 
