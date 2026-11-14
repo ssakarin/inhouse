@@ -1587,6 +1587,8 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
   const financialCoverage = { totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0 };
   const financialTrend = {};
   const doctorFinancials = {};
+  let doctorAutoAmount = 0;
+  let hasDoctorAutoAmount = false;
   const diagnosisCounts = {};
   const diagnosisCategoryCounts = {};
   const initialDiagnosisCounts = {};
@@ -1646,7 +1648,10 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
       const trendBucket = getStatsTrendBucket(trendBuckets, key);
       trendBucket.visits += 1;
       trendBucket.dates.add(date);
-      const financeBucket = financialTrend[key] || (financialTrend[key] = { key, totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0, coveredVisits: 0 });
+      const financeBucket = financialTrend[key] || (financialTrend[key] = {
+        key, totalFee: 0, claimAmount: 0, insuredCopay: 0, nonCoveredAmount: 0,
+        coveredVisits: 0, noncoveredVisits: 0, autoAmount: 0, hasAutoAmount: false
+      });
       let hasFinancialValue = false;
       for (const field of Object.keys(financialTotals)) {
         if (!Object.prototype.hasOwnProperty.call(entry, field) || entry[field] === '' || entry[field] === null || entry[field] === undefined) continue;
@@ -1656,6 +1661,16 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
         financialCoverage[field] += 1;
         financeBucket[field] += amount;
         if (field === "nonCoveredAmount") financeBucket.noncoveredVisits += 1;
+        if (docFilter && field === "totalFee") {
+          const insuranceType = getPatientInsuranceType(entry) || getPatientInsuranceType(record);
+          if (insuranceType) {
+            const autoAmount = /자동차|자보/.test(insuranceType) ? amount : 0;
+            financeBucket.autoAmount += autoAmount;
+            financeBucket.hasAutoAmount = true;
+            doctorAutoAmount += autoAmount;
+            hasDoctorAutoAmount = true;
+          }
+        }
         hasFinancialValue = true;
       }
       if (hasFinancialValue) financeBucket.coveredVisits += 1;
@@ -1839,6 +1854,7 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
         key: bucket.key,
         clinicDays,
         actualClinicDays: bucket.dates.size,
+        avgDailyPatients: docFilter && bucket.dates.size ? bucket.visits / bucket.dates.size : null,
         visits: bucket.visits,
         newPatients: bucket.newPatients,
         followupEligibleNewPatients: bucket.followupEligibleNewPatients,
@@ -1858,11 +1874,13 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
         avgCombinedFeePerVisit: Number(financeBucket.coveredVisits || 0) ? (Number(financeBucket.totalFee || 0) + Number(financeBucket.nonCoveredAmount || 0)) / Number(financeBucket.coveredVisits || 0) : null,
         avgTotalFeePerDay: Number(financeBucket.totalFee || 0) / clinicDays,
         avgNonCoveredFeePerDay: financeBucket.noncoveredVisits ? Number(financeBucket.nonCoveredAmount || 0) / clinicDays : null,
+        avgAutoFeePerDay: financeBucket.hasAutoAmount ? financeBucket.autoAmount / bucket.dates.size : null,
         returnRate: bucket.newPatients ? bucket.returningPatients / bucket.newPatients : 0,
         thirdVisitRate: bucket.newPatients ? bucket.thirdVisitPatients / bucket.newPatients : 0
       };
     });
   const clinicDays = Math.max(1, clinicDateSet.size);
+  const actualClinicDays = new Set(Object.values(trendBuckets).flatMap(bucket => [...bucket.dates])).size;
   const chunaPatientRate = patientSet.size ? chunaPatientSet.size / patientSet.size : 0;
   const chunaTypeTotal = simpleChunaTotal + complexChunaTotal;
   const simpleChunaRate = chunaTypeTotal ? simpleChunaTotal / chunaTypeTotal : 0;
@@ -1942,7 +1960,9 @@ function computeBoardClinicStats({ start, end, docFilter = "", chartUnit = "week
     avgPharmaPatientsPerDay: pharmaTotal / clinicDays,
     pharmaPackagePurchasePatients: pharmaPackagePurchasePatientSet.size,
     clinicDays,
-    actualClinicDays: new Set(Object.values(trendBuckets).flatMap(bucket => [...bucket.dates])).size,
+    actualClinicDays,
+    avgDailyPatients: docFilter && actualClinicDays ? visits / actualClinicDays : null,
+    avgAutoFeePerDay: hasDoctorAutoAmount ? doctorAutoAmount / actualClinicDays : null,
     treatmentCounts,
     doctorCounts,
     weekdayCounts,

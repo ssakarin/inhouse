@@ -594,7 +594,7 @@
   ]);
   const CHART_METRICS = [
     { key: "actualClinicDays", label: "진료일", unitLabel: "일", axis: "count", color: "#94a3b8", title: value => `진료일 ${value.toLocaleString()}일 (실제 진료한 날짜 수)` },
-    { key: "avgDailyPatients", label: "일평균환자", patientField: "patientCount", alwaysAverage: true, axis: "count", color: "#06b6d4", title: value => `일평균환자 ${value.toFixed(1)}명 (당일환자수 기록 진료일 기준)` },
+    { key: "avgDailyPatients", label: "일평균환자", patientField: "patientCount", alwaysAverage: true, axis: "count", color: "#06b6d4", title: value => `일평균환자 ${value.toFixed(1)}명 (환자 기록이 있는 진료일 기준)` },
     { key: "avgVisitsPerDay", label: "진료 환자", axis: "count", color: "#39a9f5", title: value => `진료 환자 ${value.toFixed(1)}명` },
     { key: "avgNewPatientsPerDay", label: "초진", axis: "count", color: "#ffca6a", title: value => `초진 ${value.toFixed(1)}명` },
     { key: "avgChunaPerDay", label: "추나", axis: "count", color: "#f97316", title: value => `추나 ${value.toFixed(1)}명` },
@@ -1274,6 +1274,7 @@
           key: w.key,
           clinicDays,
           actualClinicDays: w.dates.size,
+          avgDailyPatients: docFilter && w.dates.size ? w.visits / w.dates.size : null,
           visits: w.visits,
           newPatients: w.newPatients,
           followupEligibleNewPatients: w.followupEligibleNewPatients,
@@ -1294,6 +1295,7 @@
         };
       });
     const clinicDays = Math.max(1, clinicDateSet.size);
+    const actualClinicDays = new Set(Object.values(trendBuckets).flatMap(bucket => [...bucket.dates])).size;
     const chunaPatientRate = patientSet.size ? chunaPatientSet.size / patientSet.size : 0;
     const chunaTypeTotal = simpleChunaTotal + complexChunaTotal;
     const simpleChunaRate = chunaTypeTotal ? simpleChunaTotal / chunaTypeTotal : 0;
@@ -1342,7 +1344,8 @@
       avgPharmaPatientsPerDay: pharmaTotal / clinicDays,
       pharmaPackagePurchasePatients: pharmaPackagePurchasePatientSet.size,
       clinicDays,
-      actualClinicDays: new Set(Object.values(trendBuckets).flatMap(bucket => [...bucket.dates])).size,
+      actualClinicDays,
+      avgDailyPatients: docFilter && actualClinicDays ? visits / actualClinicDays : null,
       treatmentCounts,
       doctorCounts,
       weekdayCounts,
@@ -1787,7 +1790,11 @@
     if (row?._chartNormalized) return row[metric.key] ?? null;
     if (metric.patientField || metric.financeField) {
       const summary = metric.financeField ? row?.dailyFinanceCounts?.[metric.financeField] : row?.dailyPatientCounts?.[metric.patientField];
-      return summary?.days ? (chartValueMode === "total" && !metric.alwaysAverage ? summary.value : summary.average) : null;
+      const showTotal = chartValueMode === "total" && !metric.alwaysAverage;
+      if (summary?.days) return showTotal ? summary.value : summary.average;
+      const average = row?.[metric.key];
+      if (average == null) return null;
+      return showTotal ? average * row.actualClinicDays : average;
     }
     if (!row || row[metric.key] === null || row[metric.key] === undefined) return null;
     const value = Number(row[metric.key] || 0);
@@ -2140,8 +2147,8 @@
           : Object.values(stats.financialCoverage || {}).some(value => Number(value) > 0);
       if (!available) return null;
     }
-    if (metric.financeField) return stats.dailyMetrics?.finance?.[metric.financeField]?.average ?? null;
-    if (metric.patientField) return stats.dailyMetrics?.patients?.[metric.patientField]?.average ?? null;
+    if (metric.financeField) return stats.dailyMetrics?.finance?.[metric.financeField]?.average ?? stats[metric.key] ?? null;
+    if (metric.patientField) return stats.dailyMetrics?.patients?.[metric.patientField]?.average ?? stats[metric.key] ?? null;
     const clinicDays = Number(stats.clinicDays || 0);
     if (metric.key === "avgVisitsPerDay") return clinicDays ? Number(stats.coreVisits || 0) / clinicDays : 0;
     if (metric.key === "avgNewPatientsPerDay") return clinicDays ? Number(stats.newPatients || 0) / clinicDays : 0;
