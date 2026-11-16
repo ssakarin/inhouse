@@ -80,21 +80,31 @@ test('server clients never prune a shared alert from a partial move delta', () =
 });
 
 test('fixed and selected bed popups follow the moved alert; name click clears shared alert and calls signage', async () => {
-  for (const search of ['?view=bed&bed=8', '?view=bed']) {
-    const r=server({1:a},{gold:{bedNo:1,patientKey:'a',patientName:a.name}});
-    r.move({8:a});
+  for (const search of ['?view=bed&bed=8', '?view=bed', '?view=bed&bed=101']) {
+    const doctorBedNo = search.endsWith('bed=101') ? 101 : 0;
+    const bedNo = doctorBedNo || 8;
+    const r=server({1:a},{gold:{bedNo:1,patientKey:'a',patientName:a.name,visitType:'재진'}});
+    r.move({[bedNo]:a});
     const classes=new Set();
     const overlay={classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}};
     const name={textContent:''};
     const alerts=new Map(Object.entries(r.state.bedAssignmentAlerts));
+    const timers = new Map();
+    let chimes = 0;
+    const [, intervalMs] = html.match(/const FIXED_DOCTOR_ROOM_ALERT_AUDIO_MS = (\d+);/);
     const c=vm.createContext({
       URLSearchParams, window:{location:{search}}, selectedBedNo:8,
       document:{getElementById:id=>id==='bedArrivalOverlay'?overlay:id==='bedArrivalName'?name:{classList:{contains:()=>true}}},
-      ACTIVE_BED_NUMBERS:[1,8],getDoctorBedNumbers:()=>[101,102],getFixedDoctorBedNoFromUrl:()=>0,
+      ACTIVE_BED_NUMBERS:[1,8],getDoctorBedNumbers:()=>[101,102],getFixedDoctorBedNoFromUrl:()=>doctorBedNo,
+      isFixedDoctorBedScreen:()=>Boolean(doctorBedNo),patientsByKey:new Map(),
       getBedData:no=>r.state.beds[no],bedAssignmentAlertItems:alerts,
       fixedBedArrivalAcknowledgedByBed:{},fixedBedArrivalShownByBed:{},
       fixedBedArrivalVisiblePatientKey:'',fixedBedArrivalVisibleAlertKey:'',
-      maskPatientNameForBedPopup:x=>x,requestBedScreenWakeLock:()=>{},shouldChimeDoctorArrival:()=>false,
+      maskPatientNameForBedPopup:x=>x,requestBedScreenWakeLock:()=>{},
+      fixedDoctorArrivalBeepTimer:null,FIXED_DOCTOR_ROOM_ALERT_AUDIO_MS:Number(intervalMs),
+      playSoftTimerChime:()=>{chimes++;},
+      setInterval:(callback,delay)=>{assert.equal(delay,30000);timers.set(callback,delay);return callback;},
+      clearInterval:callback=>timers.delete(callback),
       renderUpcomingAlerts:()=>{},renderBedMonitors:()=>{},renderBedSelector:()=>{},renderBedDetail:()=>{},
       updateBedHeaderBedChip:()=>{},updateBedRemainingChip:()=>{},syncDoctorProcedureAlerts:()=>{},
       removeBedAssignmentAlert:async(key,confirmed)=>{assert.equal(confirmed,true);await r.confirm(key);},
@@ -102,20 +112,24 @@ test('fixed and selected bed popups follow the moved alert; name click clears sh
     });
     const from=html.indexOf('  function getFixedBedArrivalBedNo()');
     const to=html.indexOf('\n</script>',from);
-    // Supply the chime predicate above; its real implementation is unrelated to movement.
-    let code=html.slice(from,to);
-    const chimeStart=code.indexOf('  function shouldChimeDoctorArrival(');
-    const chimeEnd=code.indexOf('  function syncFixedBedArrivalOverlay()',chimeStart);
-    code=code.slice(0,chimeStart)+code.slice(chimeEnd);
-    vm.runInContext(code,c);
+    vm.runInContext(html.slice(from,to),c);
     c.syncFixedBedArrivalOverlay();
     assert.equal(classes.has('show'),true);
     assert.equal(name.textContent,a.name);
-    assert.equal(c.isFixedBedArrivalPending(8),true);
+    assert.equal(c.isFixedBedArrivalPending(bedNo),true);
+    c.syncFixedBedArrivalOverlay();
+    assert.equal(chimes, doctorBedNo ? 1 : 0);
+    assert.equal(timers.size, doctorBedNo ? 1 : 0);
+    for (const tick of timers.keys()) {
+      tick();
+      tick();
+    }
+    assert.equal(chimes, doctorBedNo ? 3 : 0);
     await c.window.openFixedBedArrival();
     assert.equal(classes.has('show'),false);
-    assert.equal(c.isFixedBedArrivalPending(8),false);
+    assert.equal(timers.size,0);
+    assert.equal(c.isFixedBedArrivalPending(bedNo),false);
     assert.equal(Object.keys(r.state.bedAssignmentAlerts).length,0);
-    assert.equal(signageState.publicStatus({},r.state.beds,{},r.state.signageCalls).active.bedNo,8);
+    assert.equal(signageState.publicStatus({},r.state.beds,{},r.state.signageCalls).active.bedNo,bedNo);
   }
 });

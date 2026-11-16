@@ -7666,6 +7666,7 @@
   let alertListBeepIntervalMs = 0;
   const FIXED_DOCTOR_ROOM_ALERT_AUDIO_MS = 30000;
   let fixedDoctorRoomAlertBeepTimer = null;
+  let fixedDoctorArrivalBeepTimer = null;
   let isTimerAlertOpen = false;
   let activeTimerAlert = null;
   let receiveDoctorAlertEditDoctorId = '';
@@ -21649,15 +21650,21 @@
   }
 
   function hideFixedBedArrivalOverlay() {
+    stopFixedDoctorArrivalBeeps();
     const overlay = document.getElementById('bedArrivalOverlay');
     if (overlay) overlay.classList.remove('show');
     fixedBedArrivalVisiblePatientKey = '';
     fixedBedArrivalVisibleAlertKey = '';
   }
 
+  function stopFixedDoctorArrivalBeeps() {
+    if (fixedDoctorArrivalBeepTimer !== null) clearInterval(fixedDoctorArrivalBeepTimer);
+    fixedDoctorArrivalBeepTimer = null;
+  }
+
   function shouldChimeDoctorArrival(bedNo, alert, bed) {
     if (!isFixedDoctorBedScreen() || Number(getFixedDoctorBedNoFromUrl()) !== Number(bedNo)) return false;
-    if (!alert?.key || fixedBedArrivalShownByBed[bedNo] === alert.key) return false;
+    if (!alert?.key) return false;
     const patient = patientsByKey.get(String(alert.patientKey || ''));
     const visitType = alert.visitType || bed?.visitType || patient?.visitType;
     return ['초진', '재초진', '재진'].includes(visitType);
@@ -21688,12 +21695,23 @@
       return;
     }
 
+    if (fixedBedArrivalVisibleAlertKey !== assignmentAlert.key) stopFixedDoctorArrivalBeeps();
     fixedBedArrivalVisiblePatientKey = patientKey;
     fixedBedArrivalVisibleAlertKey = assignmentAlert.key;
     nameEl.textContent = maskPatientNameForBedPopup(assignmentAlert.patientName || bed?.name || '');
     requestBedScreenWakeLock('bed-assignment-overlay');
     overlay.classList.add('show');
-    if (shouldChimeDoctorArrival(bedNo, assignmentAlert, bed)) playSoftTimerChime();
+    if (shouldChimeDoctorArrival(bedNo, assignmentAlert, bed)) {
+      if (fixedBedArrivalShownByBed[bedNo] !== assignmentAlert.key) playSoftTimerChime();
+      if (fixedDoctorArrivalBeepTimer === null) {
+        fixedDoctorArrivalBeepTimer = setInterval(() => {
+          if (getBedAssignmentAlertForBed(bedNo)?.key === assignmentAlert.key) playSoftTimerChime();
+          else stopFixedDoctorArrivalBeeps();
+        }, FIXED_DOCTOR_ROOM_ALERT_AUDIO_MS);
+      }
+    } else {
+      stopFixedDoctorArrivalBeeps();
+    }
     fixedBedArrivalShownByBed[bedNo] = assignmentAlert.key;
   }
   window.syncFixedBedArrivalOverlay = syncFixedBedArrivalOverlay;
