@@ -30,12 +30,12 @@ function onAssignment(calls,previous,beds,now,id){
   const moved=Object.entries(beds).find(([no,b])=>validBed(Number(no))&&b?.patientKey===c.patientKey&&b.name===c.patientName&&!b.signageArrivedAt);
   return moved?{...c,bedNo:Number(moved[0])}:c;
  }).filter(c=>matches(c,beds));
- // Patients already in a treatment bed or doctor room are moving internally.
- const alreadyInside=new Set(Object.entries(previous).filter(([no,b])=>b?.patientKey&&!(Number(no)>=901&&Number(no)<=920)).map(([,b])=>b.patientKey));
+ // Moving from any existing bed, including temporary holding, is an internal transfer.
+ const previouslyAssigned = new Set(Object.values(previous).map(bed => bed?.patientKey).filter(Boolean));
  Object.entries(beds).forEach(([no,b])=>{
   if(!validBed(Number(no))||!b?.patientKey||!b.name)return;
   if(previous[no]?.patientKey===b.patientKey)return;
-  if(alreadyInside.has(b.patientKey))return;
+  if(previouslyAssigned.has(b.patientKey))return;
   next.push({id:id(),bedNo:Number(no),patientKey:b.patientKey,patientName:b.name,createdAt:now,pending:true});
  });
  return next;

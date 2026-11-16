@@ -77,7 +77,7 @@ test('consultation and treatment queues are separate and exclude discharged and 
  const out=signage.publicStatus(patients,beds,{a:{bedNo:8,patientKey:'p1'}},[],now);
  assert.equal(out.consultationWaitingCount,2);assert.equal(out.waitingCount,3);
 });
-test('only waiting room arrivals call, including swaps and doctor room transfers',()=>{
+test('only direct waiting room assignments call',()=>{
  let serial=0;const id=()=>String(++serial);
  for(const [from,to] of [[1,8],[101,8],[8,101],[101,102],[7,8],[15,8]]){
   const existing=signage.enqueue([],from,bed,now,'old');
@@ -86,11 +86,11 @@ test('only waiting room arrivals call, including swaps and doctor room transfers
  const other={patientKey:'p2',name:'이환자'};
  assert.equal(signage.onAssignment([],{1:bed,8:other},{1:other,8:bed},now,id).length,0);
  for(const target of [8,15,101]){
-  assert.equal(signage.onAssignment([],{901:bed},{[target]:bed},now,id).length,1);
+  assert.equal(signage.onAssignment([],{901:bed},{[target]:bed},now,id).length,0);
   assert.equal(signage.onAssignment([],{}, {[target]:bed},now,id).length,1);
  }
  const calls=signage.onAssignment([],{1:bed,901:other},{8:bed,9:other},now,id);
- assert.equal(calls.length,1);assert.equal(calls[0].patientKey,'p2');
+ assert.equal(calls.length,0);
 });
 
 test('doctor room assignments are sequential with room labels and no repeat on edits',()=>{
@@ -102,7 +102,6 @@ test('doctor room assignments are sequential with room labels and no repeat on e
  assert.equal(signage.publicStatus({},beds,{},calls,now+3000).active.bedLabel,'진료실1');
  assert.equal(signage.publicStatus({},beds,{},calls,now+13000).active.bedLabel,'진료실2');
  assert.equal(signage.onAssignment(calls,beds,{...beds,101:{...beds[101],memo:'수정'}},now+100,()=>String(++serial)).length,2);
- const held={901:beds[101]};const moved=signage.onAssignment([],held,{101:beds[101]},now,()=>String(++serial));assert.equal(moved.length,1);assert.equal(moved[0].bedNo,101);
 });
 
 test('ten simultaneous arrivals display individually for ten seconds in order',()=>{

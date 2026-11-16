@@ -72,6 +72,18 @@ test('removing a patient clears alerts and moving an acknowledged patient does n
   assert.deepEqual(reconcileAssignmentAlerts({a:{bedNo:1,patientKey:'a'}},{}),{});
 });
 
+test('confirming a doctor room assignment after temporary holding clears the alert without calling signage', async () => {
+  const r = server({8:a,101:b}, {gold:{bedNo:8,patientKey:'a'}});
+  r.move({901:{...a,pendingTargetBedNo:101},101:b});
+  r.move({101:a});
+
+  assert.equal(r.state.bedAssignmentAlerts.gold.bedNo, 101);
+  assert.equal(r.state.signageCalls.some(call => call.patientKey === a.patientKey), false);
+  await r.confirm('gold');
+  assert.equal(r.state.bedAssignmentAlerts.gold, undefined);
+  assert.equal(signageState.publicStatus({}, r.state.beds, {}, r.state.signageCalls).active, null);
+});
+
 test('server clients never prune a shared alert from a partial move delta', () => {
   const c=vm.createContext({SERVER_MODE:true});
   vm.runInContext(html.slice(html.indexOf('  function pruneStaleBedAssignmentAlerts()'),html.indexOf('  async function createBedAssignmentAlert(')),c);
