@@ -8,3 +8,7 @@ tmp/
 output/
 /outputs/
 /*.lnk
+
+# 청소 일정 (진료보드와 무관한 개인 파일)
+/*.ics
+/청소*.gs
