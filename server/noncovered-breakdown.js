@@ -71,14 +71,20 @@ function inferHerbalCategoryFromPrice(amount) {
 function classifyNoncoveredVisit({ patient = {}, visit = {}, date = "" } = {}) {
   const amount = Number(visit.noncovered_amount ?? visit.noncoveredAmount ?? 0) || 0;
   const entry = patient.visitHistory?.[date] || {};
-  const treatments = Array.isArray(entry.treatments)
-    ? entry.treatments.map(normalizedText).filter(Boolean)
-    : [];
+  // 수기차트 대조로 보정된 내원은 노트의 처치·비고 글씨도 처치 기록처럼 읽는다
+  // (엑셀·진료보드에 처치 기록이 없던 내원이 '기타'로 떨어지지 않도록).
+  const handwrittenTreatments = String(entry.handwritten?.treatment || "")
+    .split("+").map(normalizedText).filter(Boolean);
+  const treatments = [
+    ...(Array.isArray(entry.treatments) ? entry.treatments.map(normalizedText).filter(Boolean) : []),
+    ...handwrittenTreatments
+  ];
   const text = normalizedText([
     visit.chief_complaint,
     visit.diagnosis_code,
     entry.chiefComplaint,
     entry.memo2,
+    entry.handwritten?.memo,
     ...(treatments || [])
   ].join(" "));
 
@@ -90,7 +96,7 @@ function classifyNoncoveredVisit({ patient = {}, visit = {}, date = "" } = {}) {
   if (/녹용|상대|분골|기름분골/.test(text)) return CATEGORY_KEYS.DEER_HERBAL;
 
   const hasPharmaTreatment = treatments.some(treatment => treatment.includes("약침"));
-  const hasHerbalContext = /처방|약상담|한약/.test(text)
+  const hasHerbalContext = /처방|약상담|한약|치료약/.test(text)
     || normalizedText(visit.diagnosis_code) === "ZZ00";
   if (hasHerbalContext) return inferHerbalCategoryFromPrice(amount);
   if (hasPharmaTreatment) return CATEGORY_KEYS.PHARMA_SINGLE;

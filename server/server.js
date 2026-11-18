@@ -2,7 +2,9 @@ const http = require("node:http");
 const dailyMetrics = require("../daily-metrics");
 const recentRevenue = require("../recent-revenue");
 const googleDailyImport = require("../google-daily-import");
+const handwrittenReconcile = require("../handwritten-reconcile");
 const dailyImportPreviews = new Map();
+const handwrittenPreviews = new Map();
 const signageState = require("./signage-state");
 const { reconcileAssignmentAlerts } = require("./bed-assignment-alerts");
 const signageTts = require("./signage-tts");
@@ -5255,6 +5257,69 @@ async function handleApi(req, res, pathname) {
     for(const row of rows){const current=readDailyMetrics(row.date,row.date)[0];if(JSON.stringify(current)!==JSON.stringify(original.get(row.date))){jsonResponse(res,409,{error:`${row.date} 등록값이 변경됐습니다. 미리보기를 다시 조회하세요.`});return true;}}
     const result=saveDailyMetrics(rows,preview.sourceFile,true);dailyImportPreviews.delete(body.previewId);
     jsonResponse(res,200,result);return true;
+  }
+  if (pathname === "/api/handwritten-reconcile/status" && req.method === "GET") {
+    const dates = String(new URL(req.url, "http://localhost").searchParams.get("dates") || "")
+      .split(",").map(value => value.trim()).filter(isValidReportDate).slice(0, 800);
+    const applied = dates
+      .map(date => ({ date, ...(getStateValue(`handwrittenReconcile/${date}`) || {}) }))
+      .filter(item => item.appliedAt);
+    jsonResponse(res, 200, { applied });
+    return true;
+  }
+  if (pathname === "/api/handwritten-reconcile/preview" && req.method === "POST") {
+    const body = await readJson(req) || {};
+    const date = String(body.date || "").trim();
+    if (!isValidReportDate(date)) { jsonResponse(res, 400, { error: "날짜를 선택하세요." }); return true; }
+    let parsed, preview;
+    try {
+      parsed = handwrittenReconcile.parseCsv(body.csv);
+      if (parsed.errors.length) throw new Error(parsed.errors.slice(0, 10).join("\n"));
+      const dayPatients = [...new Set(statements.listDailyIndicatorVisits.all(date).map(visit => visit.patient_id))]
+        .map(getPatientById).filter(Boolean);
+      preview = handwrittenReconcile.buildPreview({ date, rows: parsed.rows, dayPatients, lookupChart: getPatientsByChartNo });
+    } catch (e) { jsonResponse(res, 400, { error: e.message }); return true; }
+    for (const [key, value] of handwrittenPreviews) if (value.expires < Date.now()) handwrittenPreviews.delete(key);
+    if (handwrittenPreviews.size >= 20) handwrittenPreviews.delete(handwrittenPreviews.keys().next().value);
+    const previewId = crypto.randomUUID();
+    handwrittenPreviews.set(previewId, { date, preview, expires: Date.now() + 30 * 60 * 1000 });
+    jsonResponse(res, 200, { previewId, ...preview, appliedBefore: getStateValue(`handwrittenReconcile/${date}`) || null });
+    return true;
+  }
+  if (pathname === "/api/handwritten-reconcile/apply" && req.method === "POST") {
+    const body = await readJson(req) || {};
+    const stored = handwrittenPreviews.get(body.previewId);
+    if (!stored || stored.expires < Date.now()) { jsonResponse(res, 409, { error: "미리보기가 만료됐습니다. 다시 조회하세요." }); return true; }
+    const decisions = Array.isArray(body.decisions) ? body.decisions : [];
+    if (!decisions.length) { jsonResponse(res, 400, { error: "반영할 행을 선택하세요." }); return true; }
+    const { date, preview } = stored;
+    const itemsByKey = new Map(preview.items.map(item => [item.key, item]));
+    const appliedAt = new Date().toISOString();
+    const updates = new Map();
+    try {
+      for (const decision of decisions) {
+        const item = itemsByKey.get(String(decision.key));
+        if (!item || item.blocked) throw new Error(`노트 ${decision.key}번은 반영할 수 없습니다.`);
+        const current = updates.get(item.patientId) || getPatientById(item.patientId);
+        if (!current) throw new Error(`노트 ${item.key}번 환자를 찾지 못했습니다.`);
+        if (!updates.has(item.patientId)
+          && JSON.stringify(handwrittenReconcile.entryStats(current.visitHistory?.[date])) !== JSON.stringify(item.before)) {
+          const error = new Error(`노트 ${item.key}번(${item.name}) 서버 값이 미리보기 이후 바뀌었습니다. 다시 조회하세요.`);
+          error.statusCode = 409; throw error;
+        }
+        updates.set(item.patientId, handwrittenReconcile.applyDecision(current, date, item, decision, appliedAt));
+      }
+    } catch (e) { jsonResponse(res, e.statusCode || 400, { error: e.message }); return true; }
+    const originals = [...updates.keys()].map(getPatientById).filter(Boolean);
+    const backupFile = backupPatients(originals, `handwritten-${date}`);
+    updates.forEach(record => savePatient(record));
+    const previous = getStateValue(`handwrittenReconcile/${date}`) || {};
+    const rows = [...new Set([...(previous.rows || []), ...decisions.map(decision => String(decision.key))])]
+      .sort((a, b) => Number(a) - Number(b));
+    setStateValue(`handwrittenReconcile/${date}`, { appliedAt, count: rows.length, rows });
+    handwrittenPreviews.delete(body.previewId);
+    jsonResponse(res, 200, { ok: true, date, applied: decisions.length, patients: updates.size, backupFile: path.basename(backupFile) });
+    return true;
   }
   if (pathname === "/api/google/daily-metrics-sync" && req.method === "POST") {
     const body = await readJson(req) || {};
