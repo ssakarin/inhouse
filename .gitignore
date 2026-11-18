@@ -12,3 +12,19 @@ output/
 # 청소 일정 (진료보드와 무관한 개인 파일)
 /*.ics
 /청소*.gs
+
+# Unused signage source and reference assets
+/assets/logo-reference.png
+/signage/assets/call-four-tone.wav
+/signage/assets/clinic-logo.png
+/signage/assets/doctors.png
+/signage/assets/parking-map.png
+/signage/assets/event-chuseok-2026.jpg
+/signage/assets/event-chuseok-2026-web.jpg
+/signage/assets/event-memory-2026.jpg
+/signage/assets/holiday-october-2026.png
+/signage/assets/event-naver-review*.png
+/signage/assets/heo-cutout.png
+/signage/assets/heo-profile-reference.jpg
+/signage/assets/kim-upper-cutout.png
+/signage/assets/kim-upper-cutout-v2.png
