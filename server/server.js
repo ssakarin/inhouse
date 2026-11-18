@@ -3,6 +3,7 @@ const dailyMetrics = require("../daily-metrics");
 const recentRevenue = require("../recent-revenue");
 const googleDailyImport = require("../google-daily-import");
 const handwrittenReconcile = require("../handwritten-reconcile");
+const appointmentImport = require("../appointment-import");
 const dailyImportPreviews = new Map();
 const handwrittenPreviews = new Map();
 const signageState = require("./signage-state");
@@ -108,6 +109,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_patient_visits_doctor ON patient_visits (doctor_name);
   CREATE INDEX IF NOT EXISTS idx_patient_visits_chart_no ON patient_visits (chart_no);
 `);
+
+const appointmentStore = require('./appointments').createStore(db, { encrypt, decrypt });
 
 db.exec(`CREATE TABLE IF NOT EXISTS daily_clinic_metrics (date TEXT PRIMARY KEY, data_json TEXT NOT NULL, source_file TEXT NOT NULL, imported_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS daily_clinic_metrics_imports (id INTEGER PRIMARY KEY AUTOINCREMENT, source_file TEXT NOT NULL, imported_at TEXT NOT NULL, previous_json TEXT NOT NULL);`);
@@ -687,6 +690,7 @@ function listUpcomingAppointments(startDate = "", endDate = "") {
   const start = /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : todayKey;
   const end = /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : "9999-12-31";
   const byDate = new Map();
+  const importedByDate = new Map(appointmentStore.list(start, end).map(group => [group.date, group]));
   const realtimePatients = Object.values(getStateValue("patients") || {}).filter(patient => patient && typeof patient === "object");
   const findRealtimeRegistration = (patient, date) => realtimePatients.find(realtime => {
     const timestamp = Number(realtime.timestamp || 0);
@@ -699,7 +703,12 @@ function listUpcomingAppointments(startDate = "", endDate = "") {
     return Boolean(chartNo && chartNo === realtimeChartNo
       && normalizeSearchText(patient.name || "") === normalizeSearchText(realtime.name || ""));
   });
-  for (const patient of listPatients()) {
+  const longTermPatients = listPatients();
+  const byIdentity = new Map();
+  for (const patient of longTermPatients) {
+    const identity = JSON.stringify([normalizeChartNo(patient.chartNo), normalizePatientName(patient.name)]);
+    if (!byIdentity.has(identity)) byIdentity.set(identity, []);
+    byIdentity.get(identity).push(patient);
     const latestHistoryByDate = new Map();
     for (const entry of (Array.isArray(patient.appointmentHistory) ? patient.appointmentHistory : [])) {
       const date = String(entry?.confirmedDate || "").trim();
@@ -716,7 +725,8 @@ function listUpcomingAppointments(startDate = "", endDate = "") {
       ...(Array.isArray(patient.appointmentDates) ? patient.appointmentDates : []),
       patient.appointmentDate || "",
       ...historyDates
-    ].map(value => String(value || "").trim()).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= start && value <= end))];
+    ].map(value => String(value || "").trim()).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= start && value <= end
+      && !importedByDate.has(value)))];
     const visitDates = new Set(visitDatesOf(patient));
     for (const date of dates) {
       if (!byDate.has(date)) byDate.set(date, []);
@@ -740,11 +750,28 @@ function listUpcomingAppointments(startDate = "", endDate = "") {
       });
     }
   }
+  for (const [date, snapshot] of importedByDate) {
+    const patients = appointmentImport.patientsOf(snapshot.entries).map(booking => {
+      const matches = byIdentity.get(JSON.stringify([booking.chartNo, normalizePatientName(booking.name)])) || [];
+      const patient = matches.length === 1 ? matches[0] : null;
+      const registration = findRealtimeRegistration({ ...booking, patientId: patient?.patientId || '' }, date);
+      const visited = Boolean(patient && visitDatesOf(patient).includes(date));
+      return { ...booking, patientId: patient?.patientId || '', doctorId: '',
+        matchStatus: patient ? 'matched' : matches.length > 1 ? 'ambiguous' : 'unmatched',
+        visited, visitedAt: Number(patient?.visitHistory?.[date]?.timestamp || 0) || null,
+        registered: Boolean(registration), registeredAt: Number(registration?.timestamp || 0) || null,
+        attended: visited || Boolean(registration) };
+    });
+    byDate.set(date, patients);
+  }
   return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, patients]) => ({
     date,
+    source: importedByDate.has(date) ? 'donguibogam' : 'legacy',
+    importedAt: importedByDate.get(date)?.importedAt || null,
+    sourceFile: importedByDate.get(date)?.sourceFile || '',
     count: patients.length,
     visitedCount: patients.filter(patient => patient.attended).length,
-    patients: patients.sort(patientSort)
+    patients: importedByDate.has(date) ? patients : patients.sort(patientSort)
   }));
 }
 
@@ -4905,6 +4932,23 @@ async function handleApi(req, res, pathname) {
       requestUrl.searchParams.get("start") || "",
       requestUrl.searchParams.get("end") || ""
     ));
+    return true;
+  }
+
+  if (pathname === '/api/appointments/import/preview' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    try { jsonResponse(res, 200, appointmentStore.preview(body)); }
+    catch (error) { jsonResponse(res, error.statusCode || 400, { error: error.message }); }
+    return true;
+  }
+
+  if (pathname === '/api/appointments/import/apply' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const result = appointmentStore.commit(body.token);
+    const revision = { importedAt: result.importedAt, revision: crypto.randomUUID() };
+    setStateValue('appointmentsRevision', revision);
+    sseBroadcastState('appointmentsRevision', revision);
+    jsonResponse(res, 200, result);
     return true;
   }
 

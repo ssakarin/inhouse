@@ -136,6 +136,7 @@
     font-size: 13px;
   }
   body.app-role-doctor #deskChartImportBtn,
+  body.app-role-doctor #deskAppointmentImportBtn,
   body.app-role-doctor #inputFormToggle,
   body.app-role-doctor #nurseQuickBtnDesk,
   body.app-role-doctor .input-monitor-doctor-alert-card { display: none; }
@@ -1126,6 +1127,26 @@
   }
   .upcoming-item.assignment:hover {
     border-color: var(--accent);
+  }
+  .upcoming-item.appointment-request-card {
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: var(--text);
+  }
+  .upcoming-item.appointment-request-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .appointment-request-card > span:last-child { min-width: 0; }
+  .appointment-request-card .upcoming-main,
+  .appointment-request-card .upcoming-sub { display: block; }
+  .appointment-request-card .upcoming-main { white-space: normal; overflow-wrap: anywhere; }
+  .upcoming-item.appointment-request-card:disabled {
+    cursor: default;
+    border-color: var(--border);
+    background: var(--surface2);
+    opacity: 0.5;
   }
   .upcoming-item.assignment.no-dismiss {
     cursor: default;
@@ -2749,6 +2770,15 @@
   .appointment-patient-item { display:block; width:100%; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:rgba(16,27,45,.68); color:var(--text); padding:10px 12px; cursor:pointer; text-align:left; }
   .appointment-patient-item:hover { border-color:rgba(56,189,248,.46); }
   .appointment-patient-item .upcoming-sub { display:block; }
+  .appointment-patient-item.appointment-readonly { cursor: default; }
+  .appointment-import-note { color: var(--text3); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+  .appointment-import-controls { display: grid; gap: 10px; margin: 14px 0; }
+  .appointment-import-clear { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .appointment-import-clear input { min-width: 0; padding: 8px; color: var(--text); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+  .appointment-import-preview { display: grid; gap: 8px; margin: 12px 0; max-height: 38vh; overflow: auto; }
+  .appointment-import-day { padding: 10px; border: 1px solid var(--border); border-radius: 9px; line-height: 1.7; }
+  .appointment-import-day strong { display: block; }
+  .appointment-import-status { white-space: pre-wrap; color: var(--text2); font-size: 13px; line-height: 1.7; }
   .appointment-patient-main { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .appointment-visit-status { flex:0 0 auto; color:#86efac; font-size:12px; font-weight:900; }
   .appointment-visit-status.completed { color:#fcd34d; }
@@ -6389,21 +6419,8 @@
     <div class="discharged-list" id="dischargedPatientsList"></div>
     <div class="credit-popup-actions">
       <button type="button" class="desk-excel-add-btn" id="deskChartImportBtn" onclick="document.getElementById('deskChartImportInput').click()">엑셀 불러오기</button>
+      <button type="button" class="desk-excel-add-btn" id="deskAppointmentImportBtn" onclick="openAppointmentImportPopup()">예약 불러오기</button>
       <button class="popup-close" type="button" onclick="closeDischargedPatientsPopup()">닫기</button>
-    </div>
-  </div>
-</div>
-
-<div class="notif-overlay" id="appointmentProcessOverlay" onclick="closeAppointmentProcessPopup()">
-  <div class="notif-popup appointment-process-popup" onclick="event.stopPropagation()">
-    <div class="popup-name">예약 상담 처리</div>
-    <div class="appointment-process-info" id="appointmentProcessInfo"></div>
-    <label class="popup-label" for="appointmentProcessDate">예약 날짜</label>
-    <input class="appointment-process-date" id="appointmentProcessDate" type="date">
-    <div class="appointment-process-actions">
-      <button class="appointment-confirm-btn" type="button" onclick="completeAppointmentRequest('confirm')">예약 후 마감</button>
-      <button class="appointment-decline-btn" type="button" onclick="completeAppointmentRequest('decline')">예약하지 않고 마감</button>
-      <button class="popup-close" type="button" onclick="closeAppointmentProcessPopup()">닫기</button>
     </div>
   </div>
 </div>
@@ -6413,25 +6430,31 @@
     <div class="popup-name" id="appointmentListHeading">예약</div>
     <div class="appointment-calendar-toolbar"><button type="button" onclick="moveAppointmentCalendar(-1)">‹ 이전</button><div class="appointment-calendar-title" id="appointmentCalendarTitle"></div><button type="button" onclick="moveAppointmentCalendar(1)">다음 ›</button></div>
     <div class="appointment-calendar" id="appointmentCalendar"></div>
-    <div class="appointment-list-subhead"><strong id="appointmentSelectedDateLabel"></strong><button class="appointment-add-btn" type="button" onclick="openAppointmentEditPopup()">+ 신규 예약 추가</button></div>
+    <div class="appointment-list-subhead"><strong id="appointmentSelectedDateLabel"></strong></div>
+    <div class="appointment-import-note" id="appointmentImportMetadata"></div>
     <div class="discharged-list" id="appointmentPatientList"></div>
     <div class="credit-popup-actions"><button class="popup-close" type="button" onclick="closeAppointmentListPopup()">닫기</button></div>
   </div>
 </div>
 
-<div class="notif-overlay" id="appointmentEditOverlay" onclick="closeAppointmentEditPopup()">
-  <div class="notif-popup appointment-process-popup" onclick="event.stopPropagation()">
-    <div class="popup-name" id="appointmentEditHeading" hidden></div>
-    <div class="appointment-form-grid">
-      <label>차트번호<input id="appointmentEditChartNo" type="text" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault(); lookupAppointmentEditPatient();}" oninput="clearAppointmentEditPatientLookup()"></label>
-      <label>이름<input id="appointmentEditName" type="text" autocomplete="off"></label>
-      <label>예약 날짜<input id="appointmentEditDate" type="date"></label>
+<div class="notif-overlay" id="appointmentImportOverlay" onclick="closeAppointmentImportPopup()">
+  <div class="notif-popup discharged-popup" onclick="event.stopPropagation()">
+    <div class="popup-name">예약 불러오기</div>
+    <div class="appointment-import-note">동의보감에서 해당 날짜의 전체 예약명단을 내려받아 선택해주세요. 파일에 포함된 날짜만 최신 명단으로 교체합니다.</div>
+    <div class="appointment-import-controls">
+      <input id="appointmentImportFile" type="file" accept=".xls,.xlsx" hidden onchange="readAppointmentImportFile(this.files?.[0]); this.value='';">
+      <button type="button" class="desk-excel-add-btn" id="appointmentImportFileBtn" onclick="document.getElementById('appointmentImportFile').click()">예약 파일 선택</button>
+      <div class="appointment-import-clear">
+        <label for="appointmentClearDate">예약이 0명인 날짜</label>
+        <input id="appointmentClearDate" type="date">
+        <button type="button" class="appointment-add-btn" id="appointmentClearBtn" onclick="prepareAppointmentClear()">명단 비우기</button>
+      </div>
     </div>
-    <div class="appointment-process-actions">
-      <button class="appointment-confirm-btn" id="appointmentSaveBtn" type="button" onclick="saveAppointmentEdit()">예약 추가</button>
-      <button class="appointment-add-extra-btn" id="appointmentAddAnotherBtn" type="button" onclick="addAppointmentFromEdit()" hidden>예약 추가</button>
-      <button class="appointment-decline-btn" id="appointmentDeleteBtn" type="button" onclick="deleteAppointmentEdit()">예약 삭제</button>
-      <button class="popup-close" type="button" onclick="closeAppointmentEditPopup()">닫기</button>
+    <div class="appointment-import-status" id="appointmentImportStatus" role="status" aria-live="polite"></div>
+    <div class="appointment-import-preview" id="appointmentImportPreview"></div>
+    <div class="credit-popup-actions">
+      <button type="button" class="desk-excel-add-btn" id="appointmentImportApplyBtn" onclick="applyAppointmentImport()" hidden>적용</button>
+      <button type="button" class="popup-close" id="appointmentImportCloseBtn" onclick="closeAppointmentImportPopup()">닫기</button>
     </div>
   </div>
 </div>
@@ -6446,6 +6469,7 @@
   </div>
 </div>
 
+<script src="./appointment-import.js"></script>
 <script type="module">
   const PATIENTS_PATH  = 'patients';
   const BEDS_PATH      = 'beds';
@@ -7724,7 +7748,11 @@
   function filterDoctorPageAppointmentGroups(groups) {
     if (!getDoctorPageFilter()) return groups;
     return groups.map(group => {
-      const patients = (group.patients || []).filter(matchesDoctorPageRecord);
+      const patients = (group.patients || []).flatMap(patient => {
+        if (!Array.isArray(patient.appointmentSlots)) return matchesDoctorPageRecord(patient) ? [patient] : [];
+        const slots = patient.appointmentSlots.filter(matchesDoctorPageRecord);
+        return slots.length ? [{ ...patient, appointmentSlots: slots, time: slots[0].time, doctorName: slots[0].doctorName }] : [];
+      }).sort((a, b) => String(a.time || '99:99').localeCompare(String(b.time || '99:99')));
       return { ...group, totalCount: group.count, totalVisitedCount: group.visitedCount,
         patients, count: patients.length, visitedCount: patients.filter(patient => patient.attended).length };
     });
@@ -7790,8 +7818,7 @@
     window.closeDischargedPatientsPopup?.();
     document.getElementById('doctorPatientViewOverlay')?.classList.remove('show');
     window.closeAppointmentListPopup?.();
-    window.closeAppointmentProcessPopup?.();
-    window.closeAppointmentEditPopup?.();
+    window.closeAppointmentImportPopup?.();
     window.closeDeskWeeklyPopover?.();
     selectedMoveBedNo = null;
     draggedBedNo = null;
@@ -13241,13 +13268,11 @@
 
   function isTodayAppointmentPatient(data = {}, patientKey = '') {
     const chartNo = normalizeChartNo(data.chartNo || '');
-    const confirmedInLongTermDb = chartNo && upcomingAppointmentGroups.some(group =>
-      group.date === getTodayKey() && group.patients.some(patient => normalizeChartNo(patient.chartNo || '') === chartNo)
-    );
-    if (!normalizeAppointmentDates(data).includes(getTodayKey()) && !confirmedInLongTermDb) return false;
-    const isPendingRequest = patientKey && appointmentDeskAlertItems.has(String(patientKey));
-    if (isPendingRequest && !data.appointmentConfirmedAt && !confirmedInLongTermDb) return false;
-    return true;
+    const name = String(data.name || '').normalize('NFC').trim().replace(/\s+/g, ' ');
+    return Boolean(chartNo && name && upcomingAppointmentGroups.some(group =>
+      group.date === getTodayKey() && group.patients.some(patient =>
+        normalizeChartNo(patient.chartNo || '') === chartNo && String(patient.name || '').normalize('NFC').trim().replace(/\s+/g, ' ') === name)
+    ));
   }
 
   function renderTodayAppointmentBadge(data = {}, patientKey = '') {
@@ -15226,6 +15251,14 @@
     return alert[field] !== true;
   }
 
+  function getAppointmentRequestVersion(request) {
+    return JSON.stringify([
+      normalizeAppointmentDates(request.dates || []),
+      Boolean(request.undecided),
+      Number(request.timestamp || 0)
+    ]);
+  }
+
   function getVisibleAppointmentAlertItems(mode = window.currentMode) {
     if (mode !== 'input') return [];
     const queuedItems = [...appointmentDeskAlertItems.entries()]
@@ -15239,6 +15272,7 @@
         chartNo: item.chartNo || '',
         dates: normalizeAppointmentDates(item.dates || []),
         undecided: Boolean(item.undecided),
+        acknowledged: item.acknowledgedVersion === getAppointmentRequestVersion(item),
         timestamp: Number(item.timestamp || 0)
       }));
     const queuedPatientKeys = new Set(queuedItems.map(item => String(item.patientKey || item.key || '')));
@@ -15256,17 +15290,46 @@
           chartNo: patient?.chartNo || '',
           dates,
           undecided,
+          acknowledged: false,
           timestamp: Number(patient?.timestamp || 0)
         };
       })
       .filter(Boolean);
     return [...queuedItems, ...legacyItems]
       .sort((a, b) => {
+        const acknowledgedCompare = Number(a.acknowledged) - Number(b.acknowledged);
+        if (acknowledgedCompare) return acknowledgedCompare;
         const dateCompare = String(a.dates[0] || '').localeCompare(String(b.dates[0] || ''));
         if (dateCompare) return dateCompare;
         return Number(a.timestamp || 0) - Number(b.timestamp || 0);
       });
   }
+
+  window.acknowledgeAppointmentRequest = async (patientKey, version) => {
+    if (isDoctorReadOnlyPage()) return;
+    const request = getVisibleAppointmentAlertItems('input')
+      .find(item => item.patientKey === patientKey);
+    if (!request || request.acknowledged || getAppointmentRequestVersion(request) !== version) return;
+    const acknowledgement = { acknowledgedVersion: version, acknowledgedAt: Date.now() };
+    // Merge only the acknowledgement into queued requests. If the bed changes
+    // dates while this write is in flight, the old version cannot mute them.
+    const patch = appointmentDeskAlertItems.has(patientKey) ? acknowledgement : {
+      patientKey, name: request.name, chartNo: request.chartNo,
+      dates: request.dates, undecided: request.undecided,
+      timestamp: request.timestamp, ...acknowledgement
+    };
+    try {
+      await saveAppointmentDeskAlert(patientKey, patch);
+      const current = appointmentDeskAlertItems.get(patientKey);
+      if (current || Object.prototype.hasOwnProperty.call(patch, 'dates')) {
+        appointmentDeskAlertItems.set(patientKey, { ...(current || patch), ...acknowledgement });
+      }
+      renderUpcomingAlerts();
+    } catch (error) {
+      console.error('예약 요청 확인 저장 실패', error);
+      showToast('예약 요청 확인을 저장하지 못했습니다. 다시 눌러주세요');
+    }
+  };
 
   function getVisibleCallAlertItems(mode = window.currentMode) {
     return [...callAlertItems.entries()]
@@ -15459,14 +15522,15 @@
 
     const appointmentAlertItems = getVisibleAppointmentAlertItems('input').map(item => ({
       timestamp: Number(item.timestamp || 0),
+      alertPriority: item.acknowledged ? 2 : 0,
       html: `
-      <div class="upcoming-item assignment" onclick="openAppointmentProcessPopup('${escapeHtml(item.patientKey)}')">
-        <div class="upcoming-time">예약</div>
-        <div>
-          <div class="upcoming-main">${escapeHtml(item.name)} ${escapeHtml([item.dates.map(formatAppointmentDate).filter(Boolean).join(', '), item.undecided ? '미정' : ''].filter(Boolean).join(' '))}</div>
-          ${item.chartNo ? `<div class="upcoming-sub">${escapeHtml(item.chartNo)}</div>` : ''}
-        </div>
-      </div>`
+      <button type="button" class="upcoming-item assignment appointment-request-card" ${item.acknowledged ? 'disabled' : `onclick="acknowledgeAppointmentRequest(${escapeHtmlJsString(item.patientKey)}, ${escapeHtmlJsString(getAppointmentRequestVersion(item))})"`}>
+        <span class="upcoming-time">예약</span>
+        <span>
+          <span class="upcoming-main">${escapeHtml(item.name)} ${escapeHtml([item.dates.map(formatAppointmentDate).filter(Boolean).join(', '), item.undecided ? '미정' : ''].filter(Boolean).join(' '))}</span>
+          ${item.chartNo ? `<span class="upcoming-sub">${escapeHtml(item.chartNo)}</span>` : ''}
+        </span>
+      </button>`
     }));
 
     const renderCallItems = (mode) => getVisibleCallAlertItems(mode).map(item => ({
@@ -15643,13 +15707,10 @@
     }
   };
 
-  let activeAppointmentRequestKey = '';
   let upcomingAppointmentGroups = [];
   let appointmentCalendarGroups = [];
   let appointmentCalendarMonth = '';
   let appointmentSelectedDate = '';
-  let appointmentEditing = null;
-  let appointmentEditResolvedPatient = null;
   let appointmentAttendanceRefreshTimer = null;
 
   function scheduleAppointmentAttendanceRefresh() {
@@ -15683,127 +15744,111 @@
   }
   window.refreshDeskAppointmentButtons = refreshDeskAppointmentButtons;
 
-  window.openAppointmentProcessPopup = (patientKey) => {
-    if (isDoctorReadOnlyPage()) return;
-    const patient = patientsByKey.get(patientKey) || {};
-    const request = appointmentDeskAlertItems.get(patientKey) || (normalizeAppointmentDates(patient).length || patient.appointmentUndecided ? {
-      patientKey,
-      name: patient.name || '환자',
-      chartNo: patient.chartNo || '',
-      dates: normalizeAppointmentDates(patient),
-      undecided: Boolean(patient.appointmentUndecided)
-    } : null);
-    if (!request) {
-      showToast('예약 요청 정보를 찾을 수 없습니다');
-      return;
-    }
-    activeAppointmentRequestKey = patientKey;
-    const dates = normalizeAppointmentDates(request.dates || []);
-    document.getElementById('appointmentProcessInfo').innerHTML = `
-      <strong>${escapeHtml(request.name || '환자')}</strong>${request.chartNo ? ` · ${escapeHtml(request.chartNo)}` : ''}<br>
-      요청 날짜: ${escapeHtml([dates.map(formatAppointmentDate).join(', '), request.undecided ? '미정' : ''].filter(Boolean).join(' ') || '미정')}`;
-    const input = document.getElementById('appointmentProcessDate');
-    input.min = getTodayKey();
-    input.value = dates[0] || '';
-    document.getElementById('appointmentProcessOverlay')?.classList.add('show');
-  };
+  let appointmentImportToken = '';
+  let appointmentImportRunning = false;
 
-  window.closeAppointmentProcessPopup = () => {
-    document.getElementById('appointmentProcessOverlay')?.classList.remove('show');
-    activeAppointmentRequestKey = '';
-  };
-
-  async function saveAppointmentDecisionToLongTerm(source, appointmentDates, result, requestedDates) {
-    const chartNo = normalizeChartNo(source.chartNo || '');
-    if (!chartNo) throw new Error('차트번호가 없어 장기 DB에 저장할 수 없습니다');
-    const existing = source.patientId
-      ? (await lookupChartPatientById(source.patientId) || {})
-      : ((await lookupChartPatients(chartNo)).find(item => String(item.name || '').trim() === String(source.name || '').trim()) || {});
-    const history = Array.isArray(existing.appointmentHistory) ? existing.appointmentHistory : [];
-    const decidedAt = Date.now();
-    const recordedHistoryDates = new Set(history
-      .map(entry => String(entry?.confirmedDate || '').trim())
-      .filter(Boolean));
-    const nextConfirmedDate = appointmentDates[0] || '';
-    const legacyHistory = normalizeAppointmentDates(existing)
-      .filter(date => date !== nextConfirmedDate && !recordedHistoryDates.has(date))
-      .map(date => ({
-        requestedDates: [date],
-        confirmedDate: date,
-        result: 'confirmed',
-        processedAt: Number(existing.appointmentConfirmedAt || 0) || decidedAt
-      }));
-    const payload = {
-      ...existing,
-      patientId: source.patientId || existing.patientId || '',
-      chartNo,
-      name: source.name || existing.name || '',
-      appointmentDates,
-      appointmentDate: appointmentDates[0] || null,
-      appointmentConfirmedAt: appointmentDates.length ? decidedAt : null,
-      appointmentHistory: [...history, ...legacyHistory, {
-        requestedDates,
-        confirmedDate: appointmentDates[0] || '',
-        result,
-        processedAt: decidedAt
-      }]
-    };
-    if (!await saveChartPatient(payload)) throw new Error('장기 DB 저장 실패');
+  function setAppointmentImportBusy(busy) {
+    appointmentImportRunning = busy;
+    ['appointmentImportFile', 'appointmentImportFileBtn', 'appointmentClearDate', 'appointmentClearBtn', 'appointmentImportApplyBtn', 'appointmentImportCloseBtn']
+      .forEach(id => { document.getElementById(id).disabled = busy; });
+    document.getElementById('appointmentImportOverlay').setAttribute('aria-busy', String(busy));
   }
 
-  window.completeAppointmentRequest = async (action) => {
-    const patientKey = activeAppointmentRequestKey;
-    const request = appointmentDeskAlertItems.get(patientKey);
-    if (!patientKey || !request) return;
-    const source = { ...(patientsByKey.get(patientKey) || {}), ...request };
-    const requestedDates = normalizeAppointmentDates(request.dates || []);
-    const selectedDate = document.getElementById('appointmentProcessDate')?.value || '';
-    if (action !== 'decline' && !/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
-      showToast('예약 날짜를 선택해주세요');
-      return;
-    }
-    const appointmentDates = action === 'decline' ? [] : [selectedDate];
-    const result = action === 'decline' ? 'declined' : requestedDates.includes(selectedDate) ? 'confirmed' : 'changed';
-    try {
-      await saveAppointmentDecisionToLongTerm(source, appointmentDates, result, requestedDates);
-      const resolvedAppointmentAlerts = Object.fromEntries(appointmentDates.map(date => [date, {
-        date,
-        deskDismissed: true,
-        clinicDismissed: true,
-        receiveDismissed: true,
-        notifyDismissed: true
-      }]));
-      const patch = {
-        appointmentDates,
-        appointmentDate: appointmentDates[0] || '',
-        appointmentAlerts: resolvedAppointmentAlerts,
-        appointmentAlert: appointmentDates.length ? resolvedAppointmentAlerts[appointmentDates[0]] : null,
-        appointmentUndecided: false,
-        appointmentUndecidedAlert: null,
-        appointmentConfirmedAt: appointmentDates.length ? Date.now() : null
-      };
-      await updatePatient(patientKey, patch);
-      patientsByKey.set(patientKey, { ...(patientsByKey.get(patientKey) || {}), ...patch });
-      appointmentDeskAlertItems.delete(patientKey);
-      renderUpcomingAlerts();
-      await removeAppointmentDeskAlert(patientKey);
-      closeAppointmentProcessPopup();
-      const bedEntry = getAllBedEntries().find(entry => String(entry.bed?.patientKey || '') === String(patientKey));
-      if (bedEntry) {
-        Object.assign(bedEntry.bed, patch);
-        try {
-          await updateBedRecord(bedEntry.bedNo, patch);
-        } catch (bedError) {
-          console.error('예약 처리 후 베드 표시 동기화 실패', bedError);
-        }
-      }
-      await refreshDeskAppointmentButtons();
-      showToast(action !== 'decline' ? `${source.name || '환자'}님 ${formatAppointmentDate(selectedDate)} 예약 완료` : `${source.name || '환자'}님 예약 없이 진료 마감`);
-    } catch (error) {
-      console.error('예약 상담 처리 실패', error);
-      showToast(error.message || '예약 처리 실패');
-    }
+  function resetAppointmentImportPreview() {
+    appointmentImportToken = '';
+    document.getElementById('appointmentImportPreview').innerHTML = '';
+    document.getElementById('appointmentImportApplyBtn').hidden = true;
+  }
+
+  window.openAppointmentImportPopup = () => {
+    if (isDoctorReadOnlyPage()) return;
+    resetAppointmentImportPreview();
+    document.getElementById('appointmentImportStatus').textContent = '';
+    document.getElementById('appointmentClearDate').value = getTodayKey();
+    document.getElementById('appointmentImportOverlay').classList.add('show');
   };
+
+  window.closeAppointmentImportPopup = () => {
+    if (appointmentImportRunning) return;
+    resetAppointmentImportPreview();
+    document.getElementById('appointmentImportOverlay').classList.remove('show');
+  };
+
+  async function appointmentImportRequest(action, body) {
+    const response = await fetch(`/api/appointments/import/${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      const error = new Error(result.error || '예약명단을 처리하지 못했습니다');
+      error.status = response.status;
+      throw error;
+    }
+    return result;
+  }
+
+  async function previewAppointmentImport(body) {
+    const result = await appointmentImportRequest('preview', body);
+    appointmentImportToken = result.token;
+    document.getElementById('appointmentImportPreview').innerHTML = result.dates.map(day => `
+      <div class="appointment-import-day"><strong>${escapeHtml(day.date)} · ${day.count}명</strong>
+      기존 ${day.previousCount}명 → ${day.count}명<br>
+      추가 ${day.added}명 · 제외 ${day.removed}명 · 시각·의사 변경 ${day.changed}명</div>`).join('');
+    document.getElementById('appointmentImportStatus').textContent = `${result.sourceFile}\n날짜와 인원을 확인한 뒤 적용해주세요. 선택한 날짜의 기존 명단을 교체합니다.`;
+    document.getElementById('appointmentImportApplyBtn').hidden = false;
+  }
+
+  window.readAppointmentImportFile = async file => {
+    if (!file || appointmentImportRunning || isDoctorReadOnlyPage()) return;
+    resetAppointmentImportPreview();
+    setAppointmentImportBusy(true);
+    const status = document.getElementById('appointmentImportStatus');
+    status.textContent = '예약 파일을 읽고 있습니다…';
+    try {
+      if (!/\.xlsx?$/i.test(file.name)) throw Error('동의보감에서 내려받은 .xls 또는 .xlsx 파일을 선택해주세요');
+      if (file.size > 10 * 1024 * 1024) throw Error('10MB 이하의 예약 파일을 선택해주세요');
+      const XLSX = await loadXlsx();
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+      const entries = AppointmentImport.parseWorkbook(XLSX, workbook);
+      await previewAppointmentImport({ entries, sourceFile: file.name });
+    } catch (error) { status.textContent = error.message || '예약 파일을 읽지 못했습니다'; }
+    finally { setAppointmentImportBusy(false); }
+  };
+
+  window.prepareAppointmentClear = async () => {
+    if (appointmentImportRunning || isDoctorReadOnlyPage()) return;
+    resetAppointmentImportPreview();
+    const date = document.getElementById('appointmentClearDate').value;
+    const status = document.getElementById('appointmentImportStatus');
+    if (!AppointmentImport.validDate(date)) { status.textContent = '명단을 비울 날짜를 선택해주세요'; return; }
+    setAppointmentImportBusy(true);
+    status.textContent = '선택한 날짜의 명단을 확인하고 있습니다…';
+    try { await previewAppointmentImport({ entries: [], clearDates: [date], sourceFile: `예약 없음 · ${date}` }); }
+    catch (error) { status.textContent = error.message; }
+    finally { setAppointmentImportBusy(false); }
+  };
+
+  window.applyAppointmentImport = async () => {
+    if (!appointmentImportToken || appointmentImportRunning || isDoctorReadOnlyPage()) return;
+    setAppointmentImportBusy(true);
+    const status = document.getElementById('appointmentImportStatus');
+    status.textContent = '예약명단을 저장하고 있습니다…';
+    try {
+      const result = await appointmentImportRequest('apply', { token: appointmentImportToken });
+      resetAppointmentImportPreview();
+      await refreshDeskAppointmentButtons();
+      setAppointmentImportBusy(false);
+      closeAppointmentImportPopup();
+      closeDischargedPatientsPopup();
+      await openAppointmentListPopup(result.dates[0]);
+      showToast('예약명단을 반영했습니다');
+    } catch (error) {
+      if (error.status === 409) resetAppointmentImportPreview();
+      status.textContent = error.message || '예약명단을 저장하지 못했습니다';
+    } finally { setAppointmentImportBusy(false); }
+  };
+
+  migrateNode('appointmentsRevision', () => scheduleAppointmentAttendanceRefresh());
 
   function appointmentMonthRange(monthKey) {
     const [year, month] = monthKey.split('-').map(Number);
@@ -15845,11 +15890,16 @@
   function renderAppointmentPatientList() {
     const group = appointmentCalendarGroups.find(item => item.date === appointmentSelectedDate) || { count: 0, patients: [] };
     document.getElementById('appointmentSelectedDateLabel').textContent = `${formatAppointmentDate(appointmentSelectedDate)} · ${group.count}명`;
-    document.getElementById('appointmentPatientList').innerHTML = group.patients.length ? group.patients.map((patient, index) => `
-      <button type="button" class="appointment-patient-item" onclick="openAppointmentEditPopup(${index})">
+    const metadata = document.getElementById('appointmentImportMetadata');
+    metadata.textContent = group.importedAt
+      ? `마지막 불러오기 ${new Date(group.importedAt).toLocaleString('ko-KR')} · ${group.sourceFile || ''}`
+      : group.source === 'legacy' ? '이전 예약 기록' : '이 날짜에 불러온 예약명단이 없습니다';
+    document.getElementById('appointmentPatientList').innerHTML = group.patients.length ? group.patients.map(patient => `
+      <div class="appointment-patient-item appointment-readonly">
         <span class="appointment-patient-main"><strong>${escapeHtml(patient.name || '환자')}</strong>${renderAppointmentVisitStatus(patient)}</span>
         ${patient.chartNo ? `<span class="upcoming-sub">${escapeHtml(patient.chartNo)}</span>` : ''}
-      </button>`
+        ${(patient.appointmentSlots || []).map(slot => `<span class="upcoming-sub">${escapeHtml([slot.time || '시각 미지정', slot.doctorName].filter(Boolean).join(' · '))}</span>`).join('')}
+      </div>`
     ).join('') : '<div class="empty-state"><div class="empty-icon">·</div><div class="empty-text">이 날짜에는 예약이 없습니다</div></div>';
   }
 
@@ -15887,117 +15937,6 @@
     appointmentCalendarMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
     appointmentSelectedDate = `${appointmentCalendarMonth}-01`;
     loadAppointmentCalendarMonth();
-  };
-
-  window.openAppointmentEditPopup = (patientIndex = null) => {
-    if (isDoctorReadOnlyPage()) return;
-    const group = appointmentCalendarGroups.find(item => item.date === appointmentSelectedDate) || { patients: [] };
-    appointmentEditing = patientIndex === null ? null : (group.patients[Number(patientIndex)] || null);
-    appointmentEditResolvedPatient = null;
-    document.getElementById('appointmentEditChartNo').value = appointmentEditing?.chartNo || '';
-    document.getElementById('appointmentEditName').value = appointmentEditing?.name || '';
-    document.getElementById('appointmentEditDate').value = appointmentSelectedDate;
-    document.getElementById('appointmentEditChartNo').readOnly = Boolean(appointmentEditing);
-    document.getElementById('appointmentEditName').readOnly = Boolean(appointmentEditing);
-    document.getElementById('appointmentSaveBtn').textContent = appointmentEditing ? '예약 변경' : '예약 추가';
-    document.getElementById('appointmentAddAnotherBtn').hidden = !appointmentEditing;
-    document.getElementById('appointmentDeleteBtn').hidden = !appointmentEditing;
-    document.getElementById('appointmentEditOverlay')?.classList.add('show');
-  };
-
-  window.closeAppointmentEditPopup = () => {
-    document.getElementById('appointmentEditOverlay')?.classList.remove('show');
-    appointmentEditing = null;
-    appointmentEditResolvedPatient = null;
-  };
-
-  window.clearAppointmentEditPatientLookup = () => {
-    if (!appointmentEditing) appointmentEditResolvedPatient = null;
-  };
-
-  window.lookupAppointmentEditPatient = async () => {
-    if (appointmentEditing) return;
-    const input = document.getElementById('appointmentEditChartNo');
-    const chartNo = normalizeChartNo(input?.value || '');
-    if (!chartNo) {
-      showToast('차트번호를 입력해주세요');
-      return;
-    }
-    try {
-      const matches = await lookupChartPatientsFlexible(chartNo);
-      if (!matches.length) {
-        appointmentEditResolvedPatient = null;
-        document.getElementById('appointmentEditName').value = '';
-        showToast('해당 차트번호의 환자를 찾을 수 없습니다');
-        return;
-      }
-      const selected = matches.length === 1 ? matches[0] : await chooseChartPatient(matches, chartNo, { allowNew: false });
-      if (!selected) return;
-      appointmentEditResolvedPatient = selected;
-      input.value = selected.chartNo || chartNo;
-      document.getElementById('appointmentEditName').value = selected.name || '';
-      document.getElementById('appointmentEditDate')?.focus();
-      showToast(`${selected.name || '환자'}님을 불러왔습니다`);
-    } catch (error) {
-      console.error('예약 환자 조회 실패', error);
-      showToast('환자 조회에 실패했습니다');
-    }
-  };
-
-  async function resolveAppointmentPatient() {
-    const chartNo = normalizeChartNo(document.getElementById('appointmentEditChartNo').value);
-    const name = String(document.getElementById('appointmentEditName').value || '').trim();
-    if (!chartNo || !name) throw new Error('차트번호와 이름을 입력해주세요');
-    if (appointmentEditing?.patientId) return await lookupChartPatientById(appointmentEditing.patientId);
-    if (appointmentEditResolvedPatient
-      && normalizeChartNo(appointmentEditResolvedPatient.chartNo) === chartNo
-      && String(appointmentEditResolvedPatient.name || '').trim() === name) return appointmentEditResolvedPatient;
-    const matches = await lookupChartPatientsFlexible(chartNo);
-    return matches.find(patient => String(patient.name || '').trim() === name) || (matches.length === 1 ? matches[0] : { chartNo, name });
-  }
-
-  async function persistAppointmentChange(removeOnly = false, addOnly = false) {
-    const record = await resolveAppointmentPatient();
-    if (!record) throw new Error('환자 정보를 찾을 수 없습니다');
-    const oldDate = appointmentEditing && !addOnly ? appointmentSelectedDate : '';
-    const newDate = String(document.getElementById('appointmentEditDate').value || '');
-    if (!removeOnly && !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) throw new Error('예약 날짜를 선택해주세요');
-    const dates = new Set(normalizeAppointmentDates(record));
-    if (!removeOnly && (addOnly || !appointmentEditing) && dates.has(newDate)) {
-      throw new Error('이미 등록된 예약 날짜입니다');
-    }
-    if (oldDate) dates.delete(oldDate);
-    if (!removeOnly) dates.add(newDate);
-    const history = (Array.isArray(record.appointmentHistory) ? record.appointmentHistory : []).map(entry =>
-      oldDate && String(entry?.confirmedDate || '') === oldDate && !['deleted','cancelled'].includes(String(entry?.result || '').toLowerCase())
-        ? { ...entry, result: 'deleted', cancelledAt: Date.now() }
-        : entry
-    );
-    if (!removeOnly) history.push({ requestedDates: oldDate ? [oldDate] : [newDate], confirmedDate: newDate, result: oldDate && oldDate !== newDate ? 'changed' : 'confirmed', processedAt: Date.now() });
-    const sortedDates = [...dates].sort();
-    const saved = await saveChartPatient({ ...record, appointmentDates: sortedDates, appointmentDate: sortedDates[0] || '', appointmentConfirmedAt: sortedDates.length ? Date.now() : null, appointmentHistory: history });
-    if (!saved) throw new Error('예약 저장 실패');
-    appointmentSelectedDate = removeOnly ? oldDate : newDate;
-    appointmentCalendarMonth = appointmentSelectedDate.slice(0, 7);
-    closeAppointmentEditPopup();
-    await loadAppointmentCalendarMonth();
-    await refreshDeskAppointmentButtons();
-  }
-
-  window.saveAppointmentEdit = async () => {
-    try { await persistAppointmentChange(false); showToast('예약을 저장했습니다'); }
-    catch (error) { console.error(error); showToast(error.message || '예약 저장 실패'); }
-  };
-
-  window.addAppointmentFromEdit = async () => {
-    try { await persistAppointmentChange(false, true); showToast('예약을 추가했습니다'); }
-    catch (error) { console.error(error); showToast(error.message || '예약 추가 실패'); }
-  };
-
-  window.deleteAppointmentEdit = async () => {
-    if (!appointmentEditing || !confirm(`${appointmentEditing.name || '환자'}님의 ${formatAppointmentDate(appointmentSelectedDate)} 예약을 삭제할까요?`)) return;
-    try { await persistAppointmentChange(true); showToast('예약을 삭제했습니다'); }
-    catch (error) { console.error(error); showToast(error.message || '예약 삭제 실패'); }
   };
 
   window.closeAppointmentListPopup = () => document.getElementById('appointmentListOverlay')?.classList.remove('show');
@@ -20889,6 +20828,8 @@
         chartNo: normalizeChartNo(data.chartNo || existingPatient.chartNo || ''),
         dates,
         undecided: isUndecided,
+        acknowledgedVersion: '',
+        acknowledgedAt: null,
         timestamp: Date.now()
       };
       appointmentDeskAlertItems.set(patientKey, alertData);

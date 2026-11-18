@@ -67,6 +67,27 @@ C:\backup\slack
 
 These files are intentionally ignored by git.
 
+### Appointment imports
+
+Desk's **오늘 N명 → 예약 불러오기** reads the complete Donguibogam `.xls` / `.xlsx`
+appointment export. The preview shows date totals and added, removed and changed
+patients. Applying replaces only the dates present in the file; export the full
+roster for each date. To clear a date with no bookings, select it explicitly in
+the import popup and apply its zero-patient preview.
+
+Bookings are stored as encrypted daily snapshots in `appointment_snapshots`,
+separately from bed date requests and patient clinical records. Counts deduplicate
+patients by chart number and name while preserving all time/doctor slots. The
+calendar is read-only and shows the source filename and last import time.
+Other desks refresh over the existing SSE connection. Concurrent changes reject
+outdated previews; previous snapshots are retained encrypted in
+`appointment_import_log` for recovery.
+
+Dates without an imported snapshot continue to show existing manual bookings.
+An imported snapshot replaces the roster for its date only, including an explicit
+zero-patient snapshot. Patient visit history and the old manual booking fields are
+preserved. Existing `appointment_settings.cutoverDate` values are no longer used.
+
 ### Scheduled backups
 
 Patient DB daily backup:

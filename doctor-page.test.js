@@ -162,7 +162,7 @@ test('appointment and call alerts resolve patient ownership instead of mixing do
     normalizeAppointmentDates: value => Array.isArray(value) ? value : [],
     shouldShowUndecidedAlertForMode: () => false,
   });
-  load(c, html, ['getVisibleAppointmentAlertItems', 'getVisibleCallAlertItems']);
+  load(c, html, ['getAppointmentRequestVersion', 'getVisibleAppointmentAlertItems', 'getVisibleCallAlertItems']);
   assert.deepEqual(Array.from(c.getVisibleAppointmentAlertItems(), item => item.name), ['예약A']);
   assert.deepEqual(Array.from(c.getVisibleCallAlertItems(), item => item.message), ['호출A']);
   c.doctorPageFilterId = '';
@@ -183,6 +183,24 @@ test('appointment badge and calendar counts are computed from the selected docto
   c.doctorPageFilterId = '';
   assert.equal(c.filterDoctorPageAppointmentGroups(groups)[0].count, 3);
   assert.equal(c.formatDoctorAppointmentCount(groups[0]), '예약 2/3명');
+});
+
+test('imported patients with several doctors appear once per doctor and retain only that doctors slots', () => {
+  const { context: c } = pageContext();
+  load(c, html, ['filterDoctorPageAppointmentGroups']);
+  const groups = [{ date: '2026-11-19', count: 2, visitedCount: 1, patients: [
+    { chartNo: '1', name: '환자1', doctorName: '김상준', attended: true, appointmentSlots: [
+      { time: '09:20', doctorName: '김상준' }, { time: '14:00', doctorName: '허진혁' } ] },
+    { chartNo: '2', name: '환자2', attended: false, appointmentSlots: [{ time: '10:00', doctorName: '허진혁' }] },
+  ] }];
+  const result = c.filterDoctorPageAppointmentGroups(groups)[0];
+  assert.equal(result.count, 2);
+  assert.equal(result.visitedCount, 1);
+  assert.equal(result.totalCount, 2);
+  assert.deepEqual(Array.from(result.patients, patient => patient.chartNo), ['2', '1']);
+  assert.equal(result.patients[1].appointmentSlots.length, 1);
+  assert.equal(result.patients[1].appointmentSlots[0].doctorName, '허진혁');
+  assert.equal(groups[0].patients[0].appointmentSlots.length, 2);
 });
 
 function weeklyContext() {
