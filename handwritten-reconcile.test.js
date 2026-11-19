@@ -146,3 +146,30 @@ test('desk merge keeps handwritten fields when Excel is re-imported', () => {
   assert.equal(merged.visitHistory[D].insuredCopay, 1000);
   assert.deepEqual(merged.visitHistory[D].handwritten, { row: 3 });
 });
+
+test('OCR fixes: suggestions for blocked rows and re-preview with corrected chart/name', () => {
+  const patients = [
+    patient(7324, '임태숙', { insuredCopay: 0, nonCoveredAmount: 7400 }),
+    patient(8384, '정치선', { insuredCopay: 0, nonCoveredAmount: 7400 }),
+    patient(553, '김순자', { insuredCopay: 0, nonCoveredAmount: 10000 })
+  ];
+  const rows = csv([
+    `${D},3,17324,임태숙,,,,약침,7400,,카,,,`,
+    `${D},6,8384,정채선,,,,약침,7400,,,,,`,
+    `${D},38,5573,김순자,,,,약침,10000,,카,,,`
+  ]);
+  const p = preview(rows, patients);
+  assert.deepEqual(item(p, 3).suggestions.map(s => [s.chartNo, s.name, s.reason]), [['7324', '임태숙', '이름 같음']]);
+  assert.deepEqual(item(p, 6).suggestions.map(s => s.name), ['정치선']);
+  assert.equal(item(p, 6).suggestions[0].reason, '차트번호 같음');
+  assert.deepEqual(item(p, 38).suggestions.map(s => s.chartNo), ['553']);
+
+  const fixed = h.applyRowFixes(rows, { 3: { chart_no: '7324', name: '임태숙' }, 6: { chart_no: '8384', name: '정치선' }, 38: { chart_no: '553', name: '김순자' } });
+  const q = preview(fixed, patients);
+  assert.equal(q.summary.blocked, 0);
+  assert.match(item(q, 3).notes[0], /OCR 수정: 임태숙 17324 → 임태숙 7324/);
+  assert.ok(item(q, 3).kinds.includes('same'));
+  assert.throws(() => h.applyRowFixes(rows, { 3: { chart_no: '73a4', name: '임태숙' } }), /숫자만/);
+  assert.throws(() => h.applyRowFixes(rows, { 3: { chart_no: '7324', name: ' ' } }), /이름/);
+  assert.equal(h.applyRowFixes(rows, { 3: { chart_no: '17324', name: '임태숙' } })[0], rows[0]);
+});

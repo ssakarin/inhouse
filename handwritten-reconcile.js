@@ -101,6 +101,57 @@ function namesMatch(chartNo, noteName, serverName) {
   return Boolean(alias && alias.includes(nameKey(noteName)) && alias.includes(nameKey(serverName)));
 }
 
+/**
+ * OCR이 잘못 읽은 차트번호·이름을 util에서 고친 값으로 덮어쓴다.
+ * @param {object[]} rows parseCsv 결과 rows
+ * @param {Record<string,{chart_no?:string,name?:string}>} fixes 노트 행 번호 → 고친 값
+ */
+function applyRowFixes(rows, fixes = {}) {
+  return rows.map(row => {
+    const fix = fixes?.[row.row];
+    if (!fix) return row;
+    const chartNo = text(fix.chart_no ?? row.chart_no);
+    const name = text(fix.name ?? row.name);
+    if (!/^\d+$/.test(chartNo)) throw Error(`노트 ${row.row}번: 차트번호는 숫자만 입력하세요.`);
+    if (!name) throw Error(`노트 ${row.row}번: 이름을 입력하세요.`);
+    if (chartNo === row.chart_no && name === row.name) return row;
+    return { ...row, chart_no: chartNo, name, ocr: { chart_no: row.chart_no, name: row.name } };
+  });
+}
+
+// 한 글자(자리) 차이까지: 삽입·삭제·치환 1회 이내
+function nearlySame(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else { i++; j++; }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+// 반영 불가 행에 고를 만한 서버 환자: 차트번호 후보(이름만 다름) + 그날 내원자 중 이름이나 차트번호가 비슷한 사람
+function suggestPatients(row, candidates, dayPatients, taken) {
+  const seen = new Set();
+  const out = [];
+  const push = (p, reason) => {
+    if (!p?.patientId || seen.has(p.patientId) || out.length >= 5) return;
+    seen.add(p.patientId);
+    out.push({ chartNo: String(p.chartNo ?? ''), name: p.name || '', reason });
+  };
+  candidates.forEach(p => push(p, '차트번호 같음'));
+  const pool = dayPatients.filter(p => !taken.has(p.patientId));
+  const noteName = nameKey(row.name), chart = row.chart_no;
+  pool.filter(p => nameKey(p.name) === noteName).forEach(p => push(p, '이름 같음'));
+  pool.filter(p => nearlySame(String(p.chartNo ?? ''), chart)).forEach(p => push(p, '차트번호 비슷'));
+  pool.filter(p => nameKey(p.name).length === noteName.length && nearlySame(nameKey(p.name), noteName)).forEach(p => push(p, '이름 비슷'));
+  return out;
+}
+
 function resolvePatient(row, lookupChart) {
   const candidates = lookupChart(row.chart_no) || [];
   if (!candidates.length) return { blocked: `서버에 차트번호 ${row.chart_no} 환자가 없습니다. desk에서 먼저 등록하세요.` };
@@ -134,7 +185,7 @@ function buildPreview({ date, rows, dayPatients, lookupChart }) {
       name: row.name, serverName: patient?.name || '', insuranceType: patient?.insuranceType || '',
       exists, excelMissing: !hasStats(entry), before, blocked: blocked || '',
       after: { insuredCopay: before.insuredCopay ?? 0, nonCoveredAmount: before.nonCoveredAmount ?? 0 },
-      kinds: [], notes: [], checked: true,
+      kinds: [], notes: row.ocr ? [`OCR 수정: ${row.ocr.name} ${row.ocr.chart_no} → ${row.name} ${row.chart_no}`] : [], checked: true,
       handwrittenAmount: row.amount + row.unpaid,
       _patient: patient
     };
@@ -210,6 +261,11 @@ function buildPreview({ date, rows, dayPatients, lookupChart }) {
     }
   }
 
+  const taken = new Set(items.map(i => i.patientId).filter(Boolean));
+  items.filter(i => i.blocked).forEach(item => {
+    item.suggestions = suggestPatients(item.row, lookupChart(item.row.chart_no) || [], dayPatients, taken);
+  });
+
   items.forEach(item => {
     const changed = !item.exists || item.after.insuredCopay !== (item.before.insuredCopay ?? 0) || item.after.nonCoveredAmount !== (item.before.nonCoveredAmount ?? 0);
     if (!item.blocked && !changed && !item.kinds.includes('prepaid')) item.kinds.push('same');
@@ -260,4 +316,4 @@ function applyDecision(patient, date, item, decision, appliedAt) {
   return record;
 }
 
-module.exports = { parseCsv, buildPreview, applyDecision, entryStats, NAME_ALIASES };
+module.exports = { parseCsv, applyRowFixes, buildPreview, applyDecision, entryStats, NAME_ALIASES };

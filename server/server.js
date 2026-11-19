@@ -5321,7 +5321,8 @@ async function handleApi(req, res, pathname) {
       if (parsed.errors.length) throw new Error(parsed.errors.slice(0, 10).join("\n"));
       const dayPatients = [...new Set(statements.listDailyIndicatorVisits.all(date).map(visit => visit.patient_id))]
         .map(getPatientById).filter(Boolean);
-      preview = handwrittenReconcile.buildPreview({ date, rows: parsed.rows, dayPatients, lookupChart: getPatientsByChartNo });
+      const rows = handwrittenReconcile.applyRowFixes(parsed.rows, body.fixes && typeof body.fixes === "object" ? body.fixes : {});
+      preview = handwrittenReconcile.buildPreview({ date, rows, dayPatients, lookupChart: getPatientsByChartNo });
     } catch (e) { jsonResponse(res, 400, { error: e.message }); return true; }
     for (const [key, value] of handwrittenPreviews) if (value.expires < Date.now()) handwrittenPreviews.delete(key);
     if (handwrittenPreviews.size >= 20) handwrittenPreviews.delete(handwrittenPreviews.keys().next().value);
