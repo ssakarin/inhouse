@@ -610,12 +610,13 @@
     gap: 12px;
     align-content: start;
   }
-  /* desk(입력) 좌측: 대기는 크게, 예약/호출 알림은 2줄만 보이고 스크롤 */
+  /* Desk lists scroll inside the height of the bed monitor. */
   #inputWaitingList {
     min-height: 220px;
     align-content: flex-start;
   }
   #inputUpcomingAlerts {
+    max-height: 320px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-gutter: stable;
@@ -1141,7 +1142,9 @@
   .appointment-request-card > span:last-child { min-width: 0; }
   .appointment-request-card .upcoming-main,
   .appointment-request-card .upcoming-sub { display: block; }
-  .appointment-request-card .upcoming-main { white-space: normal; overflow-wrap: anywhere; }
+  .appointment-request-card .upcoming-main { white-space: nowrap; }
+  .appointment-request-chart { color: var(--text3); font-size: 11px; margin: 0 5px; }
+  #inputUpcomingAlerts > .upcoming-item { flex-shrink: 0; }
   .upcoming-item.appointment-request-card:disabled {
     cursor: default;
     border-color: var(--border);
@@ -2838,6 +2841,26 @@
     color: var(--bg);
   }
   @media (min-width: 860px) {
+    .input-panel:not(.input-form-open) .input-detail-column {
+      height: var(--desk-monitor-height, calc(100dvh - 130px));
+      min-height: 0;
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .input-panel:not(.input-form-open) .input-detail-column > .card {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .input-panel:not(.input-form-open) .input-detail-column .card-label { flex-shrink: 0; }
+    .input-panel:not(.input-form-open) #inputWaitingList,
+    .input-panel:not(.input-form-open) #inputUpcomingAlerts {
+      flex: 1;
+      min-height: 0;
+      max-height: none;
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+    }
     body.app-mode-notify {
       min-height: 100vh;
       overflow: hidden;
@@ -15527,8 +15550,7 @@
       <button type="button" class="upcoming-item assignment appointment-request-card" ${item.acknowledged ? 'disabled' : `onclick="acknowledgeAppointmentRequest(${escapeHtmlJsString(item.patientKey)}, ${escapeHtmlJsString(getAppointmentRequestVersion(item))})"`}>
         <span class="upcoming-time">예약</span>
         <span>
-          <span class="upcoming-main">${escapeHtml(item.name)} ${escapeHtml([item.dates.map(formatAppointmentDate).filter(Boolean).join(', '), item.undecided ? '미정' : ''].filter(Boolean).join(' '))}</span>
-          ${item.chartNo ? `<span class="upcoming-sub">${escapeHtml(item.chartNo)}</span>` : ''}
+          <span class="upcoming-main" title="${escapeHtml([item.name, item.chartNo, ...item.dates.map(formatAppointmentDate), item.undecided ? '미정' : ''].filter(Boolean).join(' '))}">${escapeHtml(item.name)}${item.chartNo ? `<span class="appointment-request-chart">${escapeHtml(item.chartNo)}</span>` : ' '}${escapeHtml([item.dates.map(formatAppointmentDate).filter(Boolean).join(', '), item.undecided ? '미정' : ''].filter(Boolean).join(' '))}</span>
         </span>
       </button>`
     }));
@@ -16052,6 +16074,20 @@
     updateHeaderCurrentTime();
     syncAppointmentDeskAlertsForCurrentDate();
   }, 1000);
+
+  function syncDeskListHeight() {
+    const column = document.querySelector('#inputPanel .input-detail-column');
+    const monitor = document.querySelector('#inputPanel .input-monitor-column > .card');
+    if (!column || !monitor) return;
+    const height = monitor.getBoundingClientRect().height;
+    if (height > 0) column.style.setProperty('--desk-monitor-height', `${height}px`);
+  }
+  const deskMonitorCard = document.querySelector('#inputPanel .input-monitor-column > .card');
+  if (deskMonitorCard && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncDeskListHeight).observe(deskMonitorCard);
+  }
+  window.addEventListener('resize', syncDeskListHeight);
+  syncDeskListHeight();
 
   function setDeskInputFormOpen(open) {
     const panel = document.getElementById('inputPanel');
