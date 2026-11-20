@@ -5911,7 +5911,7 @@
         </div>
         <button class="nurse-quick-btn nurse-quick-btn-desk" id="nurseQuickBtnDesk" type="button" onclick="toggleNurseQuickPopover(event)">간호사</button>
         <button class="header-wait-chip today-treated-chip" id="deskTodayTreatedCount" type="button" onclick="openDischargedPatientsPopup()" aria-label="오늘 퇴실환자 보기">오늘 0명</button>
-        <span class="header-wait-chip bed-count-chip" id="deskBedPatientCount">0/13</span>
+        <span class="header-wait-chip bed-count-chip" id="deskBedPatientCount">0/16</span>
         <span class="header-wait-chip" id="deskWaitChip">베드대기 0분</span>
         <span class="header-current-time" id="deskCurrentTime"></span>
       </div>
@@ -13103,10 +13103,17 @@
       const bed = bedAssignments[bedNo - 1];
       return Boolean(bed) && matchesDoctorPageRecord(bed);
     }).length;
-    ['bedPatientCount', 'deskBedPatientCount', 'receiveBedPatientCount'].forEach(id => {
+    ['bedPatientCount', 'receiveBedPatientCount'].forEach(id => {
       const chip = document.getElementById(id);
       if (chip) chip.textContent = `${regularOccupiedCount}/${REGULAR_BED_COUNT}`;
     });
+    const deskBedNumbers = [...REGULAR_BED_NUMBERS, 15, 101, 102];
+    const deskOccupiedCount = deskBedNumbers.filter(bedNo => {
+      const bed = getBedData(bedNo);
+      return Boolean(bed) && matchesDoctorPageRecord(bed);
+    }).length;
+    const deskChip = document.getElementById('deskBedPatientCount');
+    if (deskChip) deskChip.textContent = `${deskOccupiedCount}/${deskBedNumbers.length}`;
   }
 
   function escapeHtml(value) {

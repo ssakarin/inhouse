@@ -118,23 +118,31 @@ test('other doctors beds retain their contents but disable interaction only on d
 
 test('procedure alerts and today counts follow the same doctor selection', () => {
   const { context: c, elements, beds } = pageContext();
+  const regularBeds = Array.from({ length: 14 }, (_, i) => i + 1).filter(no => no !== 7);
+  beds[15] = { doctorId: 'a', name: '스파인환자' };
+  beds[101] = { doctorId: 'a', name: '원장실1환자' };
+  beds[102] = { doctorId: 'b', name: '원장실2환자' };
   Object.assign(c, {
     isRegularFixedBedScreen: () => false, isFixedDoctorBedScreen: () => false,
     loadedKeys: new Set(), dischargedPatientsByKey: new Map([['one', beds[1]], ['two', beds[2]]]),
-    REGULAR_BED_NUMBERS: [1, 2, 3], REGULAR_BED_COUNT: 3, bedAssignments: [beds[1], beds[2], null],
+    REGULAR_BED_NUMBERS: regularBeds, REGULAR_BED_COUNT: regularBeds.length,
+    bedAssignments: Array.from({ length: 15 }, (_, i) => beds[i + 1] || null),
   });
   elements.set('deskTodayTreatedCount', {});
   elements.set('deskBedPatientCount', {});
   load(c, html, ['updateCount']);
   c.updateCount();
   assert.equal(elements.get('deskTodayTreatedCount').textContent, '오늘 1명 · 전체 2명');
-  assert.equal(elements.get('deskBedPatientCount').textContent, '1/3');
+  assert.equal(elements.get('deskBedPatientCount').textContent, '3/16');
   assert.deepEqual(Array.from(c.getDoctorPageProcedureAlertItems(), item => item.doctorId), ['a']);
   c.doctorPageFilterId = 'b';
+  c.updateCount();
+  assert.equal(elements.get('deskBedPatientCount').textContent, '2/16');
   assert.deepEqual(Array.from(c.getDoctorPageProcedureAlertItems(), item => item.doctorId), ['b']);
   c.doctorPageFilterId = '';
   c.updateCount();
   assert.equal(elements.get('deskTodayTreatedCount').textContent, '오늘 2명');
+  assert.equal(elements.get('deskBedPatientCount').textContent, '5/16');
   assert.deepEqual(Array.from(c.getDoctorPageProcedureAlertItems(), item => item.doctorId), ['a', 'b']);
 });
 
