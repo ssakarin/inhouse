@@ -91,6 +91,7 @@ function setupMoveToWaiting(failSave = false) {
   const patient = { patientKey: 'p', name: '환자', treatments: ['치료'], running: true };
   const context = {
     window: {}, getBedData: () => patient, clearLocalTimerAlertsForBed: () => {},
+    getRemaining: bed => Number(bed.remaining || 0),
     patientsByKey: new Map([['p', { name: '환자' }]]), showToast: () => {}, console,
     updatePatient: async (key, patch) => {
       events.push(['save', patch]);

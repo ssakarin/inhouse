@@ -496,6 +496,29 @@
     color: var(--gold);
   }
   .doctor-alert-empty { color: var(--text2); font-size: 12px; font-weight: 800; }
+  .long-wait-badge {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 3px 7px;
+    border: 1px solid #f59e0b;
+    border-radius: 6px;
+    background: rgba(245,158,11,.16);
+    color: #fbbf24;
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+    animation: longWaitPulse 2s ease-in-out infinite;
+  }
+  @keyframes longWaitPulse {
+    0%, 100% { background: rgba(245,158,11,.12); box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+    50% { background: rgba(245,158,11,.32); box-shadow: 0 0 0 2px rgba(245,158,11,.45); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .long-wait-badge { animation: none; }
+  }
+  .long-wait-setting-note { color: var(--text2); font-size: 12px; line-height: 1.6; margin-top: 8px; }
+  .bed-status-time.long-wait-badge { font-size: 12px; line-height: 1.4; }
   .header-bed-controls {
     display: none;
     align-items: center;
@@ -6265,6 +6288,18 @@
           <div class="treatment-time-list" id="treatmentMinutesList"></div>
           <button class="submit-btn" onclick="saveTreatmentMinutes()">저장</button>
         </div>
+        <div class="card">
+          <div class="card-label">장기대기 알림</div>
+          <label class="treatment-time-row">
+            <span class="treatment-time-name">장기대기 기준</span>
+            <div class="treatment-time-row-inner">
+              <input class="treatment-time-input" id="doctorLongWaitMinutesInput" type="number" min="0" max="120" step="1" value="15" aria-label="장기대기 기준 시간" aria-describedby="doctorLongWaitNote">
+              <span class="treatment-time-unit">분</span>
+            </div>
+          </label>
+          <p class="long-wait-setting-note" id="doctorLongWaitNote">대기실과 모든 치료의 시작 대기가 설정 시간 이상이면 대기시간을 주황색으로 점멸합니다. 원장 시술은 같은 원장의 알림에서 오래 기다린 순서로 먼저 표시됩니다. 0분은 사용 안 함입니다.</p>
+          <button class="submit-btn" onclick="saveDoctorLongWaitMinutes()">저장</button>
+        </div>
       </div>
       <div class="settings-column">
         <div class="card">
@@ -6873,12 +6908,14 @@
     if (!isFixedBedScreen()) return true;
     if (isFixedDoctorBedScreen()) {
       return key === 'settings/treatmentMinutes'
+        || key === 'settings/doctorLongWaitMinutes'
         || key === 'settings/doctorAlertManualOrder'
         || key === 'staff/doctors'
         || key === 'staff/nurses'
         || key === BED_ASSIGNMENT_ALERTS_PATH;
     }
     return key === 'settings/treatmentMinutes'
+      || key === 'settings/doctorLongWaitMinutes'
       || key === 'settings/treatmentPresets'
       || key === 'settings/doctorAlertManualOrder'
       || key === getDischargedPatientsPath()
@@ -7319,6 +7356,8 @@
     .map(t => [t.name, t.id === 'spine' ? 15 : 5]));
   let treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES };
   let procedureMinutes = 0;
+  const DEFAULT_DOCTOR_LONG_WAIT_MINUTES = 15;
+  let doctorLongWaitMinutes = DEFAULT_DOCTOR_LONG_WAIT_MINUTES;
   let treatmentPresets = [];
   let autoBedAssignEnabled = false;
   let nurseAutoAssignEnabled = true;
@@ -7667,7 +7706,7 @@
   let lastInputBedHtml = null;
   let lastReceiveBedHtml = null;
   function getBedMonitorStableHtml(html) {
-    return String(html || '').replace(/(<span class="bed-status-time" id="monitor-time-[^"]+">)[\s\S]*?(<\/span>)/g, '$1$2');
+    return String(html || '').replace(/(<span class="bed-status-time(?: long-wait-badge)?" id="monitor-time-[^"]+">)[\s\S]*?(<\/span>)/g, '$1$2');
   }
   function bedDragActive() {
     return draggedBedNo != null || draggedWaitingPatientKey != null || draggedTreatment != null;
@@ -10582,6 +10621,7 @@
         <span class="doctor-room-alert-bed-chip">${escapeHtml(bedLabel)}</span>
         ${treatmentNames.map(renderTreatmentName).join('')}
         ${patientName ? `<span class="doctor-alert-patient-chip">${escapeHtml(patientName)}</span>` : ''}
+        ${renderLongWaitBadge(item)}
         ${orderControlsHtml}
       </div>`;
   }
@@ -11083,6 +11123,15 @@
     renderUpcomingAlerts();
   });
 
+  migrateNode('settings/doctorLongWaitMinutes', (value) => {
+    doctorLongWaitMinutes = normalizeDoctorLongWaitMinutes(value);
+    const input = document.getElementById('doctorLongWaitMinutesInput');
+    if (input && document.activeElement !== input) input.value = String(doctorLongWaitMinutes);
+    refreshDoctorAlertManualOrderViews();
+    renderWaitingLists();
+    renderBedMonitors();
+  });
+
   migrateNode('settings/treatmentPresets', (value) => {
     treatmentPresets = Object.entries(value || {})
       .map(([key, item]) => ({
@@ -11169,6 +11218,22 @@
     } catch (e) {
       console.error(e);
       showToast('처치시간 저장 실패');
+    }
+  };
+
+  window.saveDoctorLongWaitMinutes = async () => {
+    const input = document.getElementById('doctorLongWaitMinutesInput');
+    const value = Number(input?.value);
+    if (!input || !input.value.trim() || !Number.isInteger(value) || value < 0 || value > 120) {
+      showToast('장기대기 기준은 0~120분의 정수로 입력해주세요');
+      return;
+    }
+    try {
+      await setLocalNode('settings/doctorLongWaitMinutes', value);
+      showToast(value ? `장기대기 기준 ${value}분 저장 완료` : '장기대기 알림 사용 안 함');
+    } catch (e) {
+      console.error(e);
+      showToast('장기대기 기준 저장 실패');
     }
   };
 
@@ -14164,8 +14229,10 @@
     const treatments = (data.treatments && data.treatments.length)
       ? data.treatments
       : (Number(bedNo) >= 101 && !data.herbalPrescription ? ['진찰'] : []);
-    const firstTreatment = treatments[0];
-    const total = firstTreatment ? getConcurrentTreatmentSeconds(treatments, 0) : 0;
+    const saved = data.bedStatus === 'waiting' && data.waitingStage?.treatments?.join('\u0000') === treatments.join('\u0000') ? data.waitingStage : null;
+    const currentIndex = saved ? Math.max(0, Math.min(treatments.length - 1, Number(saved.currentIndex) || 0)) : 0;
+    const firstTreatment = treatments[currentIndex];
+    const total = firstTreatment ? getConcurrentTreatmentSeconds(treatments, currentIndex) : 0;
     const packages = getPackageStateFromPatient(data);
     return {
       patientKey,
@@ -14174,7 +14241,7 @@
       herbalPrescription: Boolean(data.herbalPrescription),
       ...(data.recentHerbalPrescriptionDate ? { recentHerbalPrescriptionDate: data.recentHerbalPrescriptionDate } : {}),
       addedTreatmentIndexes: [],
-      preCompletedTreatmentIndexes: [],
+      preCompletedTreatmentIndexes: saved?.preCompletedTreatmentIndexes || [],
       timeStr: data.timeStr || '',
       timestamp: data.timestamp || Date.now(),
       patientId: data.patientId || '',
@@ -14203,9 +14270,10 @@
       nurseName: '',
       lastVisitDate: data.lastVisitDate || '',
       bodyParts: data.bodyParts || { front: [], back: [] },
-      currentIndex: 0,
+      currentIndex,
+      waitingStageEnteredAt: Number(saved?.stageEnteredAt) || Number(data.timestamp) || Date.now(),
       total,
-      remaining: total,
+      remaining: saved ? Math.max(0, Number(saved.remaining) || 0) : total,
       running: false,
       startedAt: null,
       complete: false,
@@ -14738,7 +14806,8 @@
         const heldChips = [
           `<span class="bed-meta-chip bed-meta-chip--fixed">${escapeHtml(nextTreatmentLabel)}</span>`,
           herbalLabel ? bedStatusInfoChip(herbalLabel) : '',
-          bed?.doctorName ? `<span class="bed-meta-chip">${escapeHtml(bed.doctorName)}</span>` : ''
+          bed?.doctorName ? `<span class="bed-meta-chip">${escapeHtml(bed.doctorName)}</span>` : '',
+          renderLongWaitBadge(getDoctorProcedureWaitInfo(bed))
         ].filter(Boolean).join('');
         return `
         <div class="waiting-item waiting-item--held" id="held-${bedNo}" draggable="true" onclick="handleInputBedClick(${bedNo})" oncontextmenu="purgeBedPatient(event, ${bedNo})" ondragstart="handleBedDragStart(event, ${bedNo})" ondragover="handleHoldQueueDragOver(event, ${bedNo})" ondrop="handleHoldQueueDrop(event, ${bedNo})" ondragend="handleBedDragEnd()">
@@ -14759,6 +14828,7 @@
         herbalLabel ? bedStatusInfoChip(herbalLabel) : '',
         data.doctorName ? `<span class="bed-meta-chip">${escapeHtml(data.doctorName)}</span>` : '',
         data.nurseName ? `<span class="bed-meta-chip">${escapeHtml(data.nurseName)}</span>` : '',
+        renderLongWaitBadge(getWaitingPatientWaitInfo(data)),
       ].filter(Boolean).join('');
       return `
         <div class="waiting-item" id="waiting-${key}" draggable="true" onclick="handleWaitingPatientClick(event, '${key}')" oncontextmenu="confirmPurgeWaitingPatient(event, '${key}')" ondragstart="handleWaitingDragStart(event, '${key}')" ondragend="handleWaitingDragEnd(event)">
@@ -15417,15 +15487,20 @@
   function renderUpcomingAlerts() {
     if (isRegularFixedBedScreen() || isFixedDoctorBedScreen()) return;
     countDebugCounter('render-call', 'upcomingAlerts');
-    const renderAlertItemsHtml = (items) => items
-      .sort((a, b) => {
-        const priorityDiff = Number(a.alertPriority ?? 1) - Number(b.alertPriority ?? 1);
-        if (priorityDiff) return priorityDiff;
-        if (a.alertPending && b.alertPending) return Number(b.timestamp || 0) - Number(a.timestamp || 0);
-        return Number(a.timestamp || 0) - Number(b.timestamp || 0);
-      })
-      .map(item => item.html)
-      .join('');
+    const renderAlertItemsHtml = (items) => {
+      const doctorItems = items.filter(item => Number.isInteger(item.doctorProcedureOrder))
+        .sort((a, b) => a.doctorProcedureOrder - b.doctorProcedureOrder);
+      let doctorIndex = 0;
+      return items
+        .sort((a, b) => {
+          const priorityDiff = Number(a.alertPriority ?? 1) - Number(b.alertPriority ?? 1);
+          if (priorityDiff) return priorityDiff;
+          if (a.alertPending && b.alertPending) return Number(b.timestamp || 0) - Number(a.timestamp || 0);
+          return Number(a.timestamp || 0) - Number(b.timestamp || 0);
+        })
+        .map(item => Number.isInteger(item.doctorProcedureOrder) ? doctorItems[doctorIndex++].html : item.html)
+        .join('');
+    };
     const getTreatmentBadgeClass = (treatment) => {
     const name = String(treatment || '').trim().replace(/\(설정\)$/, '').trim().toLowerCase();
     if (name === '핫팩') return 'treatment-hotpack';
@@ -15474,6 +15549,7 @@
           ${options.hideBadge ? '' : (leadingBadge || nurseBadge || renderTreatmentBadges(item))}
           <div>
             <div class="upcoming-main alert-line-compact"><span class="upcoming-main-text">${escapeHtml(main)}</span>${treatmentHtml}</div>
+            ${renderLongWaitBadge(item)}
             ${options.sub ? `<div class="upcoming-sub">${options.sub}</div>` : ''}
           </div>
         </div>`;
@@ -15638,8 +15714,9 @@
 
     const doctorProcedureItems = shouldShowDoctorProcedureAlerts()
       ? getDoctorProcedureAlertItems()
-        .map(item => ({
+        .map((item, doctorProcedureOrder) => ({
           alertPriority: item.alertPriority,
+          doctorProcedureOrder,
           timestamp: Number(item.timestamp || 0),
           html: renderDoctorProcedureAlertHtml(item)
         }))
@@ -15649,7 +15726,7 @@
       ? getReceiveTreatmentAlertItems().map(item => {
         return {
           timestamp: Number(item.timestamp || 0),
-          html: renderTreatmentAlertHtml(item, { nurseName: item.nurseName || '' })
+          html: renderTreatmentAlertHtml({ ...item, ...getDoctorProcedureWaitInfo(getBedData(item.bedNo)) }, { nurseName: item.nurseName || '' })
         };
       })
       : [];
@@ -15667,8 +15744,9 @@
       : [];
 
     const receiveTimerItems = (receiveModeForAlerts === 'notify' || receiveModeForAlerts === 'receive') ? timerAlertItems : [];
-    const scopedDoctorItems = getDoctorPageProcedureAlertItems().map(item => ({
+    const scopedDoctorItems = getDoctorPageProcedureAlertItems().map((item, doctorProcedureOrder) => ({
       alertPriority: item.alertPriority,
+      doctorProcedureOrder,
       timestamp: Number(item.timestamp || 0),
       html: renderSimpleDoctorProcedureAlertHtml(item)
     }));
@@ -17091,6 +17169,8 @@
     }
 
     if (noTimer) {
+      const procedureInProgress = isDoctorProcedureInProgress(bed);
+      const canStartProcedure = !HOLD_BED_NUMBERS.includes(Number(bedNo)) && concurrentTreatments.length > 0;
       return `
         <div class="timer-card" id="${timerId}">
           <div class="timer-top">
@@ -17098,12 +17178,15 @@
               <div>
                 <div class="timer-treatment">${escapeHtml(displayTreatment)}</div>
                 <div class="timer-step">${currentIndex + 1}${concurrentEndIndex > currentIndex ? `-${concurrentEndIndex + 1}` : ''}/${bed.treatments.length}번째 치료</div>
+                ${procedureInProgress ? '<div class="timer-step">시행 중</div>' : ''}
+                <span data-doctor-wait-bed="${bedNo}">${renderLongWaitBadge(getDoctorProcedureWaitInfo(bed))}</span>
               </div>
               ${nextTaskHtml}
             </div>
           </div>
           ${allowControls ? `<div class="timer-actions${isBedContext ? ' bed-timer-actions' : ''}">
             <button class="timer-btn" onclick="moveTreatment(${bedNo}, -1)" ${currentIndex <= 0 ? 'disabled' : ''}>이전 치료</button>
+            ${canStartProcedure ? `<button class="timer-btn" onclick="startDoctorProcedure(${bedNo})" ${procedureInProgress || bed.lastAlertId || isFixedBedArrivalPending(bedNo, bed) ? 'disabled' : ''}>${procedureInProgress ? '시행 중' : '시행 시작'}</button>` : ''}
             <button class="timer-btn primary" onclick="completeNoTimerTreatment(${bedNo})">시행완료</button>
           </div>` : ''}
         </div>`;
@@ -17116,6 +17199,7 @@
             <div>
               <div class="timer-treatment">${escapeHtml(displayTreatment)}</div>
               <div class="timer-step">${currentIndex + 1}${concurrentEndIndex > currentIndex ? `-${concurrentEndIndex + 1}` : ''}/${bed.treatments.length}번째 치료</div>
+              <span data-doctor-wait-bed="${bedNo}">${renderLongWaitBadge(getDoctorProcedureWaitInfo(bed))}</span>
             </div>
             ${nextTaskHtml}
           </div>
@@ -17187,7 +17271,10 @@
     const monitorStatus = getBedStatus(bedNo);
     ['input', 'receive'].forEach(context => {
       const span = document.getElementById(`monitor-time-${context}-${bedNo}`);
-      if (span) span.textContent = monitorStatus.noTimer ? '' : monitorStatus.remaining;
+      if (span) {
+        span.classList.toggle('long-wait-badge', Boolean(monitorStatus.longWaiting));
+        span.textContent = monitorStatus.longWaiting ? `${monitorStatus.waitMinutes}분대기` : (monitorStatus.noTimer ? '' : monitorStatus.remaining);
+      }
     });
     if (bedNo === selectedBedNo) updateBedRemainingChip();
   }
@@ -17357,6 +17444,7 @@
       startedAt: Date.now(),
       total: nextTotal,
       remaining: nextRemaining,
+      timerStageStarted: { index: Number(bed.currentIndex || 0), treatment: bed.treatments[bed.currentIndex || 0] },
       ...(needleSafety ? { needleSafety } : {})
     });
     playTimerStartSound();
@@ -18307,6 +18395,7 @@
     const patientKey = bed.patientKey || `restore-${bedNo}-${restoredAt}`;
     const restoredBed = {
       ...bed,
+
       patientKey,
       bedStatus: 'assigned',
       bedNo,
@@ -18686,6 +18775,14 @@
     const queueTimestamp = Date.now();
     const patientPatch = {
       ...bed,
+      waitingStage: {
+        treatments: [...(bed.treatments || [])],
+        currentIndex: Number(bed.currentIndex || 0),
+        total: Number(bed.total || 0),
+        remaining: getRemaining(bed),
+        preCompletedTreatmentIndexes: bed.preCompletedTreatmentIndexes || [],
+        stageEnteredAt: bed.running || bed.timerStageStarted || Number(bed.doctorProcedureStartedAt) > 0 ? queueTimestamp : (Number(bed.stageEnteredAt) || Number(bed.timestamp) || queueTimestamp)
+      },
       bedStatus: 'waiting',
       assignmentMode: 'manual',
       bedNo: null,
@@ -18702,6 +18799,10 @@
     delete patientPatch.lastAlertId;
     delete patientPatch.lastAlertMessage;
     delete patientPatch.doctorProcedureAlert;
+    delete patientPatch.timerStageStarted;
+    delete patientPatch.doctorProcedureStartedAt;
+    delete patientPatch.doctorProcedureStartedIndex;
+    delete patientPatch.doctorProcedureStartedTreatment;
     delete patientPatch.patientKey;
 
     try {
@@ -19237,16 +19338,18 @@
     const previousTreatment = currentIndex > 0 ? (formatTreatmentNames(getConcurrentTreatmentNamesAroundIndex(treatments, currentIndex - 1)) || treatments[currentIndex - 1]) : '';
     const lastTreatment = treatments[treatments.length - 1] || '';
     const procedureBlinking = isDoctorProcedureBlinking(bedNo, bed);
+    const procedureInProgress = isDoctorProcedureInProgress(bed);
+    const running = bed.running || procedureInProgress;
     const statusLabel = bed.complete
       ? (lastTreatment ? `${lastTreatment} 완료` : '완료')
-      : (!hasTreatment ? '치료 미선택' : (previousTreatment ? `${previousTreatment} 완료 ${treatment} 준비` : `${treatment} 준비`));
-    const isWaitingToStart = !bed.complete && !bed.running && hasTreatment && remainingSeconds >= totalSeconds;
+      : (!hasTreatment ? '치료 미선택' : (procedureInProgress ? `${treatment} 시행 중` : (previousTreatment ? `${previousTreatment} 완료 ${treatment} 준비` : `${treatment} 준비`)));
+    const isWaitingToStart = !bed.complete && !running && hasTreatment && remainingSeconds >= totalSeconds;
     const stageState = bed.complete
       ? 'complete'
-      : (!hasTreatment ? 'ready' : (bed.running ? 'running' : (isWaitingToStart ? 'ready' : 'paused')));
+      : (!hasTreatment ? 'ready' : (running ? 'running' : (isWaitingToStart ? 'ready' : 'paused')));
     const stageLabel = bed.complete
       ? '완료'
-      : (!hasTreatment ? '치료 미선택' : (bed.running ? '진행중' : (isWaitingToStart ? '시작 전' : '일시정지')));
+      : (!hasTreatment ? '치료 미선택' : (running ? '진행중' : (isWaitingToStart ? '시작 전' : '일시정지')));
     return {
       bedNo,
       bedLabel,
@@ -19263,7 +19366,8 @@
       statusLabel,
       stageState,
       stageLabel,
-      statusDetail: !hasTreatment ? '치료 선택 대기' : (bed.running ? `${treatment} 진행중` : (isWaitingToStart ? statusLabel : treatment)),
+      statusDetail: !hasTreatment ? '치료 선택 대기' : (running ? `${treatment} 진행중` : (isWaitingToStart ? statusLabel : treatment)),
+      ...getDoctorProcedureWaitInfo(bed),
       noTimer: (bed.herbalPrescription && !hasTreatment)
         || (!bed.complete && concurrentTreatments.length > 0 && concurrentTreatments.every(isNoTimerTreatment)),
       procedureBlinking,
@@ -19357,7 +19461,10 @@
       const status = getBedStatus(bedNo);
       ['input', 'receive'].forEach(context => {
         const span = document.getElementById(`monitor-time-${context}-${bedNo}`);
-        if (span) span.textContent = status.noTimer ? '' : status.remaining;
+        if (span) {
+          span.classList.toggle('long-wait-badge', Boolean(status.longWaiting));
+          span.textContent = status.longWaiting ? `${status.waitMinutes}분대기` : (status.noTimer ? '' : status.remaining);
+        }
       });
     });
     updateDeskWaitChip();
@@ -19464,7 +19571,7 @@
       <div class="bed-status${compact ? ' compact' : ''}${status.complete ? ' done' : ' active'}${activeClass}${status.alerting ? ' alerting' : ''}${status.assignmentAlerting ? ' assignment-alerting' : ''}${doctorScopeClass}"${doctorInteraction}${otherDoctor ? '' : ` onclick="${clickAction}"`}${dragHandlers}${contextHandler}>
         <div class="bed-status-top">
           <span class="bed-status-no">${monitorNameHtml}${isNotifyMode ? '' : `${renderTodayAppointmentBadge(status, status.patientKey)}${renderInitialVisitBadge(status)}`}${compact && status.herbalLabel ? ` ${bedStatusInfoChip(status.herbalLabel)}` : ''}</span>
-          ${compact ? '' : `<span class="bed-status-time" id="monitor-time-${context}-${status.bedNo}">${status.noTimer ? '' : escapeHtml(status.remaining)}</span>`}
+          ${compact ? '' : `<span class="bed-status-time${status.longWaiting ? ' long-wait-badge' : ''}" id="monitor-time-${context}-${status.bedNo}">${status.longWaiting ? `${status.waitMinutes}분대기` : (status.noTimer ? '' : escapeHtml(status.remaining))}</span>`}
         </div>
         ${compact ? '' : (infoChips ? `<div class="bed-status-info${infoDensityClass}">${infoChips}</div>` : '')}
         ${compact ? '' : (staffHtml ? `<div class="bed-status-treatment">${staffHtml}</div>` : '')}
@@ -19535,6 +19642,79 @@
     return Boolean(alertId && bed?.doctorProcedureAlert?.id === alertId && bed.doctorProcedureAlert.dismissed);
   }
 
+  function normalizeDoctorLongWaitMinutes(value) {
+    if (value === null || value === undefined || value === '') return DEFAULT_DOCTOR_LONG_WAIT_MINUTES;
+    const minutes = Number(value);
+    return Number.isInteger(minutes) && minutes >= 0 && minutes <= 120 ? minutes : DEFAULT_DOCTOR_LONG_WAIT_MINUTES;
+  }
+
+  function isDoctorProcedureInProgress(bed) {
+    const index = Number(bed?.currentIndex || 0);
+    return Boolean(bed && !bed.complete && Number(bed.doctorProcedureStartedAt) > 0
+      && Number(bed.doctorProcedureStartedIndex) === index
+      && bed.doctorProcedureStartedTreatment === bed.treatments?.[index]);
+  }
+
+  function getDoctorProcedureWaitInfo(bed, now = Date.now()) {
+    const none = { longWaiting: false, waitMinutes: 0, waitStartedAt: 0 };
+    if (!bed || bed.complete || bed.bedCleaning || bed.running || isDoctorProcedureInProgress(bed)) return none;
+    const index = Number(bed.currentIndex || 0);
+    const treatments = getConcurrentTreatmentNames(bed.treatments || [], index);
+    if (!treatments.length) return none;
+    if (bed.timerStageStarted?.index === index && bed.timerStageStarted?.treatment === bed.treatments[index]) return none;
+    const since = Number(bed.stageEnteredAt) || Number(bed.holdQueuedAt) || Number(bed.timestamp);
+    if (!Number.isFinite(since) || since <= 0) return none;
+    const elapsed = Math.max(0, now - since);
+    return {
+      longWaiting: doctorLongWaitMinutes > 0 && elapsed >= doctorLongWaitMinutes * 60000,
+      waitMinutes: Math.floor(elapsed / 60000),
+      waitStartedAt: since
+    };
+  }
+
+  function renderLongWaitBadge(info = {}) {
+    if (!info.longWaiting) return '';
+    const minutes = Math.max(0, Math.floor(Number(info.waitMinutes) || 0));
+    return `<span class="long-wait-badge" aria-label="장기대기 ${minutes}분">${minutes}분대기</span>`;
+  }
+
+  function getWaitingPatientWaitInfo(patient, now = Date.now()) {
+    const since = Number(patient.waitingStage?.stageEnteredAt) || Number(patient.timestamp);
+    const elapsed = Number.isFinite(since) && since > 0 ? Math.max(0, now - since) : 0;
+    return {
+      longWaiting: doctorLongWaitMinutes > 0 && elapsed >= doctorLongWaitMinutes * 60000,
+      waitMinutes: Math.floor(elapsed / 60000),
+      waitStartedAt: since || 0
+    };
+  }
+
+  async function startDoctorProcedure(bedNo) {
+    if (isDoctorReadOnlyPage() || HOLD_BED_NUMBERS.includes(Number(bedNo))) return;
+    const bed = getBedData(bedNo);
+    if (!bed || bed.complete || bed.running || bed.lastAlertId || isDoctorProcedureInProgress(bed)
+      || isFixedBedArrivalPending(bedNo, bed)) return;
+    const index = Number(bed.currentIndex || 0);
+    const treatments = getConcurrentTreatmentNames(bed.treatments || [], index);
+    if (!treatments.length || !treatments.every(isNoTimerTreatment)) return;
+    try {
+      await runBedRecordTransaction(bedNo, current => {
+        if (!current || current.patientKey !== bed.patientKey || current.complete || current.running || current.lastAlertId
+          || Number(current.currentIndex || 0) !== index || current.treatments?.[index] !== bed.treatments?.[index]
+          || isDoctorProcedureInProgress(current)) return undefined;
+        return {
+          ...current,
+          doctorProcedureStartedAt: Date.now(),
+          doctorProcedureStartedIndex: index,
+          doctorProcedureStartedTreatment: current.treatments[index]
+        };
+      });
+    } catch (error) {
+      console.error(error);
+      showToast('시행 시작 저장 실패');
+    }
+  }
+  window.startDoctorProcedure = startDoctorProcedure;
+
   function isLongDoctorProcedureTreatment(treatment) {
     const badgeClass = getTreatmentBadgeClass(treatment);
     return badgeClass === 'treatment-chuna' || badgeClass === 'treatment-exam';
@@ -19556,7 +19736,7 @@
     return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS].some(bedNo => {
       if (Number(bedNo) === Number(excludeBedNo)) return false;
       const bed = getBedData(bedNo);
-      if (!bed || bed.complete || bed.running || bed.lastAlertId || isFixedBedArrivalPending(bedNo, bed)) return false;
+      if (!bed || bed.complete || bed.running || isDoctorProcedureInProgress(bed) || bed.lastAlertId || isFixedBedArrivalPending(bedNo, bed)) return false;
       if (bed.doctorId !== doctorId) return false;
       const treatments = getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
       return treatments.some(isChunaDoctorProcedureTreatment);
@@ -19613,7 +19793,7 @@
     const items = [];
     [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS].forEach(bedNo => {
       const bed = getBedData(bedNo);
-      if (!bed || bed.complete || isFixedBedArrivalPending(bedNo, bed) || bed.doctorId !== doctorId) return;
+      if (!bed || bed.complete || isDoctorProcedureInProgress(bed) || isFixedBedArrivalPending(bedNo, bed) || bed.doctorId !== doctorId) return;
 
       const cleanup = getCleanupShortDoctorProcedureInfo(bed, bedNo);
       if (cleanup) {
@@ -19628,6 +19808,7 @@
           treatment: cleanup.treatment,
           treatments: cleanup.treatments,
           cleanup: true,
+          ...getDoctorProcedureWaitInfo(bed),
           alertPriority: 1,
           sortPriority: 0,
           timestamp: alertTimestamp,
@@ -19679,10 +19860,15 @@
         alertPriority: 1,
         sortPriority: treatments.some(isShortDoctorProcedureTreatment) ? 0 : 2,
         timestamp: Number(bed.stageEnteredAt || bed.timestamp || 0),
+        ...getDoctorProcedureWaitInfo(bed),
         message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${treatment}`
       });
     });
     return items.sort((a, b) => {
+      const aLong = Boolean(a.longWaiting && !a.cleanup && !a.soon);
+      const bLong = Boolean(b.longWaiting && !b.cleanup && !b.soon);
+      if (aLong !== bLong) return aLong ? -1 : 1;
+      if (aLong && bLong) return a.waitStartedAt - b.waitStartedAt || Number(a.bedNo) - Number(b.bedNo);
       const sortPriorityDiff = Number(a.sortPriority ?? 2) - Number(b.sortPriority ?? 2);
       if (sortPriorityDiff) return sortPriorityDiff;
       const priorityDiff = Number(a.alertPriority ?? 1) - Number(b.alertPriority ?? 1);
@@ -19752,7 +19938,7 @@
     return [...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS]
       .map(bedNo => ({ bedNo, bed: getBedData(bedNo) }))
       .filter(({ bedNo, bed }) => {
-        if (!bed || bed.complete || bed.running || bed.lastAlertId) return false;
+        if (!bed || bed.complete || bed.running || isDoctorProcedureInProgress(bed) || bed.lastAlertId) return false;
         if (isFixedBedArrivalPending(bedNo, bed)) return false;
         const treatments = getConcurrentTreatmentNames(bed.treatments || [], bed.currentIndex || 0);
         return treatments.length > 1 || treatments.some(isReceiveTreatmentAlertTreatment);
@@ -19852,6 +20038,31 @@
   };
 
   let lastPassiveUpcomingAlertsRenderAt = 0;
+  let lastDoctorLongWaitDisplaySignature = '';
+  function refreshDoctorLongWaitDisplays() {
+    const signature = [doctorLongWaitMinutes, ...[...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS, ...HOLD_BED_NUMBERS]
+      .map(bedNo => {
+        const info = getDoctorProcedureWaitInfo(getBedData(bedNo));
+        return info.longWaiting ? `${bedNo}:${info.waitStartedAt}:${info.waitMinutes}` : '';
+      }).filter(Boolean), ...(!isRegularFixedBedScreen() && !isFixedDoctorBedScreen() ? getWaitingPatients().map(([key, patient]) => {
+        const info = getWaitingPatientWaitInfo(patient);
+        return info.longWaiting ? `waiting:${key}:${info.waitStartedAt}:${info.waitMinutes}` : '';
+      }).filter(Boolean) : [])].join('|');
+    if (signature === lastDoctorLongWaitDisplaySignature) return;
+    lastDoctorLongWaitDisplaySignature = signature;
+    document.querySelectorAll('[data-doctor-wait-bed]').forEach(el => {
+      el.innerHTML = renderLongWaitBadge(getDoctorProcedureWaitInfo(getBedData(Number(el.dataset.doctorWaitBed))));
+    });
+    if (isRegularFixedBedScreen()) return;
+    if (isFixedDoctorBedScreen()) {
+      renderBedDoctorAlertPanel();
+      return;
+    }
+    renderWaitingLists();
+    renderBedMonitors();
+    renderUpcomingAlerts();
+  }
+
   function renderUpcomingAlertsPassively() {
     const now = Date.now();
     if (now - lastPassiveUpcomingAlertsRenderAt < 5000) return;
@@ -19863,6 +20074,7 @@
     if (bedRenderTicker) return;
 
     bedRenderTicker = setInterval(() => {
+      refreshDoctorLongWaitDisplays();
       const tickBed = (bed, bedNo) => {
         if (!bed || bed.complete) return;
         if (!isDoctorReadOnlyPage() && bed.running && getRemaining(bed) <= 0) {

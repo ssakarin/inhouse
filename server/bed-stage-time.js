@@ -26,7 +26,8 @@ function stampBedStageTimes(previous = {}, next = {}, now = Date.now()) {
         ? Number(String(old.lastAlertId).split('-').pop()) : 0;
       enteredAt = Number(old.stageEnteredAt) || legacyCompletion || Number(old.timestamp) || now;
     } else {
-      enteredAt = now;
+      const queuedAt = Number(bed.waitingStageEnteredAt);
+      enteredAt = !old && queuedAt > 0 && queuedAt <= now ? queuedAt : now;
       // When an expired timer advances, use its actual deadline even if a
       // browser reported completion late. Manual advances use server time.
       if (old?.running && bed.lastAlertId && bed.lastAlertId !== old.lastAlertId) {
@@ -35,6 +36,22 @@ function stampBedStageTimes(previous = {}, next = {}, now = Date.now()) {
       }
     }
     next[key] = { ...bed, stageEnteredAt: enteredAt };
+    delete next[key].waitingStageEnteredAt;
+    const index = Number(bed.currentIndex || 0);
+    if (!old || !sameStage(old, bed) || bed.complete
+      || bed.timerStageStarted?.index !== index || bed.timerStageStarted?.treatment !== bed.treatments[index]) {
+      delete next[key].timerStageStarted;
+    }
+    const startedHere = Number(bed.doctorProcedureStartedAt) > 0
+      && Number(bed.doctorProcedureStartedIndex) === index
+      && bed.doctorProcedureStartedTreatment === bed.treatments[index];
+    if (!old || !sameStage(old, bed) || bed.complete || !startedHere) {
+      delete next[key].doctorProcedureStartedAt;
+      delete next[key].doctorProcedureStartedIndex;
+      delete next[key].doctorProcedureStartedTreatment;
+    } else {
+      next[key].doctorProcedureStartedAt = Number(old.doctorProcedureStartedAt) || now;
+    }
   }
   return next;
 }

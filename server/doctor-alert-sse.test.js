@@ -31,6 +31,7 @@ function serverContext() {
   return {context, frames};
 }
 const frontendFunctions = ['getBedAssignmentAlertForBed','isFixedBedArrivalPending','getTreatmentBadgeClass','isSimultaneousTreatment','getSimultaneousGroup','shouldCompleteFollowingTreatmentTogether','getConcurrentTreatmentEndIndex','getConcurrentTreatmentNames','formatTreatmentNames','normalizePreCompletedTreatmentIndexes','getNextPendingTreatmentIndex','getRemaining','isDoctorProcedureTreatment','getDoctorProcedureAlertId','getCurrentDoctorProcedureAlertId','isDoctorProcedureAlertDismissed','isLongDoctorProcedureTreatment','isChunaDoctorProcedureTreatment','isShortDoctorProcedureTreatment','hasWaitingChunaDoctorProcedure','getUpcomingShortDoctorProcedureInfo','getCleanupShortDoctorProcedureInfo','buildDoctorProcedureAlertItemsAuto','applyDoctorAlertManualOrder','getDoctorProcedureAlertItems','getNextStaffTaskInfo'];
+frontendFunctions.push('isDoctorProcedureInProgress', 'getDoctorProcedureWaitInfo');
 const active = [1,2,3,4,5,6,8,9,10,11,12,13,14,15];
 function tablet(no, beds, alerts) {
   const {context:s} = serverContext();
@@ -40,6 +41,7 @@ function tablet(no, beds, alerts) {
   const groups = [new Set(['핫팩']),new Set(['침','전침','왕뜸','전자뜸','적외선']),new Set(['단추','복추','벤치'])];
   const c = vm.createContext({
     selectedDoctorAlertId:'d1', ACTIVE_BED_NUMBERS:active,
+    doctorLongWaitMinutes:0,
     getDoctorBedNumbers:()=>[101,102], getBedData:n=>data[n], getBedLabel:n=>String(n),
     bedAssignmentAlertItems:new Map(Object.entries(arrival)),fixedBedArrivalAcknowledgedByBed:{},
     SIMULTANEOUS_TREATMENT_GROUPS:groups, SIMULTANEOUS_TREATMENTS:new Set(groups.flatMap(g=>[...g])),

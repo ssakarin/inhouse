@@ -4447,12 +4447,14 @@ function sseClientAllowsState(client, key) {
   if (!client || !["fixed-bed", "doctor-room"].includes(client.role)) return true;
   if (client.role === "doctor-room") {
     return key === "settings/treatmentMinutes"
+      || key === "settings/doctorLongWaitMinutes"
       || key === "settings/doctorAlertManualOrder"
       || key === "staff/doctors"
       || key === "staff/nurses"
       || key === "bedAssignmentAlerts";
   }
   return key === "settings/treatmentMinutes"
+    || key === "settings/doctorLongWaitMinutes"
     || key === "settings/doctorAlertManualOrder"
     || key === "staff/doctors"
     || key === "staff/nurses"

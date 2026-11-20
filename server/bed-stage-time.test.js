@@ -7,8 +7,10 @@ const { stampBedStageTimes } = require('./bed-stage-time');
 
 const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const alertBuilder = html.slice(html.indexOf('  function buildDoctorProcedureAlertItemsAuto('), html.indexOf('  function getDoctorProcedureAlertItems('));
+const waitFunctions = html.slice(html.indexOf('  function normalizeDoctorLongWaitMinutes('), html.indexOf('  function isLongDoctorProcedureTreatment('));
 function alertOrder(beds, assignmentAlerts = new Map(), nurse = false) {
   const context = {
+    window: {}, doctorLongWaitMinutes: 0,
     selectedDoctorAlertId: 'doctor', getDoctorBedNumbers: () => [],
     ACTIVE_BED_NUMBERS: Object.keys(beds), getBedData: n => beds[n],
     bedAssignmentAlertItems: assignmentAlerts, fixedBedArrivalAcknowledgedByBed: {},
@@ -22,7 +24,7 @@ function alertOrder(beds, assignmentAlerts = new Map(), nurse = false) {
   vm.createContext(context);
   const arrival = html.slice(html.indexOf('  function getBedAssignmentAlertForBed(bedNo)'), html.indexOf('  async function removeBedAssignmentAlertForBedPatient('));
   const receive = html.slice(html.indexOf('  function isReceiveTreatmentAlertTreatment('), html.indexOf('  function syncAssignedPatientKeys('));
-  return Array.from(vm.runInContext(`${arrival}\n${receive}\n${alertBuilder}\n${nurse ? 'getReceiveTreatmentAlertItems()' : 'buildDoctorProcedureAlertItemsAuto()'}.map(x => x.name)`, context));
+  return Array.from(vm.runInContext(`${arrival}\n${receive}\n${waitFunctions}\n${alertBuilder}\n${nurse ? 'getReceiveTreatmentAlertItems()' : 'buildDoctorProcedureAlertItemsAuto()'}.map(x => x.name)`, context));
 }
 const patient = (name, timestamp) => ({ patientKey: name, name, timestamp, doctorId: 'doctor', treatments: ['핫팩', '물리치료', '침'], currentIndex: 1, running: false });
 
