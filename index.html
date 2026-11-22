@@ -2786,11 +2786,12 @@
   .appointment-calendar-title { font-weight:900; color:var(--text); }
   .appointment-calendar { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:14px; }
   .appointment-calendar-weekday { padding:4px 0; text-align:center; color:var(--text3); font-size:11px; font-weight:800; }
-  .appointment-calendar-day { position:relative; min-height:49px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,.025); color:var(--text2); cursor:pointer; font:700 12px/1 inherit; }
+  .appointment-calendar-day { position:relative; min-height:68px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,.025); color:var(--text2); cursor:pointer; font:700 12px/1 inherit; }
   .appointment-calendar-day:hover, .appointment-calendar-day.selected { border-color:var(--accent); background:rgba(56,189,248,.12); color:var(--text); }
   .appointment-calendar-day.today { box-shadow:inset 0 0 0 1px #fcd34d; }
   .appointment-calendar-day.outside { opacity:.3; }
   .appointment-calendar-count { display:block; margin-top:5px; color:#fcd34d; font-size:10px; }
+  .appointment-calendar-noshow { display:block; margin:5px 2px; color:#fda4af; font-size:10px; line-height:1.3; }
   .appointment-list-subhead { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:6px 0; }
   .appointment-list-subhead strong { font-size:13px; }
   .appointment-patient-item { display:block; width:100%; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:rgba(16,27,45,.68); color:var(--text); padding:10px 12px; cursor:pointer; text-align:left; }
@@ -15978,18 +15979,30 @@
     }
   }
 
+  function getAppointmentNoShowSummary(group, today = getTodayKey()) {
+    const count = Number(group?.count || 0);
+    if (!count || !group.date || group.date > today) return null;
+    const attended = Math.min(count, Math.max(0, Number(group.visitedCount || 0)));
+    const missed = count - attended;
+    return { label: group.date === today ? '현재 부도율' : '부도율',
+      rate: Math.round(missed / count * 1000) / 10, missed, count };
+  }
+
   function renderAppointmentCalendar() {
     const [year, month] = appointmentCalendarMonth.split('-').map(Number);
     const first = new Date(year, month - 1, 1);
     const gridStart = new Date(year, month - 1, 1 - first.getDay());
-    const counts = new Map(appointmentCalendarGroups.map(group => [group.date, Number(group.count || 0)]));
+    const groups = new Map(appointmentCalendarGroups.map(group => [group.date, group]));
+    const today = getTodayKey();
     document.getElementById('appointmentCalendarTitle').textContent = `${year}년 ${month}월`;
     const weekdays = ['일','월','화','수','목','금','토'].map(day => `<div class="appointment-calendar-weekday">${day}</div>`).join('');
     const days = Array.from({ length: 42 }, (_, index) => {
       const value = new Date(gridStart); value.setDate(gridStart.getDate() + index);
       const date = toLocalDateInputValue(value);
-      const count = counts.get(date) || 0;
-      return `<button type="button" class="appointment-calendar-day${value.getMonth() !== month - 1 ? ' outside' : ''}${date === getTodayKey() ? ' today' : ''}${date === appointmentSelectedDate ? ' selected' : ''}" onclick="selectAppointmentDate('${date}')"><span>${value.getDate()}</span>${count ? `<span class="appointment-calendar-count">${count}명</span>` : ''}</button>`;
+      const group = groups.get(date);
+      const count = Number(group?.count || 0);
+      const noShow = getAppointmentNoShowSummary(group, today);
+      return `<button type="button" class="appointment-calendar-day${value.getMonth() !== month - 1 ? ' outside' : ''}${date === getTodayKey() ? ' today' : ''}${date === appointmentSelectedDate ? ' selected' : ''}" onclick="selectAppointmentDate('${date}')"><span>${value.getDate()}</span>${count ? `<span class="appointment-calendar-count">${count}명</span>` : ''}${noShow ? `<span class="appointment-calendar-noshow" title="미내원 ${noShow.missed}명 / 예약 ${noShow.count}명 · 접수·방문 기록 기준">${noShow.label} ${noShow.rate}%</span>` : ''}</button>`;
     }).join('');
     document.getElementById('appointmentCalendar').innerHTML = weekdays + days;
   }
