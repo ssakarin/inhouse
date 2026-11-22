@@ -127,8 +127,6 @@ html.fit .stage { transform-origin: 0 0; }
 /* 이벤트 포스터 */
 .slide--event { display: flex; align-items: center; justify-content: center; }
 .slide--event img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.slide--event-memory { background: #f4f4f4; }
-.slide--event-memory img { object-fit: cover; }
 .slide--event-lindiet { background: #fff; }
 .slide--event-lindiet img { object-fit: cover; }
 .slide--event-lindiet-group { background: #40377f; }
