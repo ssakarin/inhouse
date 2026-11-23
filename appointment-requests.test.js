@@ -114,7 +114,7 @@ test('doctor read-only page cannot acknowledge requests', async () => {
   assert.equal(r.writes.length, 0);
 });
 
-test('appointment calendar shows daily no-show rates, with today provisional and future dates excluded', () => {
+test('appointment calendar shows daily no-show rates, without labels and with future dates excluded', () => {
   const elements = { appointmentCalendarTitle: {}, appointmentCalendar: {} };
   const c = vm.createContext({
     appointmentCalendarMonth: '2026-11', appointmentSelectedDate: '2026-11-23',
@@ -135,12 +135,13 @@ test('appointment calendar shows daily no-show rates, with today provisional and
   c.renderAppointmentCalendar();
   const html = elements.appointmentCalendar.innerHTML;
   const day = date => html.match(new RegExp(`onclick="selectAppointmentDate\\('2026-11-${date}'\\)">([\\s\\S]*?)</button>`))[1];
-  assert.match(day('20'), /부도율 33\.3%/);
+  assert.match(day('20'), />33\.3%<\/span>/);
   assert.match(day('20'), /미내원 1명 \/ 예약 3명/);
-  assert.match(day('21'), /부도율 0%/);
+  assert.match(day('21'), />0%<\/span>/);
   assert.doesNotMatch(day('22'), /부도율/);
-  assert.match(day('23'), /현재 부도율 75%/);
+  assert.match(day('23'), />75%<\/span>/);
   assert.match(day('24'), /5명/);
   assert.doesNotMatch(day('24'), /부도율/);
+  assert.doesNotMatch(html, /부도율/);
   assert.equal(c.getAppointmentNoShowSummary(undefined), null);
 });

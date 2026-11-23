@@ -15984,8 +15984,7 @@
     if (!count || !group.date || group.date > today) return null;
     const attended = Math.min(count, Math.max(0, Number(group.visitedCount || 0)));
     const missed = count - attended;
-    return { label: group.date === today ? '현재 부도율' : '부도율',
-      rate: Math.round(missed / count * 1000) / 10, missed, count };
+    return { rate: Math.round(missed / count * 1000) / 10, missed, count };
   }
 
   function renderAppointmentCalendar() {
@@ -16002,7 +16001,7 @@
       const group = groups.get(date);
       const count = Number(group?.count || 0);
       const noShow = getAppointmentNoShowSummary(group, today);
-      return `<button type="button" class="appointment-calendar-day${value.getMonth() !== month - 1 ? ' outside' : ''}${date === getTodayKey() ? ' today' : ''}${date === appointmentSelectedDate ? ' selected' : ''}" onclick="selectAppointmentDate('${date}')"><span>${value.getDate()}</span>${count ? `<span class="appointment-calendar-count">${count}명</span>` : ''}${noShow ? `<span class="appointment-calendar-noshow" title="미내원 ${noShow.missed}명 / 예약 ${noShow.count}명 · 접수·방문 기록 기준">${noShow.label} ${noShow.rate}%</span>` : ''}</button>`;
+      return `<button type="button" class="appointment-calendar-day${value.getMonth() !== month - 1 ? ' outside' : ''}${date === getTodayKey() ? ' today' : ''}${date === appointmentSelectedDate ? ' selected' : ''}" onclick="selectAppointmentDate('${date}')"><span>${value.getDate()}</span>${count ? `<span class="appointment-calendar-count">${count}명</span>` : ''}${noShow ? `<span class="appointment-calendar-noshow" title="미내원 ${noShow.missed}명 / 예약 ${noShow.count}명 · 접수·방문 기록 기준">${noShow.rate}%</span>` : ''}</button>`;
     }).join('');
     document.getElementById('appointmentCalendar').innerHTML = weekdays + days;
   }
