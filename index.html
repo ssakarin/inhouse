@@ -20777,16 +20777,6 @@
     return result.committed && result.snapshot.val()?.midnightClearClaimId === claimId;
   }
 
-  async function backupDischargedPatientsToServer(date) {
-    const response = await fetch('/api/backup/discharged-patients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ date })
-    });
-    if (!response.ok) throw new Error(`퇴실환자 백업 실패 (${response.status})`);
-    return response.json();
-  }
-
   async function clearBedsLeftFromPreviousDate() {
     if (globalThis.window?.getAppView?.() === 'doctor') return;
     if (midnightBedClearRunning) return;
@@ -20807,12 +20797,6 @@
         } catch (error) {
           console.error(`[midnight] ${getBedLabel(bedNo)} auto-clear failed`, error);
         }
-      }
-      try {
-        const backup = await backupDischargedPatientsToServer(clearThroughDate);
-        console.info(`[23:00] discharged patients backed up: ${backup.file} (${backup.count})`);
-      } catch (error) {
-        console.error('[23:00] discharged patients backup failed', error);
       }
     } finally {
       midnightBedClearRunning = false;
