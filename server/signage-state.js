@@ -44,6 +44,7 @@ function onConfirmation(calls,beds,alert,now,id){
  const no=Number(alert?.bedNo),bed=beds[String(no)];
  const pending=calls.find(c=>c.pending&&c.bedNo===no&&c.patientKey===alert?.patientKey&&matches(c,beds));
  if(!pending||!validBed(no))return calls;
+ if(alert.returnFromWaiting===true)return calls.filter(c=>c!==pending);
  return enqueue(calls.filter(c=>c!==pending),no,bed,now,id(),0);
 }
 module.exports={maskName,validBed,matches,publicStatus,enqueue,onAssignment,onConfirmation};

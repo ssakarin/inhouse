@@ -1,13 +1,23 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const signage=require('./signage-state');
 const now=2000000000,bed={patientKey:'p1',name:'김민석'};
+
+test('spine return popup clears a pending call silently while initial confirmation still announces',()=>{
+ const beds={15:bed};
+ const pending=signage.onAssignment([],{},beds,now,()=> 'pending');
+ const returned=signage.onConfirmation(pending,beds,{bedNo:15,patientKey:'p1',returnFromWaiting:true},now+1000,()=> 'return');
+ assert.deepEqual(returned,[]);
+ const initial=signage.onConfirmation(pending,beds,{bedNo:15,patientKey:'p1'},now+1000,()=> 'initial');
+ assert.equal(initial.length,1);
+ assert.equal(initial[0].pending,undefined);
+});
 test('one thousand simultaneous duplicate confirmations write and broadcast only once',async()=>{
  const source=fs.readFileSync(require.resolve('./server.js'),'utf8');
  const block=source.slice(source.indexOf('  const childMatch = pathname.match'),source.indexOf('  if (pathname === "/api/discharged-patients/cleanup"'));
  const beds={101:bed};let id=0,writes=0,broadcasts=0;
  const state={bedAssignmentAlerts:{one:{bedNo:101,patientKey:'p1'}},signageCalls:signage.onAssignment([],{},beds,now,()=>String(++id))};
  const ctx=vm.createContext({
-  signageState:signage,Date,crypto:{randomUUID:()=>String(++id)},
+  signageState:signage,startInitialExamOnConfirmation:require('./bed-assignment-alerts').startInitialExamOnConfirmation,Date,crypto:{randomUUID:()=>String(++id)},
   readJson:async req=>req.body,normalizeStateKey:key=>key,getStateValue:key=>state[key],getBedsState:()=>beds,
   setStateValue:(key,value)=>{state[key]=value;writes++;},stateEquals:(a,b)=>JSON.stringify(a)===JSON.stringify(b),
   sseBroadcastStateChild:()=>broadcasts++,jsonResponse:()=>{},assertValidChartNoRecord:()=>{}

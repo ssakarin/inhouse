@@ -7,7 +7,7 @@ const appointmentImport = require("../appointment-import");
 const dailyImportPreviews = new Map();
 const handwrittenPreviews = new Map();
 const signageState = require("./signage-state");
-const { reconcileAssignmentAlerts } = require("./bed-assignment-alerts");
+const { reconcileAssignmentAlerts, startInitialExamOnConfirmation } = require("./bed-assignment-alerts");
 const signageTts = require("./signage-tts");
 const getSignageSpeech = signageTts.createSpeechCache();
 const fs = require("node:fs");
@@ -4863,6 +4863,8 @@ async function handleApi(req, res, pathname) {
     }
     setStateValue(key, map);
     if(key === "bedAssignmentAlerts" && op === "delete" && body.confirmed === true && previousChild){
+      const examBeds = startInitialExamOnConfirmation(getBedsState(), previousChild);
+      if (examBeds) commitBeds(examBeds);
       const calls=getStateValue("signageCalls")||[];
       const nextCalls=signageState.onConfirmation(calls,getBedsState(),previousChild,Date.now(),()=>crypto.randomUUID());
       if(!stateEquals(calls,nextCalls))setStateValue("signageCalls",nextCalls);

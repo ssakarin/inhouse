@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { stampBedStageTimes } = require('./server/bed-stage-time');
+const { startInitialExamOnConfirmation } = require('./server/bed-assignment-alerts');
 
 const html = fs.readFileSync(`${__dirname}/index.html`, 'utf8');
 const server = fs.readFileSync(`${__dirname}/server/server.js`, 'utf8');
@@ -272,6 +273,33 @@ function loadAssignment(s) {
   });
   vm.runInContext(extract(html, 'createBedAssignment'), s.c);
 }
+
+for (const [no, treatment, index, returned] of [
+  [101, '진찰', 0, false], [1, '베드진찰', 0, false],
+  [101, '약침4', 1, true], [15, '단추', 1, true]
+]) test(`full wait audit: ${treatment} popup ends overdue state until completion, then a fresh 15-minute wait`, () => {
+  const s = setup();
+  const treatments = index ? ['침', treatment, '핫팩'] : [treatment, '핫팩'];
+  s.bed(no, treatment, 20, { treatments, currentIndex: index, initialExamOnArrival: !returned });
+  const alert = { bedNo: no, patientKey: `patient-${no}`, ...(returned ? {
+    returnFromWaiting: true, treatmentIndex: index, treatmentName: treatment
+  } : {}) };
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[no]).longWaiting, true);
+  const started = startInitialExamOnConfirmation(s.beds, alert, s.clock.now);
+  assert.ok(started);
+  const committed = stampBedStageTimes(s.beds, started, s.clock.now);
+  Object.assign(s.beds, committed);
+  s.clock.now += 30 * 60000;
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[no]).longWaiting, false);
+  assert.deepEqual(s.order(), []);
+  const next = stampBedStageTimes(s.beds, { [no]: { ...s.beds[no], currentIndex: index + 1, remaining: 300 } }, s.clock.now);
+  Object.assign(s.beds, next);
+  s.clock.now += 15 * 60000 - 1;
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[no]).longWaiting, false);
+  s.clock.now += 1;
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[no]).longWaiting, true);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[no]).waitMinutes, 15);
+});
 
 for (const treatment of ['진찰', '단추', '약침4', '적외선', '테이핑', '벤치']) {
   for (const withStart of [false, true]) test(`${treatment}: completion advances with optional start=${withStart}`, async () => {

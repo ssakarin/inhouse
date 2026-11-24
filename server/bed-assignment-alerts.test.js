@@ -2,12 +2,39 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const { reconcileAssignmentAlerts } = require('./bed-assignment-alerts');
+const { reconcileAssignmentAlerts, startInitialExamOnConfirmation } = require('./bed-assignment-alerts');
 const signageState = require('./signage-state');
 const source = fs.readFileSync(`${__dirname}/server.js`, 'utf8');
 const html = fs.readFileSync(`${__dirname}/../index.html`, 'utf8');
 const a = { patientKey: 'a', name: '테스트A', running: true, currentIndex: 2 };
 const b = { patientKey: 'b', name: '테스트B' };
+
+test('initial exam name confirmation starts the exam and still calls signage once', async () => {
+  for (const [no, treatment] of [[101, '진찰'], [3, '베드진찰']]) {
+    const bed = { patientKey: 'first', name: '초기환자', treatments: [treatment, '침'], currentIndex: 0, stageEnteredAt: 1000 };
+    const s = server({ [no]: bed }, { arrival: { bedNo: no, patientKey: 'first' } });
+    await s.confirm('arrival');
+    assert.ok(s.state.beds[no].doctorProcedureStartedAt > 0);
+    assert.equal(s.state.beds[no].doctorProcedureStartedTreatment, treatment);
+    assert.equal(s.state.beds[no].running, undefined);
+    assert.equal(s.state.beds[no].stageEnteredAt, 1000);
+    assert.equal(s.state.signageCalls.length, 1);
+    assert.equal(s.state.signageCalls[0].pending, undefined);
+    const startedAt = s.state.beds[no].doctorProcedureStartedAt;
+    await s.confirm('arrival');
+    assert.equal(s.state.beds[no].doctorProcedureStartedAt, startedAt);
+    assert.equal(s.state.signageCalls.length, 1);
+  }
+});
+
+test('arrival auto-start excludes other treatments, later steps, resumed visits and stale confirmations', () => {
+  for (const bed of [
+    { treatments: ['침'], currentIndex: 0 }, { treatments: ['약침4'], currentIndex: 0 },
+    { treatments: ['진찰'], currentIndex: 0, initialExamOnArrival: false },
+    { treatments: ['침', '진찰'], currentIndex: 1 }, { treatments: ['진찰'], complete: true }
+  ]) assert.equal(startInitialExamOnConfirmation({ 1: { patientKey: 'p', ...bed } }, { bedNo: 1, patientKey: 'p' }), null);
+  assert.equal(startInitialExamOnConfirmation({ 1: { patientKey: 'new', treatments: ['진찰'] } }, { bedNo: 1, patientKey: 'old' }), null);
+});
 
 function server(beds, alerts) {
   let serial = 0;
@@ -15,7 +42,7 @@ function server(beds, alerts) {
     signageCalls: signageState.onAssignment([], {}, beds, Date.now(), () => String(++serial)) };
   const frames = [];
   const c = vm.createContext({
-    reconcileAssignmentAlerts, signageState, crypto: {randomUUID: () => String(++serial)},
+    reconcileAssignmentAlerts, startInitialExamOnConfirmation, signageState, crypto: {randomUUID: () => String(++serial)},
     cloneJson: x => structuredClone(x), stampBedStageTimes: (_, next) => next,
     getBedsState: () => state.beds, getStateValue: key => state[key],
     setStateValue: (key, value) => {state[key] = value;},
@@ -33,6 +60,30 @@ function server(beds, alerts) {
   return {state, frames, move: beds => c.commitBeds(beds), confirm: key => c.handle(
     {method:'POST',body:{key:'bedAssignmentAlerts',childKey:key,confirmed:true}}, {}, '/api/state-child/delete')};
 }
+
+for (const [no, treatments] of [[101, ['침', '단추']], [101, ['침', '약침4']], [15, ['침', '단추', '벤치']]]) {
+  test(`waiting-room return confirmation starts ${treatments[1]} in ${no} without a signage announcement`, async () => {
+    const bed = { patientKey: 'return', name: '복귀환자', initialExamOnArrival: false,
+      treatments, currentIndex: 1, stageEnteredAt: 1000, remaining: 300, total: 300 };
+    const alert = { bedNo: no, patientKey: 'return', returnFromWaiting: true, treatmentIndex: 1, treatmentName: treatments[1] };
+    const s = server({ [no]: bed }, { arrival: alert });
+    await s.confirm('arrival');
+    assert.equal(s.state.beds[no].doctorProcedureStartedIndex, 1);
+    assert.equal(s.state.beds[no].doctorProcedureStartedTreatment, treatments[1]);
+    assert.equal(s.state.beds[no].stageEnteredAt, 1000);
+    assert.equal(s.state.beds[no].running, undefined);
+    assert.deepEqual(s.state.signageCalls, []);
+  });
+}
+
+test('return confirmation does not start a spine countdown or apply to a changed stage or ordinary bed', () => {
+  const bed = { patientKey: 'p', treatments: ['침', '스파인'], currentIndex: 1, remaining: 900, total: 900 };
+  const alert = { bedNo: 15, patientKey: 'p', returnFromWaiting: true, treatmentIndex: 1, treatmentName: '스파인' };
+  assert.equal(startInitialExamOnConfirmation({ 15: bed }, alert), null);
+  const changed = { ...bed, treatments: ['침', '단추'] };
+  assert.equal(startInitialExamOnConfirmation({ 15: changed }, alert), null);
+  assert.equal(startInitialExamOnConfirmation({ 1: changed }, { ...alert, bedNo: 1, treatmentName: '단추' }), null);
+});
 
 test('move keeps the same unconfirmed alert and publishes destination before confirmation calls signage once', async () => {
   const r = server({1:a}, {gold:{bedNo:1,patientKey:'a',timestamp:123}});

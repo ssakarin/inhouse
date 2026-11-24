@@ -27,4 +27,22 @@ function reconcileAssignmentAlerts(alerts = {}, beds = {}) {
   return next;
 }
 
-module.exports = { reconcileAssignmentAlerts };
+function startInitialExamOnConfirmation(beds, alert, now = Date.now()) {
+  const no = Number(alert?.bedNo);
+  if (!Number.isInteger(no) || !((no >= 1 && no <= 15 && no !== 7) || (no >= 101 && no <= 110))) return null;
+  const bed = beds?.[String(no)];
+  if (!bed || !alert.patientKey || bed.patientKey !== alert.patientKey
+    || bed.complete || bed.bedCleaning || bed.running || bed.lastAlertId || Number(bed.doctorProcedureStartedAt) > 0) return null;
+  const index = Number(bed.currentIndex || 0);
+  const treatment = bed.treatments?.[index] || '';
+  const initialExam = index === 0 && bed.initialExamOnArrival !== false && ['진찰', '베드진찰'].includes(treatment);
+  const returnProcedure = (no === 15 || no >= 101) && alert.returnFromWaiting === true
+    && Number(alert.treatmentIndex) === index && alert.treatmentName === treatment
+    && (['진찰', '베드진찰', '단추', '복추', '추나', '벤치', '적외선', '테이핑'].includes(treatment) || /약침/.test(treatment));
+  if (!initialExam && !returnProcedure) return null;
+  return { ...beds, [no]: { ...bed, initialExamOnArrival: false,
+    doctorProcedureStartedAt: now, doctorProcedureStartedIndex: index,
+    doctorProcedureStartedTreatment: treatment } };
+}
+
+module.exports = { reconcileAssignmentAlerts, startInitialExamOnConfirmation };

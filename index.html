@@ -14272,6 +14272,7 @@
       lastVisitDate: data.lastVisitDate || '',
       bodyParts: data.bodyParts || { front: [], back: [] },
       currentIndex,
+      initialExamOnArrival: !saved && !data.waitingStage,
       waitingStageEnteredAt: Number(saved?.stageEnteredAt) || Number(data.timestamp) || Date.now(),
       total,
       remaining: saved ? Math.max(0, Number(saved.remaining) || 0) : total,
@@ -14493,12 +14494,22 @@
     });
   }
 
-  async function createBedAssignmentAlert(patientKey, data, bedNo) {
+  async function createBedAssignmentAlert(patientKey, data, bedNo, options = {}) {
     if (!patientKey || !bedNo) return;
-    if (getBedAssignmentAlertForPatient(patientKey)) return;
+    const returnFromWaiting = Boolean(options.returnFromWaiting || data.waitingStage);
+    const index = Number(data.currentIndex ?? data.waitingStage?.currentIndex ?? 0);
+    const returnInfo = returnFromWaiting ? {
+      returnFromWaiting: true, treatmentIndex: index, treatmentName: data.treatments?.[index] || ''
+    } : {};
+    const existing = getBedAssignmentAlertForPatient(patientKey);
+    if (existing) {
+      if (returnFromWaiting) await updateLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, existing.key, returnInfo);
+      return;
+    }
     const name = data.name || '환자';
     try {
       await pushBedAssignmentAlert({
+        ...returnInfo,
         patientKey,
         bedNo: Number(bedNo),
         bedLabel: getBedLabel(bedNo),
@@ -18732,18 +18743,19 @@
         }
       }
       const assignmentAlertPromises = [];
-      if (Number(fromBedNo) >= 101 && movedBeds[String(fromBedNo)]?.patientKey) {
+      if ((Number(fromBedNo) >= 101 || Number(fromBedNo) === 15) && movedBeds[String(fromBedNo)]?.patientKey) {
         assignmentAlertPromises.push(createBedAssignmentAlert(
           movedBeds[String(fromBedNo)].patientKey,
           movedBeds[String(fromBedNo)],
           Number(fromBedNo)
         ));
       }
-      if (Number(toBedNo) >= 101 && movedBeds[String(toBedNo)]?.patientKey) {
+      if ((Number(toBedNo) >= 101 || Number(toBedNo) === 15) && movedBeds[String(toBedNo)]?.patientKey) {
         assignmentAlertPromises.push(createBedAssignmentAlert(
           movedBeds[String(toBedNo)].patientKey,
           movedBeds[String(toBedNo)],
-          Number(toBedNo)
+          Number(toBedNo),
+          { returnFromWaiting: HOLD_BED_NUMBERS.includes(Number(fromBedNo)) }
         ));
       }
       if (assignmentAlertPromises.length) await Promise.all(assignmentAlertPromises);

@@ -6,7 +6,7 @@ const source = fs.readFileSync('index.html', 'utf8');
 const patient = key => ({ patientKey:key, name:key, doctorId:'d', treatments:['침','스파인'], currentIndex:1, total:300, remaining:123, running:true, startedAt:1000, lastAlertId:key+'-alert', nurseId:'' });
 function setup(from, to, target, changeBeforeCommit) {
   const beds = { [from]:patient('a'), ...(target ? {[to]:target} : {}) };
-  const writes = [], nurseCalls = [], alerts = [];
+  const writes = [], nurseCalls = [], alerts = [], alertOptions = [];
   const c = {
     window:{}, HOLD_BED_NUMBERS:[901,902], nurseAutoAssignEnabled:true, autoBedAssignEnabled:false,
     getDoctorBedNoForPatient:()=>101,
@@ -23,14 +23,22 @@ function setup(from, to, target, changeBeforeCommit) {
     },
     updatePatientBedNoForBed:async(no,bed)=>{if(bed?.patientKey)writes.push([bed.patientKey,Number(no)]);},
     applyRoundRobinNurse:async(key,bed,no)=>{nurseCalls.push([key,Number(no)]);Object.assign(beds[no],{nurseId:'n',nurseName:'간호사'});return beds[no];},
-    updatePatient:async()=>{}, createBedAssignmentAlert:async(key,bed,no)=>alerts.push([key,no]),
+    updatePatient:async()=>{}, createBedAssignmentAlert:async(key,bed,no,options)=>{alerts.push([key,no]);alertOptions.push(options);},
     remapBedAssignmentAlertForMovedPatient:async()=>{}, remapLocalAlertBedNo:()=>{}, showToast:()=>{},getBedLabel:no=>String(no)
   };
   vm.createContext(c);
   const a=source.indexOf('  window.moveOrSwapBed = async');
   vm.runInContext(source.slice(a,source.indexOf('  window.moveBedToWaiting',a)),c);
-  return {context:c,beds,writes,nurseCalls,alerts,move:options=>c.window.moveOrSwapBed(from,to,options)};
+  return {context:c,beds,writes,nurseCalls,alerts,alertOptions,move:options=>c.window.moveOrSwapBed(from,to,options)};
 }
+
+for (const target of [15, 101]) test(`holding area release creates a return popup for ${target}`, async () => {
+  const s = setup(901, target);
+  assert.equal(await s.move({ silent: true, requireEmptyTarget: true }), true);
+  assert.deepEqual(s.alerts, [['a', target]]);
+  assert.equal(s.alertOptions.length, 1);
+  assert.equal(s.alertOptions[0].returnFromWaiting, true);
+});
 const places=[1,8,15,101,102];
 for(const from of places)for(const to of places.filter(no=>no!==from)){
   test(`move ${from} -> ${to} retains patient, treatment progress and updates patient location`,async()=>{
