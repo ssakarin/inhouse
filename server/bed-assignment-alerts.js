@@ -36,7 +36,8 @@ function startInitialExamOnConfirmation(beds, alert, now = Date.now()) {
   const index = Number(bed.currentIndex || 0);
   const treatment = bed.treatments?.[index] || '';
   const initialExam = index === 0 && bed.initialExamOnArrival !== false && ['진찰', '베드진찰'].includes(treatment);
-  const returnProcedure = (no === 15 || no >= 101) && alert.returnFromWaiting === true
+  const returnProcedure = (no === 15 || no >= 101)
+    && (alert.returnFromWaiting === true || alert.directProcedureArrival === true)
     && Number(alert.treatmentIndex) === index && alert.treatmentName === treatment
     && (['진찰', '베드진찰', '단추', '복추', '추나', '벤치', '적외선', '테이핑'].includes(treatment) || /약침/.test(treatment));
   if (!initialExam && !returnProcedure) return null;

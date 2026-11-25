@@ -85,7 +85,7 @@ function setup() {
 test('long wait crosses the configured threshold without any persisted state change', () => {
   const s = setup();
   s.bed(101, '진찰', 14.99);
-  s.bed(1, '침', 1);
+  s.bed(1, '약침1', 1);
   assert.deepEqual(s.order(), [1, 101]);
   s.clock.now += 600;
   assert.deepEqual(s.order(), [101, 1]);
@@ -110,10 +110,10 @@ test('overdue ready procedures precede upcoming and cleanup items; unfinished pr
   assert.equal(s.c.getDoctorProcedureAlertItems('a')[2].longWaiting, undefined);
 });
 
-test('setting zero disables badges and promotion while preserving existing ordering', () => {
+test('setting zero disables badges and promotion while preserving oldest-first ties', () => {
   const s = setup(); s.bed(101, '진찰', 40); s.bed(1, '침', 1);
   s.c.doctorLongWaitMinutes = 0;
-  assert.deepEqual(s.order(), [1, 101]);
+  assert.deepEqual(s.order(), [101, 1]);
   assert.equal(s.c.renderLongWaitBadge(s.c.getDoctorProcedureWaitInfo(s.beds[101])), '');
 });
 
@@ -217,7 +217,7 @@ test('settings preserve zero, recover defaults and reject invalid inputs without
 
 test('desk and doctor alert lists preserve the procedure recommendation instead of sorting it by timestamp again', () => {
   const s = setup();
-  s.bed(101, '진찰', 14.99); s.bed(1, '침', 1);
+  s.bed(101, '진찰', 14.99); s.bed(1, '약침1', 1);
   s.c.getDoctorPageProcedureAlertItems = () => s.c.getDoctorProcedureAlertItems('a');
   s.c.renderSimpleDoctorProcedureAlertHtml = item => `${item.bedNo},`;
   const renderStart = html.indexOf('    const renderAlertItemsHtml =');
@@ -415,4 +415,130 @@ test('desk and doctor page rendering preserves the recommended procedure order a
     { html: 'appointment', timestamp: 400, alertPriority: 0 }
   ];
   assert.equal(s.c.renderAlertItemsForTest(items), 'appointmentoverduecallexamneedle');
+});
+
+
+test('time check outranks overdue, pharmacopuncture 1/2, standalone cupping/moxa and other treatments', () => {
+  const s = setup();
+  s.bed(1, '진찰', 1, { bodyParts: { bedPreferences: { timeLimited: true } } });
+  s.bed(2, '추나', 25);
+  s.bed(3, '약침2', 2);
+  s.bed(4, '왕뜸', 10);
+  s.bed(101, '침', 14);
+  assert.deepEqual(s.order(), [1, 2, 3, 4, 101]);
+});
+
+test('configured threshold and zero control promotion independently of time checks', () => {
+  const s = setup();
+  s.bed(1, '침', 10); s.bed(2, '약침1', 1);
+  s.bed(3, '추나', 0, { bodyParts: { bedPreferences: { timeLimited: true } } });
+  s.c.doctorLongWaitMinutes = 10;
+  assert.deepEqual(s.order(), [3, 1, 2]);
+  s.c.doctorLongWaitMinutes = 11;
+  assert.deepEqual(s.order(), [3, 2, 1]);
+  s.c.doctorLongWaitMinutes = 0;
+  assert.deepEqual(s.order(), [3, 2, 1]);
+});
+
+test('only current pharmacopuncture 1/2 and standalone cupping/moxa receive treatment priority', () => {
+  const s = setup(); s.c.doctorLongWaitMinutes = 0;
+  s.bed(1, '침', 12, { treatments: ['침', '약침1'] });
+  s.bed(2, '약침4', 11);
+  s.bed(3, '왕뜸', 10, { treatments: ['왕뜸', '침'] });
+  s.bed(4, '습부항', 1);
+  s.bed(101, '약침1', 0);
+  assert.deepEqual(s.order(), [101, 4, 1, 2, 3]);
+  for (const name of ['건부항', '전자뜸']) {
+    s.beds[4].treatments = [name];
+    assert.deepEqual(s.order(), [101, 4, 1, 2, 3]);
+  }
+});
+
+test('preparation follows all ready patients even when time checked; upcoming uses shortest remaining first', () => {
+  const s = setup();
+  const urgent = { bodyParts: { bedPreferences: { timeLimited: true } } };
+  s.bed(101, '추나', 1);
+  s.bed(1, '침', 40, { ...urgent, lastAlertId: 'done-1' });
+  s.bed(2, '핫팩', 40, { ...urgent, treatments: ['핫팩', '약침1'], running: true, remaining: 120 });
+  s.bed(3, '핫팩', 40, { treatments: ['핫팩', '침'], running: true, remaining: 60 });
+  s.bed(4, '침', 0);
+  assert.deepEqual(s.order(), [101, 4, 1, 3, 2]);
+  s.beds[2].remaining = 121;
+  assert.deepEqual(s.order(), [101, 4, 1, 3]);
+  s.beds[2].remaining = 119;
+  assert.deepEqual(s.order(), [101, 4, 1, 3, 2]);
+});
+
+
+test('simulation: 습부항 completion -> manual waiting -> doctor room -> popup confirmation with 복추 SW 약침4 remaining', async () => {
+  const s = setup(); loadAssignment(s);
+  const patients = new Map();
+  const timeline = [];
+  const snapshot = (label, bed, waiting = false) => {
+    const info = waiting ? s.c.getWaitingPatientWaitInfo(bed) : s.c.getDoctorProcedureWaitInfo(bed);
+    timeline.push({step: label, treatment: waiting ? bed.treatments[bed.waitingStage.currentIndex] : bed.treatments[bed.currentIndex],
+      waitMinutes: info.waitMinutes, longWaiting: info.longWaiting,
+      previousAlert: Boolean(bed.lastAlertId), inProgress: s.c.isDoctorProcedureInProgress(bed)});
+    return info;
+  };
+  function commit(next) {
+    const stamped = stampBedStageTimes(s.beds, next, s.clock.now);
+    for (const no of Object.keys(s.beds)) delete s.beds[no];
+    Object.assign(s.beds, stamped);
+  }
+  Object.assign(s.c, {
+    finishingBeds: new Set(), queuedTimerAlerts: new Set(), seenTimerAlerts: new Set(),
+    showTimerCompleteAlert: () => {}, clearLocalTimerAlertsForBed: () => {},
+    patientsByKey: patients, isCleaningBed: bed => Boolean(bed?.bedCleaning),
+    updatePatient: async (key, patch) => patients.set(key, {...patients.get(key), ...patch}),
+    removeBedRecord: async no => { const next = {...s.beds}; delete next[no]; commit(next); },
+    runBedsRecordTransaction: async mutate => {
+      const next = mutate(structuredClone(s.beds));
+      if (next === undefined) return {committed:false,snapshot:{val:()=>s.beds}};
+      commit(next); return {committed:true,snapshot:{val:()=>s.beds}};
+    },
+    applyRoundRobinNurse: async (key, data) => data,
+    getBedAssignmentAlertForPatient: key => [...s.c.bedAssignmentAlertItems.entries()]
+      .map(([key, alert])=>({key,...alert})).find(a=>a.patientKey===key),
+    pushBedAssignmentAlert: async alert => s.c.bedAssignmentAlertItems.set('gold', alert),
+    updateLocalNodeChild: async () => { throw Error('unexpected existing alert'); }
+  });
+  for (const name of ['finishBedStep', 'createBedAssignmentAlert', 'assignWaitingPatientToSpecificBed'])
+    vm.runInContext(extract(html, name), s.c);
+  const moveStart = html.indexOf('  window.moveBedToWaiting =');
+  vm.runInContext(html.slice(moveStart, html.indexOf('  window.handleInputBedClick =', moveStart)), s.c);
+  s.bed(1, '습부항', 5, {treatments:['습부항','복추','SW','약침4'], running:true, remaining:0});
+  await s.c.finishBedStep(1);
+  assert.equal(s.beds[1].currentIndex, 1);
+  assert.ok(s.beds[1].lastAlertId);
+  snapshot('습부항 완료, 완료 알림 미확인', s.beds[1]);
+  s.clock.now += 2 * 60000;
+  await s.c.window.moveBedToWaiting(1);
+  const patient = patients.get('patient-1');
+  assert.equal(s.beds[1], undefined);
+  assert.equal(patient.lastAlertId, undefined);
+  snapshot('간호사가 수동 대기실 이동', patient, true);
+  s.clock.now += 18 * 60000;
+  assert.equal(snapshot('대기실 18분 경과', patient, true).waitMinutes, 20);
+  assert.equal(await s.c.assignWaitingPatientToSpecificBed('patient-1', 101), true);
+  assert.equal(s.beds[101].currentIndex, 1);
+  assert.equal(s.beds[101].lastAlertId, undefined);
+  assert.equal(snapshot('원장실 재배정, 팝업 미확인', s.beds[101]).waitMinutes, 20);
+  const alert = s.c.bedAssignmentAlertItems.get('gold');
+  assert.ok(alert);
+  assert.equal(alert.returnFromWaiting, true);
+  assert.equal(alert.treatmentIndex, 1);
+  assert.equal(alert.treatmentName, '복추');
+  s.clock.now += 5 * 60000;
+  assert.equal(snapshot('팝업 확인 직전', s.beds[101]).waitMinutes, 25);
+  const confirmed = startInitialExamOnConfirmation(s.beds, alert, s.clock.now);
+  assert.ok(confirmed);
+  commit(confirmed);
+  s.c.bedAssignmentAlertItems.delete('gold');
+  assert.equal(snapshot('팝업 확인 직후', s.beds[101]).waitMinutes, 0);
+  assert.equal(s.c.isDoctorProcedureInProgress(s.beds[101]), true);
+  s.clock.now += 20 * 60000;
+  assert.equal(snapshot('확인 후 20분 경과', s.beds[101]).longWaiting, false);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).waitMinutes, 0);
+  console.log('Manual return simulation:', JSON.stringify(timeline));
 });

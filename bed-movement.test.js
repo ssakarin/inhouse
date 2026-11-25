@@ -103,3 +103,49 @@ for (const [from,to,treatment] of [[1,101,'단추'],[1,15,'스파인'],[101,15,'
 test('spine to regular bed retains existing nurse assignment behavior',async()=>{
  const s=setup(15,1);await s.move();assert.deepEqual(s.nurseCalls,[]);
 });
+
+
+test('direct move after 습부항 creates a popup and confirming it starts 복추 and ends its wait', async () => {
+  const { startInitialExamOnConfirmation } = require('./server/bed-assignment-alerts');
+  const { stampBedStageTimes } = require('./server/bed-stage-time');
+  const s = setup(1, 101);
+  const now = Date.now();
+  Object.assign(s.beds[1], {treatments:['습부항','복추','SW','약침4'], currentIndex:1,
+    running:false, remaining:300, startedAt:null, lastAlertId:null, initialExamOnArrival:false,
+    stageEnteredAt:now - 20 * 60000});
+  const alerts = new Map();
+  Object.assign(s.context, {bedAssignmentAlertItems:alerts, doctorLongWaitMinutes:15,
+    getBedAssignmentAlertForPatient:()=>null,
+    pushBedAssignmentAlert:async alert=>alerts.set('gold',alert)});
+  function load(name) {
+    const rest=source.slice(source.indexOf(`  function ${name}(`) >= 0
+      ? source.indexOf(`  function ${name}(`) : source.indexOf(`  async function ${name}(`));
+    for(const m of rest.matchAll(/^\s*}\r?$/gm)){
+      const code=rest.slice(0,m.index+m[0].length);
+      try {new vm.Script(code);} catch {continue;}
+      vm.runInContext(code,s.context);return;
+    }
+    throw Error(name);
+  }
+  for(const name of ['createBedAssignmentAlert','isDoctorProcedureInProgress','getDoctorProcedureWaitInfo'])load(name);
+  s.context.getConcurrentTreatmentNames=(ts,i)=>[ts[i]];
+  assert.equal(await s.move({requireEmptyTarget:true}),true);
+  assert.equal(alerts.size,1);
+  const alert=alerts.get('gold');
+  assert.equal(alert.bedNo,101);
+  assert.equal(alert.returnFromWaiting,undefined);
+  assert.equal(alert.directProcedureArrival,true);
+  assert.equal(alert.treatmentName,'복추');
+  assert.equal(alert.treatmentIndex,1);
+  assert.equal(s.context.getDoctorProcedureWaitInfo(s.beds[101],now).waitMinutes,20);
+  // Same server confirmation operation: apply automatic start, then remove the popup.
+  const started=startInitialExamOnConfirmation(s.beds,alert,now);
+  if(started)Object.assign(s.beds,stampBedStageTimes(s.beds,started,now));
+  alerts.delete('gold');
+  assert.equal(alerts.size,0);
+  assert.ok(started);
+  assert.equal(s.context.isDoctorProcedureInProgress(s.beds[101]),true);
+  assert.equal(s.context.getDoctorProcedureWaitInfo(s.beds[101],now).longWaiting,false);
+  assert.equal(s.context.getDoctorProcedureWaitInfo(s.beds[101],now+5*60000).waitMinutes,0);
+  console.log('Direct move simulation: popup created -> confirmed and removed; 복추 started; wait 20 -> 0 minutes.');
+});

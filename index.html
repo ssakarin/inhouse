@@ -6298,7 +6298,7 @@
               <span class="treatment-time-unit">분</span>
             </div>
           </label>
-          <p class="long-wait-setting-note" id="doctorLongWaitNote">대기실과 모든 치료의 시작 대기가 설정 시간 이상이면 대기시간을 주황색으로 점멸합니다. 원장 시술은 같은 원장의 알림에서 오래 기다린 순서로 먼저 표시됩니다. 0분은 사용 안 함입니다.</p>
+          <p class="long-wait-setting-note" id="doctorLongWaitNote">대기실과 모든 치료의 시작 대기가 설정 시간 이상이면 대기시간을 주황색으로 점멸합니다. 원장 시술은 시간 체크, 장기대기, 약침1·2, 부항·뜸 단독, 기타 순이며 같은 순위에서는 오래 기다린 순서로 표시됩니다. 0분은 사용 안 함입니다.</p>
           <button class="submit-btn" onclick="saveDoctorLongWaitMinutes()">저장</button>
         </div>
       </div>
@@ -14498,12 +14498,15 @@
     if (!patientKey || !bedNo) return;
     const returnFromWaiting = Boolean(options.returnFromWaiting || data.waitingStage);
     const index = Number(data.currentIndex ?? data.waitingStage?.currentIndex ?? 0);
-    const returnInfo = returnFromWaiting ? {
-      returnFromWaiting: true, treatmentIndex: index, treatmentName: data.treatments?.[index] || ''
+    const directProcedureArrival = options.directProcedureArrival === true;
+    const returnInfo = returnFromWaiting || directProcedureArrival ? {
+      ...(returnFromWaiting ? { returnFromWaiting: true } : {}),
+      ...(directProcedureArrival ? { directProcedureArrival: true } : {}),
+      treatmentIndex: index, treatmentName: data.treatments?.[index] || ''
     } : {};
     const existing = getBedAssignmentAlertForPatient(patientKey);
     if (existing) {
-      if (returnFromWaiting) await updateLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, existing.key, returnInfo);
+      if (returnFromWaiting || directProcedureArrival) await updateLocalNodeChild(BED_ASSIGNMENT_ALERTS_PATH, existing.key, returnInfo);
       return;
     }
     const name = data.name || '환자';
@@ -18747,7 +18750,8 @@
         assignmentAlertPromises.push(createBedAssignmentAlert(
           movedBeds[String(fromBedNo)].patientKey,
           movedBeds[String(fromBedNo)],
-          Number(fromBedNo)
+          Number(fromBedNo),
+          { directProcedureArrival: true }
         ));
       }
       if ((Number(toBedNo) >= 101 || Number(toBedNo) === 15) && movedBeds[String(toBedNo)]?.patientKey) {
@@ -18755,7 +18759,7 @@
           movedBeds[String(toBedNo)].patientKey,
           movedBeds[String(toBedNo)],
           Number(toBedNo),
-          { returnFromWaiting: HOLD_BED_NUMBERS.includes(Number(fromBedNo)) }
+          { returnFromWaiting: HOLD_BED_NUMBERS.includes(Number(fromBedNo)), directProcedureArrival: true }
         ));
       }
       if (assignmentAlertPromises.length) await Promise.all(assignmentAlertPromises);
@@ -19834,7 +19838,7 @@
           cleanup: true,
           ...getDoctorProcedureWaitInfo(bed),
           alertPriority: 1,
-          sortPriority: 0,
+          sortPriority: 5,
           timestamp: alertTimestamp,
           message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${cleanup.treatment}`
         });
@@ -19859,7 +19863,7 @@
           soon: true,
           soonRemainingSeconds: upcoming.remaining,
           alertPriority: 1,
-          sortPriority: 1,
+          sortPriority: 6,
           timestamp: Number(bed.startedAt || bed.timestamp || 0),
           message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${upcoming.treatment}`
         });
@@ -19872,6 +19876,13 @@
       if (!treatments.some(isDoctorProcedureTreatment)) return;
       const alertId = getDoctorProcedureAlertId(bedNo, bed, currentTreatment);
       if (isDoctorProcedureAlertDismissed(bedNo, bed)) return;
+      const waitInfo = getDoctorProcedureWaitInfo(bed);
+      const timeLimited = bed.bodyParts?.bedPreferences?.timeLimited === true;
+      const hasPriorityPharmacopuncture = treatments.some(name => /^약침[12]$/.test(String(name || '').trim()));
+      const standaloneCuppingOrMoxa = treatments.length === 1
+        && ['건부항', '습부항', '왕뜸', '전자뜸'].includes(String(treatments[0] || '').trim());
+      const sortPriority = timeLimited ? 0 : waitInfo.longWaiting ? 1
+        : hasPriorityPharmacopuncture ? 2 : standaloneCuppingOrMoxa ? 3 : 4;
       items.push({
         alertId,
         bedNo,
@@ -19882,22 +19893,23 @@
         treatment,
         treatments,
         alertPriority: 1,
-        sortPriority: treatments.some(isShortDoctorProcedureTreatment) ? 0 : 2,
+        sortPriority,
         timestamp: Number(bed.stageEnteredAt || bed.timestamp || 0),
-        ...getDoctorProcedureWaitInfo(bed),
+        ...waitInfo,
         message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${treatment}`
       });
     });
     return items.sort((a, b) => {
-      const aLong = Boolean(a.longWaiting && !a.cleanup && !a.soon);
-      const bLong = Boolean(b.longWaiting && !b.cleanup && !b.soon);
-      if (aLong !== bLong) return aLong ? -1 : 1;
-      if (aLong && bLong) return a.waitStartedAt - b.waitStartedAt || Number(a.bedNo) - Number(b.bedNo);
-      const sortPriorityDiff = Number(a.sortPriority ?? 2) - Number(b.sortPriority ?? 2);
-      if (sortPriorityDiff) return sortPriorityDiff;
-      const priorityDiff = Number(a.alertPriority ?? 1) - Number(b.alertPriority ?? 1);
+      // Ready patients always precede cleanup and upcoming preparation alerts.
+      const priorityDiff = a.sortPriority - b.sortPriority;
       if (priorityDiff) return priorityDiff;
-      return Number(a.timestamp || 0) - Number(b.timestamp || 0);
+      if (a.soon && b.soon) {
+        const remainingDiff = a.soonRemainingSeconds - b.soonRemainingSeconds;
+        if (remainingDiff) return remainingDiff;
+      }
+      const aSince = Number(a.waitStartedAt || a.timestamp || 0);
+      const bSince = Number(b.waitStartedAt || b.timestamp || 0);
+      return aSince - bSince || Number(a.bedNo) - Number(b.bedNo);
     });
   }
 

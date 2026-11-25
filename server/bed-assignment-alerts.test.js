@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { reconcileAssignmentAlerts, startInitialExamOnConfirmation } = require('./bed-assignment-alerts');
 const signageState = require('./signage-state');
+const { stampBedStageTimes } = require('./bed-stage-time');
 const source = fs.readFileSync(`${__dirname}/server.js`, 'utf8');
 const html = fs.readFileSync(`${__dirname}/../index.html`, 'utf8');
 const a = { patientKey: 'a', name: '테스트A', running: true, currentIndex: 2 };
@@ -43,7 +44,7 @@ function server(beds, alerts) {
   const frames = [];
   const c = vm.createContext({
     reconcileAssignmentAlerts, startInitialExamOnConfirmation, signageState, crypto: {randomUUID: () => String(++serial)},
-    cloneJson: x => structuredClone(x), stampBedStageTimes: (_, next) => next,
+    cloneJson: x => structuredClone(x), stampBedStageTimes,
     getBedsState: () => state.beds, getStateValue: key => state[key],
     setStateValue: (key, value) => {state[key] = value;},
     stateEquals: (x, y) => JSON.stringify(x) === JSON.stringify(y),
@@ -195,4 +196,46 @@ test('fixed and selected bed popups follow the moved alert; name click clears sh
     assert.equal(Object.keys(r.state.bedAssignmentAlerts).length,0);
     assert.equal(signageState.publicStatus({},r.state.beds,{},r.state.signageCalls).active.bedNo,bedNo);
   }
+});
+
+
+test('doctor room return with 복추 followed by SW starts 복추 on popup confirmation through real stage stamping', async () => {
+  const bed = { patientKey: 'return-chuna-sw', treatments: ['침', '복추', 'SW'],
+    currentIndex: 1, stageEnteredAt: Date.now() - 30 * 60000, initialExamOnArrival: false };
+  const alert = { bedNo: 101, patientKey: bed.patientKey, returnFromWaiting: true,
+    treatmentIndex: 1, treatmentName: '복추' };
+  const s = server({101: bed}, {gold: alert});
+  await s.confirm('gold');
+  assert.ok(s.state.beds[101].doctorProcedureStartedAt > 0);
+  assert.equal(s.state.beds[101].doctorProcedureStartedIndex, 1);
+  assert.equal(s.state.beds[101].doctorProcedureStartedTreatment, '복추');
+  assert.equal(s.state.beds[101].running, undefined);
+  assert.equal(s.state.beds[101].stageEnteredAt, bed.stageEnteredAt);
+  assert.equal(s.state.bedAssignmentAlerts.gold, undefined);
+});
+
+
+test('direct doctor-room popup API confirmation starts current 복추', async () => {
+  const since=Date.now()-20*60000;
+  const bed={patientKey:'direct-chuna',treatments:['습부항','복추','SW','약침4'],
+    currentIndex:1,running:false,lastAlertId:null,initialExamOnArrival:false,stageEnteredAt:since};
+  const s=server({101:bed},{gold:{bedNo:101,patientKey:bed.patientKey,directProcedureArrival:true,treatmentIndex:1,treatmentName:'복추'}});
+  await s.confirm('gold');
+  assert.equal(s.state.bedAssignmentAlerts.gold,undefined);
+  assert.ok(s.state.beds[101].doctorProcedureStartedAt > 0);
+  assert.equal(s.state.beds[101].doctorProcedureStartedTreatment,'복추');
+  assert.equal(s.state.beds[101].stageEnteredAt,since);
+});
+
+
+test('direct arrival retains spine, ordinary-bed, changed-stage and stale-patient exclusions', () => {
+  const base={patientKey:'p',treatments:['습부항','복추','SW','약침4'],currentIndex:1};
+  const alert={bedNo:101,patientKey:'p',directProcedureArrival:true,treatmentIndex:1,treatmentName:'복추'};
+  for(const name of ['SW','스파인']) {
+    const bed={...base,treatments:['습부항',name]};
+    assert.equal(startInitialExamOnConfirmation({101:bed},{...alert,treatmentName:name}),null);
+  }
+  assert.equal(startInitialExamOnConfirmation({1:base},{...alert,bedNo:1}),null);
+  assert.equal(startInitialExamOnConfirmation({101:{...base,currentIndex:2}},alert),null);
+  assert.equal(startInitialExamOnConfirmation({101:{...base,patientKey:'new'}},alert),null);
 });
