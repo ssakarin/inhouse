@@ -206,7 +206,7 @@
 이단비님 d79,e35" autocomplete="off"></textarea>
       <button class="good" id="alerttalkCreateBtn" type="button">엑셀 생성</button>
     </div>
-    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 여러 개면 질환명과 자료코드를 한 행에 쉼표로 합쳐 생성합니다.</div>
+    <div class="note">한 줄에 한 명씩 입력하면 환자 DB에서 연락처를 찾아 기존 알림톡 양식으로 생성합니다. 이름만 입력하면 기본 자료코드 e100으로 생성합니다. e숫자·일반 숫자는 운동, d숫자·200-숫자는 질환, 100-숫자는 운동 코드로 인식합니다. 코드가 여러 개면 질환명과 자료코드를 한 행에 쉼표로 합쳐 생성합니다.</div>
     <div class="status" id="alerttalkStatus">대기 중</div>
     <div class="alerttalk-preview" id="alerttalkPreview"></div>
   </div>
@@ -1282,10 +1282,10 @@ const DISEASE = [
   }
 
   function buildAlerttalkRows(phone, tokens) {
-    if (!phone || !tokens.length) return [];
+    if (!phone) return [];
     return [{
       phone,
-      label: tokens.map(token => lookupAlerttalkLabel(token.isD, token.num)).join(","),
+      label: tokens.length ? tokens.map(token => lookupAlerttalkLabel(token.isD, token.num)).join(",") : lookupAlerttalkLabel(false, 100),
       code: ["e100", ...tokens.map(token => `${token.isD ? "d" : "e"}${token.num}`)].join(",")
     }];
   }
@@ -1380,14 +1380,14 @@ const DISEASE = [
     alerttalkPreview.innerHTML = "";
 
     if (!entries.length) {
-      setAlerttalkStatus("환자 이름과 번호를 입력하세요. 예: 홍길동 11,33 또는 이단비님 99", "error");
+      setAlerttalkStatus("환자 이름을 입력하세요. 예: 홍길동 또는 이단비님 99", "error");
       alerttalkInput.focus();
       return;
     }
-    const invalidEntries = entries.filter(entry => !entry.name || entry.tokens.length < 1);
+    const invalidEntries = entries.filter(entry => !entry.name);
     if (invalidEntries.length) {
       alert(`입력 형식을 확인하세요.\n\n${invalidEntries.map(entry => `${entry.lineNo}줄: ${entry.line}`).join("\n")}`);
-      setAlerttalkStatus("입력 형식 오류: 한 줄에 환자 이름과 번호를 입력하세요.", "error");
+      setAlerttalkStatus("입력 형식 오류: 한 줄에 환자 이름을 입력하세요.", "error");
       alerttalkInput.focus();
       return;
     }
