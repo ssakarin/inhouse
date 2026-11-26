@@ -13189,7 +13189,7 @@
     const deskBedNumbers = [...REGULAR_BED_NUMBERS, 15, 101, 102];
     const deskOccupiedCount = deskBedNumbers.filter(bedNo => {
       const bed = getBedData(bedNo);
-      return Boolean(bed) && matchesDoctorPageRecord(bed);
+      return Boolean(bed) && !isCleaningBed(bed) && matchesDoctorPageRecord(bed);
     }).length;
     const deskChip = document.getElementById('deskBedPatientCount');
     if (deskChip) deskChip.textContent = `${deskOccupiedCount}/${deskBedNumbers.length}`;
