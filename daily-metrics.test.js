@@ -1,6 +1,24 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const dm=require('./daily-metrics');
+test('appointment trend rates use matched daily totals and preserve missing data',()=>{
+ const rows=[
+  {date:'2025-01-02',appointmentCount:10,noShowCount:2,attendedCount:8,patientCount:20},
+  {date:'2025-01-03',appointmentCount:90,noShowCount:9,attendedCount:81,patientCount:100},
+  {date:'2025-01-04',appointmentCount:100,patientCount:100},
+  {date:'2025-02-01',appointmentCount:0,noShowCount:0,patientCount:0,attendedCount:0},
+  {date:'2025-03-01',appointmentCount:10,noShowCount:0,patientCount:10,attendedCount:0}
+ ];
+ const result=dm.overlay({trendStats:[]},rows,[],date=>date.slice(0,7));
+ assert.equal(result.trendStats[0].appointmentNoShowRate,11/100);
+ assert.equal(result.trendStats[0].appointmentPatientRate,89/120);
+ assert.equal(result.trendStats[1].appointmentNoShowRate,null);
+ assert.equal(result.trendStats[1].appointmentPatientRate,null);
+ assert.equal(result.trendStats[2].appointmentNoShowRate,0);
+ assert.equal(result.trendStats[2].appointmentPatientRate,0);
+ assert.equal(result.appointmentNoShowRate,11/110);
+ assert.equal(result.appointmentPatientRate,89/130);
+});
 test('only selected fields survive validation; blank differs from explicit zero',()=>{
   assert.deepEqual(dm.validate([{date:'2025-01-02',nonCoveredAmount:0,claimAmount:null,patientCount:47,age65PatientCount:20,referrals:{소개:2}}]),[{date:'2025-01-02',nonCoveredAmount:0,patientCount:47,referrals:{소개:2}}]);
   assert.throws(()=>dm.validate([{date:'2025-02-30'}]));

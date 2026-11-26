@@ -599,6 +599,8 @@
     { key: "avgNewPatientsPerDay", label: "초진", axis: "count", color: "#ffca6a", title: value => `초진 ${value.toFixed(1)}명` },
     { key: "avgChunaPerDay", label: "추나", axis: "count", color: "#f97316", title: value => `추나 ${value.toFixed(1)}명` },
     { key: "avgPharmaPatientsPerDay", label: "약침", axis: "count", color: "#22c55e", title: value => `약침 ${value.toFixed(1)}명` },
+    { key: "appointmentNoShowRate", label: "예약부도율", axis: "rate", color: "#ef4444", title: value => `예약부도율 ${(value * 100).toFixed(1)}% (예약노쇼 ÷ 예약환자수)` },
+    { key: "appointmentPatientRate", label: "예약환자비율", axis: "rate", color: "#14b8a6", title: value => `예약환자비율 ${(value * 100).toFixed(1)}% (예약정상이행 ÷ 당일환자수)` },
     { key: "returnRate", label: "재진율", axis: "rate", color: "#a78bfa", title: value => `재진율 ${(value * 100).toFixed(1)}%` },
     { key: "thirdVisitRate", label: "삼진율", axis: "rate", color: "#fb7185", title: value => `삼진율 ${(value * 100).toFixed(1)}%` },
     { key: "chunaPatientRate", label: "추나비율", axis: "rate", color: "#38bdf8", title: value => `추나비율 ${(value * 100).toFixed(1)}%` },
@@ -2139,6 +2141,7 @@
   }
 
   function periodAverageValue(stats = {}, metric) {
+    if (["appointmentNoShowRate", "appointmentPatientRate"].includes(metric.key)) return stats[metric.key] ?? null;
     if (["avgCombinedFeePerDay", "avgNonCoveredFeePerDay"].includes(metric.key)) {
       const noncovered = metric.key === "avgNonCoveredFeePerDay";
       const available = stats.financialAggregate

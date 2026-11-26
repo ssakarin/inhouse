@@ -81,6 +81,14 @@
     const total=Object.values(counts).reduce((sum,value)=>sum+value,0);
     return {days:recorded.length,total,newPatients,matchedNewPatientDays,discrepancies,channels:Object.entries(counts).map(([label,count])=>({label,count,share:total?count/total:0})).sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label,'ko'))};
   }
+  function appointmentRates(rows){
+    const ratio=(numerator,denominator)=>{
+      const matching=rows.filter(row=>Number.isFinite(row[numerator])&&Number.isFinite(row[denominator]));
+      const total=matching.reduce((sum,row)=>sum+row[denominator],0);
+      return total>0?matching.reduce((sum,row)=>sum+row[numerator],0)/total:null;
+    };
+    return {appointmentNoShowRate:ratio('noShowCount','appointmentCount'),appointmentPatientRate:ratio('attendedCount','patientCount')};
+  }
   function overlay(base,imports,board,periodKey){
     if(!imports.length)return base;
     const days=new Map(board.map(r=>[r.date,{...r}]));const importedDays=new Set();const importedPatients=new Map(imports.map(r=>[r.date,r.patientCount]));
@@ -106,7 +114,8 @@
     const patientBuckets=new Map();for(const row of imports){const key=periodKey(row.date);if(!patientBuckets.has(key))patientBuckets.set(key,[]);patientBuckets.get(key).push(row);}
     const patientTrends=new Map((base.trendStats||[]).map(r=>[r.key,{...r}]));
     for(const [key,rows] of patientBuckets){const trend=patientTrends.get(key)||{key,clinicDays:rows.filter(active).length};trend.actualClinicDays=clinicDatesByPeriod.get(key)||0;trend.dailyPatientCounts=patientSummary(rows);trend.dailyFinanceCounts=financeSummary(rows);patientTrends.set(key,trend);}
-    base={...base,trendStats:[...patientTrends.values()].sort((a,b)=>a.key.localeCompare(b.key))};
+    for(const [key,rows] of patientBuckets)Object.assign(patientTrends.get(key),appointmentRates(rows));
+    base={...base,...appointmentRates(imports),trendStats:[...patientTrends.values()].sort((a,b)=>a.key.localeCompare(b.key))};
     if(!importedDays.size)return {...base,dailyMetrics:source};
     const trends=new Map((base.trendStats||[]).map(r=>[r.key,{...r}]));for(const[key,b]of buckets){const trend=trends.get(key)||{key,clinicDays:b.dates.size};Object.assign(trend,{avgCombinedFeePerDay:b.hasCombinedFinance?(b.totalFee+b.nonCoveredAmount)/Math.max(1,b.dates.size):null,avgTotalFeePerDay:b.totalFee/Math.max(1,b.dates.size),avgNonCoveredFeePerDay:b.hasNoncoveredFinance?b.nonCoveredAmount/Math.max(1,b.dates.size):null,avgCombinedFeePerVisit:b.hasCombinedFinance&&b.perVisitCount?(b.totalFee+b.nonCoveredAmount)/b.perVisitCount:null,financialAggregate:true});trends.set(key,trend);}
     return {...base,financialTotals:totals,financialTrend:[...buckets.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(({dates,...b})=>({...b,clinicDays:dates.size})),trendStats:[...trends.values()].sort((a,b)=>a.key.localeCompare(b.key)),dailyMetrics:source,financialAggregate:true};
