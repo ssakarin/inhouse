@@ -1,4 +1,5 @@
 const http = require("node:http");
+const { accumulateTreatmentChange, acknowledgeTreatmentChange } = require("./treatment-change-alerts");
 const dailyMetrics = require("../daily-metrics");
 const recentRevenue = require("../recent-revenue");
 const googleDailyImport = require("../google-daily-import");
@@ -4627,7 +4628,7 @@ function sseBroadcastBedsDelta(version, updates = [], removes = [], previousBeds
   }
 }
 
-function commitBeds(beds, previousBeds = null) {
+function commitBeds(beds, previousBeds = null, deferredNotifications = null) {
   const previous = previousBeds ? cloneJson(previousBeds) : cloneJson(getBedsState());
   const next = stampBedStageTimes(previous || {}, beds || {});
   setStateValue("beds", next);
@@ -4641,8 +4642,12 @@ function commitBeds(beds, previousBeds = null) {
   const version = getBedsVersion() + 1;
   setStateValue("__bedsVersion", version);
   const { updates, removes } = diffBeds(previous || {}, next);
-  sseBroadcastBedsDelta(version, updates, removes, previous);
-  if (alertsChanged) sseBroadcastState("bedAssignmentAlerts", nextAlerts);
+  const notify = () => {
+    sseBroadcastBedsDelta(version, updates, removes, previous);
+    if (alertsChanged) sseBroadcastState("bedAssignmentAlerts", nextAlerts);
+  };
+  if (deferredNotifications) deferredNotifications.push(notify);
+  else notify();
   return version;
 }
 
@@ -4739,8 +4744,22 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (pathname === "/api/treatment-desk-alerts/acknowledge" && req.method === "POST") {
+    const { patientKey, version } = (await readJson(req)) || {};
+    const alerts = { ...(getStateValue("treatmentDeskAlerts") || {}) };
+    const current = alerts[patientKey];
+    const next = acknowledgeTreatmentChange(current, version);
+    if (next !== current) {
+      alerts[patientKey] = next;
+      setStateValue("treatmentDeskAlerts", alerts);
+      sseBroadcastState("treatmentDeskAlerts", alerts);
+    }
+    jsonResponse(res, 200, { ok: true });
+    return true;
+  }
+
   if (pathname === "/api/beds/update" && req.method === "POST") {
-    const { bedNo, patch } = (await readJson(req)) || {};
+    const { bedNo, patch, treatmentChangeSource } = (await readJson(req)) || {};
     assertValidChartNoRecord(patch);
     const previousBeds = cloneJson(getBedsState());
     const beds = cloneJson(previousBeds) || {};
@@ -4753,7 +4772,36 @@ async function handleApi(req, res, pathname) {
       return true;
     }
     beds[key] = nextBed;
-    jsonResponse(res, 200, { ok: true, version: commitBeds(beds, previousBeds) });
+    let treatmentAlerts = null;
+    if (treatmentChangeSource === "treatment-room" && Array.isArray(patch?.treatments) && previous.patientKey && previous.patientKey === nextBed.patientKey) {
+      const alerts = getStateValue("treatmentDeskAlerts") || {};
+      const current = alerts[previous.patientKey];
+      const next = accumulateTreatmentChange(current, previous, nextBed, bedNo);
+      if (next !== current) {
+        treatmentAlerts = { ...alerts };
+        if (next) treatmentAlerts[previous.patientKey] = next;
+        else delete treatmentAlerts[previous.patientKey];
+      }
+    }
+    // Both writes complete in the same synchronous transaction; movement/CAS
+    // never enters this treatment-edit path and cannot reactivate an alert.
+    const cacheBefore = new Map(stateValueCache);
+    let version;
+    const notifications = [];
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      if (treatmentAlerts) setStateValue("treatmentDeskAlerts", treatmentAlerts);
+      version = commitBeds(beds, previousBeds, notifications);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      stateValueCache.clear();
+      for (const [cacheKey, value] of cacheBefore) stateValueCache.set(cacheKey, value);
+      throw error;
+    }
+    notifications.forEach(notify => notify());
+    if (treatmentAlerts) sseBroadcastState("treatmentDeskAlerts", treatmentAlerts);
+    jsonResponse(res, 200, { ok: true, version });
     return true;
   }
 

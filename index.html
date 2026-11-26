@@ -1162,6 +1162,8 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
+  .appointment-request-card.treatment-change-card .upcoming-main { white-space: normal; overflow-wrap: anywhere; }
+  .treatment-change-card:disabled .upcoming-main span { color: inherit !important; }
   .appointment-request-card > span:last-child { min-width: 0; }
   .appointment-request-card .upcoming-main,
   .appointment-request-card .upcoming-sub { display: block; }
@@ -7629,7 +7631,9 @@
 
   // Bed writes go through the local server so SSE subscribers receive updates.
   async function updateBedRecord(bedNo, patch) {
-    await localBedsRequest('/api/beds/update', { bedNo, patch });
+    const view = getAppView();
+    const isDeskEdit = view === 'desk' || (!view && window.currentMode === 'input');
+    await localBedsRequest('/api/beds/update', { bedNo, patch, treatmentChangeSource: isDeskEdit ? 'desk' : 'treatment-room' });
   }
 
   async function updateBedChildRecord(bedNo, childKey, patch) {
@@ -7987,6 +7991,7 @@
   const assignmentAlertItems = [];
   const callAlertItems = new Map();
   const appointmentDeskAlertItems = new Map();
+  const treatmentDeskAlertItems = new Map();
   const bedAssignmentAlertItems = new Map();
   let hasLoadedBedsOnce = false;
   let isClearingPatientDatabase = false;
@@ -11174,6 +11179,14 @@
     callAlertItems.clear();
     Object.entries(value || {}).forEach(([key, data]) => {
       if (data) callAlertItems.set(key, data);
+    });
+    renderUpcomingAlerts();
+  });
+
+  migrateNode('treatmentDeskAlerts', (value) => {
+    treatmentDeskAlertItems.clear();
+    Object.entries(value || {}).forEach(([key, item]) => {
+      if (item) treatmentDeskAlertItems.set(key, item);
     });
     renderUpcomingAlerts();
   });
@@ -15420,6 +15433,18 @@
       });
   }
 
+  window.acknowledgeTreatmentChange = async (patientKey, version) => {
+    if (isDoctorReadOnlyPage()) return;
+    try {
+      const response = await localBedsRequest('/api/treatment-desk-alerts/acknowledge', { patientKey, version });
+      const result = await response.json();
+      if (!result.ok) throw new Error('acknowledgement failed');
+    } catch (error) {
+      console.error('치료 변경 확인 저장 실패', error);
+      showToast('치료 변경 확인을 저장하지 못했습니다. 다시 눌러주세요');
+    }
+  };
+
   window.acknowledgeAppointmentRequest = async (patientKey, version) => {
     if (isDoctorReadOnlyPage()) return;
     const request = getVisibleAppointmentAlertItems('input')
@@ -15641,6 +15666,22 @@
       </div>`
     }));
 
+    const treatmentChangeItems = [...treatmentDeskAlertItems.values()]
+      .filter(matchesDoctorPageRecord)
+      .filter(item => !item.acknowledgedAt || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(item.acknowledgedAt)) === getTodayKey())
+      .map(item => {
+        const changes = [...item.changes].sort((a, b) => Number(a.amount > 0) - Number(b.amount > 0));
+        const text = changes.map(change => `${change.name}${Math.abs(change.amount) > 1 ? ` ×${Math.abs(change.amount)}` : ''} ${change.amount < 0 ? '삭제' : '추가'}`).join(', ');
+        const label = `${item.name}(${item.chartNo || '차트번호 없음'}) ${text}`;
+        return {
+          timestamp: Number(item.timestamp || 0), alertPriority: item.acknowledgedAt ? 2 : -2,
+          html: `<button type="button" class="upcoming-item assignment appointment-request-card treatment-change-card" ${item.acknowledgedAt ? 'disabled' : `onclick="acknowledgeTreatmentChange(${escapeHtmlJsString(item.patientKey)}, ${escapeHtmlJsString(item.version)})"`}>
+            <span class="upcoming-time">치료 변경</span>
+            <span><span class="upcoming-main" title="${escapeHtml(label)}">${escapeHtml(item.name)}(${escapeHtml(item.chartNo || '차트번호 없음')}) ${changes.map(change => `<span style="color:${change.amount < 0 ? '#f87171' : '#34d399'}">${escapeHtml(change.name)}${Math.abs(change.amount) > 1 ? ` ×${Math.abs(change.amount)}` : ''} ${change.amount < 0 ? '삭제' : '추가'}</span>`).join(', ')}</span></span>
+          </button>`
+        };
+      });
+
     const appointmentAlertItems = getVisibleAppointmentAlertItems('input').map(item => ({
       timestamp: Number(item.timestamp || 0),
       alertPriority: item.acknowledged ? 2 : 0,
@@ -15765,7 +15806,7 @@
       timestamp: Number(item.timestamp || 0),
       html: renderSimpleDoctorProcedureAlertHtml(item)
     }));
-    const inputItems = [...scopedDoctorItems, ...inputCallItems, ...inputAssignmentItems, ...appointmentAlertItems];
+    const inputItems = [...treatmentChangeItems, ...scopedDoctorItems, ...inputCallItems, ...inputAssignmentItems, ...appointmentAlertItems];
     const receiveItems = [...transientAddedTreatmentItems, ...doctorProcedureItems, ...receiveTreatmentItems, ...doctorAssignmentItems, ...receiveCallItems, ...receiveAssignmentItems, ...receiveTimerItems];
     const baseHasAlerts = inputItems.length > 0;
     const receiveHasAlerts = receiveItems.length > 0;
