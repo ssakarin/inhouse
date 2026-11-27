@@ -114,7 +114,7 @@ test('direct move after 습부항 creates a popup and confirming it starts 복�
     running:false, remaining:300, startedAt:null, lastAlertId:null, initialExamOnArrival:false,
     stageEnteredAt:now - 20 * 60000});
   const alerts = new Map();
-  Object.assign(s.context, {bedAssignmentAlertItems:alerts, doctorLongWaitMinutes:15,
+  Object.assign(s.context, {bedAssignmentAlertItems:alerts, doctorLongWaitMinutes:15, doctorUrgentWaitMinutes:20,
     getBedAssignmentAlertForPatient:()=>null,
     pushBedAssignmentAlert:async alert=>alerts.set('gold',alert)});
   function load(name) {

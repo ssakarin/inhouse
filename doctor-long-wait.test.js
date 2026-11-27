@@ -24,7 +24,7 @@ const names = [
   'getConcurrentTreatmentNames', 'formatTreatmentNames', 'normalizePreCompletedTreatmentIndexes',
   'getNextPendingTreatmentIndex', 'getRemaining', 'isDoctorProcedureTreatment',
   'getDoctorProcedureAlertId', 'getCurrentDoctorProcedureAlertId', 'isDoctorProcedureAlertDismissed',
-  'normalizeDoctorLongWaitMinutes', 'isDoctorProcedureInProgress', 'getDoctorProcedureWaitInfo',
+  'normalizeTreatmentWaitThresholds', 'isDoctorProcedureInProgress', 'getDoctorProcedureWaitInfo',
   'renderLongWaitBadge', 'startDoctorProcedure', 'isLongDoctorProcedureTreatment',
   'isChunaDoctorProcedureTreatment', 'isShortDoctorProcedureTreatment', 'hasWaitingChunaDoctorProcedure',
   'getUpcomingShortDoctorProcedureInfo', 'getCleanupShortDoctorProcedureInfo',
@@ -40,11 +40,12 @@ function setup() {
   const writes = [];
   const renders = [];
   const input = { value: '15' };
-  const elements = new Map([['doctorLongWaitMinutesInput', input]]);
+  const urgentInput = { value: '120' };
+  const elements = new Map([['doctorLongWaitMinutesInput', input], ['doctorUrgentWaitMinutesInput', urgentInput]]);
   const groups = [new Set(['핫팩']), new Set(['침', '전침', '왕뜸', '전자뜸', '적외선']), new Set(['단추', '복추', '벤치'])];
   const context = vm.createContext({
     window: {}, console, Date: class extends Date { static now() { return clock.now; } },
-    DEFAULT_DOCTOR_LONG_WAIT_MINUTES: 15, doctorLongWaitMinutes: 15,
+    DEFAULT_DOCTOR_LONG_WAIT_MINUTES: 10, DEFAULT_DOCTOR_URGENT_WAIT_MINUTES: 20, doctorLongWaitMinutes: 15, doctorUrgentWaitMinutes: 120,
     selectedDoctorAlertId: 'a', ACTIVE_BED_NUMBERS: [1, 2, 3, 4, 15], HOLD_BED_NUMBERS: [901, 902],
     getDoctorBedNumbers: () => [101, 102], getBedData: no => beds[no], getBedLabel: no => String(no),
     getWaitingPatients: () => [],
@@ -199,22 +200,38 @@ test('threshold updates are allowed for every fixed-bed and doctor-room client',
   s.c.isFixedBedScreen = () => true;
   for (const doctorRoom of [false, true]) {
     s.c.isFixedDoctorBedScreen = () => doctorRoom;
-    assert.equal(s.c.shouldSubscribeLocalNode('settings/doctorLongWaitMinutes'), true);
-    assert.equal(s.c.sseClientAllowsState({ role: doctorRoom ? 'doctor-room' : 'fixed-bed' }, 'settings/doctorLongWaitMinutes'), true);
+    assert.equal(s.c.shouldSubscribeLocalNode('settings/treatmentWaitThresholds'), true);
+    assert.equal(s.c.sseClientAllowsState({ role: doctorRoom ? 'doctor-room' : 'fixed-bed' }, 'settings/treatmentWaitThresholds'), true);
   }
 });
 
-test('settings preserve zero, recover defaults and reject invalid inputs without writing', async () => {
+test('two thresholds default to 10/20 and reject invalid or reversed settings atomically', async () => {
   const s = setup();
-  assert.equal(s.c.normalizeDoctorLongWaitMinutes(null), 15);
-  assert.equal(s.c.normalizeDoctorLongWaitMinutes(0), 0);
-  assert.equal(s.c.normalizeDoctorLongWaitMinutes(-2), 15);
-  for (const value of ['', '-1', '2.5', '121']) {
-    s.input.value = value; await s.c.window.saveDoctorLongWaitMinutes();
+  assert.equal(JSON.stringify(s.c.normalizeTreatmentWaitThresholds(null)), JSON.stringify({ priority: 10, urgent: 20 }));
+  for (const [priority, urgent] of [['', '20'], ['0', '20'], ['10', '10'], ['21', '20'], ['10.5', '20'], ['10', '121']]) {
+    s.input.value = priority; s.elements.get('doctorUrgentWaitMinutesInput').value = urgent;
+    await s.c.window.saveDoctorLongWaitMinutes();
   }
   assert.equal(s.writes.length, 0);
-  s.input.value = '0'; await s.c.window.saveDoctorLongWaitMinutes();
-  assert.deepEqual(s.writes, [{ key: 'settings/doctorLongWaitMinutes', value: 0 }]);
+  s.input.value = '10'; s.elements.get('doctorUrgentWaitMinutesInput').value = '20';
+  await s.c.window.saveDoctorLongWaitMinutes();
+  assert.equal(JSON.stringify(s.writes), JSON.stringify([{ key: 'settings/treatmentWaitThresholds', value: { priority: 10, urgent: 20 } }]));
+});
+
+test('10/20 minute thresholds promote current treatment and reception waits at exact boundaries', () => {
+  const s = setup(); s.c.doctorLongWaitMinutes = 10; s.c.doctorUrgentWaitMinutes = 20;
+  s.bed(1, '진찰', 1, { bodyParts: { bedPreferences: { timeLimited: true } } });
+  s.bed(2, '약침1', 1); s.bed(3, '왕뜸', 1); s.bed(4, '침', 19.99);
+  s.bed(101, '추나', 9.99);
+  assert.deepEqual(s.order(), [1, 2, 3, 4, 101]);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).longWaiting, false);
+  s.clock.now += 600;
+  assert.deepEqual(s.order(), [1, 4, 2, 3, 101]);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).longWaiting, true);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[4]).urgentWaiting, true);
+  const patient = { timestamp: s.clock.now - 20 * 60000 };
+  assert.equal(s.c.getWaitingPatientWaitInfo(patient).urgentWaiting, true);
+  assert.equal(s.writes.length, 0);
 });
 
 test('desk and doctor alert lists preserve the procedure recommendation instead of sorting it by timestamp again', () => {

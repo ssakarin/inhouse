@@ -41,7 +41,7 @@ function tablet(no, beds, alerts) {
   const groups = [new Set(['핫팩']),new Set(['침','전침','왕뜸','전자뜸','적외선']),new Set(['단추','복추','벤치'])];
   const c = vm.createContext({
     selectedDoctorAlertId:'d1', ACTIVE_BED_NUMBERS:active,
-    doctorLongWaitMinutes:0,
+    doctorLongWaitMinutes:0, doctorUrgentWaitMinutes:Infinity,
     getDoctorBedNumbers:()=>[101,102], getBedData:n=>data[n], getBedLabel:n=>String(n),
     bedAssignmentAlertItems:new Map(Object.entries(arrival)),fixedBedArrivalAcknowledgedByBed:{},
     SIMULTANEOUS_TREATMENT_GROUPS:groups, SIMULTANEOUS_TREATMENTS:new Set(groups.flatMap(g=>[...g])),

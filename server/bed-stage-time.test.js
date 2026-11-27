@@ -7,10 +7,10 @@ const { stampBedStageTimes } = require('./bed-stage-time');
 
 const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const alertBuilder = html.slice(html.indexOf('  function buildDoctorProcedureAlertItemsAuto('), html.indexOf('  function getDoctorProcedureAlertItems('));
-const waitFunctions = html.slice(html.indexOf('  function normalizeDoctorLongWaitMinutes('), html.indexOf('  function isLongDoctorProcedureTreatment('));
+const waitFunctions = html.slice(html.indexOf('  function normalizeTreatmentWaitThresholds('), html.indexOf('  function isLongDoctorProcedureTreatment('));
 function alertOrder(beds, assignmentAlerts = new Map(), nurse = false) {
   const context = {
-    window: {}, doctorLongWaitMinutes: 0,
+    window: {}, doctorLongWaitMinutes: 0, doctorUrgentWaitMinutes: Infinity,
     selectedDoctorAlertId: 'doctor', getDoctorBedNumbers: () => [],
     ACTIVE_BED_NUMBERS: Object.keys(beds), getBedData: n => beds[n],
     bedAssignmentAlertItems: assignmentAlerts, fixedBedArrivalAcknowledgedByBed: {},
