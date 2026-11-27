@@ -86,10 +86,12 @@ test('long wait crosses the configured threshold without any persisted state cha
   const s = setup();
   s.bed(101, '진찰', 14.99);
   s.bed(1, '약침1', 1);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).longWaiting, false);
   assert.deepEqual(s.order(), [1, 101]);
   s.clock.now += 600;
-  assert.deepEqual(s.order(), [101, 1]);
-  assert.equal(s.c.getDoctorProcedureAlertItems('a')[0].waitMinutes, 15);
+  assert.deepEqual(s.order(), [1, 101]);
+  assert.equal(s.c.getDoctorProcedureAlertItems('a')[1].waitMinutes, 15);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).longWaiting, true);
   assert.equal(s.writes.length, 0);
 });
 
@@ -227,7 +229,7 @@ test('desk and doctor alert lists preserve the procedure recommendation instead 
   const render = () => vm.runInContext(`(() => { ${html.slice(renderStart, renderEnd)} ${html.slice(mapStart, mapEnd)} return renderAlertItemsHtml(scopedDoctorItems); })()`, s.c);
   assert.equal(render(), '1,101,');
   s.clock.now += 600;
-  assert.equal(render(), '101,1,');
+  assert.equal(render(), '1,101,');
 });
 
 test('reception waiting survives first assignment and arrival acknowledgment, and resets for the next treatment', () => {
@@ -418,26 +420,29 @@ test('desk and doctor page rendering preserves the recommended procedure order a
 });
 
 
-test('time check outranks overdue, pharmacopuncture 1/2, standalone cupping/moxa and other treatments', () => {
+test('time check precedes pharmacopuncture 1/2, standalone cupping/moxa, overdue and other treatments', () => {
   const s = setup();
   s.bed(1, '진찰', 1, { bodyParts: { bedPreferences: { timeLimited: true } } });
   s.bed(2, '추나', 25);
   s.bed(3, '약침2', 2);
   s.bed(4, '왕뜸', 10);
   s.bed(101, '침', 14);
-  assert.deepEqual(s.order(), [1, 2, 3, 4, 101]);
+  assert.deepEqual(s.order(), [1, 3, 4, 2, 101]);
 });
 
 test('configured threshold and zero control promotion independently of time checks', () => {
   const s = setup();
-  s.bed(1, '침', 10); s.bed(2, '약침1', 1);
+  s.bed(1, '침', 10); s.bed(2, '진찰', 12);
+  s.bed(4, '약침1', 1);
   s.bed(3, '추나', 0, { bodyParts: { bedPreferences: { timeLimited: true } } });
   s.c.doctorLongWaitMinutes = 10;
-  assert.deepEqual(s.order(), [3, 1, 2]);
-  s.c.doctorLongWaitMinutes = 11;
-  assert.deepEqual(s.order(), [3, 2, 1]);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[1]).longWaiting, true);
+  assert.deepEqual(s.order(), [3, 4, 2, 1]);
+  s.c.doctorLongWaitMinutes = 13;
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[1]).longWaiting, false);
+  assert.deepEqual(s.order(), [3, 4, 2, 1]);
   s.c.doctorLongWaitMinutes = 0;
-  assert.deepEqual(s.order(), [3, 2, 1]);
+  assert.deepEqual(s.order(), [3, 4, 2, 1]);
 });
 
 test('only current pharmacopuncture 1/2 and standalone cupping/moxa receive treatment priority', () => {

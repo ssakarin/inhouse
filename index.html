@@ -19922,8 +19922,8 @@
       const hasPriorityPharmacopuncture = treatments.some(name => /^약침[12]$/.test(String(name || '').trim()));
       const standaloneCuppingOrMoxa = treatments.length === 1
         && ['건부항', '습부항', '왕뜸', '전자뜸'].includes(String(treatments[0] || '').trim());
-      const sortPriority = timeLimited ? 0 : waitInfo.longWaiting ? 1
-        : hasPriorityPharmacopuncture ? 2 : standaloneCuppingOrMoxa ? 3 : 4;
+      const sortPriority = timeLimited ? 0 : hasPriorityPharmacopuncture ? 1
+        : standaloneCuppingOrMoxa ? 2 : waitInfo.longWaiting ? 3 : 4;
       items.push({
         alertId,
         bedNo,
