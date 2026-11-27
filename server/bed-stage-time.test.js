@@ -14,6 +14,7 @@ function alertOrder(beds, assignmentAlerts = new Map(), nurse = false) {
     selectedDoctorAlertId: 'doctor', getDoctorBedNumbers: () => [],
     ACTIVE_BED_NUMBERS: Object.keys(beds), getBedData: n => beds[n],
     bedAssignmentAlertItems: assignmentAlerts, fixedBedArrivalAcknowledgedByBed: {},
+    isLongDoctorProcedureTreatment: t => ['진찰', '베드진찰', '추나', '단추', '복추', '벤치'].includes(t),
     getCleanupShortDoctorProcedureInfo: () => null,
     getUpcomingShortDoctorProcedureInfo: () => null,
     getConcurrentTreatmentNames: (ts, i) => [ts[i]], formatTreatmentNames: ts => ts.join(','),

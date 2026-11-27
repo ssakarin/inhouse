@@ -45,7 +45,7 @@ function setup() {
   const groups = [new Set(['핫팩']), new Set(['침', '전침', '왕뜸', '전자뜸', '적외선']), new Set(['단추', '복추', '벤치'])];
   const context = vm.createContext({
     window: {}, console, Date: class extends Date { static now() { return clock.now; } },
-    DEFAULT_DOCTOR_LONG_WAIT_MINUTES: 10, DEFAULT_DOCTOR_URGENT_WAIT_MINUTES: 20, doctorLongWaitMinutes: 15, doctorUrgentWaitMinutes: 120,
+    DEFAULT_DOCTOR_LONG_WAIT_MINUTES: 10, DEFAULT_DOCTOR_URGENT_WAIT_MINUTES: 15, doctorLongWaitMinutes: 15, doctorUrgentWaitMinutes: 15,
     selectedDoctorAlertId: 'a', ACTIVE_BED_NUMBERS: [1, 2, 3, 4, 15], HOLD_BED_NUMBERS: [901, 902],
     getDoctorBedNumbers: () => [101, 102], getBedData: no => beds[no], getBedLabel: no => String(no),
     getWaitingPatients: () => [],
@@ -90,8 +90,8 @@ test('long wait crosses the configured threshold without any persisted state cha
   assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).longWaiting, false);
   assert.deepEqual(s.order(), [1, 101]);
   s.clock.now += 600;
-  assert.deepEqual(s.order(), [1, 101]);
-  assert.equal(s.c.getDoctorProcedureAlertItems('a')[1].waitMinutes, 15);
+  assert.deepEqual(s.order(), [101, 1]);
+  assert.equal(s.c.getDoctorProcedureAlertItems('a')[0].waitMinutes, 15);
   assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).longWaiting, true);
   assert.equal(s.writes.length, 0);
 });
@@ -113,10 +113,10 @@ test('overdue ready procedures precede upcoming and cleanup items; unfinished pr
   assert.equal(s.c.getDoctorProcedureAlertItems('a')[2].longWaiting, undefined);
 });
 
-test('setting zero disables badges and promotion while preserving oldest-first ties', () => {
+test('waits below the threshold preserve oldest-first ties without badges', () => {
   const s = setup(); s.bed(101, '진찰', 40); s.bed(1, '침', 1);
-  s.c.doctorLongWaitMinutes = 0;
-  assert.deepEqual(s.order(), [101, 1]);
+  s.c.doctorUrgentWaitMinutes = Infinity;
+  assert.deepEqual(s.order(), [1, 101]);
   assert.equal(s.c.renderLongWaitBadge(s.c.getDoctorProcedureWaitInfo(s.beds[101])), '');
 });
 
@@ -205,33 +205,33 @@ test('threshold updates are allowed for every fixed-bed and doctor-room client',
   }
 });
 
-test('two thresholds default to 10/20 and reject invalid or reversed settings atomically', async () => {
+test('single wait threshold defaults to 15, preserves existing urgent setting and rejects invalid values', async () => {
   const s = setup();
-  assert.equal(JSON.stringify(s.c.normalizeTreatmentWaitThresholds(null)), JSON.stringify({ priority: 10, urgent: 20 }));
-  for (const [priority, urgent] of [['', '20'], ['0', '20'], ['10', '10'], ['21', '20'], ['10.5', '20'], ['10', '121']]) {
-    s.input.value = priority; s.elements.get('doctorUrgentWaitMinutesInput').value = urgent;
+  assert.equal(s.c.normalizeTreatmentWaitThresholds(null).urgent, 15);
+  assert.equal(s.c.normalizeTreatmentWaitThresholds({ priority: 10, urgent: 25 }).urgent, 25);
+  for (const value of ['', '0', '-1', '10.5', '121']) {
+    s.elements.get('doctorUrgentWaitMinutesInput').value = value;
     await s.c.window.saveDoctorLongWaitMinutes();
   }
   assert.equal(s.writes.length, 0);
-  s.input.value = '10'; s.elements.get('doctorUrgentWaitMinutesInput').value = '20';
+  s.elements.get('doctorUrgentWaitMinutesInput').value = '20';
   await s.c.window.saveDoctorLongWaitMinutes();
-  assert.equal(JSON.stringify(s.writes), JSON.stringify([{ key: 'settings/treatmentWaitThresholds', value: { priority: 10, urgent: 20 } }]));
+  assert.equal(JSON.stringify(s.writes), JSON.stringify([{ key: 'settings/treatmentWaitThresholds', value: { urgent: 20 } }]));
 });
 
-test('10/20 minute thresholds promote current treatment and reception waits at exact boundaries', () => {
-  const s = setup(); s.c.doctorLongWaitMinutes = 10; s.c.doctorUrgentWaitMinutes = 20;
+test('10 minutes does not highlight or promote; 20 minutes promotes ahead of pharmacopuncture', () => {
+  const s = setup(); s.c.doctorUrgentWaitMinutes = 20;
   s.bed(1, '진찰', 1, { bodyParts: { bedPreferences: { timeLimited: true } } });
   s.bed(2, '약침1', 1); s.bed(3, '왕뜸', 1); s.bed(4, '침', 19.99);
-  s.bed(101, '추나', 9.99);
+  s.bed(101, '추나', 10);
   assert.deepEqual(s.order(), [1, 2, 3, 4, 101]);
   assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).longWaiting, false);
+  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[4]).longWaiting, false);
   s.clock.now += 600;
   assert.deepEqual(s.order(), [1, 4, 2, 3, 101]);
-  assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).longWaiting, true);
   assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[4]).urgentWaiting, true);
-  const patient = { timestamp: s.clock.now - 20 * 60000 };
-  assert.equal(s.c.getWaitingPatientWaitInfo(patient).urgentWaiting, true);
-  assert.equal(s.writes.length, 0);
+  assert.equal(s.c.getWaitingPatientWaitInfo({ timestamp: s.clock.now - 20 * 60000 }).longWaiting, true);
+  assert.equal(s.c.getWaitingPatientWaitInfo({ timestamp: s.clock.now - 10 * 60000 }).longWaiting, false);
 });
 
 test('desk and doctor alert lists preserve the procedure recommendation instead of sorting it by timestamp again', () => {
@@ -246,7 +246,7 @@ test('desk and doctor alert lists preserve the procedure recommendation instead 
   const render = () => vm.runInContext(`(() => { ${html.slice(renderStart, renderEnd)} ${html.slice(mapStart, mapEnd)} return renderAlertItemsHtml(scopedDoctorItems); })()`, s.c);
   assert.equal(render(), '1,101,');
   s.clock.now += 600;
-  assert.equal(render(), '1,101,');
+  assert.equal(render(), '101,1,');
 });
 
 test('reception waiting survives first assignment and arrival acknowledgment, and resets for the next treatment', () => {
@@ -437,46 +437,46 @@ test('desk and doctor page rendering preserves the recommended procedure order a
 });
 
 
-test('time check precedes pharmacopuncture 1/2, standalone cupping/moxa, overdue and other treatments', () => {
+test('time check precedes overdue, pharmacopuncture 1/2, standalone cupping/moxa and other treatments', () => {
   const s = setup();
   s.bed(1, '진찰', 1, { bodyParts: { bedPreferences: { timeLimited: true } } });
   s.bed(2, '추나', 25);
   s.bed(3, '약침2', 2);
   s.bed(4, '왕뜸', 10);
   s.bed(101, '침', 14);
-  assert.deepEqual(s.order(), [1, 3, 4, 2, 101]);
+  assert.deepEqual(s.order(), [1, 2, 3, 4, 101]);
 });
 
-test('configured threshold and zero control promotion independently of time checks', () => {
+test('configured threshold controls promotion independently of time checks', () => {
   const s = setup();
   s.bed(1, '침', 10); s.bed(2, '진찰', 12);
   s.bed(4, '약침1', 1);
   s.bed(3, '추나', 0, { bodyParts: { bedPreferences: { timeLimited: true } } });
-  s.c.doctorLongWaitMinutes = 10;
+  s.c.doctorUrgentWaitMinutes = 10;
   assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[1]).longWaiting, true);
-  assert.deepEqual(s.order(), [3, 4, 2, 1]);
-  s.c.doctorLongWaitMinutes = 13;
+  assert.deepEqual(s.order(), [3, 2, 1, 4]);
+  s.c.doctorUrgentWaitMinutes = 13;
   assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[1]).longWaiting, false);
-  assert.deepEqual(s.order(), [3, 4, 2, 1]);
-  s.c.doctorLongWaitMinutes = 0;
-  assert.deepEqual(s.order(), [3, 4, 2, 1]);
+  assert.deepEqual(s.order(), [3, 4, 1, 2]);
+  s.c.doctorUrgentWaitMinutes = Infinity;
+  assert.deepEqual(s.order(), [3, 4, 1, 2]);
 });
 
 test('only current pharmacopuncture 1/2 and standalone cupping/moxa receive treatment priority', () => {
-  const s = setup(); s.c.doctorLongWaitMinutes = 0;
+  const s = setup(); s.c.doctorUrgentWaitMinutes = Infinity;
   s.bed(1, '침', 12, { treatments: ['침', '약침1'] });
   s.bed(2, '약침4', 11);
   s.bed(3, '왕뜸', 10, { treatments: ['왕뜸', '침'] });
   s.bed(4, '습부항', 1);
   s.bed(101, '약침1', 0);
-  assert.deepEqual(s.order(), [101, 4, 1, 2, 3]);
+  assert.deepEqual(s.order(), [101, 4, 1, 3, 2]);
   for (const name of ['건부항', '전자뜸']) {
     s.beds[4].treatments = [name];
-    assert.deepEqual(s.order(), [101, 4, 1, 2, 3]);
+    assert.deepEqual(s.order(), [101, 4, 1, 3, 2]);
   }
 });
 
-test('preparation follows all ready patients even when time checked; upcoming uses shortest remaining first', () => {
+test('preparation precedes long treatments; upcoming uses shortest remaining first', () => {
   const s = setup();
   const urgent = { bodyParts: { bedPreferences: { timeLimited: true } } };
   s.bed(101, '추나', 1);
@@ -484,10 +484,12 @@ test('preparation follows all ready patients even when time checked; upcoming us
   s.bed(2, '핫팩', 40, { ...urgent, treatments: ['핫팩', '약침1'], running: true, remaining: 120 });
   s.bed(3, '핫팩', 40, { treatments: ['핫팩', '침'], running: true, remaining: 60 });
   s.bed(4, '침', 0);
-  assert.deepEqual(s.order(), [101, 4, 1, 3, 2]);
+  assert.deepEqual(s.order(), [4, 1, 3, 2, 101]);
   s.beds[2].remaining = 121;
-  assert.deepEqual(s.order(), [101, 4, 1, 3]);
+  assert.deepEqual(s.order(), [4, 1, 3, 101]);
   s.beds[2].remaining = 119;
+  assert.deepEqual(s.order(), [4, 1, 3, 2, 101]);
+  s.beds[101].stageEnteredAt = s.clock.now - 15 * 60000;
   assert.deepEqual(s.order(), [101, 4, 1, 3, 2]);
 });
 
@@ -563,4 +565,19 @@ test('simulation: 습부항 completion -> manual waiting -> doctor room -> popup
   assert.equal(snapshot('확인 후 20분 경과', s.beds[101]).longWaiting, false);
   assert.equal(s.c.getDoctorProcedureWaitInfo(s.beds[101]).waitMinutes, 0);
   console.log('Manual return simulation:', JSON.stringify(timeline));
+});
+
+
+test('long treatments follow other ready treatments but retain time-check and overdue promotion', () => {
+  const s = setup(); s.c.doctorUrgentWaitMinutes = 15;
+  s.bed(1, '진찰', 10); s.bed(2, '추나', 9); s.bed(3, '약침4', 8);
+  s.bed(4, '침', 1); s.bed(101, '전침', 2);
+  assert.deepEqual(s.order(), [101, 4, 1, 2, 3]);
+  s.beds[3].stageEnteredAt = s.clock.now - 15 * 60000;
+  s.beds[2].bodyParts = { bedPreferences: { timeLimited: true } };
+  assert.deepEqual(s.order(), [2, 3, 101, 4, 1]);
+  for (const treatment of ['베드진찰', '단추', '복추']) {
+    s.beds[1].treatments = [treatment];
+    assert.deepEqual(s.order(), [2, 3, 101, 4, 1]);
+  }
 });

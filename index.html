@@ -6296,18 +6296,11 @@
           <label class="treatment-time-row">
             <span class="treatment-time-name">대기 우선 기준</span>
             <div class="treatment-time-row-inner">
-              <input class="treatment-time-input" id="doctorLongWaitMinutesInput" type="number" min="1" max="119" step="1" value="10" aria-label="대기 우선 기준 시간">
+              <input class="treatment-time-input" id="doctorUrgentWaitMinutesInput" type="number" min="1" max="120" step="1" value="15" aria-label="대기 우선 기준 시간">
               <span class="treatment-time-unit">분</span>
             </div>
           </label>
-          <label class="treatment-time-row">
-            <span class="treatment-time-name">대기 최우선 기준</span>
-            <div class="treatment-time-row-inner">
-              <input class="treatment-time-input" id="doctorUrgentWaitMinutesInput" type="number" min="2" max="120" step="1" value="20" aria-label="대기 최우선 기준 시간">
-              <span class="treatment-time-unit">분</span>
-            </div>
-          </label>
-          <p class="long-wait-setting-note">첫 치료는 접수부터, 이후 치료는 해당 단계 진입부터 계산합니다. 우선 기준부터 대기시간을 주황색으로 점멸합니다. 원장 시술은 시간 체크 → 최우선 기준 이상 → 약침1·2 → 부항·뜸 단독 → 우선 기준 이상 → 기타 순입니다. 우선 기준은 최우선 기준보다 작아야 합니다.</p>
+          <p class="long-wait-setting-note">첫 치료는 접수부터,이후 치료는 해당 단계 진입부터 계산합니다. 설정 시간 이상이면 대기시간을 주황색으로 점멸하고 시간 체크 다음 순위로 표시합니다. 기본값은 15분입니다.</p>
           <button class="submit-btn" onclick="saveDoctorLongWaitMinutes()">저장</button>
         </div>
       </div>
@@ -7366,10 +7359,8 @@
     .map(t => [t.name, t.id === 'spine' ? 15 : 5]));
   let treatmentMinutes = { ...DEFAULT_TREATMENT_MINUTES };
   let procedureMinutes = 0;
-  const DEFAULT_DOCTOR_LONG_WAIT_MINUTES = 10;
-  const DEFAULT_DOCTOR_URGENT_WAIT_MINUTES = 20;
+  const DEFAULT_DOCTOR_URGENT_WAIT_MINUTES = 15;
   let doctorUrgentWaitMinutes = DEFAULT_DOCTOR_URGENT_WAIT_MINUTES;
-  let doctorLongWaitMinutes = DEFAULT_DOCTOR_LONG_WAIT_MINUTES;
   let treatmentPresets = [];
   let autoBedAssignEnabled = false;
   let nurseAutoAssignEnabled = true;
@@ -11140,9 +11131,8 @@
 
   migrateNode('settings/treatmentWaitThresholds', (value) => {
     const thresholds = normalizeTreatmentWaitThresholds(value);
-    doctorLongWaitMinutes = thresholds.priority;
     doctorUrgentWaitMinutes = thresholds.urgent;
-    for (const [id, minutes] of [['doctorLongWaitMinutesInput', doctorLongWaitMinutes], ['doctorUrgentWaitMinutesInput', doctorUrgentWaitMinutes]]) {
+    for (const [id, minutes] of [['doctorUrgentWaitMinutesInput', doctorUrgentWaitMinutes]]) {
       const input = document.getElementById(id);
       if (input && document.activeElement !== input) input.value = String(minutes);
     }
@@ -11249,17 +11239,15 @@
   };
 
   window.saveDoctorLongWaitMinutes = async () => {
-    const input = document.getElementById('doctorLongWaitMinutesInput');
-    const urgentInput = document.getElementById('doctorUrgentWaitMinutesInput');
-    const priority = Number(input?.value), urgent = Number(urgentInput?.value);
-    if (!input?.value.trim() || !urgentInput?.value.trim() || !Number.isInteger(priority) || !Number.isInteger(urgent)
-      || priority < 1 || urgent > 120 || priority >= urgent) {
-      showToast('1~120분의 정수로 입력하고, 우선 기준을 최우선 기준보다 작게 설정해주세요');
+    const input = document.getElementById('doctorUrgentWaitMinutesInput');
+    const urgent = Number(input?.value);
+    if (!input?.value.trim() || !Number.isInteger(urgent) || urgent < 1 || urgent > 120) {
+      showToast('대기 우선 기준은 1~120분의 정수로 입력해주세요');
       return;
     }
     try {
-      await setLocalNode('settings/treatmentWaitThresholds', { priority, urgent });
-      showToast(`대기 기준 ${priority}분 / ${urgent}분 저장 완료`);
+      await setLocalNode('settings/treatmentWaitThresholds', { urgent });
+      showToast(`대기 우선 기준 ${urgent}분 저장 완료`);
     } catch (e) {
       console.error(e);
       showToast('대기 기준 저장 실패');
@@ -15685,14 +15673,20 @@
       .filter(matchesDoctorPageRecord)
       .filter(item => !item.acknowledgedAt || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(item.acknowledgedAt)) === getTodayKey())
       .map(item => {
-        const changes = [...item.changes].sort((a, b) => Number(a.amount > 0) - Number(b.amount > 0));
-        const text = changes.map(change => `${change.name}${Math.abs(change.amount) > 1 ? ` ×${Math.abs(change.amount)}` : ''} ${change.amount < 0 ? '삭제' : '추가'}`).join(', ');
+        const groups = [
+          { changes: item.changes.filter(change => change.amount < 0), action: '삭제', color: '#f87171' },
+          { changes: item.changes.filter(change => change.amount > 0), action: '추가', color: '#34d399' }
+        ].filter(group => group.changes.length).map(group => ({
+          ...group,
+          text: `${group.changes.map(change => `${change.name}${Math.abs(change.amount) > 1 ? ` ×${Math.abs(change.amount)}` : ''}`).join(', ')} ${group.action}`
+        }));
+        const text = groups.map(group => group.text).join(', ');
         const label = `${item.name}(${item.chartNo || '차트번호 없음'}) ${text}`;
         return {
           timestamp: Number(item.timestamp || 0), alertPriority: item.acknowledgedAt ? 2 : -2,
           html: `<button type="button" class="upcoming-item assignment appointment-request-card treatment-change-card" ${item.acknowledgedAt ? 'disabled' : `onclick="acknowledgeTreatmentChange(${escapeHtmlJsString(item.patientKey)}, ${escapeHtmlJsString(item.version)})"`}>
             <span class="upcoming-time">치료 변경</span>
-            <span><span class="upcoming-main" title="${escapeHtml(label)}">${escapeHtml(item.name)}(${escapeHtml(item.chartNo || '차트번호 없음')}) ${changes.map(change => `<span style="color:${change.amount < 0 ? '#f87171' : '#34d399'}">${escapeHtml(change.name)}${Math.abs(change.amount) > 1 ? ` ×${Math.abs(change.amount)}` : ''} ${change.amount < 0 ? '삭제' : '추가'}</span>`).join(', ')}</span></span>
+            <span><span class="upcoming-main" title="${escapeHtml(label)}">${escapeHtml(item.name)}(${escapeHtml(item.chartNo || '차트번호 없음')}) ${groups.map(group => `<span style="color:${group.color}">${escapeHtml(group.text)}</span>`).join(', ')}</span></span>
           </button>`
         };
       });
@@ -19727,9 +19721,8 @@
   }
 
   function normalizeTreatmentWaitThresholds(value) {
-    const priority = value?.priority, urgent = value?.urgent;
-    if (Number.isInteger(priority) && Number.isInteger(urgent) && priority >= 1 && priority < urgent && urgent <= 120) return { priority, urgent };
-    return { priority: DEFAULT_DOCTOR_LONG_WAIT_MINUTES, urgent: DEFAULT_DOCTOR_URGENT_WAIT_MINUTES };
+    const urgent = value?.urgent;
+    return { urgent: Number.isInteger(urgent) && urgent >= 1 && urgent <= 120 ? urgent : DEFAULT_DOCTOR_URGENT_WAIT_MINUTES };
   }
 
   function isDoctorProcedureInProgress(bed) {
@@ -19750,7 +19743,7 @@
     if (!Number.isFinite(since) || since <= 0) return none;
     const elapsed = Math.max(0, now - since);
     return {
-      longWaiting: doctorLongWaitMinutes > 0 && elapsed >= doctorLongWaitMinutes * 60000,
+      longWaiting: elapsed >= doctorUrgentWaitMinutes * 60000,
       urgentWaiting: elapsed >= doctorUrgentWaitMinutes * 60000,
       waitMinutes: Math.floor(elapsed / 60000),
       waitStartedAt: since
@@ -19767,7 +19760,7 @@
     const since = Number(patient.waitingStage?.stageEnteredAt) || Number(patient.timestamp);
     const elapsed = Number.isFinite(since) && since > 0 ? Math.max(0, now - since) : 0;
     return {
-      longWaiting: doctorLongWaitMinutes > 0 && elapsed >= doctorLongWaitMinutes * 60000,
+      longWaiting: elapsed >= doctorUrgentWaitMinutes * 60000,
       urgentWaiting: elapsed >= doctorUrgentWaitMinutes * 60000,
       waitMinutes: Math.floor(elapsed / 60000),
       waitStartedAt: since || 0
@@ -19896,7 +19889,7 @@
           cleanup: true,
           ...getDoctorProcedureWaitInfo(bed),
           alertPriority: 1,
-          sortPriority: 6,
+          sortPriority: 5,
           timestamp: alertTimestamp,
           message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${cleanup.treatment}`
         });
@@ -19921,7 +19914,7 @@
           soon: true,
           soonRemainingSeconds: upcoming.remaining,
           alertPriority: 1,
-          sortPriority: 7,
+          sortPriority: 6,
           timestamp: Number(bed.startedAt || bed.timestamp || 0),
           message: `${getBedLabel(bedNo)} ${bed.name || '환자'} ${upcoming.treatment}`
         });
@@ -19939,8 +19932,9 @@
       const hasPriorityPharmacopuncture = treatments.some(name => /^약침[12]$/.test(String(name || '').trim()));
       const standaloneCuppingOrMoxa = treatments.length === 1
         && ['건부항', '습부항', '왕뜸', '전자뜸'].includes(String(treatments[0] || '').trim());
+      const hasLongTreatment = treatments.some(name => isLongDoctorProcedureTreatment(name) || String(name || '').trim() === '약침4');
       const sortPriority = timeLimited ? 0 : waitInfo.urgentWaiting ? 1 : hasPriorityPharmacopuncture ? 2
-        : standaloneCuppingOrMoxa ? 3 : waitInfo.longWaiting ? 4 : 5;
+        : standaloneCuppingOrMoxa ? 3 : hasLongTreatment ? 7 : 4;
       items.push({
         alertId,
         bedNo,
@@ -19958,7 +19952,7 @@
       });
     });
     return items.sort((a, b) => {
-      // Ready patients always precede cleanup and upcoming preparation alerts.
+      // Long treatments follow preparation unless time-checked or overdue.
       const priorityDiff = a.sortPriority - b.sortPriority;
       if (priorityDiff) return priorityDiff;
       if (a.soon && b.soon) {
@@ -20134,7 +20128,7 @@
   let lastPassiveUpcomingAlertsRenderAt = 0;
   let lastDoctorLongWaitDisplaySignature = '';
   function refreshDoctorLongWaitDisplays() {
-    const signature = [doctorLongWaitMinutes, doctorUrgentWaitMinutes, ...[...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS, ...HOLD_BED_NUMBERS]
+    const signature = [doctorUrgentWaitMinutes, ...[...getDoctorBedNumbers(), ...ACTIVE_BED_NUMBERS, ...HOLD_BED_NUMBERS]
       .map(bedNo => {
         const info = getDoctorProcedureWaitInfo(getBedData(bedNo));
         return info.longWaiting ? `${bedNo}:${info.waitStartedAt}:${info.waitMinutes}` : '';

@@ -58,7 +58,7 @@ test('all 14 independent tablets agree on pending arrival, acknowledgment and cl
   assert.deepEqual(active.map(n=>tablet(n,beds,{})),active.map(()=>1));
   beds[1]=bed(1,{lastAlertId:'done-100'});
   beds[3]=bed(3,{treatments:['단추']});
-  assert.deepEqual(active.map(n=>tablet(n,beds,{})),active.map(()=>3));
+  assert.deepEqual(active.map(n=>tablet(n,beds,{})),active.map(()=>1));
 });
 test('local current-treatment display gate is preserved',()=>{
   assert.equal(tablet(2,{1:bed(1),2:bed(2,{treatments:['핫팩']})},{}),null);
@@ -78,14 +78,14 @@ test('doctor room arrival alerts reach tablets and target the fixed or selected 
  c.fixedBedArrivalAcknowledgedByBed[101]='room1';assert.equal(c.isFixedBedArrivalPending(101),false);
  c.window.location.search='';c.getFixedDoctorBedNoFromUrl=()=>0;assert.equal(c.getFixedBedArrivalBedNo(),102);
 });
-test('upcoming queue never displaces ready procedures at the 120-second boundary',()=>{
+test('upcoming queue precedes long procedures at the 120-second boundary',()=>{
   const beds=Object.fromEntries(active.map(n=>[n,bed(n,{running:true,remaining:300})]));
   beds[1]=bed(1,{treatments:['단추']});
   beds[3]=bed(3,{running:true,remaining:121,treatments:['핫팩','침']});
   const viewers=active.filter(n=>n!==3);
   assert.deepEqual(viewers.map(n=>tablet(n,beds,{})),viewers.map(()=>1));
   beds[3].remaining=120;
-  assert.deepEqual(viewers.map(n=>tablet(n,beds,{})),viewers.map(()=>1));
+  assert.deepEqual(viewers.map(n=>tablet(n,beds,{})),viewers.map(()=>3));
 });
 test('1000 state changes fan out linearly; unchanged beds emit no delta',()=>{
   const {context:c,frames}=serverContext();
