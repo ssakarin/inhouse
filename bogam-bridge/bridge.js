@@ -4,12 +4,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
-const { buildQuery, accountSql, schemaSql, principalsSql } = require('./queries');
+const { buildQuery, accountSql, schemaSql, principalsSql, assertSelectOnly } = require('./queries');
 const { normalize, ranges, failure } = require('../server/bogam-sync');
 
-function execute(query, { signal } = {}) {
+function safeDiagnostic(value) {
+  const result = {};
+  if (['input','connection','parameters','query','result_read','result_serialize'].includes(value?.stage)) result.stage = value.stage;
+  for (const key of ['scriptLine','sqlNumber','sqlLine']) if (Number.isSafeInteger(value?.[key])) result[key] = value[key];
+  if (typeof value?.exceptionType === 'string' && /^[A-Za-z0-9_.]{1,100}$/.test(value.exceptionType)) result.exceptionType = value.exceptionType;
+  return result;
+}
+function execute(query, { signal, diagnostics = false, launch = spawn } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.join(__dirname, 'query.ps1')],
+    assertSelectOnly(query?.sql);
+    const child = launch('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.join(__dirname, 'query.ps1')],
       { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
     let output = '', settled = false, expired = false;
     const abort = () => { expired = true; child.kill(); };
@@ -30,7 +38,11 @@ function execute(query, { signal } = {}) {
       if (expired) return finish(failure('SYNC_TIMEOUT', 504));
       try {
         const result = JSON.parse(output.replace(/^\uFEFF/, ''));
-        if (!result.ok) return finish(failure(result.code === 'SYNC_TIMEOUT' ? 'SYNC_TIMEOUT' : 'SOURCE_REJECTED', 502));
+        if (!result.ok) {
+          const error = failure(result.code === 'SYNC_TIMEOUT' ? 'SYNC_TIMEOUT' : 'SOURCE_REJECTED', 502);
+          if (diagnostics) error.diagnostic = safeDiagnostic(result.diagnostic);
+          return finish(error);
+        }
         finish(null, result.sets);
       } catch { finish(failure('SOURCE_REJECTED', 502)); }
     });
@@ -39,11 +51,16 @@ function execute(query, { signal } = {}) {
 }
 
 function sourceResult(sets, requested, config, dryRun, elapsedMs) {
+  if (Array.isArray(sets) && sets.length === 2) {
+    if (requested.scope === 'visits') sets = [sets[0], sets[1], []];
+    else if (requested.scope === 'bookings') sets = [sets[0], [], sets[1]];
+  }
   if (!Array.isArray(sets) || sets.length !== 3 || !sets.every(Array.isArray)) throw failure('INVALID_SOURCE_DATA');
   const [audit, visits, bookings] = sets;
   if (visits.length > 10000 || bookings.length > 10000) throw failure('INVALID_SOURCE_DATA');
   const readOnlyVerified = audit[0]?.readOnlyVerified === true;
-  if (!dryRun && !readOnlyVerified) throw failure('READ_ONLY_ACCOUNT_REQUIRED', 403);
+  // Account permissions are informational. The bridge itself issues only fixed
+  // SELECTs, even when Donguibogam uses this same Windows account for writes.
   let unmappedDoctors = 0;
   const map = row => {
     const doctorName = typeof row.doctorName === 'string' ? row.doctorName.trim() : '';
@@ -56,8 +73,9 @@ function sourceResult(sets, requested, config, dryRun, elapsedMs) {
   // Even dry-run validates dates, identities, duplicates, row caps and all confirmed fields.
   normalize(payload, requested);
   const counts = { visits: visits.length, bookings: bookings.length, unmappedDoctors };
-  return dryRun ? { ok: true, dryRun: true, counts, elapsedMs, readOnlyVerified }
-    : { ok: true, dryRun: false, ...payload, counts, elapsedMs, readOnlyVerified };
+  const scope = requested.scope || 'all';
+  return dryRun ? { ok: true, scope, dryRun: true, counts, elapsedMs, readOnlyVerified }
+    : { ok: true, scope, dryRun: false, ...payload, counts, elapsedMs, readOnlyVerified };
 }
 
 function createHandler(config, query = execute) {
@@ -99,6 +117,18 @@ async function main() {
   const file = process.env.BOGAM_BRIDGE_CONFIG;
   if (!file) throw Error('Set BOGAM_BRIDGE_CONFIG to an external config file');
   const config = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+  if (process.argv.includes('--diagnose')) {
+    for (const [step,sql] of [['connection_select','SELECT 1 AS connection_test'],['account',accountSql],['schema',schemaSql],['principals',principalsSql]]) {
+      try {
+        const sets = await execute({ sql, parameters: {} }, { diagnostics: true });
+        console.log(JSON.stringify({ step, ok: true, rowCounts: sets.map(rows => rows.length) }));
+      } catch (error) {
+        console.log(JSON.stringify({ step, ok: false, code: error.code || 'SOURCE_REJECTED', diagnostic: safeDiagnostic(error.diagnostic) }));
+        process.exitCode = 1; return;
+      }
+    }
+    return;
+  }
   if (process.argv.includes('--inspect')) {
     const sets = await execute({ sql: `${accountSql};${schemaSql};${principalsSql}`, parameters: {} });
     // Metadata only; never patient rows, SQL credentials or token values.
@@ -108,7 +138,7 @@ async function main() {
     const start = process.argv[process.argv.indexOf('--check') + 1], end = process.argv[process.argv.indexOf('--check') + 2];
     const requested = ranges({ visits: { start, end }, bookings: { start, end } });
     const started = Date.now();
-    const sets = await execute(buildQuery(requested, config));
+    const sets = await execute(buildQuery(requested, config), { diagnostics: true });
     console.log(JSON.stringify(sourceResult(sets, requested, config, true, Date.now() - started))); return;
   }
   if (!config.listenHost || !config.allowedClientIp || !Number.isInteger(config.port) || config.port < 1024 || config.port > 65535) throw Error('Invalid bridge listener configuration');
@@ -120,8 +150,10 @@ async function main() {
   process.on('SIGINT', stop); process.on('SIGTERM', stop);
 }
 if (require.main === module) main().catch(error => {
-  const code = ['SYNC_TIMEOUT','SOURCE_NOT_CONFIGURED','READ_ONLY_ACCOUNT_REQUIRED','UNMAPPED_DOCTOR','INVALID_RANGE','INVALID_SOURCE_DATA','AMBIGUOUS_SOURCE_DATA'].includes(error.code)
+  const code = ['SYNC_TIMEOUT','SOURCE_NOT_CONFIGURED','SELECT_ONLY_REQUIRED','UNMAPPED_DOCTOR','INVALID_RANGE','INVALID_SOURCE_DATA','AMBIGUOUS_SOURCE_DATA'].includes(error.code)
     ? error.code : 'SOURCE_REJECTED';
-  console.error(`Bogam bridge stopped: ${code}. No patient data logged.`); process.exitCode = 1;
+  if (error.diagnostic) console.error(JSON.stringify({ step: 'check', ok: false, code, diagnostic: safeDiagnostic(error.diagnostic) }));
+  else console.error(`Bogam bridge stopped: ${code}. No patient data logged.`);
+  process.exitCode = 1;
 });
-module.exports = { execute, sourceResult, createHandler };
+module.exports = { execute, sourceResult, createHandler, safeDiagnostic };

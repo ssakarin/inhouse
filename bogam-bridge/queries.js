@@ -1,6 +1,16 @@
 'use strict';
 const { ranges, failure } = require('../server/bogam-sync');
 
+function assertSelectOnly(sql) {
+  if (typeof sql !== 'string' || !sql.trim()) throw failure('SELECT_ONLY_REQUIRED');
+  // The application only generates fixed SELECT batches. Reject accidental
+  // write/admin/external SQL before starting PowerShell or opening a connection.
+  const tokens = sql.replace(/'(?:''|[^'])*'|"(?:""|[^"])*"|\[(?:\]\]|[^\]])*\]|--[^\r\n]*|\/\*[\s\S]*?\*\//g, ' ');
+  if (/['"\[\]]/.test(tokens)
+      || /\b(INSERT|UPDATE|DELETE|MERGE|INTO|CREATE|ALTER|DROP|TRUNCATE|EXEC|EXECUTE|GRANT|DENY|REVOKE|DBCC|BACKUP|RESTORE|KILL|SET|USE|OPENROWSET|OPENQUERY|OPENDATASOURCE)\b/i.test(tokens)
+      || !tokens.split(';').filter(part => part.trim()).every(part => /^\s*SELECT\b/i.test(part))) throw failure('SELECT_ONLY_REQUIRED');
+}
+
 // No SQL supplied by the browser, configuration or network is ever executed.
 // All SQL sent to BogamDB is a fixed SELECT with typed date parameters.
 const accountSql = `SELECT
@@ -27,6 +37,17 @@ const principalsSql = `SELECT p.name, p.type_desc, r.name AS role_name
   LEFT JOIN sys.database_principals r ON m.role_principal_id=r.principal_id
   WHERE p.type IN ('S','U','G') AND p.principal_id > 4 ORDER BY p.name,r.name`;
 
+// Compatibility level 100 has no TRY_CONVERT. Put validation INSIDE the CASE
+// passed to CONVERT, so invalid values cannot throw even if predicates reorder.
+function compatibleDate(column) {
+  const raw = `NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(30), ${column}, 112))), '')`;
+  const compact = `REPLACE(${raw}, '-', '')`;
+  return `CONVERT(datetime, CASE WHEN (LEN(${raw})=8 OR (LEN(${raw})=10
+    AND SUBSTRING(${raw},5,1)='-' AND SUBSTRING(${raw},8,1)='-'))
+    AND LEN(${compact})=8 AND ${compact} NOT LIKE '%[^0-9]%' AND ISDATE(${compact})=1
+    THEN ${compact} ELSE NULL END, 112)`;
+}
+
 function buildQuery(body, config) {
   const requested = ranges(body);
   if (config.mappingVerified !== true || !['yyyymmdd', 'date'].includes(config.dateStorage)) throw failure('SOURCE_NOT_CONFIGURED', 503);
@@ -35,6 +56,7 @@ function buildQuery(body, config) {
   const nextDay = value => new Date(Date.parse(value) + 86400000).toISOString().slice(0, 10);
   const parameters = {};
   for (const [prefix, period] of [['v', requested.visits], ['b', requested.bookings]]) {
+    if (!period) continue;
     parameters[`${prefix}Start`] = { type: sqlType, value: encode(period.start) };
     parameters[`${prefix}End`] = { type: sqlType, value: encode(nextDay(period.end)) };
   }
@@ -54,12 +76,12 @@ function buildQuery(body, config) {
     CONVERT(int, m.dm_NoneInsu) AS noneInsurance,
     ic.NameVariants AS insurerNameVariants, ic.CaptionVariants AS insurerCaptionVariants,
     ic.InsurerName AS insurerName, ic.InsurerCaption AS insurerCaption,
-    s.RowCount AS primaryDiagnosisRows,
-    CASE WHEN s.RowCount=1 THEN s.DiagnosisCode END AS diagnosisCode,
+    s.CandidateRows AS primaryDiagnosisRows,
+    CASE WHEN s.CandidateRows=1 THEN s.DiagnosisCode END AS diagnosisCode,
     dn.NameCount AS diagnosisNameVariants,
-    CASE WHEN s.RowCount=1 AND dn.NameCount=1 THEN dn.DiagnosisName END AS diagnosisName,
-    ac.RowCount AS accountRows,
-    CASE WHEN ac.RowCount=1 THEN ac.Total END AS totalFee,
+    CASE WHEN s.CandidateRows=1 AND dn.NameCount=1 THEN dn.DiagnosisName END AS diagnosisName,
+    ac.CandidateRows AS accountRows,
+    CASE WHEN ac.CandidateRows=1 THEN ac.Total END AS totalFee,
     bill.db_SumInsu AS claimAmount, bill.db_SumUser AS insuredCopay, bill.db_CommCost AS nonCoveredAmount
     FROM dbo.DigMast m
     LEFT JOIN dbo.DigAccept a ON a.da_DiagID=m.dm_DiagID AND a.da_CustID=m.dm_CustID AND a.da_AccDate=m.dm_DiagDate
@@ -72,21 +94,19 @@ function buildQuery(body, config) {
       MAX(RTRIM(CONVERT(nvarchar(max), i.inc_Name))) AS InsurerName,
       MAX(RTRIM(CONVERT(nvarchar(max), i.inc_Caption))) AS InsurerCaption
       FROM dbo.InsuComp i WHERE a.da_Insure=4 AND i.inc_Code=a.da_InsuKind) ic
-    OUTER APPLY (SELECT COUNT(*) AS RowCount, MAX(ds.ds_HCode) AS DiagnosisCode, MAX(ds.ds_HNo) AS DiagnosisNo
+    OUTER APPLY (SELECT COUNT(*) AS CandidateRows, MAX(ds.ds_HCode) AS DiagnosisCode, MAX(ds.ds_HNo) AS DiagnosisNo
       FROM dbo.DigSick ds WHERE ds.ds_DiagID=m.dm_DiagID AND ds.ds_Base=1) s
     OUTER APPLY (SELECT
       COUNT(DISTINCT LTRIM(RTRIM(CONVERT(nvarchar(max), h.ms_Name))) COLLATE Latin1_General_100_BIN2) AS NameCount,
       MAX(LTRIM(RTRIM(CONVERT(nvarchar(max), h.ms_Name)))) AS DiagnosisName
       FROM dbo.MediHanSick h
-      WHERE s.RowCount=1 AND h.ms_Code=s.DiagnosisCode AND h.ms_No=s.DiagnosisNo
+      WHERE s.CandidateRows=1 AND h.ms_Code=s.DiagnosisCode AND h.ms_No=s.DiagnosisNo
         AND NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(max), h.ms_Name))), '') IS NOT NULL
         AND (NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(30), h.ms_DueDate, 112))), '') IS NULL
-          OR TRY_CONVERT(date, CONVERT(nvarchar(30), h.ms_DueDate, 112), 112)
-            <= TRY_CONVERT(date, CONVERT(nvarchar(30), m.dm_DiagDate, 112), 112))
+          OR ${compatibleDate('h.ms_DueDate')} <= ${compatibleDate('m.dm_DiagDate')})
         AND (NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(30), h.ms_ExpDate, 112))), '') IS NULL
-          OR TRY_CONVERT(date, CONVERT(nvarchar(30), h.ms_ExpDate, 112), 112)
-            >= TRY_CONVERT(date, CONVERT(nvarchar(30), m.dm_DiagDate, 112), 112))) dn
-    OUTER APPLY (SELECT COUNT(*) AS RowCount, MAX(z.ac_TotSum) AS Total
+          OR ${compatibleDate('h.ms_ExpDate')} >= ${compatibleDate('m.dm_DiagDate')}) ) dn
+    OUTER APPLY (SELECT COUNT(*) AS CandidateRows, MAX(z.ac_TotSum) AS Total
       FROM dbo.Account z WHERE z.ac_DiagID=m.dm_DiagID AND z.ac_CustID=m.dm_CustID AND z.ac_AccDate=m.dm_DiagDate) ac
     WHERE m.dm_DiagDate >= @vStart AND m.dm_DiagDate < @vEnd`;
   const bookings = `SELECT TOP (10001)
@@ -98,6 +118,9 @@ function buildQuery(body, config) {
     FROM dbo.DigBook b LEFT JOIN dbo.CustMast c ON c.cm_CustID=b.dbk_CustID
     LEFT JOIN dbo.Employe e ON e.emp_Code=b.dbk_DrEmp
     WHERE b.dbk_DiagDate >= @bStart AND b.dbk_DiagDate < @bEnd`;
-  return { sql: `${accountSql};\n${visits};\n${bookings}`, parameters };
+  const statements = [accountSql];
+  if (requested.scope !== 'bookings') statements.push(visits);
+  if (requested.scope !== 'visits') statements.push(bookings);
+  return { sql: statements.join(';\n'), parameters };
 }
-module.exports = { buildQuery, accountSql, schemaSql, principalsSql };
+module.exports = { buildQuery, accountSql, schemaSql, principalsSql, compatibleDate, assertSelectOnly };

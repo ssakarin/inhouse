@@ -6480,8 +6480,10 @@
   .bogam-sync-ranges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
   .bogam-sync-ranges label { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 12px; }
   .bogam-sync-ranges input { max-width: 135px; padding: 5px; }
-  #bogamSyncStatus, #bogamSyncLastApplied { margin-top: 7px; font-size: 12px; line-height: 1.5; }
-  #bogamSyncLastApplied { opacity: .75; }
+  #bogamSyncStatus, .bogam-sync-last-applied { margin-top: 7px; font-size: 12px; line-height: 1.5; }
+  .bogam-sync-last-applied { opacity: .75; }
+  .bogam-sync-range { width: 100%; padding-bottom: 10px; }
+  .bogam-sync-range button { margin-top: 7px; }
 </style>
 <div class="notif-overlay" id="dischargedPatientsOverlay" onclick="closeDischargedPatientsPopup()">
   <div class="notif-popup discharged-popup" onclick="event.stopPropagation()">
@@ -6494,13 +6496,20 @@
       <button class="popup-close" type="button" onclick="closeDischargedPatientsPopup()">닫기</button>
     </div>
     <div class="bogam-sync-panel">
+      <div class="appointment-import-note">동의보감 연동</div>
       <div class="bogam-sync-ranges">
-        <label>진료·접수 <input id="bogamVisitsStart" type="date" aria-label="진료 조회 시작일"> ~ <input id="bogamVisitsEnd" type="date" aria-label="진료 조회 종료일"></label>
-        <label>예약 <input id="bogamBookingsStart" type="date" aria-label="예약 조회 시작일"> ~ <input id="bogamBookingsEnd" type="date" aria-label="예약 조회 종료일"></label>
+        <div class="bogam-sync-range">
+          <label>진료·접수 <input id="bogamVisitsStart" type="date" aria-label="진료 조회 시작일"> ~ <input id="bogamVisitsEnd" type="date" aria-label="진료 조회 종료일"></label>
+          <button type="button" class="desk-excel-add-btn" id="bogamVisitsSyncBtn" onclick="refreshFromBogam('visits')">진료·접수 새로고침</button>
+          <div class="bogam-sync-last-applied" id="bogamVisitsLastApplied">마지막 진료·접수 반영: 없음</div>
+        </div>
+        <div class="bogam-sync-range">
+          <label>예약 <input id="bogamBookingsStart" type="date" aria-label="예약 조회 시작일"> ~ <input id="bogamBookingsEnd" type="date" aria-label="예약 조회 종료일"></label>
+          <button type="button" class="desk-excel-add-btn" id="bogamBookingsSyncBtn" onclick="refreshFromBogam('bookings')">예약 새로고침</button>
+          <div class="bogam-sync-last-applied" id="bogamBookingsLastApplied">마지막 예약 반영: 없음</div>
+        </div>
       </div>
-      <button type="button" class="desk-excel-add-btn" id="bogamSyncBtn" onclick="refreshFromBogam()">동의보감 새로고침</button>
-      <div id="bogamSyncStatus" role="status" aria-live="polite">버튼을 누를 때만 조회합니다.</div>
-      <div id="bogamSyncLastApplied">마지막 반영: 없음</div>
+      <div id="bogamSyncStatus" role="status" aria-live="polite">각 버튼을 누를 때만 해당 자료를 조회합니다.</div>
       <div class="appointment-import-note">예약은 엑셀 불러오기처럼 결과에 포함된 날짜의 전체 명단으로 교체합니다. 그 날짜의 기존 명단 중 조회되지 않은 예약은 제외됩니다. 결과에 없는 날짜는 유지하며, 0명 날짜는 예약 불러오기의 명단 비우기를 사용해주세요.</div>
     </div>
   </div>
@@ -16068,7 +16077,8 @@
     DESK_UNREACHABLE: '데스크 PC 연결 불가 · PC와 연동 프로그램을 확인해주세요.',
     SYNC_TIMEOUT: '시간 초과 · 조회를 취소했습니다. 기존 데이터는 유지됩니다.',
     SYNC_BUSY: '다른 조회가 진행 중입니다. 완료 후 다시 눌러주세요.',
-    READ_ONLY_ACCOUNT_REQUIRED: '기존 조회 전용 계정 확인이 필요합니다. 반영하지 않았습니다.',
+    BRIDGE_UPDATE_REQUIRED: '데스크 연동 프로그램을 최신 버전으로 업데이트해주세요.',
+    READ_ONLY_ACCOUNT_REQUIRED: '데스크 연동 프로그램을 최신 버전으로 업데이트해주세요. 반영하지 않았습니다.',
     UNMAPPED_DOCTOR: '의사코드와 의사명 연결 설정이 필요합니다. 반영하지 않았습니다.',
     PATIENT_IDENTITY_CONFLICT: '차트번호·이름 충돌이 있어 반영하지 않았습니다.',
     INVALID_RANGE: '조회 시작일·종료일을 확인해주세요. 각 기간은 최대 366일입니다.',
@@ -16077,23 +16087,29 @@
   function renderBogamSyncStatus(state = bogamSyncState) {
     bogamSyncState = state;
     const running = !!state.running || bogamSyncRequestPending;
-    const button = document.getElementById('bogamSyncBtn');
-    if (!button) return;
-    button.disabled = running || state.enabled === false;
-    button.textContent = running ? '동의보감 조회 중…' : '동의보감 새로고침';
+    for (const [scope,prefix,label] of [['visits','Visits','진료·접수'],['bookings','Bookings','예약']]) {
+      const button = document.getElementById(`bogam${prefix}SyncBtn`);
+      if (!button) return;
+      button.disabled = running || state.enabled === false;
+      button.textContent = running && (state.scope === scope || state.scope === 'all') ? `${label} 조회 중…` : `${label} 새로고침`;
+    }
     ['VisitsStart','VisitsEnd','BookingsStart','BookingsEnd'].forEach(key => {
       document.getElementById(`bogam${key}`).disabled = running;
     });
     const counts = state.counts || {};
+    const countText = state.scope === 'visits' ? `진료 ${counts.visits || 0}건` : state.scope === 'bookings' ? `예약 ${counts.bookings || 0}건` : `진료 ${counts.visits || 0}건 / 예약 ${counts.bookings || 0}건`;
     let message = '버튼을 누를 때만 조회합니다.';
     if (state.enabled === false) message = bogamSyncMessages.SYNC_DISABLED;
     else if (state.running) message = state.phase === 'applying' ? '진료보드에 반영 중…' : '데스크 PC에서 조회 중…';
     else if (state.phase === 'failed') message = bogamSyncMessages[state.code] || '조회 또는 반영 실패 · 기존 데이터는 유지됩니다.';
-    else if (state.phase === 'validated') message = `검증 완료 · 진료 ${counts.visits || 0}건 / 예약 ${counts.bookings || 0}건 · ${((state.elapsedMs || 0) / 1000).toFixed(1)}초 · 실제 반영 안 함${counts.unmappedDoctors ? ` · 의사 미매핑 ${counts.unmappedDoctors}건` : ''}${state.readOnlyVerified === false ? ' · 조회 전용 계정 확인 필요' : ''}`;
-    else if (state.phase === 'completed') message = `반영 완료 · 진료 ${counts.visits || 0}건 / 예약 ${counts.bookings || 0}건${counts.skippedPatients ? ` · 이름 충돌 ${counts.skippedPatients}명(진료 ${counts.skippedVisits || 0}건) 저장 보류` : ''}${counts.multipleVisitDays ? ` · 하루 다중 진료 ${counts.multipleVisitDays}건: 진료번호별 저장, 일별 요약은 기존 값 유지` : ''}`;
+    else if (state.phase === 'validated') message = `검증 완료 · ${countText} · ${((state.elapsedMs || 0) / 1000).toFixed(1)}초 · 실제 반영 안 함${counts.unmappedDoctors ? ` · 의사 미매핑 ${counts.unmappedDoctors}건` : ''}`;
+    else if (state.phase === 'completed') message = `반영 완료 · ${countText}${counts.skippedPatients ? ` · 이름 충돌 ${counts.skippedPatients}명(진료 ${counts.skippedVisits || 0}건) 저장 보류` : ''}${counts.multipleVisitDays ? ` · 하루 다중 진료 ${counts.multipleVisitDays}건: 진료번호별 저장, 일별 요약은 기존 값 유지` : ''}`;
     document.getElementById('bogamSyncStatus').textContent = message;
-    document.getElementById('bogamSyncLastApplied').textContent = `마지막 반영: ${state.lastAppliedAt
-      ? new Date(state.lastAppliedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '없음'}`;
+    const stamps = { ...((!state.scope || state.scope === 'all') && state.lastAppliedAt ? { visits: state.lastAppliedAt, bookings: state.lastAppliedAt } : {}), ...(state.lastAppliedAtByScope || {}) };
+    for (const [scope,prefix,label] of [['visits','Visits','진료·접수'],['bookings','Bookings','예약']]) {
+      document.getElementById(`bogam${prefix}LastApplied`).textContent = `마지막 ${label} 반영: ${stamps[scope]
+        ? new Date(stamps[scope]).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '없음'}`;
+    }
   }
   async function initializeBogamSyncPanel() {
     const today = getTodayKey();
@@ -16111,20 +16127,23 @@
       renderBogamSyncStatus(await response.json());
     } catch (error) { renderBogamSyncStatus({ ...bogamSyncState, phase: 'failed', code: error.message }); }
   }
-  window.refreshFromBogam = async () => {
+  window.refreshFromBogam = async (scope) => {
+    if (!['visits','bookings'].includes(scope)) return;
     if (!isBogamDeskView() || isDoctorReadOnlyPage() || bogamSyncRequestPending || bogamSyncState.running) return;
-    const requested = Object.fromEntries(['visits','bookings'].map(name => {
-      const prefix = name[0].toUpperCase() + name.slice(1);
-      return [name, { start: document.getElementById(`bogam${prefix}Start`).value,
-        end: document.getElementById(`bogam${prefix}End`).value }];
-    }));
-    if (Object.values(requested).some(p => !AppointmentImport.validDate(p.start) || !AppointmentImport.validDate(p.end)
-        || p.start > p.end || Date.parse(p.end) - Date.parse(p.start) > 365 * 86400000)) {
+    const prefix = scope[0].toUpperCase() + scope.slice(1);
+    const selected = { start: document.getElementById(`bogam${prefix}Start`).value,
+      end: document.getElementById(`bogam${prefix}End`).value };
+    const requested = { scope, [scope]: selected };
+    if (!AppointmentImport.validDate(selected.start) || !AppointmentImport.validDate(selected.end)
+        || selected.start > selected.end || Date.parse(selected.end) - Date.parse(selected.start) > 365 * 86400000) {
       renderBogamSyncStatus({ ...bogamSyncState, phase: 'failed', code: 'INVALID_RANGE' }); return;
     }
-    try { localStorage.setItem('bogamSyncRanges', JSON.stringify(requested)); } catch {}
+    try {
+      const saved = JSON.parse(localStorage.getItem('bogamSyncRanges') || '{}');
+      localStorage.setItem('bogamSyncRanges', JSON.stringify({ ...saved, [scope]: selected }));
+    } catch {}
     bogamSyncRequestPending = true;
-    renderBogamSyncStatus({ ...bogamSyncState, running: true, phase: 'querying', code: null });
+    renderBogamSyncStatus({ ...bogamSyncState, running: true, phase: 'querying', code: null, scope });
     try {
       const response = await fetch('/api/bogam-sync/refresh', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requested) });
@@ -16133,7 +16152,7 @@
       bogamSyncState = { ...bogamSyncState, running: false, phase: result.dryRun ? 'validated' : 'completed',
         counts: result.counts || bogamSyncState.counts, elapsedMs: result.elapsedMs,
         ...(result.dryRun ? { readOnlyVerified: result.readOnlyVerified } : {}),
-        ...(result.appliedAt ? { lastAppliedAt: result.appliedAt } : {}) };
+        ...(result.appliedAt ? { lastAppliedAt: result.appliedAt, lastAppliedAtByScope: result.lastAppliedAtByScope || bogamSyncState.lastAppliedAtByScope } : {}) };
       if (!result.dryRun) {
         await Promise.allSettled([refreshDeskAppointmentButtons(), refreshAppointmentAlerts(), updateChartDbCount()]);
       }

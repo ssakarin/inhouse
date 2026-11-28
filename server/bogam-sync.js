@@ -11,7 +11,12 @@ function range(value) {
       || (Date.parse(end) - Date.parse(start)) / 86400000 > 365) throw failure('INVALID_RANGE');
   return { start, end };
 }
-function ranges(body) { return { visits: range(body?.visits), bookings: range(body?.bookings) }; }
+function ranges(body) {
+  const scope = body?.scope || 'all';
+  if (!['all','visits','bookings'].includes(scope)) throw failure('INVALID_RANGE');
+  return { ...(body?.scope ? { scope } : {}), visits: scope === 'bookings' ? null : range(body?.visits),
+    bookings: scope === 'visits' ? null : range(body?.bookings) };
+}
 function date(value) { return appointments.dateValue(String(value ?? '').slice(0, 10)); }
 function time(value, preserveSeconds = false) {
   let text = String(value ?? '').trim();
@@ -88,6 +93,8 @@ function visitFields(row) {
 function normalize(payload, requested) {
   if (!payload || !Array.isArray(payload.visits) || !Array.isArray(payload.bookings)
       || payload.visits.length > 10000 || payload.bookings.length > 10000) throw failure('INVALID_SOURCE_DATA');
+  if ((requested.scope === 'visits' && payload.bookings.length)
+      || (requested.scope === 'bookings' && payload.visits.length)) throw failure('INVALID_SOURCE_DATA');
   const identity = row => {
     const chartNo = appointments.text(row.chartNo).replace(/^0+(?=\d)/, '');
     if (!/^\d{1,30}$/.test(chartNo)) throw failure('INVALID_SOURCE_DATA');
@@ -113,7 +120,7 @@ function normalize(payload, requested) {
   const bookings = payload.bookings.map(row => ({ ...identity(row), date: within(row.date, requested.bookings), time: time(row.time) }));
   // Apply the same validation/slot deduplication as manual Excel imports.
   const groups = bookings.length ? appointments.validate(bookings) : [];
-  return { visits: [...new Map(visits.map(row => [JSON.stringify([row.diagnosisId, row.customerId, row.date]), row])).values()], groups };
+  return { scope: requested.scope || 'all', visits: [...new Map(visits.map(row => [JSON.stringify([row.diagnosisId, row.customerId, row.date]), row])).values()], groups };
 }
 
 // Only verified fields may overwrite their counterparts. Board-authored clinical
@@ -192,7 +199,10 @@ function planPatients(visits, getByChart, stats = {}) {
 }
 
 function createCoordinator({ fetchSource, apply, publish, initialStatus = {}, applyEnabled = false, enabled = false }) {
-  let active = null, state = { ...initialStatus, running: false, enabled, applyEnabled };
+  const legacyStamps = initialStatus.lastAppliedAt && (!initialStatus.scope || initialStatus.scope === 'all')
+    ? { visits: initialStatus.lastAppliedAt, bookings: initialStatus.lastAppliedAt } : {};
+  let active = null, state = { ...initialStatus, lastAppliedAtByScope: { ...legacyStamps, ...(initialStatus.lastAppliedAtByScope || {}) },
+    running: false, enabled, applyEnabled };
   const update = patch => { state = { ...state, ...patch }; publish(state); };
   function run(body) {
     const requested = ranges(body);
@@ -202,10 +212,11 @@ function createCoordinator({ fetchSource, apply, publish, initialStatus = {}, ap
     const id = crypto.randomUUID();
     // Install the shared promise before publishing/starting any asynchronous IO.
     const promise = Promise.resolve().then(async () => {
-      update({ running: true, phase: 'querying', code: null, requestId: id, ranges: requested });
+      update({ running: true, phase: 'querying', code: null, requestId: id, ranges: requested, scope: requested.scope || 'all' });
       try {
         const result = await fetchSource({ ...requested, requestId: id, dryRun: !applyEnabled });
         if (!result || result.ok !== true) throw failure('INVALID_SOURCE_DATA');
+        if (requested.scope && result.scope !== requested.scope) throw failure('BRIDGE_UPDATE_REQUIRED', 409);
         if (result.dryRun || !applyEnabled) {
           const counts = result.counts;
           if (!counts || !['visits', 'bookings', 'unmappedDoctors'].every(k => Number.isInteger(counts[k]) && counts[k] >= 0)
@@ -213,7 +224,6 @@ function createCoordinator({ fetchSource, apply, publish, initialStatus = {}, ap
           update({ running: false, phase: 'validated', counts, elapsedMs: result.elapsedMs, readOnlyVerified: result.readOnlyVerified === true });
           return { ok: true, dryRun: true, counts, elapsedMs: result.elapsedMs, readOnlyVerified: result.readOnlyVerified === true };
         }
-        if (result.readOnlyVerified !== true) throw failure('READ_ONLY_ACCOUNT_REQUIRED', 403);
         const data = normalize(result, requested);
         update({ phase: 'applying' });
         const applied = apply(data); // synchronous, one local SQLite transaction
@@ -221,10 +231,11 @@ function createCoordinator({ fetchSource, apply, publish, initialStatus = {}, ap
           multipleVisitDays: applied.multipleVisitDays || 0, skippedPatients: applied.skippedPatients || 0,
           skippedVisits: applied.skippedVisits || 0 };
         update({ running: false, phase: 'completed', lastAppliedAt: applied.appliedAt,
+          lastAppliedAtByScope: applied.lastAppliedAtByScope || state.lastAppliedAtByScope,
           counts, elapsedMs: result.elapsedMs });
         return { ok: true, ...applied, counts, elapsedMs: result.elapsedMs };
       } catch (error) {
-        const allowed = ['DESK_UNREACHABLE', 'SYNC_TIMEOUT', 'SYNC_BUSY', 'SOURCE_REJECTED', 'READ_ONLY_ACCOUNT_REQUIRED',
+        const allowed = ['DESK_UNREACHABLE', 'SYNC_TIMEOUT', 'SYNC_BUSY', 'SOURCE_REJECTED', 'BRIDGE_UPDATE_REQUIRED', 'READ_ONLY_ACCOUNT_REQUIRED',
           'INVALID_SOURCE_DATA', 'AMBIGUOUS_SOURCE_DATA', 'PATIENT_IDENTITY_CONFLICT', 'UNMAPPED_DOCTOR', 'SOURCE_NOT_CONFIGURED'];
         const code = allowed.includes(error.code) ? error.code : 'SYNC_FAILED';
         update({ running: false, phase: 'failed', code });

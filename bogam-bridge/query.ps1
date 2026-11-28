@@ -6,19 +6,19 @@ $ErrorActionPreference = 'Stop'
 $connection = $null
 $command = $null
 $reader = $null
+$stage = 'input'
 try {
     $inputData = [Console]::In.ReadToEnd() | ConvertFrom-Json
     Add-Type -AssemblyName System.Data
-    $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
     # Shared memory forces a LOCAL SQL connection; no SQL TCP listener needed.
-    $builder.DataSource = 'lpc:.\SQLEXPRESS'
-    $builder.InitialCatalog = 'BogamDB'
-    $builder.IntegratedSecurity = $true
-    $builder.ConnectTimeout = 3
-    $builder.Pooling = $false
-    $builder.ApplicationName = 'InhouseBogamSelectBridge'
-    $connection = New-Object System.Data.SqlClient.SqlConnection($builder.ConnectionString)
+    # Windows PowerShell treats SqlConnectionStringBuilder as a dictionary;
+    # .DataSource assignment becomes the invalid keyword "DataSource".
+    # Construct SqlConnection from canonical connection-string keywords instead.
+    $connectionString = 'Data Source=lpc:.\SQLEXPRESS;Initial Catalog=BogamDB;Integrated Security=True;Connect Timeout=3;Pooling=False;Application Name=InhouseBogamSelectBridge'
+    $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+    $stage = 'connection'
     $connection.Open()
+    $stage = 'parameters'
     $command = $connection.CreateCommand()
     $command.CommandTimeout = 5
     $command.CommandText = $inputData.sql
@@ -30,7 +30,9 @@ try {
             $param.Value = [DateTime]::ParseExact($item.value, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
         } else { $param.Size = 8; $param.Value = [string]$item.value }
     }
+    $stage = 'query'
     $reader = $command.ExecuteReader()
+    $stage = 'result_read'
     $sets = New-Object 'System.Collections.Generic.List[object]'
     do {
         $rows = New-Object 'System.Collections.Generic.List[object]'
@@ -46,17 +48,24 @@ try {
         }
         $sets.Add(@($rows.ToArray()))
     } while ($reader.NextResult())
+    $stage = 'result_serialize'
     [Console]::Out.Write((ConvertTo-Json -InputObject @{ ok=$true; sets=@($sets.ToArray()) } -Depth 10 -Compress))
 } catch {
     # Never print SQL exceptions: they can contain values and connection details.
     if ($command) { try { $command.Cancel() } catch {} }
     $code = 'SOURCE_REJECTED'
     $cause = $_.Exception
+    $diagnostic = @{ stage=$stage; scriptLine=[int]$_.InvocationInfo.ScriptLineNumber }
     while ($cause) {
+        $diagnostic.exceptionType = $cause.GetType().Name
+        if ($cause -is [System.Data.SqlClient.SqlException]) {
+            $diagnostic.sqlNumber = [int]$cause.Number
+            if ($cause.Errors.Count -gt 0) { $diagnostic.sqlLine = [int]$cause.Errors[0].LineNumber }
+        }
         if ($cause -is [System.Data.SqlClient.SqlException] -and $cause.Number -eq -2) { $code = 'SYNC_TIMEOUT' }
         $cause = $cause.InnerException
     }
-    [Console]::Out.Write((ConvertTo-Json -Compress @{ ok=$false; code=$code }))
+    [Console]::Out.Write((ConvertTo-Json -Compress @{ ok=$false; code=$code; diagnostic=$diagnostic }))
     exit 1
 } finally {
     if ($reader) { $reader.Dispose() }

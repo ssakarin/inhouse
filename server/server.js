@@ -129,6 +129,9 @@ function getBogamCoordinator() {
       const importStats = {};
       const records = bogamSync.planPatients(data.visits, getPatientsByChartNo, importStats);
       const appliedAt = new Date().toISOString();
+      const lastAppliedAtByScope = { ...(getBogamCoordinator().status().lastAppliedAtByScope || {}) };
+      if (data.scope !== 'bookings') lastAppliedAtByScope.visits = appliedAt;
+      if (data.scope !== 'visits') lastAppliedAtByScope.bookings = appliedAt;
       const stateBefore = new Map(stateValueCache);
       db.exec('BEGIN IMMEDIATE');
       try {
@@ -138,7 +141,7 @@ function getBogamCoordinator() {
         setStateValue('appointmentsRevision', revision);
         // Persist success in the SAME transaction as patients and bookings.
         setStateValue('bogamSyncStatus', { ...getBogamCoordinator().status(), running: false,
-          phase: 'completed', lastAppliedAt: appliedAt });
+          phase: 'completed', lastAppliedAt: appliedAt, lastAppliedAtByScope });
         db.exec('COMMIT');
         sseBroadcastState('appointmentsRevision', revision);
       } catch (error) {
@@ -150,7 +153,7 @@ function getBogamCoordinator() {
       }
       const requestedDates = new Set(data.visits.map(row => row.date));
       const multipleVisitDays = records.reduce((n,p) => n + (p.bogamMultipleVisitDates || []).filter(date => requestedDates.has(date)).length, 0);
-      return { appliedAt, patients: records.length, multipleVisitDays, ...importStats };
+      return { appliedAt, lastAppliedAtByScope, scope: data.scope, patients: records.length, multipleVisitDays, ...importStats };
     }
   });
   return bogamCoordinator;

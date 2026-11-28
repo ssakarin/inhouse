@@ -9,10 +9,12 @@ const http = require('node:http');
 const { DatabaseSync } = require('node:sqlite');
 const sync = require('./bogam-sync');
 const { createStore } = require('./appointments');
-const { sourceResult, createHandler } = require('../bogam-bridge/bridge');
-const { buildQuery, accountSql } = require('../bogam-bridge/queries');
+const { sourceResult, createHandler, safeDiagnostic, execute } = require('../bogam-bridge/bridge');
+const { buildQuery, accountSql, schemaSql, principalsSql, assertSelectOnly } = require('../bogam-bridge/queries');
 const { createTransport, loadConfig } = require('./bogam-transport');
 const { EventEmitter } = require('node:events');
+const { PassThrough } = require('node:stream');
+const { spawnSync } = require('node:child_process');
 const period = { start: '2026-11-01', end: '2026-11-30' };
 const request = { visits: period, bookings: period };
 const visit = { chartNo: '000123', name: '가상환자', date: '20261128', diagnosisId: 'd1', customerId: 'c1',
@@ -20,6 +22,86 @@ const visit = { chartNo: '000123', name: '가상환자', date: '20261128', diagn
 const booking = { chartNo: '123', name: '가상환자', date: '2026-11-28', time: '14:00', doctorName: '가상원장' };
 const payload = () => ({ ok: true, readOnlyVerified: true, elapsedMs: 10, visits: [visit], bookings: [booking] });
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); return { promise, resolve, reject }; };
+
+test('SELECT-only execution guard blocks write, DDL, administration and external SQL before starting a worker',async()=>{
+  let starts=0;
+  for(const sql of ['UPDATE dbo.DigMast SET x=1', 'SELECT 1; DELETE FROM dbo.DigBook',
+    'SELECT * INTO other FROM dbo.DigMast','ALTER DATABASE BogamDB SET COMPATIBILITY_LEVEL=110',
+    'EXEC sp_executesql N\'DELETE FROM dbo.DigMast\'', 'GRANT SELECT TO someone', 'SELECT * FROM OPENQUERY(x,\'DELETE FROM t\')']) {
+    await assert.rejects(execute({sql,parameters:{}},{launch:()=>{starts++;throw Error('must not launch');}}),/SELECT_ONLY_REQUIRED/);
+  }
+  assert.equal(starts,0);
+  for(const sql of [accountSql,schemaSql,principalsSql,buildQuery(request,{mappingVerified:true,dateStorage:'yyyymmdd'}).sql,
+    "SELECT 'UPDATE; DELETE' AS harmless; SELECT 1 -- DELETE\n"])assert.doesNotThrow(()=>assertSelectOnly(sql));
+});
+test('scoped refresh reads only selected source tables, validates only its date range, and rejects cross-scope data',()=>{
+  const visits=sync.ranges({scope:'visits',visits:period});
+  const bookings=sync.ranges({scope:'bookings',bookings:period});
+  const config={mappingVerified:true,dateStorage:'yyyymmdd'};
+  const v=buildQuery(visits,config),b=buildQuery(bookings,config);
+  assert.match(v.sql,/dbo\.DigMast/);assert.doesNotMatch(v.sql,/dbo\.DigBook/);assert.equal(v.parameters.bStart,undefined);
+  assert.match(b.sql,/dbo\.DigBook/);assert.doesNotMatch(b.sql,/dbo\.(DigMast|DigAccept|DigBill|Account|DigSick|MediHanSick)\b/);assert.equal(b.parameters.vStart,undefined);
+  assertSelectOnly(v.sql);assertSelectOnly(b.sql);
+  assert.throws(()=>sync.normalize(payload(),visits),/INVALID_SOURCE_DATA/);
+  const vr=sourceResult([[{readOnlyVerified:false}],[visit]],visits,{},false,10);
+  assert.equal(vr.scope,'visits');assert.deepEqual(vr.bookings,[]);
+  const br=sourceResult([[{readOnlyVerified:false}],[booking]],bookings,{},false,10);
+  assert.equal(br.scope,'bookings');assert.deepEqual(br.visits,[]);
+});
+test('different scopes cannot overlap and outdated bridges cannot silently perform a combined import',async()=>{
+  const gate=deferred();let writes=0;
+  const c=sync.createCoordinator({enabled:true,applyEnabled:true,publish:()=>{},fetchSource:()=>gate.promise,apply:()=>{writes++;return{appliedAt:'ok'};}});
+  const first=c.run({scope:'visits',visits:period});
+  await assert.rejects(c.run({scope:'bookings',bookings:period}),/SYNC_BUSY/);
+  gate.resolve(payload());await assert.rejects(first,/BRIDGE_UPDATE_REQUIRED/);assert.equal(writes,0);
+});
+
+test('generated SELECT batch parses with Microsoft compatibility-100 grammar without a database',t=>{
+  const dll=process.env.BOGAM_SQL_PARSER_DLL;
+  if(process.platform!=='win32'||!dll){t.skip('Set BOGAM_SQL_PARSER_DLL to the official ScriptDom assembly');return;}
+  const cfg={mappingVerified:true,dateStorage:'yyyymmdd'};
+  const sql=[buildQuery(request,cfg).sql,buildQuery({scope:'visits',visits:period},cfg).sql,buildQuery({scope:'bookings',bookings:period},cfg).sql,schemaSql,principalsSql].join(';');
+  const command=`$ErrorActionPreference='Stop';Add-Type -Path '${dll.replace(/'/g,"''")}'
+    [Console]::InputEncoding=New-Object System.Text.UTF8Encoding($false)
+    $parser=New-Object Microsoft.SqlServer.TransactSql.ScriptDom.TSql100Parser($true)
+    $reader=New-Object System.IO.StringReader([Console]::In.ReadToEnd())
+    $parseErrors=$null;$null=$parser.Parse($reader,[ref]$parseErrors)
+    if($parseErrors.Count){$parseErrors|ForEach-Object{Write-Output $_.Number};exit 1}
+    Write-Output 'TSQL100_OK'`;
+  const r=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',command],{input:sql,encoding:'utf8',windowsHide:true,timeout:10000});
+  assert.equal(r.status,0,r.stdout+r.stderr);assert.match(r.stdout,/TSQL100_OK/);
+});
+
+test('Windows PowerShell builds the real worker connection without invalid dictionary keywords or opening SQL',t=>{
+  if(process.platform!=='win32'){t.skip('Windows PowerShell compatibility test');return;}
+  const script=fs.readFileSync(path.join(__dirname,'../bogam-bridge/query.ps1'),'utf8');
+  const start=script.indexOf('    # Shared memory'),end=script.indexOf("    $stage = 'connection'",start);
+  assert.ok(start>=0&&end>start);const construction=script.slice(start,end);assert.doesNotMatch(construction,/\.Open\(/);
+  const command=`$ErrorActionPreference='Stop';Add-Type -AssemblyName System.Data;${construction}
+    if($connection.State -ne [System.Data.ConnectionState]::Closed){throw 'unexpected state'}
+    if($connection.ConnectionTimeout -ne 3){throw 'timeout mismatch'}
+    $parsed=New-Object System.Data.SqlClient.SqlConnectionStringBuilder($connection.ConnectionString)
+    if(-not $parsed.IntegratedSecurity -or $parsed.Pooling){throw 'settings mismatch'}
+    if($parsed.DataSource -ne 'lpc:.\\SQLEXPRESS' -or $parsed.InitialCatalog -ne 'BogamDB'){throw 'target mismatch'}
+    $connection.Dispose();Write-Output 'CONSTRUCTION_OK'`;
+  const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',command],{encoding:'utf8',windowsHide:true,timeout:10000});
+  assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/CONSTRUCTION_OK/);
+});
+
+test('manual worker diagnosis reports only fixed stages and numeric error metadata, never raw exceptions',async()=>{
+  const raw={stage:'query',sqlNumber:102,sqlLine:3,scriptLine:40,exceptionType:'SqlException',message:'환자 식별값 비밀',query:'sensitive SQL',token:'secret'};
+  assert.deepEqual(safeDiagnostic(raw),{stage:'query',scriptLine:40,sqlNumber:102,sqlLine:3,exceptionType:'SqlException'});
+  assert.deepEqual(safeDiagnostic({stage:'환자정보',sqlNumber:'1234',exceptionType:'bad info'}),{});
+  const launch=()=>{
+    const child=new EventEmitter();child.stdout=new PassThrough();child.stdin=new PassThrough();child.kill=()=>{};
+    child.stdin.on('finish',()=>{child.stdout.write(JSON.stringify({ok:false,code:'SOURCE_REJECTED',diagnostic:raw}));child.emit('close',1);});
+    return child;
+  };
+  await assert.rejects(execute({sql:'SELECT 1',parameters:{}},{launch,diagnostics:true}),error=>{
+    assert.deepEqual(error.diagnostic,safeDiagnostic(raw));assert.ok(!JSON.stringify(error).includes('비밀'));return error.code==='SOURCE_REJECTED';
+  });
+  await assert.rejects(execute({sql:'SELECT 1',parameters:{}},{launch}),error=>error.diagnostic===undefined);
+});
 
 test('range validation allows any weekday/hour but rejects invalid, reversed and excessive dates', () => {
   assert.deepEqual(sync.ranges(request), request);
@@ -106,13 +188,12 @@ test('dry run never writes, failure preserves last success, and lock is released
   assert.equal(c.status().lastAppliedAt, 'prior'); assert.equal(c.status().running, false);
   rejectSource = false; await c.run(request); assert.equal(c.status().phase, 'validated');
 });
-test('apply requires read-only attestation and validated complete response', async () => {
-  let writes = 0;
-  for (const response of [{ ...payload(), readOnlyVerified: false }, { ...payload(), bookings: null }]) {
-    const c = sync.createCoordinator({ enabled: true, applyEnabled: true, publish: () => {}, fetchSource: async () => response, apply: () => writes++ });
-    await assert.rejects(c.run(request));
-  }
-  assert.equal(writes, 0);
+test('existing writable account can be used for fixed SELECTs, while malformed responses still cannot apply',async()=>{
+  let writes=0;
+  const c=sync.createCoordinator({enabled:true,applyEnabled:true,publish:()=>{},fetchSource:async()=>({...payload(),readOnlyVerified:false}),apply:()=>{writes++;return{appliedAt:'success'};}});
+  await c.run(request);assert.equal(writes,1);
+  const bad=sync.createCoordinator({enabled:true,applyEnabled:true,publish:()=>{},fetchSource:async()=>({...payload(),bookings:null}),apply:()=>writes++});
+  await assert.rejects(bad.run(request));assert.equal(writes,1);
 });
 
 function database() {
@@ -146,7 +227,7 @@ test('production apply transaction rolls back patients, bookings and last succes
   const setStateValue = (key,value) => db.prepare('INSERT OR REPLACE INTO fake_state VALUES(?,?)').run(key, JSON.stringify(value));
   const getStateValue = key => { const row=db.prepare('SELECT data FROM fake_state WHERE key=?').get(key); return row ? JSON.parse(row.data) : null; };
   setStateValue('bogamSyncStatus',{lastAppliedAt:'prior'});
-  const c = vm.createContext({ bogamSync: sync, bogamTransport: { loadConfig: () => ({ enabled:true,applyEnabled:true }), createTransport: () => async () => payload() },
+  const c = vm.createContext({ bogamSync: sync, bogamTransport: { loadConfig: () => ({ enabled:true,applyEnabled:true }), createTransport: () => async body => ({...payload(),scope:body.scope||'all',visits:body.scope==='bookings'?[]:[visit],bookings:body.scope==='visits'?[]:[booking],readOnlyVerified:false}) },
     process: {env:{}}, getStateValue, setStateValue, sseBroadcastState:()=>{}, stateValueCache:new Map(), db,
     getPatientsByChartNo: chart => { const row=db.prepare('SELECT data FROM fake_patients WHERE chart=?').get(chart);return row ? [JSON.parse(row.data)] : []; },
     mergePatientImportRecord:x=>x, savePatient: x => db.prepare('INSERT OR REPLACE INTO fake_patients VALUES(?,?)').run(x.chartNo,JSON.stringify(x)),
@@ -162,7 +243,18 @@ test('production apply transaction rolls back patients, bookings and last succes
   failWrite=false;await coordinator.run(request);await coordinator.run(request);
   assert.equal(db.prepare('SELECT count(*) AS n FROM fake_patients').get().n,1);
   assert.equal(store.read('2026-11-28').entries.length,1);
-  assert.notEqual(getStateValue('bogamSyncStatus').lastAppliedAt,'prior');db.close();
+  assert.notEqual(getStateValue('bogamSyncStatus').lastAppliedAt,'prior');
+  const bookingRevision=store.read('2026-11-28').revision;
+  const bookingStamp=getStateValue('bogamSyncStatus').lastAppliedAtByScope.bookings;
+  await coordinator.run({scope:'visits',visits:period});
+  assert.equal(store.read('2026-11-28').revision,bookingRevision);
+  assert.equal(getStateValue('bogamSyncStatus').lastAppliedAtByScope.bookings,bookingStamp);
+  const patientBefore=db.prepare('SELECT data FROM fake_patients').get().data;
+  const visitStamp=getStateValue('bogamSyncStatus').lastAppliedAtByScope.visits;
+  await coordinator.run({scope:'bookings',bookings:period});
+  assert.equal(db.prepare('SELECT data FROM fake_patients').get().data,patientBefore);
+  assert.equal(getStateValue('bogamSyncStatus').lastAppliedAtByScope.visits,visitStamp);
+  db.close();
 });
 
 
@@ -305,21 +397,24 @@ test('query uses confirmed source tables, native range predicates and parameters
   assert.match(accountSql,/fn_my_permissions/);
   assert.match(q.sql,/h\.ms_Code=s\.DiagnosisCode AND h\.ms_No=s\.DiagnosisNo/);
   assert.match(q.sql,/COUNT\(DISTINCT[\s\S]*?h\.ms_Name/);
-  assert.match(q.sql,/s\.RowCount=1 AND dn\.NameCount=1/);
-  assert.match(q.sql,/h\.ms_DueDate[\s\S]*?<= TRY_CONVERT\(date, CONVERT\(nvarchar\(30\), m\.dm_DiagDate/);
-  assert.match(q.sql,/h\.ms_ExpDate[\s\S]*?>= TRY_CONVERT\(date, CONVERT\(nvarchar\(30\), m\.dm_DiagDate/);
+  assert.match(q.sql,/s\.CandidateRows=1 AND dn\.NameCount=1/);
+  assert.match(q.sql,/h\.ms_DueDate[\s\S]*?<= CONVERT\(datetime, CASE WHEN[\s\S]*?m\.dm_DiagDate/);
+  assert.match(q.sql,/h\.ms_ExpDate[\s\S]*?>= CONVERT\(datetime, CASE WHEN[\s\S]*?m\.dm_DiagDate/);
+  assert.doesNotMatch(q.sql,/\bTRY_CONVERT\b/i);
+  assert.doesNotMatch(q.sql,/\bRowCount\b/i);
+  assert.match(q.sql,/ISDATE\([\s\S]*?THEN[\s\S]*?ELSE NULL END, 112\)/);
   assert.doesNotMatch(q.sql,/dbo\.MediHSick\b/);
   assert.match(q.sql,/m\.dm_DiagMode\) AS visitModeCode/);assert.doesNotMatch(q.sql,/dm_DiagType/);
   assert.match(q.sql,/i\.inc_Code=a\.da_InsuKind/);
   assert.doesNotMatch(q.sql,/dbk_Accept|dbk_BookID/);
 });
-test('bridge dry-run returns counts only; unmapped doctors and admin accounts cannot enable live apply', () => {
+test('bridge dry-run returns counts only; unmapped doctors block apply independently of account permissions', () => {
   const raw = [{...visit,doctorName:null}];
   const sets=[[{readOnlyVerified:false}],raw,[{...booking,doctorName:null}]];
   const result=sourceResult(sets,request,{doctorNames:{}},true,10);
   assert.equal(result.counts.unmappedDoctors,2);assert.equal(result.readOnlyVerified,false);
   assert.ok(!JSON.stringify(result).includes('가상환자'));assert.equal(result.visits,undefined);
-  assert.throws(()=>sourceResult(sets,request,{doctorNames:{A:'가상원장'}},false,10),/READ_ONLY/);
+  assert.throws(()=>sourceResult(sets,request,{doctorNames:{A:'가상원장'}},false,10),/UNMAPPED/);
   sets[0][0].readOnlyVerified=true;
   assert.throws(()=>sourceResult(sets,request,{doctorNames:{}},false,10),/UNMAPPED/);
   sets[1][0].doctorName='DB원장'; sets[2][0].doctorName='DB원장';
@@ -359,24 +454,29 @@ test('transport enforces TLS, bounded whole-request timeout, safe network errors
   t.mock.timers.tick(16000);await rejected;t.mock.timers.reset();
 });
 
-test('refresh UI guards duplicate clicks, retains last success on failure, and sends only requested ranges', async()=>{
+test('both refresh buttons send only selected dates, lock together and preserve independent timestamps on failure',async()=>{
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
   const start=html.indexOf('  let bogamSyncState ='),end=html.indexOf("  migrateNode('appointmentsRevision'",start);
-  const gate=deferred(),requests=[],elements=new Map();
-  for(const id of ['bogamSyncBtn','bogamSyncStatus','bogamSyncLastApplied','bogamVisitsStart','bogamVisitsEnd','bogamBookingsStart','bogamBookingsEnd']) elements.set(id,{value:id.endsWith('Start')?period.start:period.end});
-  const c=vm.createContext({window:{currentMode:'input'},getAppView:()=> 'desk',isDoctorReadOnlyPage:()=>false,
-    document:{getElementById:id=>elements.get(id)},AppointmentImport:require('../appointment-import'),
-    localStorage:{setItem:()=>{}},migrateNode:()=>{},
-    fetch:async(url,options)=>{requests.push({url,options});return gate.promise;},
-    refreshDeskAppointmentButtons:()=>{},refreshAppointmentAlerts:()=>{},updateChartDbCount:()=>{} });
-  vm.runInContext(html.slice(start,end),c);
-  vm.runInContext("renderBogamSyncStatus({enabled:true,lastAppliedAt:'2026-11-27T03:00:00Z'})",c);
-  const first=vm.runInContext('window.refreshFromBogam()',c);
-  assert.equal(elements.get('bogamSyncBtn').disabled,true);
-  await vm.runInContext('window.refreshFromBogam()',c);assert.equal(requests.length,1);
-  assert.deepEqual(JSON.parse(requests[0].options.body),request);
-  gate.resolve({ok:false,status:504,json:async()=>({code:'SYNC_TIMEOUT'})});await first;
-  assert.equal(elements.get('bogamSyncBtn').disabled,false);
-  assert.match(elements.get('bogamSyncStatus').textContent,/시간 초과/);
-  assert.match(elements.get('bogamSyncLastApplied').textContent,/2026/);
+  for(const scope of ['visits','bookings']) {
+    const gate=deferred(),requests=[],elements=new Map();
+    for(const id of ['bogamVisitsSyncBtn','bogamBookingsSyncBtn','bogamSyncStatus','bogamVisitsLastApplied','bogamBookingsLastApplied','bogamVisitsStart','bogamVisitsEnd','bogamBookingsStart','bogamBookingsEnd'])elements.set(id,{value:id.endsWith('Start')?period.start:period.end});
+    const other=scope==='visits'?'Bookings':'Visits';
+    elements.get(`bogam${other}Start`).value='invalid-unused-date';
+    const c=vm.createContext({window:{currentMode:'input'},getAppView:()=> 'desk',isDoctorReadOnlyPage:()=>false,
+      document:{getElementById:id=>elements.get(id)},AppointmentImport:require('../appointment-import'),
+      localStorage:{getItem:()=>null,setItem:()=>{}},migrateNode:()=>{},
+      fetch:async(url,options)=>{requests.push({url,options});return gate.promise;},
+      refreshDeskAppointmentButtons:()=>{},refreshAppointmentAlerts:()=>{},updateChartDbCount:()=>{} });
+    vm.runInContext(html.slice(start,end),c);
+    vm.runInContext("renderBogamSyncStatus({enabled:true,lastAppliedAtByScope:{visits:'2026-11-27T03:00:00Z',bookings:'2026-11-26T03:00:00Z'}})",c);
+    const before=[elements.get('bogamVisitsLastApplied').textContent,elements.get('bogamBookingsLastApplied').textContent];
+    const first=vm.runInContext(`window.refreshFromBogam('${scope}')`,c);
+    assert.equal(elements.get('bogamVisitsSyncBtn').disabled,true);assert.equal(elements.get('bogamBookingsSyncBtn').disabled,true);
+    await vm.runInContext(`window.refreshFromBogam('${scope}')`,c);assert.equal(requests.length,1);
+    assert.deepEqual(JSON.parse(requests[0].options.body),{scope,[scope]:period});
+    gate.resolve({ok:false,status:504,json:async()=>({code:'SYNC_TIMEOUT'})});await first;
+    assert.equal(elements.get('bogamVisitsSyncBtn').disabled,false);assert.equal(elements.get('bogamBookingsSyncBtn').disabled,false);
+    assert.match(elements.get('bogamSyncStatus').textContent,/시간 초과/);
+    assert.deepEqual([elements.get('bogamVisitsLastApplied').textContent,elements.get('bogamBookingsLastApplied').textContent],before);
+  }
 });
