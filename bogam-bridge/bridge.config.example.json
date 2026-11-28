@@ -1,0 +1,11 @@
+{
+  "listenHost": "192.168.0.20",
+  "port": 8788,
+  "allowedClientIp": "192.168.0.10",
+  "tokenFile": "C:\\private-bogam\\bridge-token.txt",
+  "pfxFile": "C:\\private-bogam\\bridge.pfx",
+  "pfxPasswordFile": "C:\\private-bogam\\pfx-password.txt",
+  "applyEnabled": false,
+  "mappingVerified": false,
+  "dateStorage": "UNCONFIRMED"
+}

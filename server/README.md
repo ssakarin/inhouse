@@ -128,6 +128,18 @@ An imported snapshot replaces the roster for its date only, including an explici
 zero-patient snapshot. Patient visit history and the old manual booking fields are
 preserved. Existing `appointment_settings.cutoverDate` values are no longer used.
 
+### On-demand Donguibogam refresh
+
+Desk's **오늘 n/m명** popup includes **동의보감 새로고침** with separate visit and
+appointment date ranges. It contacts a local SELECT-only bridge on the Donguibogam
+desk PC only when clicked. The default is disabled/unconfigured, and both bridge
+and server default to dry-run until on-site checks are complete. Manual Excel
+imports remain available. See [installation, verification and stop instructions](../bogam-bridge/README.md).
+
+Configure the server with `BOGAM_SYNC_CONFIG` pointing to a private external JSON
+file; never place bridge credentials or certificates with private keys in this
+repository. No SQL Server ports, accounts, permissions or settings are changed.
+
 ### Scheduled backups
 
 Patient DB daily backup:

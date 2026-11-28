@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "applyEnabled": false,
+  "url": "https://192.168.0.20:8788/",
+  "tokenFile": "C:\\private-bogam-server\\bridge-token.txt",
+  "caFile": "C:\\private-bogam-server\\bridge-cert.pem"
+}

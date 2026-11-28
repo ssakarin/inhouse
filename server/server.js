@@ -112,6 +112,49 @@ db.exec(`
 `);
 
 const appointmentStore = require('./appointments').createStore(db, { encrypt, decrypt });
+const bogamSync = require('./bogam-sync');
+const bogamTransport = require('./bogam-transport');
+// No background DB polling: the transport is called only by POST /refresh.
+// Initialized lazily, after schema/statements are ready on the first API call.
+let bogamCoordinator;
+function getBogamCoordinator() {
+  if (bogamCoordinator) return bogamCoordinator;
+  const config = bogamTransport.loadConfig(process.env.BOGAM_SYNC_CONFIG);
+  bogamCoordinator = bogamSync.createCoordinator({
+    enabled: config.enabled, applyEnabled: config.applyEnabled,
+    initialStatus: getStateValue('bogamSyncStatus') || {},
+    fetchSource: bogamTransport.createTransport(config),
+    publish: status => { setStateValue('bogamSyncStatus', status); sseBroadcastState('bogamSyncStatus', status); },
+    apply: data => {
+      const importStats = {};
+      const records = bogamSync.planPatients(data.visits, getPatientsByChartNo, importStats);
+      const appliedAt = new Date().toISOString();
+      const stateBefore = new Map(stateValueCache);
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        records.forEach(record => savePatient(mergePatientImportRecord(record, true)));
+        appointmentStore.replaceFromBogam(data.groups, appliedAt);
+        const revision = { importedAt: appliedAt, revision: crypto.randomUUID() };
+        setStateValue('appointmentsRevision', revision);
+        // Persist success in the SAME transaction as patients and bookings.
+        setStateValue('bogamSyncStatus', { ...getBogamCoordinator().status(), running: false,
+          phase: 'completed', lastAppliedAt: appliedAt });
+        db.exec('COMMIT');
+        sseBroadcastState('appointmentsRevision', revision);
+      } catch (error) {
+        try { db.exec('ROLLBACK'); } catch {}
+        stateValueCache.clear();
+        for (const [key, value] of stateBefore) stateValueCache.set(key, value);
+        invalidatePatientCache();
+        throw error;
+      }
+      const requestedDates = new Set(data.visits.map(row => row.date));
+      const multipleVisitDays = records.reduce((n,p) => n + (p.bogamMultipleVisitDates || []).filter(date => requestedDates.has(date)).length, 0);
+      return { appliedAt, patients: records.length, multipleVisitDays, ...importStats };
+    }
+  });
+  return bogamCoordinator;
+}
 
 db.exec(`CREATE TABLE IF NOT EXISTS daily_clinic_metrics (date TEXT PRIMARY KEY, data_json TEXT NOT NULL, source_file TEXT NOT NULL, imported_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS daily_clinic_metrics_imports (id INTEGER PRIMARY KEY AUTOINCREMENT, source_file TEXT NOT NULL, imported_at TEXT NOT NULL, previous_json TEXT NOT NULL);`);
@@ -1195,7 +1238,7 @@ function isPrescriptionVisit(record = {}, date) {
 function normalizeVisitType(value) {
   const text = String(value || "").trim().replace(/\s+/g, "");
   if (text.includes("초진")) return "초진";
-  if (text.includes("재진")) return "재진";
+  if (text.includes("재진") || text === "자보(재)") return "재진";
   return "";
 }
 
@@ -4961,6 +5004,23 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/api/patients/count" && req.method === "GET") {
     jsonResponse(res, 200, { count: countPatients() });
+    return true;
+  }
+
+  if (pathname === '/api/bogam-sync/status' && req.method === 'GET') {
+    try { jsonResponse(res, 200, getBogamCoordinator().status()); }
+    catch { jsonResponse(res, 503, { code: 'SOURCE_NOT_CONFIGURED' }); }
+    return true;
+  }
+  if (pathname === '/api/bogam-sync/refresh' && req.method === 'POST') {
+    // Same authentication gate as existing imports. Reject cross-site form/fetch.
+    const origin = req.headers.origin;
+    if (req.headers['sec-fetch-site'] === 'cross-site' || (origin && new URL(origin).host !== req.headers.host)
+        || !String(req.headers['content-type'] || '').startsWith('application/json')) {
+      jsonResponse(res, 403, { code: 'FORBIDDEN' }); return true;
+    }
+    try { jsonResponse(res, 200, await getBogamCoordinator().run(await readJson(req))); }
+    catch (error) { jsonResponse(res, error.statusCode || 503, { code: error.code || 'SOURCE_NOT_CONFIGURED' }); }
     return true;
   }
 

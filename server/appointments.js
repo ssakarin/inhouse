@@ -39,16 +39,27 @@ function createStore(db, { encrypt, decrypt }) {
       if (previous.some((row, index) => (row?.revision || 0) !== item.revisions[index])) {
         const error = Error('다른 데스크에서 해당 날짜의 명단을 변경했습니다. 다시 불러와 확인해주세요'); error.statusCode = 409; throw error;
       }
-      db.prepare('INSERT INTO appointment_import_log(source_file,imported_at,previous_json) VALUES(?,?,?)')
-        .run(item.sourceFile, stamp, encrypt(JSON.stringify(previous)));
-      const write = db.prepare(`INSERT INTO appointment_snapshots VALUES(?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET
-        data_json=excluded.data_json,source_file=excluded.source_file,imported_at=excluded.imported_at,revision=excluded.revision`);
-      item.groups.forEach((group, index) => write.run(group.date, encrypt(JSON.stringify(group.entries)), item.sourceFile, stamp, item.revisions[index] + 1));
+      writeGroups(item.groups, item.sourceFile, stamp, previous);
       db.exec('COMMIT');
       pending.delete(token);
       return { ok: true, importedAt: stamp, dates: item.groups.map(group => group.date) };
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
-  return { read, list, preview, commit };
+  function writeGroups(groups, sourceFile, stamp, previous) {
+    db.prepare('INSERT INTO appointment_import_log(source_file,imported_at,previous_json) VALUES(?,?,?)')
+      .run(sourceFile, stamp, encrypt(JSON.stringify(previous)));
+    const write = db.prepare(`INSERT INTO appointment_snapshots VALUES(?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET
+      data_json=excluded.data_json,source_file=excluded.source_file,imported_at=excluded.imported_at,revision=excluded.revision`);
+    groups.forEach((group, i) => write.run(group.date, encrypt(JSON.stringify(group.entries)),
+      sourceFile, stamp, (previous[i]?.revision || 0) + 1));
+  }
+  // Same date replacement as manual Excel, in the caller's SQLite transaction.
+  // Dates absent from the result are NOT implicitly cleared (as with Excel).
+  function replaceFromBogam(groups, stamp) {
+    if (!groups.length) return;
+    const validated = appointmentImport.validate(groups.flatMap(group => group.entries));
+    writeGroups(validated, '동의보감 직접 조회 (엑셀 방식 교체)', stamp, validated.map(group => read(group.date)));
+  }
+  return { read, list, preview, commit, replaceFromBogam };
 }
 module.exports = { createStore };
