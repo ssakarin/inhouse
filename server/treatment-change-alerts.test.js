@@ -112,3 +112,30 @@ test('doctor edits produce alerts despite sharing input mode; only desk edits ar
   assert.equal(requests[0].treatmentChangeSource,expected,`${view}/${mode}`);
  }
 });
+
+
+test('daily cleanup deletes old treatment alerts regardless of acknowledgement and persists today', async () => {
+ const html=fs.readFileSync(`${__dirname}/../index.html`,'utf8');
+ const start=html.indexOf('  async function cleanupStaleTreatmentDeskAlerts(');
+ const end=html.indexOf('  function syncAppointmentDeskAlertsForCurrentDate(',start);
+ const today='2026-11-28';
+ const items=new Map([
+  ['oldPending',{timestamp:'2026-11-27',acknowledgedAt:null}],
+  ['oldConfirmed',{timestamp:'2026-11-27',acknowledgedAt:1}],
+  ['todayPending',{timestamp:today}],
+  ['todayConfirmed',{timestamp:today,acknowledgedAt:1}]
+ ]);
+ const writes=[];
+ const c=vm.createContext({window:{getAppView:()=> 'desk'},treatmentDeskAlertItems:items,
+  getTodayKey:()=>today,isTimestampOnDate:(timestamp,date)=>timestamp===date,
+  renderUpcomingAlerts:()=>{},setLocalNode:async(key,value)=>writes.push([key,value]),console});
+ await vm.runInContext(`${html.slice(start,end)}\ncleanupStaleTreatmentDeskAlerts()`,c);
+ assert.deepEqual([...items.keys()],['todayPending','todayConfirmed']);
+ assert.equal(writes.length,1);
+ assert.equal(writes[0][0],'treatmentDeskAlerts');
+ assert.deepEqual(Object.keys(writes[0][1]),['todayPending','todayConfirmed']);
+ await vm.runInContext('cleanupStaleTreatmentDeskAlerts()',c);
+ assert.equal(writes.length,1);
+ assert.match(html,/cleanupStaleAppointmentDeskAlerts\(today\);\s*cleanupStaleTreatmentDeskAlerts\(today\);/);
+ assert.match(html,/cleanupStaleTreatmentDeskAlerts\(getTodayKey\(\)\);/);
+});

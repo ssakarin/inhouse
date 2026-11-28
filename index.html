@@ -10956,11 +10956,27 @@
     }
   }
 
+  async function cleanupStaleTreatmentDeskAlerts(dateKey = getTodayKey()) {
+    if (globalThis.window?.getAppView?.() === 'doctor') return;
+    const keptEntries = [...treatmentDeskAlertItems.entries()]
+      .filter(([, data]) => isTimestampOnDate(data?.timestamp, dateKey));
+    if (keptEntries.length === treatmentDeskAlertItems.size) return;
+    treatmentDeskAlertItems.clear();
+    keptEntries.forEach(([key, data]) => treatmentDeskAlertItems.set(key, data));
+    renderUpcomingAlerts();
+    try {
+      await setLocalNode('treatmentDeskAlerts', Object.fromEntries(keptEntries));
+    } catch (e) {
+      console.error('treatment desk alert cleanup failed', e);
+    }
+  }
+
   function syncAppointmentDeskAlertsForCurrentDate() {
     const today = getTodayKey();
     if (today === lastAppointmentDeskAlertDate) return;
     lastAppointmentDeskAlertDate = today;
     cleanupStaleAppointmentDeskAlerts(today);
+    cleanupStaleTreatmentDeskAlerts(today);
     renderHerbalFollowupForm('desk', selectedChartPatientByScope.desk);
     renderHerbalFollowupForm('receive', selectedChartPatientByScope.receive);
     renderWaitingLists();
@@ -11191,6 +11207,7 @@
     Object.entries(value || {}).forEach(([key, item]) => {
       if (item) treatmentDeskAlertItems.set(key, item);
     });
+    cleanupStaleTreatmentDeskAlerts(getTodayKey());
     renderUpcomingAlerts();
   });
 
