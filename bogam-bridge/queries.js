@@ -114,7 +114,8 @@ function buildQuery(body, config) {
     CONVERT(nvarchar(100), c.cm_CustName) AS name,
     CONVERT(nvarchar(30), b.dbk_DiagDate, 126) AS date,
     CONVERT(nvarchar(30), b.dbk_DiagTime, 108) AS time,
-    CONVERT(nvarchar(100), e.emp_Name) AS doctorName
+    CONVERT(nvarchar(100), e.emp_Name) AS doctorName,
+    CONVERT(nvarchar(255), b.dbk_Notice) AS note
     FROM dbo.DigBook b LEFT JOIN dbo.CustMast c ON c.cm_CustID=b.dbk_CustID
     LEFT JOIN dbo.Employe e ON e.emp_Code=b.dbk_DrEmp
     WHERE b.dbk_DiagDate >= @bStart AND b.dbk_DiagDate < @bEnd`;

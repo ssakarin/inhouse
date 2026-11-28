@@ -117,7 +117,7 @@ function normalize(payload, requested) {
     seen.set(key, item);
     return item;
   });
-  const bookings = payload.bookings.map(row => ({ ...identity(row), date: within(row.date, requested.bookings), time: time(row.time) }));
+  const bookings = payload.bookings.map(row => ({ ...identity(row), date: within(row.date, requested.bookings), time: time(row.time), ...(optionalText(row.note, 2000) ? { note: optionalText(row.note, 2000) } : {}) }));
   // Apply the same validation/slot deduplication as manual Excel imports.
   const groups = bookings.length ? appointments.validate(bookings) : [];
   return { scope: requested.scope || 'all', visits: [...new Map(visits.map(row => [JSON.stringify([row.diagnosisId, row.customerId, row.date]), row])).values()], groups };

@@ -19,7 +19,7 @@ SQL Server TCP 포트나 SQL Browser 포트는 개방하지 않습니다. 데스
 | 고객 | `dbo.CustMast.cm_CustID` → `cm_ChartID`, `cm_CustName` |
 | 의사명 | `dm_DrEmp` / `dbk_DrEmp` → `Employe.emp_Code` → `emp_Name` (진료 52/52, 예약 39/39 일치 보고) |
 
-예약 조회 기간은 **방문 예정일 `dbk_DiagDate`** 기준입니다. 예약을 등록한 `dbk_BookDate/Time`을 방문 시각으로 사용하지 않습니다. `TreatRoom`, `TreatRoomHist`는 조회하지 않습니다. 검증된 금액과 주상병코드를 가져옵니다. 주상병명은 아래 유효 기간·이름 유일성 조건을 만족할 때만 갱신합니다. 치료 종류·예약 메모는 가져오지 않습니다. 고객코드가 차트번호라고 가정하지 않습니다.
+예약 조회 기간은 **방문 예정일 `dbk_DiagDate`** 기준입니다. 예약을 등록한 `dbk_BookDate/Time`을 방문 시각으로 사용하지 않습니다. `TreatRoom`, `TreatRoomHist`는 조회하지 않습니다. 검증된 금액과 주상병코드를 가져옵니다. 주상병명은 아래 유효 기간·이름 유일성 조건을 만족할 때만 갱신합니다. 치료 종류는 가져오지 않습니다. 예약 내용은 아래 dbk_Notice 규칙으로 가져옵니다. 고객코드가 차트번호라고 가정하지 않습니다.
 
 ### 기존 엑셀 로직과 병합 정책
 
@@ -229,3 +229,50 @@ DB 연결은 성공하지만 --inspect가 실패하면 `node .\bogam-bridge\brid
 - 두 버튼의 기간 설정과 마지막 실제 반영 시각은 독립적입니다. 검증 모드·실패에서는 두 성공 시각 모두 유지합니다. 하나가 실행 중이면 다른 버튼도 비활성화하고 서버와 데스크의 단일 조회 잠금을 유지합니다. 같은 scope/기간의 동시 요청은 공유하고 다른 요청은 SYNC_BUSY로 거절합니다.
 - 구버전 단일 버튼/명령과의 호환을 위해 scope를 생략한 기존 요청과 CLI --check는 두 자료를 함께 조회할 수 있습니다. 새 Desk UI에는 개별 버튼만 표시합니다. 새 scope 응답이 없는 구버전 브리지에서는 반영을 막고 BRIDGE_UPDATE_REQUIRED로 안내합니다.
 - 서버 코드와 데스크 ZIP을 모두 업데이트하고 각 프로세스를 재시작해야 합니다. 기존 인증서·토큰·설정 파일을 새로 만들 필요가 없습니다. 업데이트 자체는 applyEnabled=false를 바꾸지 않습니다.
+
+
+## 데스크 PC 로그인 자동 실행과 BAT 관리
+
+데스크 PC에서 연동 프로그램이 실행 중이어야 서버의 새로고침 버튼이 동작합니다. Windows를 종료하면 연동 프로그램도 종료됩니다. 사용자 요청에 따라 **현재 Windows 사용자 로그인 시 프로그램을 시작하는 기능**을 추가했습니다. 이는 DB 자동 조회/새로고침/예약 작업이 아닙니다. 로그인 전 SYSTEM 서비스로 실행하지 않으며 동의보감을 사용하는 기존 Windows 계정으로 실행합니다.
+
+ZIP의 폴더 구조를 유지해 `C:\inhouse-bogam`에 덮어쓰면 루트에 다음 BAT 파일이 있습니다. 경로가 달라도 BAT 자신의 위치를 기준으로 실행합니다.
+
+| 파일 | 동작 |
+| --- | --- |
+| enable-bogam-startup.bat | 현재 사용자의 시작프로그램에 바로가기 등록. 프로그램 시작이나 DB 조회는 하지 않음 |
+| disable-bogam-startup.bat | 해당 바로가지만 제거. 현재 실행 중인 프로그램은 유지 |
+| start-bogam-bridge.bat | 연동 프로그램만 백그라운드 시작. 이미 실행 중이면 중복 실행하지 않음 |
+| restart-bogam-bridge.bat | 관리 중인 연동 프로그램만 중지 후 백그라운드 재시작 |
+| stop-bogam-bridge.bat | 관리 중인 연동 프로그램만 중지 |
+| status-bogam-bridge.bat | 해당 관리 프로그램의 실행 상태 확인 |
+
+### 처음 적용
+
+1. 기존에 `node .\bogam-bridge\bridge.js`를 실행해둔 PowerShell 창에서 **Ctrl+C**로 기존 수동 실행만 종료합니다. 동의보감과 SQL Server는 그대로 둡니다.
+2. 최신 ZIP을 기존 설치 폴더에 덮어씁니다. 인증서·토큰·설정은 재생성하지 않습니다.
+3. **enable-bogam-startup.bat**을 더블클릭합니다. STARTUP_ENABLED_FOR_CURRENT_WINDOWS_USER_NO_DATABASE_QUERY가 나오면 로그인 자동 시작 등록 완료입니다.
+4. **restart-bogam-bridge.bat**을 더블클릭해 지금 실행합니다. BRIDGE_READY_NO_DATABASE_QUERY_EXECUTED가 나오면 완료입니다. 이후 PowerShell/명령창을 계속 켜둘 필요가 없습니다.
+5. 다음 Windows 로그인 시 자동 실행됩니다. 실행만으로 동의보감 DB를 조회하거나 진료보드에 반영하지 않습니다. 새로고침 버튼을 눌러야 SELECT가 실행됩니다.
+
+BAT가 호출하는 PowerShell에만 RemoteSigned를 지정하고, 이 패키지의 manage-bridge.ps1/query.ps1 두 파일만 다운로드 차단 해제합니다. PC 전체 실행 정책을 변경하거나 Bypass를 설정하지 않습니다. 조직 정책이 이 실행을 금지하면 우회하지 말고 정책 담당자에게 확인하세요. 시작프로그램 바로가기는 윈도우 로그인 폴더에만 생성되며 SQL 설정·계정·권한·포트·예약 작업은 변경하지 않습니다.
+
+일반 시작/재시작 시 BOGAM_BRIDGE_CONFIG가 지정되어 있으면 그 경로를 사용하고, 없으면 `%LOCALAPPDATA%\InhouseBogamBridge\bridge.json`을 사용합니다. 자동 시작 바로가기는 등록 당시의 설정 파일 경로를 명시적으로 기억합니다. 설정 파일을 옮기면 자동 시작을 해제 후 다시 등록하세요. 같은 Windows 사용자로 실행해야 인증서·토큰 접근과 Windows SQL 인증이 기존과 같습니다.
+
+### 실행 제어와 오류
+
+- `runtime\bridge-process.json`에 기록된 PID, 프로세스 시작 시각, 정확한 bridge.js 명령 경로가 모두 맞을 때만 중지합니다. 해당 노드가 실행한 query.ps1 자식 프로세스도 중지합니다. 다른 Node 앱/진료보드 서버/동의보감/SQL Server는 종료하지 않습니다.
+- 기존 수동 Node 창이나 다른 앱이 포트를 사용 중이면 PORT_IN_USE_CLOSE_OLD_BRIDGE_WINDOW_WITH_CTRL_C로 중단합니다. 포트 점유자라고 임의 종료하지 않습니다. 기존 수동 Node 창을 Ctrl+C로 닫고 다시 시도하세요.
+- 로그인 시 로컬 IP가 아직 준비되지 않았다면 최대 30초 동안 로컬 네트워크 주소만 기다린 뒤 시작합니다. SQL이나 원격 서버를 조회하지 않습니다. 계속 준비되지 않으면 LOCAL_ADDRESS_NOT_READY로 종료하므로 네트워크 연결 후 재시작 BAT를 실행하세요.
+- 시작 결과 확인은 로컬 TCP 리스너/PID 검사뿐이며 HTTP 요청이나 SQL 실행을 만들지 않습니다.
+- 시작 실패 시 `%LOCALAPPDATA%\InhouseBogamBridge\runtime\bridge.err.log`와 bridge.out.log를 확인합니다. 사용자 지정 설정이면 설정 파일 옆 runtime 폴더입니다. 로그에는 기존 브리지의 고정 상태/오류 메시지만 기록하며 토큰/환자 데이터는 출력하지 않습니다. 재시작 시 이전 로그는 .previous로 한 세대 보관합니다.
+- 컴퓨터 자체가 꺼져 있거나 Windows 로그인을 하지 않은 상태에서는 연동되지 않습니다. 서버 화면에서 연결 실패가 나도 기존 보드 데이터는 유지됩니다.
+- 자동 시작만 해제하려면 disable-bogam-startup.bat, 지금 실행 중인 프로그램까지 멈추려면 stop-bogam-bridge.bat도 실행합니다. 다시 시작해도 applyEnabled 설정은 변경되지 않습니다.
+
+개발 검증: `node --test server/bogam-lifecycle.test.js`. Windows에서 TCP만 여는 가상 Node 프로그램과 별도 테스트 시작프로그램 폴더를 사용합니다. 개발 PC의 실제 시작프로그램은 등록하지 않고 동의보감 DB에도 연결하지 않습니다.
+
+
+### 예약 내용 표시
+
+예약 행 자체의 DigBook.dbk_Notice(varchar(255))를 note로 조회·검증·암호화 저장하고 달력 하단 환자 리스트의 시간/의사 아래 표시합니다. 별도 메모 테이블 조인이나 변경/취소 추적은 하지 않습니다. 내용이 공란이면 표시하지 않으며 명단 교체 시 과거 내용도 제거됩니다. 표시에는 HTML 이스케이프를 적용합니다. 수동 예약 엑셀의 예약내역/예약내용 열도 선택적으로 읽습니다.
+
+사용자 제공 검증: 고객코드+방문 예정일 연결 및 시각/의사 일치 확인, 2.xls 예약내역 75건 모두 일치(내용 있음 22건, 공란 53건). 현재 동의보감 화면 표시값은 직접 미대조입니다. 동의보감에는 SELECT만 실행하며 예약 내용은 진료보드의 치료 메모와 분리합니다.

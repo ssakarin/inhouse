@@ -140,7 +140,8 @@
   body.app-role-doctor #inputFormToggle,
   body.app-role-doctor #nurseQuickBtnDesk,
   body.app-role-doctor .input-monitor-doctor-alert-card { display: none; }
-  body.app-role-doctor #inputUpcomingAlerts { pointer-events: none; }
+  body.app-role-doctor #inputUpcomingAlerts { pointer-events: auto; }
+  body.app-role-doctor #inputUpcomingAlerts > * { pointer-events: none; }
   body.app-role-doctor .waiting-mode-select { display: none; }
   body.app-mode-input .header-left-desk-controls,
   body.app-role-desk .header-left-desk-controls {
@@ -16223,7 +16224,7 @@
       <div class="appointment-patient-item appointment-readonly">
         <span class="appointment-patient-main"><strong>${escapeHtml(patient.name || '환자')}</strong>${renderAppointmentVisitStatus(patient)}</span>
         ${patient.chartNo ? `<span class="upcoming-sub">${escapeHtml(patient.chartNo)}</span>` : ''}
-        ${(patient.appointmentSlots || []).map(slot => `<span class="upcoming-sub">${escapeHtml([slot.time || '시각 미지정', slot.doctorName].filter(Boolean).join(' · '))}</span>`).join('')}
+        ${(patient.appointmentSlots || []).map(slot => `<span class="upcoming-sub">${escapeHtml([slot.time || '시각 미지정', slot.doctorName].filter(Boolean).join(' · '))}${slot.note ? `<br><span style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(slot.note)}</span>` : ''}</span>`).join('')}
       </div>`
     ).join('') : '<div class="empty-state"><div class="empty-icon">·</div><div class="empty-text">이 날짜에는 예약이 없습니다</div></div>';
   }

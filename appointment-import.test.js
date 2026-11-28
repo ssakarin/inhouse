@@ -161,3 +161,17 @@ test('today R badge follows both legacy and imported rosters and never a bed req
   c.upcomingAppointmentGroups = [{ date: '2026-11-19', source: 'donguibogam', patients: [] }];
   assert.equal(c.isTodayAppointmentPatient(patient), false);
 });
+
+
+test('예약내역 travels through Excel parsing, encrypted snapshots and slots; changed or blank notes replace old notes',t=>{
+ const {store}=setup(t);
+ const parsed=parser.parseWorkbook(XLSX,workbook([headers,['2026-11-19','','09:20','환자1','허진혁','','장시간 치료','','','1']]));
+ assert.equal(parsed[0].note,'장시간 치료');
+ apply(store,parsed);
+ assert.equal(parser.patientsOf(store.read('2026-11-19').entries)[0].appointmentSlots[0].note,'장시간 치료');
+ const changed=[{...parsed[0],note:'<script>예약 내용</script>'}];
+ assert.equal(parser.compare(parsed,changed).changed,1);
+ apply(store,changed);assert.equal(store.read('2026-11-19').entries[0].note,changed[0].note);
+ apply(store,[{...parsed[0],note:''}]);assert.equal(store.read('2026-11-19').entries[0].note,undefined);
+ assert.equal(parser.patientsOf(store.read('2026-11-19').entries)[0].appointmentSlots[0].note,undefined);
+});

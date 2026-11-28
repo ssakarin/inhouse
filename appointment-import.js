@@ -49,8 +49,8 @@
     for (const [index, row] of entries.entries()) {
       try {
         const item = { date: dateValue(row.date), chartNo: chart(row.chartNo), name: text(row.name),
-          time: timeValue(row.time), doctorName: text(row.doctorName) };
-        if (!/^\d{1,30}$/.test(item.chartNo) || !item.name || item.name.length > 100 || item.doctorName.length > 100) throw Error('차트번호와 환자명을 확인해주세요');
+          time: timeValue(row.time), doctorName: text(row.doctorName), ...(text(row.note) ? { note: text(row.note) } : {}) };
+        if (!/^\d{1,30}$/.test(item.chartNo) || !item.name || item.name.length > 100 || item.doctorName.length > 100 || (item.note || '').length > 2000) throw Error('차트번호와 환자명을 확인해주세요');
         if (clears.has(item.date)) throw Error('같은 날짜를 불러오기와 비우기에 동시에 지정할 수 없습니다');
         if (!byDate.has(item.date)) byDate.set(item.date, []);
         byDate.get(item.date).push(item);
@@ -74,12 +74,14 @@
       found = true;
       const headers = rows[headerIndex].map(cell => text(cell).replace(/\s/g, ''));
       const columns = aliases.map(names => headers.findIndex(header => names.includes(header)));
+      const noteColumn = headers.findIndex(header => ['예약내역', '예약내용'].includes(header));
       for (let index = headerIndex + 1; index < rows.length; index++) {
         const row = rows[index];
         if (!row.some(cell => text(cell))) continue;
         try {
           const item = { date: dateValue(row[columns[0]]), time: timeValue(row[columns[1]]),
-            name: text(row[columns[2]]), doctorName: text(row[columns[3]]), chartNo: chart(row[columns[4]]) };
+            name: text(row[columns[2]]), doctorName: text(row[columns[3]]), chartNo: chart(row[columns[4]]),
+            ...(noteColumn >= 0 && text(row[noteColumn]) ? { note: text(row[noteColumn]) } : {}) };
           validate([item]);
           entries.push(item);
         } catch (error) { throw Error(`${sheetName} ${index + 1}행: ${error.message}`); }
@@ -94,7 +96,7 @@
     for (const row of entries) {
       const key = JSON.stringify([row.chartNo, row.name]);
       if (!patients.has(key)) patients.set(key, { chartNo: row.chartNo, name: row.name, appointmentSlots: [] });
-      patients.get(key).appointmentSlots.push({ time: row.time, doctorName: row.doctorName });
+      patients.get(key).appointmentSlots.push({ time: row.time, doctorName: row.doctorName, ...(row.note ? { note: row.note } : {}) });
     }
     return [...patients.values()].map(patient => {
       patient.appointmentSlots.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || a.doctorName.localeCompare(b.doctorName, 'ko'));

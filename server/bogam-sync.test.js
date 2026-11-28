@@ -480,3 +480,13 @@ test('both refresh buttons send only selected dates, lock together and preserve 
     assert.deepEqual([elements.get('bogamVisitsLastApplied').textContent,elements.get('bogamBookingsLastApplied').textContent],before);
   }
 });
+
+
+test('DB booking notice is taken from its own DigBook row and retained through validation',()=>{
+ const query=buildQuery({scope:'bookings',bookings:period},{mappingVerified:true,dateStorage:'yyyymmdd'});
+ assert.match(query.sql,/b\.dbk_Notice\) AS note/);
+ const result=sync.normalize({visits:[],bookings:[{...booking,note:'예약 치료 내용'}]},sync.ranges({scope:'bookings',bookings:period}));
+ assert.equal(result.groups[0].entries[0].note,'예약 치료 내용');
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ assert.ok(html.includes('escapeHtml(slot.note)'));
+});
